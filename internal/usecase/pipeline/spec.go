@@ -20,7 +20,8 @@ type Metadata struct {
 }
 
 type Spec struct {
-	Stages []Stage `json:"stages" yaml:"stages"`
+	Stages         []Stage `json:"stages" yaml:"stages"`
+	TimeoutSeconds int     `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
 }
 
 type Stage struct {
@@ -29,14 +30,17 @@ type Stage struct {
 }
 
 type Job struct {
-	Name     string `json:"name" yaml:"name"`
-	Executor string `json:"executor" yaml:"executor"`
-	Steps    []Step `json:"steps" yaml:"steps"`
+	Name           string `json:"name" yaml:"name"`
+	Executor       string `json:"executor" yaml:"executor"`
+	Retries        int    `json:"retries,omitempty" yaml:"retries,omitempty"`
+	TimeoutSeconds int    `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
+	Steps          []Step `json:"steps" yaml:"steps"`
 }
 
 type Step struct {
-	Name string `json:"name" yaml:"name"`
-	Run  string `json:"run" yaml:"run"`
+	Name           string `json:"name" yaml:"name"`
+	Run            string `json:"run" yaml:"run"`
+	TimeoutSeconds int    `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
 }
 
 func LoadDefinitionFile(path string) (Definition, error) {

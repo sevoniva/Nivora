@@ -4,24 +4,37 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
+	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
 	"github.com/sevoniva/nivora/internal/ports/eventbus"
 	"github.com/sevoniva/nivora/internal/ports/executor"
 )
 
 const (
 	EventPipelineRunCreated   = "devops.pipeline.run.created"
+	EventPipelineRunQueued    = "devops.pipeline.run.queued"
 	EventPipelineRunStarted   = "devops.pipeline.run.started"
 	EventPipelineRunCompleted = "devops.pipeline.run.completed"
 	EventPipelineRunFailed    = "devops.pipeline.run.failed"
+	EventPipelineRunCanceled  = "devops.pipeline.run.canceled"
+	EventJobRunAssigned       = "devops.job.run.assigned"
+	EventJobRunStarted        = "devops.job.run.started"
+	EventJobRunCompleted      = "devops.job.run.completed"
+	EventJobRunFailed         = "devops.job.run.failed"
+	EventJobRunRetrying       = "devops.job.run.retrying"
+	EventRunnerRegistered     = "devops.runner.registered"
+	EventRunnerHeartbeat      = "devops.runner.heartbeat"
 
 	defaultStepTimeout = 30 * time.Second
 )
+
+var ErrRunTerminal = errors.New("pipeline run is already terminal")
 
 type Service struct {
 	store    Store
@@ -31,15 +44,23 @@ type Service struct {
 }
 
 func NewService(store Store, runner Runner, bus eventbus.EventBus) *Service {
-	return &Service{
+	service := &Service{
 		store:    store,
 		runner:   runner,
 		eventBus: bus,
 		now:      time.Now,
 	}
+	_ = service.RegisterRunner(context.Background(), domainrunner.Runner{
+		ID:        runner.ID(),
+		Name:      runner.ID(),
+		Status:    "online",
+		Labels:    map[string]string{"runtime": "local"},
+		Executors: []string{"shell"},
+	})
+	return service
 }
 
-func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (CreateRunResult, error) {
+func (s *Service) CreateQueued(ctx context.Context, input CreateRunInput) (CreateRunResult, error) {
 	if err := input.Definition.Validate(); err != nil {
 		return CreateRunResult{}, err
 	}
@@ -48,39 +69,18 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 	if err := s.store.Save(ctx, record); err != nil {
 		return CreateRunResult{}, err
 	}
-	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunCreated, "PipelineRun created", input.ActorID); err != nil {
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunCreated, "PipelineRun created", input.ActorID, string(record.Run.Status), "PipelineRun created"); err != nil {
 		return CreateRunResult{}, err
 	}
 
-	record.Run.Status = domainpipeline.PipelineRunQueued
-	record.Run.UpdatedAt = s.now()
+	now := s.now()
+	if err := transitionPipelineRun(&record.Run, domainpipeline.PipelineRunQueued, now, ""); err != nil {
+		return CreateRunResult{}, err
+	}
 	if err := s.store.Save(ctx, record); err != nil {
 		return CreateRunResult{}, err
 	}
-
-	record.Run.Status = domainpipeline.PipelineRunRunning
-	started := s.now()
-	record.Run.StartedAt = &started
-	record.Run.UpdatedAt = started
-	if err := s.store.Save(ctx, record); err != nil {
-		return CreateRunResult{}, err
-	}
-	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunStarted, "PipelineRun started", input.ActorID); err != nil {
-		return CreateRunResult{}, err
-	}
-
-	record = s.runStages(ctx, input.Definition, record)
-	if err := s.store.Save(ctx, record); err != nil {
-		return CreateRunResult{}, err
-	}
-
-	finalEvent := EventPipelineRunCompleted
-	finalMessage := "PipelineRun completed"
-	if record.Run.Status == domainpipeline.PipelineRunFailed {
-		finalEvent = EventPipelineRunFailed
-		finalMessage = "PipelineRun failed"
-	}
-	if err := s.recordEventAndAudit(ctx, record.Run.ID, finalEvent, finalMessage, input.ActorID); err != nil {
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunQueued, "PipelineRun queued", input.ActorID, string(record.Run.Status), "PipelineRun queued"); err != nil {
 		return CreateRunResult{}, err
 	}
 
@@ -91,24 +91,202 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 	return CreateRunResult{Record: finalRecord}, nil
 }
 
+func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (CreateRunResult, error) {
+	created, err := s.CreateQueued(ctx, input)
+	if err != nil {
+		return CreateRunResult{}, err
+	}
+	record, err := s.ProcessRun(ctx, created.Record.Run.ID, input.ActorID)
+	if err != nil {
+		return CreateRunResult{}, err
+	}
+	return CreateRunResult{Record: record}, nil
+}
+
+func (s *Service) ProcessQueued(ctx context.Context, limit int) ([]RunRecord, error) {
+	queued, err := s.store.ListByStatus(ctx, domainpipeline.PipelineRunQueued)
+	if err != nil {
+		return nil, err
+	}
+	if limit <= 0 || limit > len(queued) {
+		limit = len(queued)
+	}
+	processed := make([]RunRecord, 0, limit)
+	for i := 0; i < limit; i++ {
+		record, err := s.ProcessRun(ctx, queued[i].Run.ID, "")
+		if err != nil {
+			return processed, err
+		}
+		processed = append(processed, record)
+	}
+	return processed, nil
+}
+
+func (s *Service) ProcessRun(ctx context.Context, id string, actorID string) (RunRecord, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if isTerminalPipelineStatus(record.Run.Status) {
+		return record, nil
+	}
+	if record.Run.Status != domainpipeline.PipelineRunQueued {
+		return RunRecord{}, fmt.Errorf("pipeline run %s is %s, not Queued", id, record.Run.Status)
+	}
+
+	now := s.now()
+	if err := transitionPipelineRun(&record.Run, domainpipeline.PipelineRunRunning, now, ""); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunStarted, "PipelineRun started", actorID, string(record.Run.Status), "PipelineRun started"); err != nil {
+		return RunRecord{}, err
+	}
+	record, err = s.store.Get(ctx, record.Run.ID)
+	if err != nil {
+		return RunRecord{}, err
+	}
+
+	record = s.runStages(ctx, record.Definition, record)
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+
+	finalEvent := EventPipelineRunCompleted
+	finalMessage := "PipelineRun completed"
+	if record.Run.Status == domainpipeline.PipelineRunFailed || record.Run.Status == domainpipeline.PipelineRunTimeout {
+		finalEvent = EventPipelineRunFailed
+		finalMessage = "PipelineRun failed"
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, finalEvent, finalMessage, actorID, string(record.Run.Status), finalMessage); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.Get(ctx, record.Run.ID)
+}
+
+func (s *Service) Cancel(ctx context.Context, id string, actorID string) (RunRecord, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if isTerminalPipelineStatus(record.Run.Status) {
+		return record, ErrRunTerminal
+	}
+	now := s.now()
+	if err := transitionPipelineRun(&record.Run, domainpipeline.PipelineRunCanceled, now, "canceled by request"); err != nil {
+		return RunRecord{}, err
+	}
+	for stageIndex := range record.Stages {
+		if !isTerminalJobStatus(record.Stages[stageIndex].Stage.Status) {
+			_ = transitionStageRun(&record.Stages[stageIndex].Stage, domainpipeline.JobRunCanceled, now, "canceled by request")
+		}
+		for jobIndex := range record.Stages[stageIndex].Jobs {
+			if !isTerminalJobStatus(record.Stages[stageIndex].Jobs[jobIndex].Job.Status) {
+				_ = transitionJobRun(&record.Stages[stageIndex].Jobs[jobIndex].Job, domainpipeline.JobRunCanceled, now, "canceled by request")
+			}
+			for stepIndex := range record.Stages[stageIndex].Jobs[jobIndex].Steps {
+				if !isTerminalJobStatus(record.Stages[stageIndex].Jobs[jobIndex].Steps[stepIndex].Status) {
+					_ = transitionStepRun(&record.Stages[stageIndex].Jobs[jobIndex].Steps[stepIndex], domainpipeline.JobRunCanceled, now, "canceled by request")
+				}
+			}
+		}
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, id, EventPipelineRunCanceled, "PipelineRun canceled", actorID, string(record.Run.Status), "PipelineRun canceled"); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.Get(ctx, id)
+}
+
 func (s *Service) Get(ctx context.Context, id string) (RunRecord, error) {
 	return s.store.Get(ctx, id)
 }
 
-func (s *Service) Logs(ctx context.Context, id string) ([]LogRecord, error) {
-	record, err := s.store.Get(ctx, id)
-	if err != nil {
-		return nil, err
-	}
-	return record.Logs, nil
+func (s *Service) List(ctx context.Context) ([]RunRecord, error) {
+	return s.store.List(ctx)
+}
+
+func (s *Service) Logs(ctx context.Context, id string) ([]event.LogChunk, error) {
+	return s.store.LogsByPipelineRun(ctx, id)
 }
 
 func (s *Service) Events(ctx context.Context, id string) ([]event.Event, error) {
-	record, err := s.store.Get(ctx, id)
+	return s.store.EventsByPipelineRun(ctx, id)
+}
+
+func (s *Service) Timeline(ctx context.Context, id string) ([]TimelineEntry, error) {
+	events, err := s.Events(ctx, id)
 	if err != nil {
 		return nil, err
 	}
-	return record.Events, nil
+	timeline := make([]TimelineEntry, 0, len(events))
+	for _, evt := range events {
+		entry := TimelineEntry{
+			Type:    evt.Type,
+			Time:    evt.Time,
+			Subject: evt.Subject,
+		}
+		if status, ok := evt.Data["status"].(string); ok {
+			entry.Status = status
+		}
+		if message, ok := evt.Data["message"].(string); ok {
+			entry.Message = message
+		}
+		timeline = append(timeline, entry)
+	}
+	return timeline, nil
+}
+
+func (s *Service) RegisterRunner(ctx context.Context, runner domainrunner.Runner) error {
+	now := s.now()
+	if runner.ID == "" {
+		runner.ID = newID("runner")
+	}
+	if runner.Name == "" {
+		runner.Name = runner.ID
+	}
+	if runner.Status == "" {
+		runner.Status = "online"
+	}
+	if len(runner.Executors) == 0 {
+		runner.Executors = []string{"shell"}
+	}
+	if runner.CreatedAt.IsZero() {
+		runner.CreatedAt = now
+	}
+	runner.UpdatedAt = now
+	if runner.LastHeartbeatAt == nil {
+		runner.LastHeartbeatAt = &now
+	}
+	if err := s.store.RegisterRunner(ctx, runner); err != nil {
+		return err
+	}
+	evt := s.newEvent(EventRunnerRegistered, runner.ID, runner.Status, "Runner registered")
+	return s.eventBus.Publish(ctx, evt)
+}
+
+func (s *Service) HeartbeatRunner(ctx context.Context, runnerID string) (domainrunner.Runner, error) {
+	runner, err := s.store.Heartbeat(ctx, runnerID, s.now())
+	if err != nil {
+		return domainrunner.Runner{}, err
+	}
+	evt := s.newEvent(EventRunnerHeartbeat, runner.ID, runner.Status, "Runner heartbeat")
+	if err := s.eventBus.Publish(ctx, evt); err != nil {
+		return domainrunner.Runner{}, err
+	}
+	return runner, nil
+}
+
+func (s *Service) ListRunners(ctx context.Context) ([]domainrunner.Runner, error) {
+	return s.store.ListRunners(ctx)
+}
+
+func (s *Service) GetRunner(ctx context.Context, id string) (domainrunner.Runner, error) {
+	return s.store.GetRunner(ctx, id)
 }
 
 func (s *Service) newRecord(def Definition) RunRecord {
@@ -116,6 +294,7 @@ func (s *Service) newRecord(def Definition) RunRecord {
 	pipelineID := newID("pipe")
 	runID := newID("prun")
 	record := RunRecord{
+		Definition: def,
 		Pipeline: domainpipeline.Pipeline{
 			ID:        pipelineID,
 			Name:      def.Metadata.Name,
@@ -132,29 +311,26 @@ func (s *Service) newRecord(def Definition) RunRecord {
 	}
 	for _, stage := range def.Spec.Stages {
 		stageRunID := newID("stage")
-		stageRecord := StageRecord{
-			Stage: domainpipeline.StageRun{
-				ID:            stageRunID,
-				PipelineRunID: runID,
-				Name:          stage.Name,
-				Status:        domainpipeline.JobRunPending,
-				CreatedAt:     now,
-				UpdatedAt:     now,
-			},
-		}
+		stageRecord := StageRecord{Stage: domainpipeline.StageRun{
+			ID:            stageRunID,
+			PipelineRunID: runID,
+			Name:          stage.Name,
+			Status:        domainpipeline.JobRunPending,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}}
 		for _, job := range stage.Jobs {
 			jobRunID := newID("job")
-			jobRecord := JobRecord{
-				Job: domainpipeline.JobRun{
-					ID:         jobRunID,
-					StageRunID: stageRunID,
-					Name:       job.Name,
-					Status:     domainpipeline.JobRunPending,
-					RunnerID:   s.runner.ID(),
-					CreatedAt:  now,
-					UpdatedAt:  now,
-				},
-			}
+			jobRecord := JobRecord{Job: domainpipeline.JobRun{
+				ID:         jobRunID,
+				StageRunID: stageRunID,
+				Name:       job.Name,
+				Status:     domainpipeline.JobRunPending,
+				MaxRetries: job.Retries,
+				Attempt:    1,
+				CreatedAt:  now,
+				UpdatedAt:  now,
+			}}
 			for i, step := range job.Steps {
 				name := step.Name
 				if name == "" {
@@ -165,6 +341,7 @@ func (s *Service) newRecord(def Definition) RunRecord {
 					JobRunID:  jobRunID,
 					Name:      name,
 					Status:    domainpipeline.JobRunPending,
+					Attempt:   1,
 					CreatedAt: now,
 					UpdatedAt: now,
 				})
@@ -179,91 +356,119 @@ func (s *Service) newRecord(def Definition) RunRecord {
 func (s *Service) runStages(ctx context.Context, def Definition, record RunRecord) RunRecord {
 	for stageIndex, stage := range def.Spec.Stages {
 		started := s.now()
-		record.Stages[stageIndex].Stage.Status = domainpipeline.JobRunRunning
-		record.Stages[stageIndex].Stage.StartedAt = &started
-		record.Stages[stageIndex].Stage.UpdatedAt = started
-
+		_ = transitionStageRun(&record.Stages[stageIndex].Stage, domainpipeline.JobRunRunning, started, "")
 		for jobIndex, job := range stage.Jobs {
-			record.Stages[stageIndex].Jobs[jobIndex].Job.Status = domainpipeline.JobRunAssigned
-			record.Stages[stageIndex].Jobs[jobIndex].Job.UpdatedAt = s.now()
-			jobStarted := s.now()
-			record.Stages[stageIndex].Jobs[jobIndex].Job.Status = domainpipeline.JobRunRunning
-			record.Stages[stageIndex].Jobs[jobIndex].Job.StartedAt = &jobStarted
-			record.Stages[stageIndex].Jobs[jobIndex].Job.UpdatedAt = jobStarted
+			record.Stages[stageIndex].Jobs[jobIndex].Job.RunnerID = s.selectRunnerID(ctx)
+			_ = transitionJobRun(&record.Stages[stageIndex].Jobs[jobIndex].Job, domainpipeline.JobRunAssigned, s.now(), "")
+			_ = s.recordRuntimeEvent(ctx, &record, EventJobRunAssigned, record.Stages[stageIndex].Jobs[jobIndex].Job.ID, string(domainpipeline.JobRunAssigned), "JobRun assigned")
 
-			for stepIndex, step := range job.Steps {
-				stepStarted := s.now()
-				stepRun := &record.Stages[stageIndex].Jobs[jobIndex].Steps[stepIndex]
-				stepRun.Status = domainpipeline.JobRunRunning
-				stepRun.StartedAt = &stepStarted
-				stepRun.UpdatedAt = stepStarted
-
-				result, err := s.runner.RunShellStep(ctx, record.Stages[stageIndex].Jobs[jobIndex].Job.ID, step.Run, defaultStepTimeout)
-				record.Logs = append(record.Logs, s.captureLogs(record.Run.ID, record.Stages[stageIndex].Jobs[jobIndex].Job.ID, stepRun.ID, result)...)
-
-				finished := s.now()
-				stepRun.FinishedAt = &finished
-				stepRun.UpdatedAt = finished
-				if err != nil || result.ExitCode != 0 {
-					reason := failureReason(err, result.ExitCode)
-					stepRun.Status = domainpipeline.JobRunFailed
-					stepRun.FailureReason = reason
-					record.Stages[stageIndex].Jobs[jobIndex].Job.Status = domainpipeline.JobRunFailed
-					record.Stages[stageIndex].Jobs[jobIndex].Job.FailureReason = reason
-					record.Stages[stageIndex].Jobs[jobIndex].Job.FinishedAt = &finished
-					record.Stages[stageIndex].Jobs[jobIndex].Job.UpdatedAt = finished
-					record.Stages[stageIndex].Stage.Status = domainpipeline.JobRunFailed
-					record.Stages[stageIndex].Stage.FailureReason = reason
-					record.Stages[stageIndex].Stage.FinishedAt = &finished
-					record.Stages[stageIndex].Stage.UpdatedAt = finished
-					record.Run.Status = domainpipeline.PipelineRunFailed
-					record.Run.FailureReason = reason
-					record.Run.FinishedAt = &finished
-					record.Run.UpdatedAt = finished
-					return record
+			jobSucceeded := false
+			for attempt := 1; attempt <= job.Retries+1; attempt++ {
+				record.Stages[stageIndex].Jobs[jobIndex].Job.Attempt = attempt
+				_ = transitionJobRun(&record.Stages[stageIndex].Jobs[jobIndex].Job, domainpipeline.JobRunRunning, s.now(), "")
+				_ = s.recordRuntimeEvent(ctx, &record, EventJobRunStarted, record.Stages[stageIndex].Jobs[jobIndex].Job.ID, string(domainpipeline.JobRunRunning), "JobRun started")
+				if s.runJobAttempt(ctx, &record, stageIndex, jobIndex, job, attempt, attempt > job.Retries) {
+					jobSucceeded = true
+					break
 				}
-				stepRun.Status = domainpipeline.JobRunSucceeded
+				if attempt <= job.Retries {
+					record.Stages[stageIndex].Jobs[jobIndex].Job.FinishedAt = nil
+					record.Stages[stageIndex].Jobs[jobIndex].Job.FailureReason = ""
+					_ = transitionJobRun(&record.Stages[stageIndex].Jobs[jobIndex].Job, domainpipeline.JobRunAssigned, s.now(), "")
+				}
 			}
-
-			jobFinished := s.now()
-			record.Stages[stageIndex].Jobs[jobIndex].Job.Status = domainpipeline.JobRunSucceeded
-			record.Stages[stageIndex].Jobs[jobIndex].Job.FinishedAt = &jobFinished
-			record.Stages[stageIndex].Jobs[jobIndex].Job.UpdatedAt = jobFinished
+			if !jobSucceeded {
+				finished := s.now()
+				record.Stages[stageIndex].Stage.Status = domainpipeline.JobRunFailed
+				record.Stages[stageIndex].Stage.FinishedAt = &finished
+				record.Stages[stageIndex].Stage.UpdatedAt = finished
+				record.Stages[stageIndex].Stage.FailureReason = record.Stages[stageIndex].Jobs[jobIndex].Job.FailureReason
+				status := domainpipeline.PipelineRunFailed
+				if isTimeout(record.Stages[stageIndex].Jobs[jobIndex].Job.FailureReason) {
+					status = domainpipeline.PipelineRunTimeout
+				}
+				_ = transitionPipelineRun(&record.Run, status, finished, record.Stages[stageIndex].Jobs[jobIndex].Job.FailureReason)
+				return record
+			}
 		}
-		stageFinished := s.now()
-		record.Stages[stageIndex].Stage.Status = domainpipeline.JobRunSucceeded
-		record.Stages[stageIndex].Stage.FinishedAt = &stageFinished
-		record.Stages[stageIndex].Stage.UpdatedAt = stageFinished
+		_ = transitionStageRun(&record.Stages[stageIndex].Stage, domainpipeline.JobRunSucceeded, s.now(), "")
 	}
-
-	finished := s.now()
-	record.Run.Status = domainpipeline.PipelineRunSucceeded
-	record.Run.FinishedAt = &finished
-	record.Run.UpdatedAt = finished
+	_ = transitionPipelineRun(&record.Run, domainpipeline.PipelineRunSucceeded, s.now(), "")
 	return record
 }
 
-func (s *Service) captureLogs(runID string, jobRunID string, stepRunID string, result executor.Result) []LogRecord {
-	var logs []LogRecord
+func (s *Service) runJobAttempt(ctx context.Context, record *RunRecord, stageIndex int, jobIndex int, job Job, attempt int, finalAttempt bool) bool {
+	jobRun := &record.Stages[stageIndex].Jobs[jobIndex].Job
+	for stepIndex, step := range job.Steps {
+		stepRun := &record.Stages[stageIndex].Jobs[jobIndex].Steps[stepIndex]
+		stepRun.Attempt = attempt
+		if stepRun.Status == domainpipeline.JobRunFailed || stepRun.Status == domainpipeline.JobRunSucceeded {
+			stepRun.Status = domainpipeline.JobRunPending
+			stepRun.StartedAt = nil
+			stepRun.FinishedAt = nil
+			stepRun.FailureReason = ""
+		}
+		_ = transitionStepRun(stepRun, domainpipeline.JobRunRunning, s.now(), "")
+		result, err := s.runner.RunShellStep(ctx, jobRun.ID, step.Run, timeoutFor(job, step))
+		for _, log := range s.logChunks(record.Run.ID, record.Stages[stageIndex].Stage.ID, jobRun.ID, stepRun.ID, result, int64(len(record.Logs)+1)) {
+			record.Logs = append(record.Logs, log)
+		}
+		finished := s.now()
+		if err != nil || result.ExitCode != 0 {
+			reason := failureReason(err, result.ExitCode)
+			_ = transitionStepRun(stepRun, domainpipeline.JobRunFailed, finished, reason)
+			next := domainpipeline.JobRunRetrying
+			if finalAttempt {
+				next = domainpipeline.JobRunFailed
+			}
+			_ = transitionJobRun(jobRun, next, finished, reason)
+			eventType := EventJobRunRetrying
+			if finalAttempt {
+				eventType = EventJobRunFailed
+			}
+			_ = s.recordRuntimeEvent(ctx, record, eventType, jobRun.ID, string(next), reason)
+			return false
+		}
+		_ = transitionStepRun(stepRun, domainpipeline.JobRunSucceeded, finished, "")
+	}
+	_ = transitionJobRun(jobRun, domainpipeline.JobRunSucceeded, s.now(), "")
+	_ = s.recordRuntimeEvent(ctx, record, EventJobRunCompleted, jobRun.ID, string(domainpipeline.JobRunSucceeded), "JobRun completed")
+	return true
+}
+
+func (s *Service) selectRunnerID(ctx context.Context) string {
+	runner, err := s.store.SelectRunner(ctx, "shell", nil)
+	if err != nil {
+		return s.runner.ID()
+	}
+	return runner.ID
+}
+
+func (s *Service) logChunks(runID string, stageRunID string, jobRunID string, stepRunID string, result executor.Result, startSequence int64) []event.LogChunk {
+	var logs []event.LogChunk
 	now := s.now()
 	if result.Stdout != "" {
-		logs = append(logs, LogRecord{
+		logs = append(logs, event.LogChunk{
 			ID:            newID("log"),
 			PipelineRunID: runID,
+			StageRunID:    stageRunID,
 			JobRunID:      jobRunID,
 			StepRunID:     stepRunID,
 			Stream:        "stdout",
+			Sequence:      startSequence + int64(len(logs)),
 			Content:       result.Stdout,
 			CreatedAt:     now,
 		})
 	}
 	if result.Stderr != "" {
-		logs = append(logs, LogRecord{
+		logs = append(logs, event.LogChunk{
 			ID:            newID("log"),
 			PipelineRunID: runID,
+			StageRunID:    stageRunID,
 			JobRunID:      jobRunID,
 			StepRunID:     stepRunID,
 			Stream:        "stderr",
+			Sequence:      startSequence + int64(len(logs)),
 			Content:       result.Stderr,
 			CreatedAt:     now,
 		})
@@ -271,24 +476,8 @@ func (s *Service) captureLogs(runID string, jobRunID string, stepRunID string, r
 	return logs
 }
 
-func (s *Service) recordEventAndAudit(ctx context.Context, runID string, eventType string, auditAction string, actorID string) error {
-	now := s.now()
-	evt := event.Event{
-		SpecVersion:     "1.0",
-		ID:              newID("evt"),
-		Type:            eventType,
-		Source:          "nivora/pipeline",
-		Subject:         runID,
-		Time:            now,
-		DataContentType: "application/json",
-		Data: map[string]any{
-			"pipelineRunId": runID,
-		},
-	}
-	if err := s.eventBus.Publish(ctx, evt); err != nil {
-		return err
-	}
-	if err := s.store.AppendEvent(ctx, runID, evt); err != nil {
+func (s *Service) recordEventAndAudit(ctx context.Context, runID string, eventType string, auditAction string, actorID string, status string, message string) error {
+	if err := s.recordEvent(ctx, runID, eventType, runID, status, message); err != nil {
 		return err
 	}
 	return s.store.AppendAudit(ctx, runID, audit.AuditLog{
@@ -296,8 +485,55 @@ func (s *Service) recordEventAndAudit(ctx context.Context, runID string, eventTy
 		ActorID:   actorID,
 		Action:    auditAction,
 		Subject:   runID,
-		CreatedAt: now,
+		CreatedAt: s.now(),
 	})
+}
+
+func (s *Service) recordRuntimeEvent(ctx context.Context, record *RunRecord, eventType string, subject string, status string, message string) error {
+	evt := s.newEvent(eventType, subject, status, message)
+	if err := s.eventBus.Publish(ctx, evt); err != nil {
+		return err
+	}
+	if err := s.store.AppendEvent(ctx, record.Run.ID, evt); err != nil {
+		return err
+	}
+	record.Events = append(record.Events, evt)
+	return nil
+}
+
+func (s *Service) recordEvent(ctx context.Context, runID string, eventType string, subject string, status string, message string) error {
+	evt := s.newEvent(eventType, subject, status, message)
+	if err := s.eventBus.Publish(ctx, evt); err != nil {
+		return err
+	}
+	return s.store.AppendEvent(ctx, runID, evt)
+}
+
+func (s *Service) newEvent(eventType string, subject string, status string, message string) event.Event {
+	return event.Event{
+		SpecVersion:     "1.0",
+		ID:              newID("evt"),
+		Type:            eventType,
+		Source:          "nivora/pipeline",
+		Subject:         subject,
+		Time:            s.now(),
+		DataContentType: "application/json",
+		Data: map[string]any{
+			"status":  status,
+			"message": message,
+		},
+	}
+}
+
+func timeoutFor(job Job, step Step) time.Duration {
+	seconds := step.TimeoutSeconds
+	if seconds == 0 {
+		seconds = job.TimeoutSeconds
+	}
+	if seconds <= 0 {
+		return defaultStepTimeout
+	}
+	return time.Duration(seconds) * time.Second
 }
 
 func failureReason(err error, exitCode int) string {
@@ -305,6 +541,10 @@ func failureReason(err error, exitCode int) string {
 		return err.Error()
 	}
 	return fmt.Sprintf("command exited with code %d", exitCode)
+}
+
+func isTimeout(reason string) bool {
+	return reason == context.DeadlineExceeded.Error()
 }
 
 func newID(prefix string) string {

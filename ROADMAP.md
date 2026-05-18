@@ -24,17 +24,22 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 
 ## Phase 1: Minimal Pipeline Execution
 
-- Persist projects, repositories, pipelines, and pipeline runs.
-- Schedule simple jobs to runners.
+- Parse minimal Pipeline definitions and create PipelineRuns.
 - Execute controlled shell steps.
-- Stream basic logs and record run status.
+- Capture logs, events, audit records, and run status.
+
+## Phase 1.5: Durable Runtime Foundation
+
+- Add explicit status transition helpers for PipelineRun, StageRun, JobRun, and StepRun.
+- Add in-memory runtime repositories, ordered LogChunks, timeline APIs, minimal cancellation, retry, timeout, runner selection, and runner heartbeat.
+- Keep runtime shell-only and avoid Phase 2 deployment integrations.
 
 ## Phase 2: GitOps and Production Release
 
 - Add release and deployment workflows.
 - Implement GitOps deployment mode.
 - Add approval gates and release audit trails.
-- Strengthen runner registration and heartbeat behavior.
+- Add deployment diff, health verification, and rollback foundation.
 
 ## Phase 3: Multi-Cloud and DevSecOps
 

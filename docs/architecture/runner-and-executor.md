@@ -33,4 +33,6 @@ Future phases should define a protocol for registration, heartbeat, job assignme
 
 ## Current State
 
-Phase 1 includes a local in-process Runner that uses the shell Executor for minimal PipelineRun execution. Remote runner registration, polling, streaming protocols, and privileged execution are future work.
+Phase 1 includes a local in-process Runner that uses the shell Executor for minimal PipelineRun execution.
+
+Phase 1.5 adds minimal runner records, registration, heartbeat updates, and simple runner selection for shell jobs. These records live in the current in-memory runtime foundation. Remote runner registration protocols, polling, streaming protocols, durable runner state, and privileged execution are future work.

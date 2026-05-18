@@ -7,9 +7,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
-	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	"github.com/sevoniva/nivora/internal/api/http/routes"
+	appruntime "github.com/sevoniva/nivora/internal/app/runtime"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	"github.com/sevoniva/nivora/internal/infra/logging"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -50,8 +49,5 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 }
 
 func NewPipelineService() *pipelineusecase.Service {
-	store := pipelineusecase.NewMemoryStore()
-	bus := memory.New()
-	runner := pipelineusecase.NewLocalRunner("local-runner", shellexecutor.New())
-	return pipelineusecase.NewService(store, runner, bus)
+	return appruntime.NewPipelineService()
 }

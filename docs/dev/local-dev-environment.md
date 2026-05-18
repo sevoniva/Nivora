@@ -1,6 +1,6 @@
 # Local Development Environment
 
-This page documents optional local services that maintainers may use for manual validation. These services are not required for CI, unit tests, or normal Phase 1 development.
+This page documents optional local services that maintainers may use for manual validation. These services are not required for CI, unit tests, Phase 1 shell execution, or Phase 1.5 runtime foundation work.
 
 Do not commit credentials. Do not hardcode these endpoints in core code. Do not assume these services exist outside a maintainer's local machine. Use environment variables for credentials.
 
@@ -86,7 +86,8 @@ export NIVORA_EXTERNAL_HARBOR_USERNAME='<username>'
 export NIVORA_EXTERNAL_HARBOR_PASSWORD='<password>'
 ```
 
-## Phase 1 Relevance
+## Phase 1 / 1.5 Relevance
 
-Phase 1 minimal PipelineRun execution does not require any of these services. It only uses the local shell Executor and in-memory runtime for tests and examples.
+Phase 1 and Phase 1.5 minimal PipelineRun execution do not require any of these services. They only use the local shell Executor and in-memory runtime for tests and examples.
 
+Do not treat successful local discovery against these services as proof that a real integration is complete. Kubernetes, Argo CD, Git provider, artifact registry, and cloud provider integrations remain future phases.

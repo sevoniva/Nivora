@@ -24,10 +24,17 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Get("/version", handlers.Version(info))
 		api.Get("/system/info", handlers.SystemInfo(cfg))
+		api.Get("/pipeline-runs", handlers.ListPipelineRuns(pipelineService))
 		api.Post("/pipeline-runs", handlers.CreatePipelineRun(pipelineService))
 		api.Get("/pipeline-runs/{id}", handlers.GetPipelineRun(pipelineService))
 		api.Get("/pipeline-runs/{id}/logs", handlers.GetPipelineRunLogs(pipelineService))
 		api.Get("/pipeline-runs/{id}/events", handlers.GetPipelineRunEvents(pipelineService))
+		api.Get("/pipeline-runs/{id}/timeline", handlers.GetPipelineRunTimeline(pipelineService))
+		api.Post("/pipeline-runs/{id}/cancel", handlers.CancelPipelineRun(pipelineService))
+		api.Get("/runners", handlers.ListRunners(pipelineService))
+		api.Post("/runners/register", handlers.RegisterRunner(pipelineService))
+		api.Get("/runners/{id}", handlers.GetRunner(pipelineService))
+		api.Post("/runners/{id}/heartbeat", handlers.HeartbeatRunner(pipelineService))
 
 		for _, group := range placeholderGroups() {
 			group := group
@@ -57,7 +64,6 @@ func placeholderGroups() []routeGroup {
 		{"/pipelines", "pipelines"},
 		{"/releases", "releases"},
 		{"/deployments", "deployments"},
-		{"/runners", "runners"},
 		{"/approvals", "approvals"},
 		{"/policies", "policies"},
 		{"/audit-logs", "audit logs"},

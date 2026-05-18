@@ -17,6 +17,7 @@ spec:
           steps:
             - name: say-hello
               run: echo "hello from nivora"
+              timeoutSeconds: 3
 `))
 	if err != nil {
 		t.Fatalf("parse definition: %v", err)
@@ -26,6 +27,9 @@ spec:
 	}
 	if def.Spec.Stages[0].Jobs[0].Steps[0].Name != "say-hello" {
 		t.Fatalf("step name = %q", def.Spec.Stages[0].Jobs[0].Steps[0].Name)
+	}
+	if def.Spec.Stages[0].Jobs[0].Steps[0].TimeoutSeconds != 3 {
+		t.Fatalf("timeoutSeconds = %d", def.Spec.Stages[0].Jobs[0].Steps[0].TimeoutSeconds)
 	}
 }
 

@@ -40,12 +40,27 @@ The first Phase 1 implementation supports minimal shell-based PipelineRun execut
 - create in-memory AuditLog records
 - expose minimal HTTP and CLI entry points
 
+## Phase 1.5 Runtime Foundation
+
+Phase 1.5 hardens this loop without adding Phase 2 integrations:
+
+- explicit PipelineRun, StageRun, JobRun, and StepRun transition helpers
+- queued PipelineRuns that can be advanced by the worker in the current in-memory runtime mode
+- minimal runner registration, selection, and heartbeat records
+- ordered LogChunk capture for stdout and stderr
+- timeline APIs backed by stored runtime events
+- minimal cancellation for non-terminal PipelineRuns
+- job-level retry count and step/job timeout support
+
+This is still an early runtime foundation. It is not a distributed scheduler, does not provide durable cross-process PostgreSQL runtime persistence yet, and does not implement Kubernetes, Argo CD, Git provider, artifact registry, or cloud provider integrations.
+
 ## Acceptance Criteria
 
 - PipelineRun state transitions are tested.
 - Runner assignment is explicit.
 - Shell execution is controlled and cancellable.
 - Logs and audit events are persisted or clearly modeled.
+- Retry, timeout, cancellation, timeline, and runner heartbeat behavior are tested.
 
 ## Contribution Opportunities
 

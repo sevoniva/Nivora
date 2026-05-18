@@ -12,7 +12,12 @@ Delivery systems affect production systems and sensitive credentials. Nivora mus
 - Must not contain secret values.
 - Should correlate with events and logs.
 
+## Phase 1.5 Behavior
+
+Phase 1.5 creates in-memory AuditLog records for important PipelineRun lifecycle actions: created, queued, started, completed, failed, and canceled. Heartbeats are emitted as events but are not treated as high-value audit records by default because they may become high-frequency.
+
+Durable audit persistence and richer actor identity are future work.
+
 ## Common Confusion
 
 Audit is not optional logging. Logs explain behavior; audit records preserve accountability.
-

@@ -49,4 +49,58 @@ func TestPipelineRunRoutes(t *testing.T) {
 	if !bytes.Contains(rec.Body.Bytes(), []byte("hello")) {
 		t.Fatalf("logs body = %s", rec.Body.String())
 	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d", rec.Code)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs/"+runID+"/timeline", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("timeline status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte("devops.pipeline.run.completed")) {
+		t.Fatalf("timeline body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs/"+runID+"/cancel", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("cancel terminal status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRunnerRoutes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService())
+
+	body := []byte(`{"id":"runner-api","name":"runner-api","status":"online","executors":["shell"],"labels":{"tier":"dev"}}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runners/register", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("register status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-api/heartbeat", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("heartbeat status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/runners", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list runners status = %d", rec.Code)
+	}
 }

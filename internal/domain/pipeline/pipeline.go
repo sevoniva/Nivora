@@ -94,6 +94,8 @@ type JobRun struct {
 	Name          string
 	Status        JobRunStatus
 	RunnerID      string
+	Attempt       int
+	MaxRetries    int
 	StartedAt     *time.Time
 	FinishedAt    *time.Time
 	FailureReason string
@@ -106,6 +108,7 @@ type StepRun struct {
 	JobRunID      string
 	Name          string
 	Status        JobRunStatus
+	Attempt       int
 	StartedAt     *time.Time
 	FinishedAt    *time.Time
 	FailureReason string

@@ -6,9 +6,13 @@ Nivora should make delivery behavior explainable through logs, events, metrics, 
 
 Logs explain execution behavior. Runner and Executor logs should be correlated with PipelineRuns, JobRuns, StepRuns, DeploymentRuns, and AuditLogs.
 
+Phase 1.5 stores stdout and stderr as ordered LogChunks for each PipelineRun. Log streaming, external log storage, and retention policies are future work.
+
 ## Events
 
-Events should describe lifecycle changes such as PipelineRun created, DeploymentRun started, runner heartbeat, and policy violation detected. Phase 0 includes an AsyncAPI skeleton and in-memory EventBus.
+Events should describe lifecycle changes such as PipelineRun created, queued, started, completed, failed, canceled, JobRun assigned, JobRun started, JobRun completed, JobRun failed, runner heartbeat, DeploymentRun started, and policy violation detected.
+
+Phase 1.5 stores PipelineRun events in the in-memory runtime and exposes them through events and timeline APIs.
 
 ## Metrics and Traces
 
@@ -20,5 +24,4 @@ Requests, events, logs, and audit records should share correlation IDs where pra
 
 ## Timelines
 
-Future visualization APIs should support pipeline timelines, deployment timelines, runner heartbeat history, and audit timelines.
-
+Phase 1.5 exposes a minimal PipelineRun timeline from stored events. Future visualization APIs should support richer pipeline timelines, deployment timelines, runner heartbeat history, and audit timelines.

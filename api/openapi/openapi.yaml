@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Phase 0 API skeleton for the Nivora DevOps delivery control plane.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 1.5 supports minimal shell-based PipelineRun execution only.
 servers:
   - url: http://localhost:8080
 paths:
@@ -77,6 +77,17 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/pipeline-runs:
+    get:
+      summary: List PipelineRuns in the in-memory Phase 1.5 runtime
+      responses:
+        "200":
+          description: PipelineRun records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PipelineRunRecord"
     post:
       summary: Create and run a minimal shell PipelineRun
       requestBody:
@@ -121,7 +132,7 @@ paths:
               schema:
                 type: array
                 items:
-                  $ref: "#/components/schemas/LogRecord"
+                  $ref: "#/components/schemas/LogChunk"
         "404":
           description: PipelineRun not found
   /api/v1/pipeline-runs/{id}/events:
@@ -140,6 +151,38 @@ paths:
                   $ref: "#/components/schemas/Event"
         "404":
           description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/timeline:
+    get:
+      summary: Get ordered PipelineRun timeline entries
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: PipelineRun timeline
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelineEntry"
+        "404":
+          description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/cancel:
+    post:
+      summary: Cancel a pending, queued, or running PipelineRun
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: PipelineRun canceled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunRecord"
+        "409":
+          description: PipelineRun is already terminal
+        "404":
+          description: PipelineRun not found
   /api/v1/releases:
     get:
       summary: Releases placeholder
@@ -154,10 +197,60 @@ paths:
           $ref: "#/components/responses/NotImplemented"
   /api/v1/runners:
     get:
-      summary: Runners placeholder
+      summary: List registered runners in the in-memory Phase 1.5 runtime
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Runner records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Runner"
+  /api/v1/runners/register:
+    post:
+      summary: Register a minimal runner record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Runner"
+      responses:
+        "201":
+          description: Runner registered
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Runner"
+  /api/v1/runners/{id}:
+    get:
+      summary: Get a runner
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Runner record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Runner"
+        "404":
+          description: Runner not found
+  /api/v1/runners/{id}/heartbeat:
+    post:
+      summary: Record a runner heartbeat
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Updated runner record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Runner"
+        "404":
+          description: Runner not found
   /api/v1/approvals:
     get:
       summary: Approvals placeholder
@@ -288,6 +381,12 @@ components:
                         executor:
                           type: string
                           enum: [shell]
+                        retries:
+                          type: integer
+                          minimum: 0
+                        timeoutSeconds:
+                          type: integer
+                          minimum: 1
                         steps:
                           type: array
                           items:
@@ -298,6 +397,9 @@ components:
                                 type: string
                               run:
                                 type: string
+                              timeoutSeconds:
+                                type: integer
+                                minimum: 1
     PipelineRunRecord:
       type: object
       properties:
@@ -308,21 +410,57 @@ components:
         stages:
           type: array
           items:
-            type: object
+            $ref: "#/components/schemas/StageRun"
         logs:
           type: array
           items:
-            $ref: "#/components/schemas/LogRecord"
+            $ref: "#/components/schemas/LogChunk"
         events:
           type: array
           items:
             $ref: "#/components/schemas/Event"
-    LogRecord:
+    StageRun:
+      type: object
+      properties:
+        stage:
+          type: object
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobRun"
+    JobRun:
+      type: object
+      properties:
+        job:
+          type: object
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepRun"
+    StepRun:
+      type: object
+      properties:
+        id:
+          type: string
+        jobRunId:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+          enum: [Pending, Assigned, Running, Succeeded, Failed, Skipped, Retrying, Canceled]
+        attempt:
+          type: integer
+        failureReason:
+          type: string
+    LogChunk:
       type: object
       properties:
         id:
           type: string
         pipelineRunId:
+          type: string
+        stageRunId:
           type: string
         jobRunId:
           type: string
@@ -330,7 +468,10 @@ components:
           type: string
         stream:
           type: string
-          enum: [stdout, stderr]
+          enum: [stdout, stderr, system]
+        sequence:
+          type: integer
+          format: int64
         content:
           type: string
         createdAt:
@@ -346,6 +487,31 @@ components:
           type: string
           format: uuid
         status:
+          type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        executors:
+          type: array
+          items:
+            type: string
+        lastHeartbeatAt:
+          type: string
+          format: date-time
+    TimelineEntry:
+      type: object
+      properties:
+        type:
+          type: string
+        time:
+          type: string
+          format: date-time
+        subject:
+          type: string
+        status:
+          type: string
+        message:
           type: string
           enum: [Created, Planning, WaitingApproval, PreChecking, Deploying, Verifying, Succeeded, Failed, RollingBack, RolledBack, Canceled]
     Runner:

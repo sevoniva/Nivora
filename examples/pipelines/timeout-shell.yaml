@@ -1,0 +1,14 @@
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: timeout-shell
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: timeout
+          executor: shell
+          timeoutSeconds: 1
+          steps:
+            - name: sleep-too-long
+              run: sleep 2

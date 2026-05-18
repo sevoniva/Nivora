@@ -1,0 +1,21 @@
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: retry-shell
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: retry-once
+          executor: shell
+          retries: 1
+          steps:
+            - name: fail-safely
+              run: |
+                if [ ! -f /tmp/nivora-retry-example ]; then
+                  touch /tmp/nivora-retry-example
+                  echo "first attempt failed" >&2
+                  exit 1
+                fi
+                rm -f /tmp/nivora-retry-example
+                echo "retry succeeded"

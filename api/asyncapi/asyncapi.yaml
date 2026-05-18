@@ -2,10 +2,15 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 1 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 1.5 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.pipeline.run.queued:
+    address: devops.pipeline.run.queued
     messages:
       event:
         $ref: "#/components/messages/Event"
@@ -21,6 +26,36 @@ channels:
         $ref: "#/components/messages/Event"
   devops.pipeline.run.failed:
     address: devops.pipeline.run.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.pipeline.run.canceled:
+    address: devops.pipeline.run.canceled
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.job.run.assigned:
+    address: devops.job.run.assigned
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.job.run.started:
+    address: devops.job.run.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.job.run.completed:
+    address: devops.job.run.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.job.run.failed:
+    address: devops.job.run.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.job.run.retrying:
+    address: devops.job.run.retrying
     messages:
       event:
         $ref: "#/components/messages/Event"

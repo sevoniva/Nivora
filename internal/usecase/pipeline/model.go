@@ -6,15 +6,17 @@ import (
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
+	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
 )
 
 type RunRecord struct {
-	Pipeline domainpipeline.Pipeline    `json:"pipeline"`
-	Run      domainpipeline.PipelineRun `json:"run"`
-	Stages   []StageRecord              `json:"stages"`
-	Logs     []LogRecord                `json:"logs,omitempty"`
-	Events   []event.Event              `json:"events,omitempty"`
-	Audits   []audit.AuditLog           `json:"audits,omitempty"`
+	Pipeline   domainpipeline.Pipeline    `json:"pipeline"`
+	Run        domainpipeline.PipelineRun `json:"run"`
+	Definition Definition                 `json:"definition,omitempty"`
+	Stages     []StageRecord              `json:"stages"`
+	Logs       []event.LogChunk           `json:"logs,omitempty"`
+	Events     []event.Event              `json:"events,omitempty"`
+	Audits     []audit.AuditLog           `json:"audits,omitempty"`
 }
 
 type StageRecord struct {
@@ -27,14 +29,17 @@ type JobRecord struct {
 	Steps []domainpipeline.StepRun `json:"steps"`
 }
 
-type LogRecord struct {
-	ID            string    `json:"id"`
-	PipelineRunID string    `json:"pipelineRunId"`
-	JobRunID      string    `json:"jobRunId"`
-	StepRunID     string    `json:"stepRunId"`
-	Stream        string    `json:"stream"`
-	Content       string    `json:"content"`
-	CreatedAt     time.Time `json:"createdAt"`
+type TimelineEntry struct {
+	Type    string            `json:"type"`
+	Time    time.Time         `json:"time"`
+	Subject string            `json:"subject"`
+	Status  string            `json:"status,omitempty"`
+	Message string            `json:"message,omitempty"`
+	Data    map[string]string `json:"data,omitempty"`
+}
+
+type RunnerRecord struct {
+	Runner domainrunner.Runner `json:"runner"`
 }
 
 type CreateRunInput struct {

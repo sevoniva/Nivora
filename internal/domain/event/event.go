@@ -14,9 +14,13 @@ type Event struct {
 }
 
 type LogChunk struct {
-	ID        string
-	StreamID  string
-	Sequence  int64
-	Content   string
-	CreatedAt time.Time
+	ID            string    `json:"id"`
+	PipelineRunID string    `json:"pipelineRunId"`
+	StageRunID    string    `json:"stageRunId,omitempty"`
+	JobRunID      string    `json:"jobRunId,omitempty"`
+	StepRunID     string    `json:"stepRunId,omitempty"`
+	Stream        string    `json:"stream"`
+	Sequence      int64     `json:"sequence"`
+	Content       string    `json:"content"`
+	CreatedAt     time.Time `json:"createdAt"`
 }

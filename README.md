@@ -1,100 +1,569 @@
 # Nivora
 
-Nivora is an open-source DevOps delivery control plane for CI/CD, GitOps, multi-cloud deployment, artifact orchestration, policy gates, runners, release audit, and future visualization APIs.
+> Open-source DevOps delivery control plane for CI/CD, GitOps, multi-target deployment, artifact orchestration, policy gates, runners, approvals, release audit, and future visualization APIs.
 
-Nivora is currently in Phase 0 / Phase 0.5 / Phase 0.6. Current focus is the backend skeleton, architecture guardrails, public planning, and contribution foundation.
+**Nivora** is an open-source DevOps delivery control plane under the `sevoniva` organization.
 
-Nivora is not production-ready. It does not implement full CI/CD execution, production GitOps reconciliation, cloud integrations, Kubernetes or Argo CD execution, vendor integrations, or a frontend yet.
+It is designed to coordinate fragmented delivery systems across Git providers, CI runners, artifact registries, host deployments, Kubernetes deployments, Argo CD / GitOps releases, cloud delivery targets, policy gates, approvals, audit trails, and future visualization APIs.
 
-For the project charter, see [PROJECT_CHARTER.md](PROJECT_CHARTER.md). For the full documentation index, see [docs/README.md](docs/README.md).
+Nivora is **not** trying to replace every DevOps tool. It integrates mature systems through stable ports and adapters while providing a unified model for delivery intent, execution state, policy, artifact traceability, audit, and future visualization.
 
-## Architecture Summary
-
-Nivora starts as a modular monolith in Go. The control plane and runner are separate binaries, while domain models stay independent from HTTP, databases, queues, cloud SDKs, Kubernetes SDKs, and vendor integrations.
-
-The code follows ports/adapters boundaries:
-
-- `internal/domain`: small domain structs and statuses.
-- `internal/usecase`: future business use cases.
-- `internal/ports`: interfaces for SCM, artifacts, cloud, executors, workflow, secrets, notifications, policies, events, and object storage.
-- `internal/adapters`: placeholder or local implementations.
-- `internal/api`: HTTP and gRPC API boundaries.
-- `internal/infra`: config, logging, database, migrations, auth, telemetry, and queue infrastructure.
-
-## Components
-
-- `nivora-server`: HTTP control plane with health, readiness, version, system info, and placeholder API groups.
-- `nivora-worker`: background runtime placeholder for event consumption and workflow advancement.
-- `nivora-runner`: runner runtime placeholder with registration, heartbeat, and a basic shell executor.
-- `nivora`: CLI for version, service startup, and config validation.
-
-## Local Development
-
-This repository uses a neutral default Go proxy in local tooling:
-
-```sh
-GOPROXY=https://proxy.golang.org,direct
+```text
+Nivora turns fragmented delivery tools into an auditable, extensible,
+multi-target delivery control plane.
 ```
 
-Developers in China can override it per command:
+Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, runtime model, runner/executor model, logs/events/audit, and open-source contribution foundation. Real Kubernetes, Argo CD, cloud provider, Git provider, and artifact registry integrations remain future phases.
 
-```sh
-GOPROXY=https://goproxy.cn,direct make build
+## Current Status
+
+| Area | Status |
+|---|---|
+| Backend skeleton | Completed |
+| AI / architecture guardrails | Completed |
+| Public planning docs | Completed |
+| Minimal shell PipelineRun runtime | Completed |
+| Durable runtime foundation | Initial shell-only foundation completed |
+| Kubernetes release | Planned |
+| Argo CD GitOps | Planned |
+| Multi-cloud adapters | Planned |
+| DevSecOps integrations | Planned |
+| Frontend visualization | Future phase |
+
+Current focus:
+
+```text
+backend foundation
+architecture boundaries
+runtime model
+runner / executor model
+logs / events / audit
+open-source contribution foundation
 ```
 
-Or export it for the shell:
+## Why Nivora Exists
 
-```sh
-export GOPROXY=https://goproxy.cn,direct
+Modern delivery systems are powerful but fragmented.
+
+| Area | Common Tools |
+|---|---|
+| Source control | GitHub, GitLab, Gitea |
+| CI execution | Jenkins, GitLab CI, GitHub Actions, Tekton |
+| Artifact storage | Harbor, Nexus, JFrog, OCI registries, S3 |
+| Kubernetes delivery | kubectl, Helm, Kustomize |
+| GitOps | Argo CD |
+| Host deployment | SSH, systemd, scripts |
+| Cloud targets | AWS, Aliyun, Tencent Cloud |
+| Security | Trivy, Cosign, SBOM tooling, policy engines |
+| Observability | OpenTelemetry, Prometheus, logs |
+| Human process | approvals, change windows, release audit |
+
+The problem is not that these tools are bad. The problem is that delivery intent, execution state, audit, policy, artifact traceability, and rollback context are often spread across different systems.
+
+Nivora provides a control plane that coordinates them.
+
+## Product Positioning
+
+Nivora is a **delivery control plane**. It is not only a CI tool, and it is not only a CD tool.
+
+It coordinates:
+
+```text
+source code
+-> pipeline execution
+-> artifact selection
+-> policy evaluation
+-> approval
+-> deployment
+-> verification
+-> rollback
+-> audit
+-> timeline
 ```
 
-Start local dependencies and services:
+Nivora aims to answer questions that are difficult to answer when delivery systems are fragmented:
 
-```sh
-make dev-up
+- Which commit produced this release?
+- Which artifact was deployed?
+- Who approved the production deployment?
+- Which runner executed the job?
+- Which policy gates passed or failed?
+- Which environment received the release?
+- What changed between two deployments?
+- What logs, events, and audit records belong to this delivery?
+- Can this deployment be rolled back safely?
+- Which external systems participated in the delivery?
+
+## Nivora Value Map
+
+This is the main value map of Nivora. It shows how fragmented delivery tools become a unified, auditable, extensible delivery control plane.
+
+```mermaid
+flowchart LR
+    subgraph A["Fragmented Delivery World"]
+        A1["Git Providers<br/>GitHub / GitLab / Gitea"]
+        A2["Artifact Registries<br/>Harbor / Nexus / OCI / S3"]
+        A3["Delivery Targets<br/>Hosts / Kubernetes / Argo CD / Cloud"]
+        A4["Security Tools<br/>Trivy / Cosign / Policy Engines"]
+        A5["Human Process<br/>Approval / Change Window / Audit"]
+    end
+
+    subgraph B["Nivora Delivery Control Plane"]
+        B1["Application & Environment Model"]
+        B2["Pipeline & Release Orchestration"]
+        B3["Runner & Executor Coordination"]
+        B4["Policy Gates & Approval"]
+        B5["Artifact & Version Traceability"]
+        B6["Audit, Events & Timeline"]
+        B7["Open APIs & Future Visualization"]
+    end
+
+    subgraph C["Execution Plane"]
+        C1["Host Runner"]
+        C2["Kubernetes Runner"]
+        C3["GitOps Runner"]
+        C4["Cloud Runner"]
+        C5["Local / Dev Runner"]
+    end
+
+    subgraph D["Unified Delivery Outcomes"]
+        D1["Repeatable PipelineRun"]
+        D2["Auditable DeploymentRun"]
+        D3["Immutable Artifact Release"]
+        D4["Controlled Rollback"]
+        D5["Observable Delivery Timeline"]
+        D6["Multi-Target Delivery"]
+    end
+
+    A1 --> B
+    A2 --> B
+    A3 --> B
+    A4 --> B
+    A5 --> B
+    B --> C
+    C --> D
+    B --> D
 ```
 
-Stop them:
+## What Nivora Is
 
-```sh
-make dev-down
+Nivora is a delivery control plane. It coordinates:
+
+- Pipeline execution
+- Release planning
+- Deployment execution
+- Runner assignment
+- Executor selection
+- Artifact traceability
+- Policy evaluation
+- Approval flow
+- Audit records
+- Runtime events
+- Delivery timeline
+- Future visualization APIs
+
+Nivora starts as a **modular monolith** with multiple binaries:
+
+```text
+nivora-server
+nivora-worker
+nivora-runner
+nivora CLI
 ```
 
-Run checks:
+This keeps the early project understandable while preserving a path toward future service extraction.
 
-```sh
+## What Nivora Is Not
+
+Nivora is not:
+
+- a Jenkins clone
+- an Argo CD replacement
+- a Kubernetes-only platform
+- a cloud-provider-specific system
+- a frontend-first project
+- a black-box automation tool
+- production-ready in the current phase
+
+Nivora should integrate with existing systems rather than hide everything behind opaque magic.
+
+## Target Architecture
+
+The target architecture separates the **Control Plane** from the **Execution Plane**.
+
+The control plane owns state, orchestration, policies, audit, APIs, and integration configuration. The execution plane owns job execution, logs, heartbeats, and runtime results.
+
+```mermaid
+flowchart TB
+    U1["Users / Maintainers"]
+    U2["CLI"]
+    U3["Future Web UI"]
+    U4["Git Webhooks"]
+
+    subgraph CP["Control Plane"]
+        API["API Server<br/>REST / OpenAPI"]
+        AUTH["AuthN / AuthZ<br/>future OIDC / RBAC"]
+        ORCH["Workflow Orchestrator<br/>PipelineRun / DeploymentRun"]
+        POLICY["Policy Engine<br/>Gates / Approval / Windows"]
+        INTEG["Integration Manager<br/>SCM / Artifact / Cloud / Secret"]
+        AUDIT["Audit Service<br/>Who did what, when, why"]
+        EVENT["Event Service<br/>CloudEvents-style"]
+        LOGIDX["Log Index<br/>LogChunk metadata"]
+    end
+
+    subgraph STATE["State & Storage"]
+        DB[("PostgreSQL<br/>source of truth")]
+        OBJ[("Object Store<br/>S3 / MinIO / local")]
+        BUS[("Event Bus<br/>memory now<br/>NATS / Redis later")]
+    end
+
+    subgraph EP["Execution Plane"]
+        RM["Runner Manager"]
+        R1["Host Runner"]
+        R2["Kubernetes Runner"]
+        R3["GitOps Runner"]
+        R4["Cloud Runner"]
+        R5["Local Runner"]
+        EX1["Shell Executor"]
+        EX2["SSH Executor"]
+        EX3["Kubernetes Job Executor"]
+        EX4["YAML / Helm Executor"]
+        EX5["Argo CD Executor"]
+        EX6["Webhook Executor"]
+    end
+
+    subgraph EXT["External Systems"]
+        SCM["SCM<br/>GitHub / GitLab / Gitea"]
+        ART["Artifact Registry<br/>Harbor / Nexus / OCI / S3"]
+        K8S["Kubernetes<br/>YAML / Helm / Kustomize"]
+        ARGO["Argo CD<br/>GitOps sync"]
+        HOST["Hosts<br/>VM / Bare Metal"]
+        CLOUD["Cloud Providers<br/>AWS / Aliyun / Tencent"]
+        SEC["Security Tools<br/>Trivy / Cosign / SBOM"]
+        OBS["Observability<br/>OpenTelemetry / Prometheus / Logs"]
+    end
+
+    U1 --> API
+    U2 --> API
+    U3 -. future .-> API
+    U4 --> API
+    API --> AUTH
+    API --> ORCH
+    API --> INTEG
+    API --> AUDIT
+    API --> EVENT
+    ORCH --> POLICY
+    ORCH --> RM
+    ORCH --> DB
+    AUDIT --> DB
+    EVENT --> BUS
+    LOGIDX --> DB
+    LOGIDX --> OBJ
+    RM --> R1
+    RM --> R2
+    RM --> R3
+    RM --> R4
+    RM --> R5
+    R1 --> EX1
+    R1 --> EX2
+    R2 --> EX3
+    R2 --> EX4
+    R3 --> EX5
+    R4 --> EX6
+    R5 --> EX1
+    INTEG --> SCM
+    INTEG --> ART
+    INTEG --> CLOUD
+    INTEG --> SEC
+    EX2 --> HOST
+    EX3 --> K8S
+    EX4 --> K8S
+    EX5 --> ARGO
+    EX6 --> CLOUD
+    EVENT --> OBS
+```
+
+## Architecture Principles
+
+### Control Plane and Execution Plane Are Separate
+
+The control plane owns API, state, orchestration, policy, audit, integration configuration, and event timeline. The execution plane owns job execution, logs, heartbeat, and runtime result reporting.
+
+The API server should not directly execute deployment jobs.
+
+### Runner and Executor Are Different
+
+```text
+Runner = who executes
+Executor = how execution happens
+```
+
+| Runner | Executor |
+|---|---|
+| Local Runner | Shell Executor |
+| Host Runner | SSH Executor |
+| Kubernetes Runner | Kubernetes Job Executor |
+| GitOps Runner | Argo CD Executor |
+| Cloud Runner | Webhook / Cloud Adapter |
+
+This separation allows Nivora to support many execution environments without rewriting the core orchestration logic.
+
+### GitOps Is One Deployment Mode
+
+Nivora supports GitOps, but GitOps is not the whole product.
+
+Future deployment modes include host deployment, raw Kubernetes YAML, Helm, Kustomize, Argo CD GitOps, webhook-based delivery, and cloud-provider-specific delivery.
+
+### Ports and Adapters First
+
+External systems must be integrated through stable interfaces:
+
+```text
+SCMProvider
+ArtifactProvider
+CloudProvider
+Executor
+WorkflowRuntime
+SecretProvider
+NotificationProvider
+PolicyEngine
+EventBus
+ObjectStore
+```
+
+The core use cases should depend on capabilities, not concrete vendors.
+
+### Artifacts Should Be Immutable
+
+A release should point to immutable artifacts whenever possible: image digest, immutable version, signed artifact, and SBOM reference. Avoid `latest` tags, implicit rebuilds during deployment, and untracked artifact mutation.
+
+### Audit Is Not Optional
+
+Important delivery actions must be auditable: pipeline started, job assigned, artifact selected, approval granted or rejected, deployment started, rollback executed, policy violation detected, runner registered, and credential used.
+
+Audit records must not contain secret values.
+
+## PipelineRun Runtime Model
+
+This is the first execution foundation Nivora is building. Current implementation is limited to minimal shell-based PipelineRun execution.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant User as User / CLI / API
+    participant API as API Server
+    participant UC as PipelineRun Usecase
+    participant Repo as Runtime Repositories
+    participant Worker as Worker
+    participant Runner as Runner
+    participant Exec as Executor
+    participant Event as EventBus
+    participant Audit as AuditLog
+
+    User->>API: POST /api/v1/pipeline-runs
+    API->>UC: CreatePipelineRun(spec)
+    UC->>Repo: Persist PipelineRun, StageRun, JobRun, StepRun
+    UC->>Event: emit pipeline.run.created
+    UC->>Audit: record PipelineRun created
+    UC-->>API: PipelineRun ID
+    Worker->>Repo: Poll queued PipelineRun
+    Worker->>Repo: PipelineRun -> Running
+    Worker->>Event: emit pipeline.run.started
+    Worker->>Audit: record PipelineRun started
+    Worker->>Runner: Assign JobRun
+    Runner->>Exec: Run step
+    Exec-->>Runner: stdout / stderr / exit code
+    Runner->>Repo: Persist LogChunks
+    Runner->>Repo: StepRun / JobRun status
+    Worker->>Repo: PipelineRun final status
+    Worker->>Event: emit completed or failed
+    Worker->>Audit: record lifecycle result
+```
+
+## Core Concepts
+
+| Concept | Meaning |
+|---|---|
+| Application | A product or service managed by Nivora |
+| Environment | A delivery context such as dev, staging, prod, or a custom target group |
+| ReleaseTarget | A concrete deployment target such as host group, Kubernetes cluster, Argo CD application, cloud target, or webhook target |
+| Pipeline | A reusable definition of stages, jobs, and steps |
+| PipelineRun | One execution of a Pipeline |
+| StageRun | Execution record for one stage |
+| JobRun | Execution record for one job |
+| StepRun | Execution record for one step |
+| Release | A versioned delivery intent, usually tied to immutable artifacts |
+| DeploymentRun | One execution of a release or deployment plan against a target |
+| Runner | A component that receives and executes jobs |
+| Executor | A mechanism used by a Runner to execute work |
+| Artifact | A build output such as image, jar, binary, chart, or package |
+| Artifact Registry | A system that stores artifacts |
+| Policy | A gate that can allow, deny, or require approval |
+| AuditLog | Durable record of important actions |
+| Event | Runtime signal emitted during delivery lifecycle |
+| LogChunk | Ordered stdout, stderr, or system log segment |
+
+## Repository Layout
+
+```text
+nivora/
+  cmd/
+    nivora-server/
+    nivora-worker/
+    nivora-runner/
+    nivora/
+
+  internal/
+    app/
+    domain/
+    usecase/
+    ports/
+    adapters/
+    infra/
+    api/
+
+  api/
+    openapi/
+    asyncapi/
+    proto/
+
+  configs/
+  deployments/
+  examples/
+  docs/
+  scripts/
+  test/
+
+  AGENTS.md
+  PROJECT_CHARTER.md
+  README.md
+  ROADMAP.md
+  CONTRIBUTING.md
+```
+
+| Directory | Purpose |
+|---|---|
+| `cmd/` | Binary entrypoints only |
+| `internal/domain/` | Pure domain concepts and statuses |
+| `internal/usecase/` | Business orchestration |
+| `internal/ports/` | External capability interfaces |
+| `internal/adapters/` | Implementations of ports |
+| `internal/infra/` | Technical infrastructure |
+| `internal/api/` | HTTP / gRPC transport |
+| `api/` | OpenAPI, AsyncAPI, proto definitions |
+| `docs/` | Architecture, roadmap, concepts, community docs |
+| `examples/` | Example pipelines and deployment specs |
+
+## Quick Start
+
+### Prerequisites
+
+- Go
+- Make
+- Docker, optional for local compose
+- PostgreSQL, optional depending on runtime mode
+
+### Build
+
+```bash
+make build
+```
+
+### Test
+
+```bash
+make test
+```
+
+### Verify
+
+```bash
 make verify
 ```
 
-## Run Server
+### Run Server
 
-```sh
-go run ./cmd/nivora server --config configs/server.yaml
+```bash
+make run-server
 ```
 
-The server listens on `:8080` by default.
+### Health Check
 
-## Run Worker
-
-```sh
-go run ./cmd/nivora worker --config configs/worker.yaml
-```
-
-## Run Runner
-
-```sh
-go run ./cmd/nivora runner --config configs/runner.yaml
-```
-
-## Example API Call
-
-```sh
+```bash
+curl http://localhost:8080/healthz
+curl http://localhost:8080/readyz
 curl http://localhost:8080/api/v1/version
+```
+
+### Run Worker
+
+```bash
+make run-worker
+```
+
+### Run Runner
+
+```bash
+make run-runner
+```
+
+### CLI
+
+```bash
+go run ./cmd/nivora version
+go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
+```
+
+## Local Development
+
+Nivora supports local development through the Makefile, docker-compose, a local object store, a memory event bus, the shell executor, and example pipelines.
+
+This repository uses a neutral default Go proxy in local tooling:
+
+```bash
+GOPROXY=https://proxy.golang.org,direct
+```
+
+Developers in China can override it without changing project defaults:
+
+```bash
+GOPROXY=https://goproxy.cn,direct make verify
+```
+
+or:
+
+```bash
+export GOPROXY=https://goproxy.cn,direct
+make verify
+```
+
+## Example Pipeline
+
+```yaml
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: hello-shell
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: echo
+          executor: shell
+          steps:
+            - name: say-hello
+              run: echo "hello from nivora"
+```
+
+Run it locally:
+
+```bash
+go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
 ```
 
 Run a minimal shell PipelineRun through the API:
 
-```sh
+```bash
 curl -X POST http://localhost:8080/api/v1/pipeline-runs \
   -H 'Content-Type: application/json' \
   -d '{
@@ -114,36 +583,188 @@ curl -X POST http://localhost:8080/api/v1/pipeline-runs \
   }'
 ```
 
-The API accepts the same minimal Pipeline definition shape as the YAML examples. The CLI can read YAML directly.
+Unimplemented API groups return structured responses, not fake data:
 
-Run a local Phase 1 PipelineRun with the CLI:
-
-```sh
-go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
+```json
+{
+  "code": "not_implemented",
+  "message": "This endpoint is reserved for a future phase.",
+  "path": "/api/v1/deployments"
+}
 ```
 
-Unfinished API groups return a structured Phase 0 `not_implemented` JSON response.
+## Events
 
-## Verification
+Nivora uses CloudEvents-style event envelopes.
 
-Run the full local verification suite:
-
-```sh
-make verify
+```json
+{
+  "specversion": "1.0",
+  "id": "evt_01HX",
+  "type": "devops.pipeline.run.started",
+  "source": "/projects/example/pipelines/hello-shell",
+  "subject": "pipelineRun/pr_123",
+  "time": "2026-05-18T10:00:00Z",
+  "datacontenttype": "application/json",
+  "data": {
+    "pipelineRunId": "pr_123",
+    "status": "Running"
+  }
+}
 ```
 
-This checks formatting, module tidiness, `go vet`, tests, binary builds, architecture boundaries, and high-confidence secret patterns.
+OpenAPI definitions live under `api/openapi/openapi.yaml`. AsyncAPI definitions live under `api/asyncapi/asyncapi.yaml`.
 
 ## Roadmap
 
-See [ROADMAP.md](ROADMAP.md).
+```mermaid
+flowchart LR
+    P0["Phase 0<br/>Backend Skeleton"]
+    P05["Phase 0.5<br/>Guardrails"]
+    P06["Phase 0.6<br/>Public Planning"]
+    P1["Phase 1<br/>Minimal Runtime"]
+    P15["Phase 1.5<br/>Durable Runtime Foundation"]
+    P2["Phase 2<br/>Release Foundation"]
+    P21["Phase 2.1<br/>GitOps"]
+    P3["Phase 3<br/>Multi-cloud & DevSecOps"]
+    P4["Phase 4<br/>Visualization"]
 
-Detailed roadmap docs live under [docs/roadmap/](docs/roadmap/overview.md). Large future proposals should use the [RFC process](docs/rfcs/README.md).
+    P0 --> P05 --> P06 --> P1 --> P15 --> P2 --> P21 --> P3 --> P4
+```
 
-## Contributing
+See [ROADMAP.md](ROADMAP.md) and [docs/roadmap/overview.md](docs/roadmap/overview.md) for details.
 
-Read [CONTRIBUTING.md](CONTRIBUTING.md). AI coding agents must follow [AGENTS.md](AGENTS.md), which is the canonical AI instruction file.
+## Contribution Map
+
+```mermaid
+flowchart TB
+    C["Contributor"]
+    C --> G1["Good First Contributions"]
+    C --> G2["Intermediate Contributions"]
+    C --> G3["Advanced Contributions"]
+    C --> G4["Requires RFC"]
+    G1 --> D1["Documentation"]
+    G1 --> D2["Examples"]
+    G1 --> D3["Tests"]
+    G1 --> D4["CLI polish"]
+    G1 --> D5["API schema cleanup"]
+    G2 --> I1["Shell executor improvements"]
+    G2 --> I2["Memory event bus"]
+    G2 --> I3["Local object store"]
+    G2 --> I4["Config validation"]
+    G2 --> I5["Pipeline state tests"]
+    G3 --> A1["PipelineRun state machine"]
+    G3 --> A2["Runner protocol"]
+    G3 --> A3["Log streaming"]
+    G3 --> A4["Persistence"]
+    G3 --> A5["Kubernetes Job executor"]
+    G3 --> A6["YAML renderer"]
+    G3 --> A7["Argo CD adapter"]
+    G3 --> A8["Policy engine"]
+    G4 --> R1["Runner protocol changes"]
+    G4 --> R2["Workflow runtime changes"]
+    G4 --> R3["Database model changes"]
+    G4 --> R4["Cloud provider adapters"]
+    G4 --> R5["Kubernetes / Argo CD integration design"]
+    G4 --> R6["Plugin system changes"]
+    G4 --> R7["Security model changes"]
+    G4 --> R8["Public API breaking changes"]
+```
+
+Before contributing, read:
+
+- [AGENTS.md](AGENTS.md)
+- [CONTRIBUTING.md](CONTRIBUTING.md)
+- [PROJECT_CHARTER.md](PROJECT_CHARTER.md)
+- [docs/README.md](docs/README.md)
+- [docs/rfcs/README.md](docs/rfcs/README.md)
+- [docs/architecture/architecture-contract.md](docs/architecture/architecture-contract.md)
+- [docs/architecture/module-boundaries.md](docs/architecture/module-boundaries.md)
+- [docs/engineering/testing-policy.md](docs/engineering/testing-policy.md)
+- [docs/engineering/dependency-policy.md](docs/engineering/dependency-policy.md)
+
+Basic expectations:
+
+- keep changes small
+- preserve architecture boundaries
+- do not add speculative abstractions
+- do not commit secrets
+- do not claim production readiness
+- update docs when architecture changes
+- update OpenAPI / AsyncAPI when public behavior changes
+- add tests for behavior changes
+
+## AI Coding Agents
+
+Nivora expects AI coding agents to participate in development. The canonical instruction file is [AGENTS.md](AGENTS.md).
+
+Other tool-specific files should point to `AGENTS.md` rather than creating conflicting rules. AI-generated changes must follow architecture boundaries, phase boundaries, dependency policy, testing policy, security baseline, and documentation consistency.
+
+## Verification
+
+Run the full verification suite:
+
+```bash
+make verify
+```
+
+Expected checks include:
+
+```text
+gofmt check
+go mod tidy check
+go vet ./...
+go test ./...
+go build ./cmd/nivora-server
+go build ./cmd/nivora-worker
+go build ./cmd/nivora-runner
+go build ./cmd/nivora
+architecture verification
+secret scanning
+```
+
+## Security
+
+Nivora must not commit or expose secrets.
+
+Do not commit tokens, passwords, private keys, kubeconfigs, cloud credentials, registry credentials, or realistic-looking fake credentials. Secret values must not be logged, returned by normal APIs, stored in audit records, embedded in examples, or embedded in tests.
+
+See [SECURITY.md](SECURITY.md) and [docs/engineering/security-baseline.md](docs/engineering/security-baseline.md).
+
+## Documentation
+
+| Document | Purpose |
+|---|---|
+| [PROJECT_CHARTER.md](PROJECT_CHARTER.md) | Project purpose and principles |
+| [ROADMAP.md](ROADMAP.md) | High-level roadmap |
+| [docs/README.md](docs/README.md) | Documentation index |
+| [docs/architecture/](docs/architecture/overview.md) | Architecture model |
+| [docs/concepts/](docs/concepts/overview.md) | Core concepts |
+| [docs/product/](docs/product/vision.md) | Product planning |
+| [docs/community/](docs/community/governance.md) | Contribution and governance |
+| [docs/rfcs/](docs/rfcs/README.md) | RFC process |
+| [docs/adr/](docs/adr/0001-use-go-as-primary-language.md) | Architecture decision records |
+| [AGENTS.md](AGENTS.md) | AI coding agent rules |
+
+## Design North Star
+
+Nivora is being built to make delivery systems more coherent. It does not assume one tool, one cloud, one runtime, or one deployment model.
+
+The long-term goal is to provide a delivery control plane where:
+
+```text
+pipelines are repeatable
+releases are artifact-based
+deployments are auditable
+policies are explicit
+runners are isolated
+integrations are replaceable
+events are observable
+rollback is traceable
+```
+
+Nivora starts small. The first milestone is not to support every tool. The first milestone is to build the correct foundation.
 
 ## License
 
-Nivora is licensed under the Apache License 2.0.
+Nivora is licensed under the Apache License 2.0. See [LICENSE](LICENSE).

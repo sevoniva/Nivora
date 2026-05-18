@@ -1,0 +1,22 @@
+image:
+  repository: sevoniva/nivora
+  tag: "0.1.0-dev"
+  pullPolicy: IfNotPresent
+
+server:
+  replicas: 1
+  service:
+    port: 8080
+
+worker:
+  replicas: 1
+
+runner:
+  enabled: false
+
+config:
+  databaseURL: postgres://nivora:nivora@postgres:5432/nivora?sslmode=disable
+  eventBusType: memory
+  objectStoreType: local
+  logLevel: info
+

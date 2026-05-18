@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nivora-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nivora-worker
+  template:
+    metadata:
+      labels:
+        app: nivora-worker
+    spec:
+      containers:
+        - name: worker
+          image: sevoniva/nivora:0.1.0-dev
+          args: ["worker", "--config", "/etc/nivora/worker.yaml"]
+

@@ -1,0 +1,13 @@
+apiVersion: nivora.sevoniva.dev/v1alpha1
+kind: Pipeline
+metadata:
+  name: simple-shell
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: echo
+          executor: shell
+          steps:
+            - run: echo "hello from nivora"
+

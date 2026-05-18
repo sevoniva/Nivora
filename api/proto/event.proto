@@ -1,0 +1,29 @@
+syntax = "proto3";
+
+package nivora.event.v1;
+
+option go_package = "github.com/sevoniva/nivora/api/proto/event/v1;eventpb";
+
+service EventService {
+  rpc Publish(PublishRequest) returns (PublishResponse);
+}
+
+message EventEnvelope {
+  string specversion = 1;
+  string id = 2;
+  string type = 3;
+  string source = 4;
+  string subject = 5;
+  string time = 6;
+  string datacontenttype = 7;
+  bytes data = 8;
+}
+
+message PublishRequest {
+  EventEnvelope event = 1;
+}
+
+message PublishResponse {
+  bool accepted = 1;
+}
+

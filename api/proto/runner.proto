@@ -1,0 +1,30 @@
+syntax = "proto3";
+
+package nivora.runner.v1;
+
+option go_package = "github.com/sevoniva/nivora/api/proto/runner/v1;runnerpb";
+
+service RunnerService {
+  rpc RegisterRunner(RegisterRunnerRequest) returns (RegisterRunnerResponse);
+  rpc Heartbeat(HeartbeatRequest) returns (HeartbeatResponse);
+}
+
+message RegisterRunnerRequest {
+  string name = 1;
+  string group = 2;
+}
+
+message RegisterRunnerResponse {
+  string runner_id = 1;
+  string status = 2;
+}
+
+message HeartbeatRequest {
+  string runner_id = 1;
+  string status = 2;
+}
+
+message HeartbeatResponse {
+  bool accepted = 1;
+}
+

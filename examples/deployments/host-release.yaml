@@ -1,0 +1,11 @@
+apiVersion: nivora.sevoniva.dev/v1alpha1
+kind: Deployment
+metadata:
+  name: host-release
+spec:
+  mode: host
+  target: staging-hosts
+  artifact:
+    name: example-service
+    digest: sha256:example
+

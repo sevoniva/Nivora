@@ -1,0 +1,9 @@
+apiVersion: nivora.sevoniva.dev/v1alpha1
+kind: Deployment
+metadata:
+  name: argocd-release
+spec:
+  mode: argocd
+  application: example-service
+  revision: main
+

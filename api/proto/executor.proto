@@ -1,0 +1,40 @@
+syntax = "proto3";
+
+package nivora.executor.v1;
+
+option go_package = "github.com/sevoniva/nivora/api/proto/executor/v1;executorpb";
+
+service ExecutorService {
+  rpc Prepare(PrepareRequest) returns (PrepareResponse);
+  rpc Run(RunRequest) returns (RunResponse);
+  rpc Cancel(CancelRequest) returns (CancelResponse);
+}
+
+message PrepareRequest {
+  string job_run_id = 1;
+}
+
+message PrepareResponse {
+  bool ready = 1;
+}
+
+message RunRequest {
+  string command_id = 1;
+  string name = 2;
+  repeated string args = 3;
+}
+
+message RunResponse {
+  int32 exit_code = 1;
+  string stdout = 2;
+  string stderr = 3;
+}
+
+message CancelRequest {
+  string command_id = 1;
+}
+
+message CancelResponse {
+  bool canceled = 1;
+}
+

@@ -1,0 +1,8 @@
+.git
+.github
+.nivora
+bin
+dist
+tmp
+*.log
+

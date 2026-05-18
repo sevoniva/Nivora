@@ -1,0 +1,117 @@
+asyncapi: 3.0.0
+info:
+  title: Nivora Events
+  version: 0.1.0-dev
+  description: Phase 0 CloudEvents-style event envelope for Nivora.
+channels:
+  devops.pipeline.run.created:
+    address: devops.pipeline.run.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.pipeline.run.started:
+    address: devops.pipeline.run.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.pipeline.run.completed:
+    address: devops.pipeline.run.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.pipeline.run.failed:
+    address: devops.pipeline.run.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.created:
+    address: devops.deployment.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.approval.required:
+    address: devops.deployment.approval.required
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.started:
+    address: devops.deployment.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.succeeded:
+    address: devops.deployment.succeeded
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.failed:
+    address: devops.deployment.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.rollback.started:
+    address: devops.deployment.rollback.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.rollback.succeeded:
+    address: devops.deployment.rollback.succeeded
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.runner.registered:
+    address: devops.runner.registered
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.runner.heartbeat:
+    address: devops.runner.heartbeat
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.runner.offline:
+    address: devops.runner.offline
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.artifact.scanned:
+    address: devops.artifact.scanned
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.policy.violation.detected:
+    address: devops.policy.violation.detected
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+components:
+  messages:
+    Event:
+      name: Event
+      payload:
+        $ref: "#/components/schemas/EventEnvelope"
+  schemas:
+    EventEnvelope:
+      type: object
+      required: [specversion, id, type, source, time, datacontenttype, data]
+      properties:
+        specversion:
+          type: string
+          example: "1.0"
+        id:
+          type: string
+        type:
+          type: string
+        source:
+          type: string
+        subject:
+          type: string
+        time:
+          type: string
+          format: date-time
+        datacontenttype:
+          type: string
+          example: application/json
+        data:
+          type: object
+

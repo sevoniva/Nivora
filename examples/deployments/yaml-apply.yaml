@@ -1,0 +1,11 @@
+apiVersion: nivora.sevoniva.dev/v1alpha1
+kind: Deployment
+metadata:
+  name: yaml-apply
+spec:
+  mode: yaml_apply
+  target: staging-cluster
+  manifests:
+    - examples/yaml/deployment.yaml
+    - examples/yaml/service.yaml
+

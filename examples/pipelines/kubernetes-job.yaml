@@ -1,0 +1,14 @@
+apiVersion: nivora.sevoniva.dev/v1alpha1
+kind: Pipeline
+metadata:
+  name: kubernetes-job
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: container-build
+          executor: kubernetes_job
+          image: alpine:3.20
+          steps:
+            - run: echo "placeholder for future Kubernetes job execution"
+

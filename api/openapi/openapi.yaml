@@ -1,0 +1,239 @@
+openapi: 3.1.0
+info:
+  title: Nivora API
+  version: 0.1.0-dev
+  description: Phase 0 API skeleton for the Nivora DevOps delivery control plane.
+servers:
+  - url: http://localhost:8080
+paths:
+  /healthz:
+    get:
+      summary: Health check
+      responses:
+        "200":
+          description: Healthy
+  /readyz:
+    get:
+      summary: Readiness check
+      responses:
+        "200":
+          description: Ready
+  /api/v1/version:
+    get:
+      summary: Version information
+      responses:
+        "200":
+          description: Version payload
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Version"
+  /api/v1/system/info:
+    get:
+      summary: System information
+      responses:
+        "200":
+          description: System information
+  /api/v1/orgs:
+    get:
+      summary: Organizations placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/projects:
+    get:
+      summary: Projects placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/applications:
+    get:
+      summary: Applications placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/environments:
+    get:
+      summary: Environments placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/repositories:
+    get:
+      summary: Repositories placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/artifact-registries:
+    get:
+      summary: Artifact registries placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/pipelines:
+    get:
+      summary: Pipelines placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/pipeline-runs:
+    get:
+      summary: Pipeline runs placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/releases:
+    get:
+      summary: Releases placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/deployments:
+    get:
+      summary: Deployments placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/runners:
+    get:
+      summary: Runners placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/approvals:
+    get:
+      summary: Approvals placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/policies:
+    get:
+      summary: Policies placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/audit-logs:
+    get:
+      summary: Audit logs placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/events:
+    get:
+      summary: Events placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/logs:
+    get:
+      summary: Logs placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/integrations:
+    get:
+      summary: Integrations placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+  /api/v1/visualization:
+    get:
+      summary: Visualization placeholder
+      responses:
+        "501":
+          $ref: "#/components/responses/NotImplemented"
+components:
+  responses:
+    NotImplemented:
+      description: Endpoint exists but is not implemented in Phase 0.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Version:
+      type: object
+      properties:
+        name:
+          type: string
+        version:
+          type: string
+        commit:
+          type: string
+        date:
+          type: string
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+    PipelineRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        pipeline_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [Pending, Queued, Running, Paused, Succeeded, Failed, Canceled, Timeout]
+    DeploymentRun:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        release_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [Created, Planning, WaitingApproval, PreChecking, Deploying, Verifying, Succeeded, Failed, RollingBack, RolledBack, Canceled]
+    Runner:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        status:
+          type: string
+    Event:
+      type: object
+      properties:
+        specversion:
+          type: string
+        id:
+          type: string
+        type:
+          type: string
+        source:
+          type: string
+        subject:
+          type: string
+        time:
+          type: string
+          format: date-time
+        datacontenttype:
+          type: string
+        data:
+          type: object
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        actor_id:
+          type: string
+          format: uuid
+        action:
+          type: string
+        subject:
+          type: string
+

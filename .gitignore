@@ -1,0 +1,15 @@
+.DS_Store
+.env
+.env.*
+!.env.example
+.nivora/
+bin/
+dist/
+/nivora
+/nivora-server
+/nivora-worker
+/nivora-runner
+coverage.out
+*.test
+*.log
+tmp/

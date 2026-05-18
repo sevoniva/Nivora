@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nivora-runner
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nivora-runner
+  template:
+    metadata:
+      labels:
+        app: nivora-runner
+    spec:
+      containers:
+        - name: runner
+          image: sevoniva/nivora:0.1.0-dev
+          args: ["runner", "--config", "/etc/nivora/runner.yaml"]
+

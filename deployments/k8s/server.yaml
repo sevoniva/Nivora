@@ -1,0 +1,21 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nivora-server
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nivora-server
+  template:
+    metadata:
+      labels:
+        app: nivora-server
+    spec:
+      containers:
+        - name: server
+          image: sevoniva/nivora:0.1.0-dev
+          args: ["server", "--config", "/etc/nivora/server.yaml"]
+          ports:
+            - containerPort: 8080
+

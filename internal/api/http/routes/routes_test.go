@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"context"
 	"encoding/json"
 	"io"
 	"log/slog"
@@ -11,6 +12,8 @@ import (
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	"github.com/sevoniva/nivora/internal/ports/policy"
+	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	"github.com/sevoniva/nivora/internal/version"
 )
@@ -20,7 +23,7 @@ func TestHealthRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
-	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService())
+	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService(), newTestDeploymentService())
 
 	tests := []string{"/healthz", "/readyz", "/api/v1/version"}
 	for _, path := range tests {
@@ -44,7 +47,7 @@ func TestPlaceholderRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
-	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService())
+	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService(), newTestDeploymentService())
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/pipelines", nil)
 	rec := httptest.NewRecorder()
 
@@ -71,4 +74,20 @@ func newTestPipelineService() *pipelineusecase.Service {
 		pipelineusecase.NewLocalRunner("test-runner", shellexecutor.New()),
 		memory.New(),
 	)
+}
+
+func newTestDeploymentService() *deploymentusecase.Service {
+	return deploymentusecase.NewService(
+		deploymentusecase.NewMemoryStore(),
+		deploymentusecase.StaticManifestRenderer{},
+		deploymentusecase.NoopManifestClient{},
+		allowPolicy{},
+		memory.New(),
+	)
+}
+
+type allowPolicy struct{}
+
+func (allowPolicy) Evaluate(ctx context.Context, request policy.Request) (policy.Result, error) {
+	return policy.Result{Allowed: true}, nil
 }

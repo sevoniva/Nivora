@@ -83,10 +83,11 @@ Git webhook -> PipelineRun -> Runner -> Executor -> Logs -> Status -> Audit
 
 ## Phase 2
 
-GitOps and production release basics.
+Release and deployment foundation. Phase 2.0 is limited to YAML deployment planning and non-destructive dry-run validation.
 
 Target capabilities:
 
+- YAML DeploymentRun planning/dry-run foundation
 - Argo CD adapter
 - Helm/Kustomize/YAML renderer
 - approval

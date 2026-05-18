@@ -1,0 +1,21 @@
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-yaml-deployment
+spec:
+  application: demo-springboot
+  environment: dev
+  target:
+    type: kubernetes-yaml
+    name: dev-kind
+    namespace: default
+  artifacts:
+    - name: demo-springboot
+      type: image
+      reference: example.invalid/sevoniva/demo-springboot:example
+  manifests:
+    - examples/yaml/deployment.yaml
+    - examples/yaml/service.yaml
+  options:
+    dryRun: true
+    apply: false

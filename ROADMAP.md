@@ -39,12 +39,12 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 - Add runtime acceptance docs, smoke scripts, safer examples, CLI/API polish, and developer troubleshooting docs.
 - Keep all tests self-contained without Kubernetes, Argo CD, cloud, Git provider, or registry dependencies.
 
-## Phase 2: GitOps and Production Release
+## Phase 2: Release and Deployment Foundation
 
 - Add release and deployment workflows.
-- Implement GitOps deployment mode.
-- Add approval gates and release audit trails.
-- Add deployment diff, health verification, and rollback foundation.
+- Phase 2.0 adds YAML deployment planning and non-destructive dry-run foundation.
+- Future Phase 2 work adds GitOps deployment mode, approval gates, release audit trails, deployment diff, health verification, and rollback foundation.
+- Keep production Kubernetes apply, Helm, Kustomize, and Argo CD implementation out of Phase 2.0.
 
 ## Phase 3: Multi-Cloud and DevSecOps
 

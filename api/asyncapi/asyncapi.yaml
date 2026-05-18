@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 1.5 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 2.0 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
@@ -61,43 +61,64 @@ channels:
         $ref: "#/components/messages/Event"
   devops.deployment.created:
     address: devops.deployment.created
-    description: Reserved for future deployment phases; not emitted by the Phase 1.6 shell runtime.
     messages:
       event:
         $ref: "#/components/messages/Event"
-  devops.deployment.approval.required:
-    address: devops.deployment.approval.required
-    description: Reserved for future deployment phases; not emitted by the Phase 1.6 shell runtime.
+  devops.deployment.planning:
+    address: devops.deployment.planning
     messages:
       event:
         $ref: "#/components/messages/Event"
-  devops.deployment.started:
-    address: devops.deployment.started
-    description: Reserved for future deployment phases; not emitted by the Phase 1.6 shell runtime.
+  devops.deployment.precheck.started:
+    address: devops.deployment.precheck.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.precheck.completed:
+    address: devops.deployment.precheck.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.dryrun.started:
+    address: devops.deployment.dryrun.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.dryrun.completed:
+    address: devops.deployment.dryrun.completed
     messages:
       event:
         $ref: "#/components/messages/Event"
   devops.deployment.succeeded:
     address: devops.deployment.succeeded
-    description: Reserved for future deployment phases; not emitted by the Phase 1.6 shell runtime.
     messages:
       event:
         $ref: "#/components/messages/Event"
   devops.deployment.failed:
     address: devops.deployment.failed
-    description: Reserved for future deployment phases; not emitted by the Phase 1.6 shell runtime.
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.canceled:
+    address: devops.deployment.canceled
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.approval.required:
+    address: devops.deployment.approval.required
+    description: Reserved for future approval phases; not emitted by the Phase 2.0 dry-run runtime.
     messages:
       event:
         $ref: "#/components/messages/Event"
   devops.deployment.rollback.started:
     address: devops.deployment.rollback.started
-    description: Reserved for future deployment phases; not emitted by the Phase 1.6 shell runtime.
+    description: Reserved for future rollback phases; not emitted by the Phase 2.0 dry-run runtime.
     messages:
       event:
         $ref: "#/components/messages/Event"
   devops.deployment.rollback.succeeded:
     address: devops.deployment.rollback.succeeded
-    description: Reserved for future deployment phases; not emitted by the Phase 1.6 shell runtime.
+    description: Reserved for future rollback phases; not emitted by the Phase 2.0 dry-run runtime.
     messages:
       event:
         $ref: "#/components/messages/Event"
@@ -113,19 +134,19 @@ channels:
         $ref: "#/components/messages/Event"
   devops.runner.offline:
     address: devops.runner.offline
-    description: Reserved for future runner health handling; not emitted by the Phase 1.6 shell runtime.
+    description: Reserved for future runner health handling; not emitted by the Phase 2.0 runtime.
     messages:
       event:
         $ref: "#/components/messages/Event"
   devops.artifact.scanned:
     address: devops.artifact.scanned
-    description: Reserved for future artifact scanning; not emitted by the Phase 1.6 shell runtime.
+    description: Reserved for future artifact scanning; not emitted by the Phase 2.0 runtime.
     messages:
       event:
         $ref: "#/components/messages/Event"
   devops.policy.violation.detected:
     address: devops.policy.violation.detected
-    description: Reserved for future policy engines; not emitted by the Phase 1.6 shell runtime.
+    description: Reserved for future policy engines; not emitted by the Phase 2.0 allow-all pre-check.
     messages:
       event:
         $ref: "#/components/messages/Event"

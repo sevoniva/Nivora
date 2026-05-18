@@ -31,11 +31,39 @@ func (s DeploymentRunStatus) Valid() bool {
 }
 
 type DeploymentRun struct {
-	ID              string
-	ReleaseID       string
-	EnvironmentID   string
-	ReleaseTargetID string
-	Status          DeploymentRunStatus
-	CreatedAt       time.Time
-	UpdatedAt       time.Time
+	ID                  string              `json:"id"`
+	ReleaseID           string              `json:"releaseId,omitempty"`
+	ApplicationID       string              `json:"applicationId,omitempty"`
+	EnvironmentID       string              `json:"environmentId"`
+	ReleaseTargetID     string              `json:"releaseTargetId"`
+	TargetType          string              `json:"targetType"`
+	Status              DeploymentRunStatus `json:"status"`
+	Reason              string              `json:"reason,omitempty"`
+	ManifestSnapshotRef string              `json:"manifestSnapshotRef,omitempty"`
+	ArtifactReferences  []string            `json:"artifactReferences,omitempty"`
+	StartedAt           *time.Time          `json:"startedAt,omitempty"`
+	FinishedAt          *time.Time          `json:"finishedAt,omitempty"`
+	CreatedAt           time.Time           `json:"createdAt"`
+	UpdatedAt           time.Time           `json:"updatedAt"`
+}
+
+type DeploymentStep struct {
+	ID              string              `json:"id"`
+	DeploymentRunID string              `json:"deploymentRunId"`
+	Name            string              `json:"name"`
+	Status          DeploymentRunStatus `json:"status"`
+	Reason          string              `json:"reason,omitempty"`
+	StartedAt       *time.Time          `json:"startedAt,omitempty"`
+	FinishedAt      *time.Time          `json:"finishedAt,omitempty"`
+	CreatedAt       time.Time           `json:"createdAt"`
+	UpdatedAt       time.Time           `json:"updatedAt"`
+}
+
+type RollbackRecord struct {
+	ID              string    `json:"id"`
+	DeploymentRunID string    `json:"deploymentRunId"`
+	Strategy        string    `json:"strategy"`
+	Reason          string    `json:"reason,omitempty"`
+	CreatedAt       time.Time `json:"createdAt"`
+	UpdatedAt       time.Time `json:"updatedAt"`
 }

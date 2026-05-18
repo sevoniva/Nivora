@@ -13,7 +13,7 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, runtime model, runner/executor model, logs/events/audit, and open-source contribution foundation. Real Kubernetes, Argo CD, cloud provider, Git provider, and artifact registry integrations remain future phases.
+Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, shell PipelineRun runtime, YAML DeploymentRun planning/dry-run foundation, runner/executor model, logs/events/audit, and open-source contribution foundation. Production Kubernetes apply, Argo CD, cloud provider, Git provider, and artifact registry integrations remain future phases.
 
 ## Current Status
 
@@ -24,7 +24,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | Public planning docs | Completed |
 | Minimal shell PipelineRun runtime | Completed |
 | Durable runtime foundation | Initial shell-only foundation completed |
-| Kubernetes release | Planned |
+| Kubernetes YAML planning / dry-run | Phase 2.0 foundation |
 | Argo CD GitOps | Planned |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
@@ -734,6 +734,8 @@ go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
 go run ./cmd/nivora pipeline get <pipeline-run-id> --server http://localhost:8080
 go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080
 go run ./cmd/nivora pipeline timeline <pipeline-run-id> --server http://localhost:8080
+go run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
+go run ./cmd/nivora deployment run --local examples/deployments/yaml-dry-run.yaml
 ```
 
 ## Local Development
@@ -783,6 +785,39 @@ Run it locally:
 go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
 ```
 
+## Example YAML Deployment Dry-Run
+
+Phase 2.0 supports non-destructive YAML deployment planning and dry-run validation. It renders static manifests, validates their basic shape, creates a DeploymentPlan, records logs/events/audit/timeline data, and does not apply resources to a cluster by default.
+
+```yaml
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-yaml-deployment
+spec:
+  application: demo-springboot
+  environment: dev
+  target:
+    type: kubernetes-yaml
+    name: dev-kind
+    namespace: default
+  manifests:
+    - examples/yaml/deployment.yaml
+    - examples/yaml/service.yaml
+  options:
+    dryRun: true
+    apply: false
+```
+
+Run it locally:
+
+```bash
+go run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
+go run ./cmd/nivora deployment run --local examples/deployments/yaml-dry-run.yaml
+```
+
+This is a planning/dry-run foundation only. Production Kubernetes apply, Helm, Kustomize, Argo CD, cloud providers, host deployment, and registry integrations remain future work.
+
 Run a minimal shell PipelineRun through the API:
 
 ```bash
@@ -811,7 +846,7 @@ Unimplemented API groups return structured responses, not fake data:
 {
   "code": "not_implemented",
   "message": "This endpoint is reserved for a future phase.",
-  "path": "/api/v1/deployments"
+  "path": "/api/v1/integrations"
 }
 ```
 
@@ -870,7 +905,7 @@ flowchart LR
     P1["Phase 1<br/>Minimal Runtime"]
     P15["Phase 1.5<br/>Durable Runtime Foundation"]
     P16["Phase 1.6<br/>Runtime DX & Acceptance"]
-    P2["Phase 2<br/>Release Foundation"]
+    P2["Phase 2<br/>YAML Deployment Foundation"]
     P21["Phase 2.1<br/>GitOps"]
     P3["Phase 3<br/>Multi-cloud & DevSecOps"]
     P4["Phase 4<br/>Visualization"]

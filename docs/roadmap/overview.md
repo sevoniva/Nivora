@@ -1,6 +1,6 @@
 # Roadmap Overview
 
-Nivora develops through explicit phases to avoid phase creep and premature implementation. Current work is focused on the Phase 1 / Phase 1.5 shell-based PipelineRun runtime foundation.
+Nivora develops through explicit phases to avoid phase creep and premature implementation. Current work includes the Phase 1 shell-based PipelineRun runtime foundation and the Phase 2.0 YAML DeploymentRun planning/dry-run foundation.
 
 ## Phases
 
@@ -10,7 +10,7 @@ Nivora develops through explicit phases to avoid phase creep and premature imple
 - [Phase 1: Minimal Pipeline Execution](phase-1.md)
 - Phase 1.5: Durable Runtime Foundation is tracked in the Phase 1 doc until it needs a separate page.
 - Phase 1.6: Runtime Acceptance and Developer Experience is tracked in the Phase 1 doc until it needs a separate page.
-- [Phase 2: GitOps and Production Release Basics](phase-2.md)
+- [Phase 2: Release and Deployment Foundation](phase-2.md)
 - [Phase 3: Multi-Cloud and DevSecOps](phase-3.md)
 - [Phase 4: Visualization Frontend](phase-4.md)
 

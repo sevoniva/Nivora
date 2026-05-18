@@ -3,14 +3,14 @@ package policy
 import "context"
 
 type Request struct {
-	Subject string
-	Action  string
-	Context map[string]any
+	Subject string         `json:"subject"`
+	Action  string         `json:"action"`
+	Context map[string]any `json:"context,omitempty"`
 }
 
 type Result struct {
-	Allowed bool
-	Reasons []string
+	Allowed bool     `json:"allowed"`
+	Reasons []string `json:"reasons,omitempty"`
 }
 
 type Engine interface {

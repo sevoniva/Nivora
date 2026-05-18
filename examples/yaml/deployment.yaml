@@ -2,6 +2,9 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: example-service
+  labels:
+    app.kubernetes.io/name: example-service
+    app.kubernetes.io/part-of: nivora-example
 spec:
   replicas: 1
   selector:
@@ -17,4 +20,3 @@ spec:
           image: example.invalid/sevoniva/example-service:dev
           ports:
             - containerPort: 8080
-

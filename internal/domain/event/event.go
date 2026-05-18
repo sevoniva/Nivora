@@ -14,13 +14,14 @@ type Event struct {
 }
 
 type LogChunk struct {
-	ID            string    `json:"id"`
-	PipelineRunID string    `json:"pipelineRunId"`
-	StageRunID    string    `json:"stageRunId,omitempty"`
-	JobRunID      string    `json:"jobRunId,omitempty"`
-	StepRunID     string    `json:"stepRunId,omitempty"`
-	Stream        string    `json:"stream"`
-	Sequence      int64     `json:"sequence"`
-	Content       string    `json:"content"`
-	CreatedAt     time.Time `json:"createdAt"`
+	ID              string    `json:"id"`
+	PipelineRunID   string    `json:"pipelineRunId,omitempty"`
+	DeploymentRunID string    `json:"deploymentRunId,omitempty"`
+	StageRunID      string    `json:"stageRunId,omitempty"`
+	JobRunID        string    `json:"jobRunId,omitempty"`
+	StepRunID       string    `json:"stepRunId,omitempty"`
+	Stream          string    `json:"stream"`
+	Sequence        int64     `json:"sequence"`
+	Content         string    `json:"content"`
+	CreatedAt       time.Time `json:"createdAt"`
 }

@@ -2,10 +2,12 @@ apiVersion: v1
 kind: Service
 metadata:
   name: example-service
+  labels:
+    app.kubernetes.io/name: example-service
+    app.kubernetes.io/part-of: nivora-example
 spec:
   selector:
     app: example-service
   ports:
     - port: 80
       targetPort: 8080
-

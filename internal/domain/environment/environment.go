@@ -3,27 +3,28 @@ package environment
 import "time"
 
 type Environment struct {
-	ID        string
-	ProjectID string
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        string    `json:"id"`
+	ProjectID string    `json:"projectId,omitempty"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type ReleaseTarget struct {
-	ID            string
-	EnvironmentID string
-	Name          string
-	TargetType    string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID            string    `json:"id"`
+	EnvironmentID string    `json:"environmentId"`
+	Name          string    `json:"name"`
+	TargetType    string    `json:"targetType"`
+	Namespace     string    `json:"namespace,omitempty"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }
 
 type EnvironmentLock struct {
-	ID            string
-	EnvironmentID string
-	Reason        string
-	LockedBy      string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID            string    `json:"id"`
+	EnvironmentID string    `json:"environmentId"`
+	Reason        string    `json:"reason"`
+	LockedBy      string    `json:"lockedBy"`
+	CreatedAt     time.Time `json:"createdAt"`
+	UpdatedAt     time.Time `json:"updatedAt"`
 }

@@ -1,0 +1,16 @@
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: invalid-yaml-deployment
+spec:
+  application: demo-springboot
+  environment: dev
+  target:
+    type: kubernetes-yaml
+    name: dev-kind
+    namespace: default
+  manifests:
+    - examples/yaml/missing.yaml
+  options:
+    dryRun: true
+    apply: false

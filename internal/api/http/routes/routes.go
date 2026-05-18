@@ -8,11 +8,12 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/sevoniva/nivora/internal/api/http/handlers"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -35,6 +36,15 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/runners/register", handlers.RegisterRunner(pipelineService))
 		api.Get("/runners/{id}", handlers.GetRunner(pipelineService))
 		api.Post("/runners/{id}/heartbeat", handlers.HeartbeatRunner(pipelineService))
+		api.Post("/deployments/plan", handlers.PlanDeploymentRun(deploymentService))
+		api.Get("/deployments", handlers.ListDeploymentRuns(deploymentService))
+		api.Post("/deployments", handlers.CreateDeploymentRun(deploymentService))
+		api.Get("/deployments/{id}", handlers.GetDeploymentRun(deploymentService))
+		api.Get("/deployments/{id}/plan", handlers.GetDeploymentPlan(deploymentService))
+		api.Get("/deployments/{id}/logs", handlers.GetDeploymentLogs(deploymentService))
+		api.Get("/deployments/{id}/events", handlers.GetDeploymentEvents(deploymentService))
+		api.Get("/deployments/{id}/timeline", handlers.GetDeploymentTimeline(deploymentService))
+		api.Post("/deployments/{id}/cancel", handlers.CancelDeploymentRun(deploymentService))
 
 		for _, group := range placeholderGroups() {
 			group := group
@@ -63,7 +73,6 @@ func placeholderGroups() []routeGroup {
 		{"/artifact-registries", "artifact registries"},
 		{"/pipelines", "pipelines"},
 		{"/releases", "releases"},
-		{"/deployments", "deployments"},
 		{"/approvals", "approvals"},
 		{"/policies", "policies"},
 		{"/audit-logs", "audit logs"},

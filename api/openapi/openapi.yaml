@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 1.5 supports minimal shell-based PipelineRun execution only.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 2.0 supports minimal shell PipelineRun execution and non-destructive YAML DeploymentRun planning/dry-run.
 servers:
   - url: http://localhost:8080
 paths:
@@ -195,10 +195,143 @@ paths:
           $ref: "#/components/responses/NotImplemented"
   /api/v1/deployments:
     get:
-      summary: Deployments placeholder
+      summary: List DeploymentRuns in the in-memory Phase 2.0 runtime
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: DeploymentRun records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeploymentRunRecord"
+    post:
+      summary: Create and run a non-destructive YAML DeploymentRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeploymentDefinition"
+      responses:
+        "201":
+          description: DeploymentRun created and dry-run validation completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentRunRecord"
+        "400":
+          description: Invalid deployment definition or manifest
+  /api/v1/deployments/plan:
+    post:
+      summary: Render and plan a YAML DeploymentRun without persisting it
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeploymentDefinition"
+      responses:
+        "200":
+          description: Deployment plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentPlan"
+        "400":
+          description: Invalid deployment definition or manifest
+  /api/v1/deployments/{id}:
+    get:
+      summary: Get a DeploymentRun
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: DeploymentRun record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentRunRecord"
+        "404":
+          description: DeploymentRun not found
+  /api/v1/deployments/{id}/plan:
+    get:
+      summary: Get a DeploymentRun plan
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Deployment plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentPlan"
+        "404":
+          description: DeploymentRun not found
+  /api/v1/deployments/{id}/logs:
+    get:
+      summary: Get DeploymentRun logs
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Captured deployment logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LogChunk"
+        "404":
+          description: DeploymentRun not found
+  /api/v1/deployments/{id}/events:
+    get:
+      summary: Get DeploymentRun events
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: DeploymentRun events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+        "404":
+          description: DeploymentRun not found
+  /api/v1/deployments/{id}/timeline:
+    get:
+      summary: Get ordered DeploymentRun timeline entries
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: DeploymentRun timeline
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelineEntry"
+        "404":
+          description: DeploymentRun not found
+  /api/v1/deployments/{id}/cancel:
+    post:
+      summary: Cancel a non-terminal DeploymentRun
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: DeploymentRun canceled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentRunRecord"
+        "409":
+          description: DeploymentRun is already terminal
+        "404":
+          description: DeploymentRun not found
   /api/v1/runners:
     get:
       summary: List registered runners in the in-memory Phase 1.5 runtime
@@ -486,6 +619,8 @@ components:
           type: string
         pipelineRunId:
           type: string
+        deploymentRunId:
+          type: string
         stageRunId:
           type: string
         jobRunId:
@@ -508,13 +643,212 @@ components:
       properties:
         id:
           type: string
-          format: uuid
-        release_id:
+        releaseId:
           type: string
-          format: uuid
+        applicationId:
+          type: string
+        environmentId:
+          type: string
+        releaseTargetId:
+          type: string
+        targetType:
+          type: string
         status:
           type: string
           enum: [Created, Planning, WaitingApproval, PreChecking, Deploying, Verifying, Succeeded, Failed, RollingBack, RolledBack, Canceled]
+        reason:
+          type: string
+        manifestSnapshotRef:
+          type: string
+        artifactReferences:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+    DeploymentDefinition:
+      type: object
+      required: [apiVersion, kind, metadata, spec]
+      properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
+          enum: [Deployment]
+        metadata:
+          type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+        spec:
+          $ref: "#/components/schemas/DeploymentSpec"
+    DeploymentSpec:
+      type: object
+      required: [application, environment, target, manifests]
+      properties:
+        application:
+          type: string
+        environment:
+          type: string
+        target:
+          type: object
+          required: [type, name]
+          properties:
+            type:
+              type: string
+              enum: [kubernetes-yaml]
+            name:
+              type: string
+            namespace:
+              type: string
+        artifacts:
+          type: array
+          items:
+            type: object
+            required: [name, type, reference]
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+              reference:
+                type: string
+        manifests:
+          type: array
+          items:
+            type: string
+        options:
+          type: object
+          properties:
+            dryRun:
+              type: boolean
+            apply:
+              type: boolean
+    DeploymentRunRecord:
+      type: object
+      properties:
+        definition:
+          $ref: "#/components/schemas/DeploymentDefinition"
+        release:
+          type: object
+        artifacts:
+          type: array
+          items:
+            type: object
+        environment:
+          type: object
+        target:
+          type: object
+        run:
+          $ref: "#/components/schemas/DeploymentRun"
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeploymentStep"
+        plan:
+          $ref: "#/components/schemas/DeploymentPlan"
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogChunk"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        audits:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        policy:
+          $ref: "#/components/schemas/PolicyResult"
+    DeploymentPlan:
+      type: object
+      properties:
+        deploymentRunId:
+          type: string
+        targetType:
+          type: string
+        namespace:
+          type: string
+        manifestCount:
+          type: integer
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManifestResourceSummary"
+        artifacts:
+          type: array
+          items:
+            type: string
+        dryRun:
+          type: boolean
+        apply:
+          type: boolean
+        actions:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        diffSummary:
+          type: string
+    DeploymentStep:
+      type: object
+      properties:
+        id:
+          type: string
+        deploymentRunId:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        reason:
+          type: string
+    ManifestDocument:
+      type: object
+      properties:
+        sourceFile:
+          type: string
+        documentIndex:
+          type: integer
+        content:
+          type: string
+        resource:
+          $ref: "#/components/schemas/ManifestResourceSummary"
+    ManifestResourceSummary:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+    PolicyResult:
+      type: object
+      properties:
+        allowed:
+          type: boolean
+        reasons:
+          type: array
+          items:
+            type: string
     TimelineEntry:
       type: object
       properties:

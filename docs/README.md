@@ -91,6 +91,7 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 
 - [Developer Getting Started](dev/getting-started.md)
 - [Local PipelineRun Development](dev/local-pipeline-run.md)
+- [YAML Deployment Dry-Run](dev/deployment-yaml-dry-run.md)
 - [Runtime Acceptance Matrix](dev/runtime-acceptance.md)
 - [Runtime Troubleshooting](dev/troubleshooting.md)
 - [AI Change Policy](engineering/ai-change-policy.md)

@@ -17,6 +17,7 @@ import (
 	"github.com/sevoniva/nivora/internal/app/server"
 	"github.com/sevoniva/nivora/internal/app/worker"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	"github.com/sevoniva/nivora/internal/version"
 	"github.com/spf13/cobra"
@@ -40,6 +41,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newRunCommand("worker", "configs/worker.yaml", worker.Run))
 	root.AddCommand(newConfigCommand())
 	root.AddCommand(newPipelineCommand())
+	root.AddCommand(newDeploymentCommand())
 	root.AddCommand(newRunnerCommand())
 	return root
 }
@@ -221,6 +223,166 @@ func newPipelineCancelCommand() *cobra.Command {
 	return cmd
 }
 
+func newDeploymentCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "deployment",
+		Short: "DeploymentRun utilities",
+	}
+	cmd.AddCommand(newDeploymentPlanCommand())
+	cmd.AddCommand(newDeploymentRunCommand())
+	cmd.AddCommand(newDeploymentGetCommand())
+	cmd.AddCommand(newDeploymentInspectCommand("logs", "Get DeploymentRun logs", "/logs"))
+	cmd.AddCommand(newDeploymentInspectCommand("events", "Get DeploymentRun events", "/events"))
+	cmd.AddCommand(newDeploymentInspectCommand("timeline", "Get DeploymentRun timeline", "/timeline"))
+	cmd.AddCommand(newDeploymentCancelCommand())
+	return cmd
+}
+
+func newDeploymentPlanCommand() *cobra.Command {
+	var local bool
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "plan --local <deployment.yaml>",
+		Short: "Render and plan a YAML DeploymentRun locally or against a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			def, err := deploymentusecase.LoadDefinitionFile(args[0])
+			if err != nil {
+				return err
+			}
+			if !local {
+				if serverURL == "" {
+					return fmt.Errorf("--server is required when --local=false")
+				}
+				body, err := json.Marshal(def)
+				if err != nil {
+					return err
+				}
+				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/plan", body)
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), payload)
+				return nil
+			}
+			result, err := server.NewDeploymentService().Plan(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			printDeploymentPlanSummary(cmd.OutOrStdout(), result.Record.Plan)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 2.0 local runtime")
+	cmd.Flags().StringVar(&serverURL, "server", "", "Nivora server URL for --local=false")
+	return cmd
+}
+
+func newDeploymentRunCommand() *cobra.Command {
+	var local bool
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "run --local <deployment.yaml>",
+		Short: "Run a non-destructive YAML DeploymentRun locally or against a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			def, err := deploymentusecase.LoadDefinitionFile(args[0])
+			if err != nil {
+				return err
+			}
+			if !local {
+				if serverURL == "" {
+					return fmt.Errorf("--server is required when --local=false")
+				}
+				body, err := json.Marshal(def)
+				if err != nil {
+					return err
+				}
+				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments", body)
+				if err != nil {
+					return err
+				}
+				printDeploymentRunSummary(cmd.OutOrStdout(), payload)
+				return nil
+			}
+			started := time.Now()
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "DeploymentRun: %s\n", result.Record.Run.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", result.Record.Run.Status)
+			fmt.Fprintf(cmd.OutOrStdout(), "Duration: %s\n", time.Since(started).Round(time.Millisecond))
+			fmt.Fprintf(cmd.OutOrStdout(), "Manifests: %d\n", result.Record.Plan.ManifestCount)
+			fmt.Fprintf(cmd.OutOrStdout(), "Logs: %d chunk(s)\n", len(result.Record.Logs))
+			if result.Record.Run.Reason != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Reason: %s\n", result.Record.Run.Reason)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process Phase 2.0 local runtime")
+	cmd.Flags().StringVar(&serverURL, "server", "", "Nivora server URL for --local=false")
+	return cmd
+}
+
+func newDeploymentGetCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "get <deployment-run-id>",
+		Short: "Get a DeploymentRun from a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/deployments/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printDeploymentRunSummary(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newDeploymentInspectCommand(name string, short string, suffix string) *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   name + " <deployment-run-id>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/deployments/"+args[0]+suffix, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newDeploymentCancelCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "cancel <deployment-run-id>",
+		Short: "Cancel a DeploymentRun on a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+args[0]+"/cancel", nil)
+			if err != nil {
+				return err
+			}
+			printDeploymentRunSummary(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
 func newRunnerCommand() *cobra.Command {
 	var configPath string
 	cmd := &cobra.Command{
@@ -340,6 +502,44 @@ func printLogSummary(w io.Writer, payload any) {
 			continue
 		}
 		fmt.Fprintf(w, "[%v] %v", log["stream"], log["content"])
+	}
+}
+
+func printDeploymentPlanSummary(w io.Writer, plan deploymentusecase.DeploymentPlan) {
+	fmt.Fprintf(w, "DeploymentRun: %s\n", plan.DeploymentRunID)
+	fmt.Fprintf(w, "Target: %s\n", plan.TargetType)
+	fmt.Fprintf(w, "Namespace: %s\n", plan.Namespace)
+	fmt.Fprintf(w, "Manifests: %d\n", plan.ManifestCount)
+	fmt.Fprintf(w, "DryRun: %t\n", plan.DryRun)
+	fmt.Fprintf(w, "Apply: %t\n", plan.Apply)
+	if plan.DiffSummary != "" {
+		fmt.Fprintf(w, "Diff: %s\n", plan.DiffSummary)
+	}
+	if len(plan.Warnings) > 0 {
+		fmt.Fprintf(w, "Warnings:\n")
+		for _, warning := range plan.Warnings {
+			fmt.Fprintf(w, "- %s\n", warning)
+		}
+	}
+}
+
+func printDeploymentRunSummary(w io.Writer, payload any) {
+	record, _ := payload.(map[string]any)
+	run, _ := record["run"].(map[string]any)
+	if run == nil {
+		printJSON(w, payload)
+		return
+	}
+	fmt.Fprintf(w, "DeploymentRun: %v\n", run["id"])
+	fmt.Fprintf(w, "Status: %v\n", run["status"])
+	if reason, _ := run["reason"].(string); reason != "" {
+		fmt.Fprintf(w, "Reason: %s\n", reason)
+	}
+	if plan, _ := record["plan"].(map[string]any); plan != nil {
+		fmt.Fprintf(w, "Manifests: %v\n", plan["manifestCount"])
+	}
+	if logs, _ := record["logs"].([]any); logs != nil {
+		fmt.Fprintf(w, "Logs: %d chunk(s)\n", len(logs))
 	}
 }
 

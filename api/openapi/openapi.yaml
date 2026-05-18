@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 2.6 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning and guarded sync foundations, and Kubernetes resource inventory, health, snapshot, diff, and rollback-plan output.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 2.7 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning and guarded sync foundations, Kubernetes resource inventory, health, snapshot, diff, and rollback-plan output, and sequential ReleasePlan / ReleaseExecution orchestration across targets.
 servers:
   - url: http://localhost:8080
 paths:
@@ -296,6 +296,119 @@ paths:
                   $ref: "#/components/schemas/ReleaseArtifact"
         "404":
           description: Release not found
+  /api/v1/releases/{id}/plan:
+    post:
+      summary: Create a multi-target ReleasePlan
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseOrchestrationDefinition"
+      responses:
+        "200":
+          description: ReleasePlan created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleasePlanRecord"
+    get:
+      summary: Get the latest ReleasePlan for a Release
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Latest ReleasePlan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleasePlanRecord"
+  /api/v1/releases/{id}/deploy:
+    post:
+      summary: Create a ReleaseExecution across selected targets
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseOrchestrationDefinition"
+      responses:
+        "201":
+          description: ReleaseExecution created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseExecutionRecord"
+  /api/v1/releases/{id}/executions:
+    get:
+      summary: List ReleaseExecutions for a Release
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: ReleaseExecutions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReleaseExecutionRecord"
+  /api/v1/releases/executions/{execution_id}:
+    get:
+      summary: Get a ReleaseExecution
+      parameters:
+        - name: execution_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ReleaseExecution
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseExecutionRecord"
+  /api/v1/releases/executions/{execution_id}/timeline:
+    get:
+      summary: Get aggregate ReleaseExecution timeline
+      parameters:
+        - name: execution_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Timeline entries
+  /api/v1/releases/executions/{execution_id}/targets:
+    get:
+      summary: Get ReleaseExecution target status
+      parameters:
+        - name: execution_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Target executions
+  /api/v1/releases/executions/{execution_id}/cancel:
+    post:
+      summary: Cancel a ReleaseExecution
+      parameters:
+        - name: execution_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: ReleaseExecution canceled
   /api/v1/deployments:
     get:
       summary: List DeploymentRuns in the in-memory Phase 2.1 runtime
@@ -1070,6 +1183,177 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ArtifactWarning"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        audits:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+    ReleaseOrchestrationDefinition:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
+          enum: [ReleaseOrchestration]
+        metadata:
+          type: object
+          properties:
+            name:
+              type: string
+        spec:
+          type: object
+          properties:
+            releaseId:
+              type: string
+            release:
+              $ref: "#/components/schemas/CreateReleaseRequest"
+            environment:
+              type: string
+            strategy:
+              $ref: "#/components/schemas/ExecutionStrategy"
+            concurrency:
+              type: integer
+            continueOnFailure:
+              type: boolean
+            approvalRequired:
+              type: boolean
+            targets:
+              type: array
+              items:
+                $ref: "#/components/schemas/ReleaseTargetSpec"
+    ReleaseTargetSpec:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [kubernetes-yaml, argocd, noop, webhook]
+        order:
+          type: integer
+        dependencies:
+          type: array
+          items:
+            type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        deployment:
+          $ref: "#/components/schemas/DeploymentDefinition"
+    ExecutionStrategy:
+      type: string
+      enum: [plan-only, sequential, parallel]
+    AggregateStatus:
+      type: string
+      enum: [Created, Planning, WaitingApproval, Running, PartiallySucceeded, Succeeded, Failed, Canceling, Canceled, RollingBack, RolledBack]
+    ReleasePlan:
+      type: object
+      properties:
+        id:
+          type: string
+        releaseId:
+          type: string
+        environmentId:
+          type: string
+        environmentName:
+          type: string
+        artifactSummary:
+          type: array
+          items:
+            type: string
+        deploymentPlans:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeploymentPlan"
+        ordering:
+          type: array
+          items:
+            type: string
+        strategy:
+          $ref: "#/components/schemas/ExecutionStrategy"
+        warnings:
+          type: array
+          items:
+            type: string
+    TargetExecution:
+      type: object
+      properties:
+        targetId:
+          type: string
+        targetName:
+          type: string
+        targetType:
+          type: string
+        deploymentRunId:
+          type: string
+        status:
+          $ref: "#/components/schemas/AggregateStatus"
+        order:
+          type: integer
+        dependencies:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+    ReleaseExecution:
+      type: object
+      properties:
+        id:
+          type: string
+        releaseId:
+          type: string
+        environmentId:
+          type: string
+        environmentName:
+          type: string
+        status:
+          $ref: "#/components/schemas/AggregateStatus"
+        deploymentRunIds:
+          type: array
+          items:
+            type: string
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/TargetExecution"
+        reason:
+          type: string
+    ReleasePlanRecord:
+      type: object
+      properties:
+        release:
+          $ref: "#/components/schemas/Release"
+        plan:
+          $ref: "#/components/schemas/ReleasePlan"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        audits:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+    ReleaseExecutionRecord:
+      type: object
+      properties:
+        release:
+          $ref: "#/components/schemas/Release"
+        plan:
+          $ref: "#/components/schemas/ReleasePlan"
+        execution:
+          $ref: "#/components/schemas/ReleaseExecution"
+        deployments:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeploymentRunRecord"
         events:
           type: array
           items:

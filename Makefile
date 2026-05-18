@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local artifact-inspect-local oci-resolve-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
+.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -41,7 +41,11 @@ verify-deployment:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
 
-verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-runtime verify-deployment
+verify-release:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora release plan --file examples/releases/multi-target-release.yaml --local
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora release deploy --file examples/releases/sequential-release.yaml --local
+
+verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release
 
 run-server:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora server --config configs/server.yaml
@@ -73,6 +77,12 @@ artifact-inspect-local:
 
 oci-resolve-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora artifact resolve registry.example.com/team/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
+release-plan-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora release plan --file examples/releases/multi-target-release.yaml --local
+
+release-deploy-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora release deploy --file examples/releases/sequential-release.yaml --local
 
 gitops-plan-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora gitops plan --local examples/deployments/argocd-plan.yaml

@@ -20,6 +20,7 @@ import (
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
@@ -105,13 +106,16 @@ func newTestPipelineService() *pipelineusecase.Service {
 }
 
 func newTestRouter(cfg config.Config) http.Handler {
+	artifactService := newTestArtifactService()
+	deploymentService := newTestDeploymentService()
 	return New(
 		cfg,
 		version.Current(),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
 		newTestPipelineService(),
-		newTestDeploymentService(),
-		newTestArtifactService(),
+		deploymentService,
+		artifactService,
+		newTestReleaseOrchestrationService(artifactService, deploymentService),
 	)
 }
 
@@ -127,6 +131,16 @@ func newTestDeploymentService() *deploymentusecase.Service {
 
 func newTestArtifactService() *artifactusecase.Service {
 	return artifactusecase.NewService(artifactusecase.NewMemoryStore(), ociartifact.New(), memory.New())
+}
+
+func newTestReleaseOrchestrationService(artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) *releaseorchestration.Service {
+	return releaseorchestration.NewService(
+		releaseorchestration.NewMemoryStore(),
+		artifactService,
+		deploymentService,
+		allowPolicy{},
+		memory.New(),
+	)
 }
 
 type allowPolicy struct{}

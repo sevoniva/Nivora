@@ -1,0 +1,8 @@
+apiVersion: nivora.io/v1alpha1
+kind: ReleaseTarget
+metadata:
+  name: audit-only
+spec:
+  type: noop
+  environment: dev
+  enabled: true

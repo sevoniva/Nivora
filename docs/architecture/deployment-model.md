@@ -61,6 +61,12 @@ Phase 2.2 connects DeploymentPlan output to ReleaseArtifacts. Deployment specs m
 
 This is verify-first behavior. Nivora does not mutate manifests by default, does not resolve registry digests over the network, and does not claim full registry integration.
 
+## Release Orchestration
+
+Phase 2.7 adds ReleasePlan and ReleaseExecution as aggregate release-control-plane records. A ReleasePlan selects an Environment and multiple ReleaseTargets, creates one DeploymentPlan per executable target, records policy results, and preserves target ordering. A ReleaseExecution then runs targets sequentially through DeploymentRuns or safe placeholder targets and aggregates status.
+
+DeploymentRun remains the target-level execution object. ReleaseExecution does not replace target logs, health, snapshots, diff, or rollback plans; it links and summarizes them.
+
 ## Current State
 
-Phase 2.4 supports YAML deployment planning, dry-run, explicit local no-op apply, resource inventory, lightweight health evaluation, manifest snapshots, desired-state diff summaries, rollback plan baseline, artifact summaries, GitOps planning, and manifest image verification only. Production Kubernetes apply semantics, destructive rollback, Helm, Kustomize, production Argo CD sync, cloud providers, host deployment, registry integrations, image signing, and scanning remain future work.
+Phase 2.7 supports YAML deployment planning, dry-run, explicit local no-op apply, resource inventory, lightweight health evaluation, manifest snapshots, desired-state diff summaries, rollback plan baseline, artifact summaries, GitOps planning, guarded Argo CD status/sync modeling, manifest image verification, and sequential ReleaseExecution orchestration only. Production Kubernetes apply semantics, destructive rollback, Helm, Kustomize, production Argo CD sync, cloud providers, host deployment, registry integrations, image signing, and scanning remain future work.

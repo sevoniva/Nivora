@@ -13,6 +13,7 @@ import (
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 )
 
 func NewPipelineService() *pipelineusecase.Service {
@@ -36,6 +37,21 @@ func NewDeploymentService() *deploymentusecase.Service {
 
 func NewArtifactService() *artifactusecase.Service {
 	return artifactusecase.NewService(artifactusecase.NewMemoryStore(), ociartifact.New(), memory.New())
+}
+
+func NewReleaseOrchestrationService() *releaseorchestration.Service {
+	return NewReleaseOrchestrationServiceWith(NewArtifactService(), NewDeploymentService())
+}
+
+func NewReleaseOrchestrationServiceWith(artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) *releaseorchestration.Service {
+	bus := memory.New()
+	return releaseorchestration.NewService(
+		releaseorchestration.NewMemoryStore(),
+		artifactService,
+		deploymentService,
+		allowAllPolicyEngine{},
+		bus,
+	)
 }
 
 type allowAllPolicyEngine struct{}

@@ -11,10 +11,11 @@ import (
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -48,8 +49,16 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/artifact-registries/validate", handlers.ValidateArtifactRegistry())
 		api.Get("/releases", handlers.ListReleases(artifactService))
 		api.Post("/releases", handlers.CreateRelease(artifactService))
+		api.Post("/releases/{id}/plan", handlers.PlanRelease(releaseService))
+		api.Post("/releases/{id}/deploy", handlers.DeployRelease(releaseService))
+		api.Get("/releases/{id}/plan", handlers.GetReleasePlan(releaseService))
+		api.Get("/releases/{id}/executions", handlers.ListReleaseExecutions(releaseService))
 		api.Get("/releases/{id}", handlers.GetRelease(artifactService))
 		api.Get("/releases/{id}/artifacts", handlers.GetReleaseArtifacts(artifactService))
+		api.Get("/releases/executions/{execution_id}", handlers.GetReleaseExecution(releaseService))
+		api.Get("/releases/executions/{execution_id}/timeline", handlers.GetReleaseExecutionTimeline(releaseService))
+		api.Get("/releases/executions/{execution_id}/targets", handlers.GetReleaseExecutionTargets(releaseService))
+		api.Post("/releases/executions/{execution_id}/cancel", handlers.CancelReleaseExecution(releaseService))
 		api.Get("/deployments", handlers.ListDeploymentRuns(deploymentService))
 		api.Post("/deployments", handlers.CreateDeploymentRun(deploymentService))
 		api.Get("/deployments/{id}", handlers.GetDeploymentRun(deploymentService))

@@ -13,7 +13,7 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, runner/executor model, logs/events/audit, and open-source contribution foundation. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud provider, Git provider, full Harbor/Nexus/JFrog integrations, signing, and scanning remain future phases.
+Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, runner/executor model, logs/events/audit, and open-source contribution foundation. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud provider, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, signing, and scanning remain future phases.
 
 ## Current Status
 
@@ -30,6 +30,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | Kubernetes inventory / health / rollback plan | Phase 2.4 foundation |
 | OCI / Harbor-compatible digest resolution | Phase 2.5 foundation |
 | Argo CD status / guarded sync | Phase 2.6 foundation |
+| Multi-target release orchestration | Phase 2.7 foundation |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
 | Frontend visualization | Future phase |
@@ -741,6 +742,8 @@ go run ./cmd/nivora pipeline timeline <pipeline-run-id> --server http://localhos
 go run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
 go run ./cmd/nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
 go run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --confirm
+go run ./cmd/nivora release plan --file examples/releases/multi-target-release.yaml --local
+go run ./cmd/nivora release deploy --file examples/releases/sequential-release.yaml --local
 ```
 
 ## Local Development
@@ -829,6 +832,17 @@ go run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-loc
 ```
 
 The default local apply path uses the safe no-op manifest client. Production Kubernetes apply semantics, Helm, Kustomize, Argo CD, cloud providers, host deployment, and registry integrations remain future work.
+
+## Example Multi-Target Release
+
+Phase 2.7 adds a local ReleasePlan / ReleaseExecution foundation. It can plan a Release across multiple targets and execute safe targets sequentially through target-level DeploymentRuns or placeholder targets.
+
+```bash
+go run ./cmd/nivora release plan --file examples/releases/multi-target-release.yaml --local
+go run ./cmd/nivora release deploy --file examples/releases/sequential-release.yaml --local
+```
+
+This is not a production workflow engine. Parallel execution, durable approvals, host/cloud targets, and production GitOps automation remain future work.
 
 Run a minimal shell PipelineRun through the API:
 
@@ -924,7 +938,7 @@ flowchart LR
     P24["Phase 2.4<br/>Kubernetes Inventory & Rollback Foundation"]
     P25["Phase 2.5<br/>OCI Digest Resolution"]
     P26["Phase 2.6<br/>Argo CD Guarded Sync"]
-    P27["Future Phase 2<br/>GitOps Hardening"]
+    P27["Phase 2.7<br/>Release Orchestration"]
     P3["Phase 3<br/>Multi-cloud & DevSecOps"]
     P4["Phase 4<br/>Visualization"]
 

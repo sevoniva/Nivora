@@ -1,0 +1,75 @@
+apiVersion: nivora.io/v1alpha1
+kind: ReleaseOrchestration
+metadata:
+  name: demo-multi-target-release
+spec:
+  environment: dev
+  strategy: sequential
+  continueOnFailure: true
+  release:
+    apiVersion: nivora.io/v1alpha1
+    kind: Release
+    metadata:
+      name: demo-springboot
+    spec:
+      version: 1.0.0
+      application: demo-springboot
+      environment: dev
+      artifacts:
+        - name: demo-springboot
+          type: image
+          role: application
+          required: true
+          reference: registry.example.com/demo/demo-springboot:1.0.0
+  targets:
+    - name: dev-yaml
+      type: kubernetes-yaml
+      order: 1
+      deployment:
+        apiVersion: nivora.io/v1alpha1
+        kind: Deployment
+        metadata:
+          name: demo-yaml-release
+        spec:
+          application: demo-springboot
+          environment: dev
+          target:
+            type: kubernetes-yaml
+            name: dev-yaml
+            namespace: default
+          artifacts:
+            - name: demo-springboot
+              type: image
+              reference: registry.example.com/demo/demo-springboot:1.0.0
+          manifests:
+            - examples/yaml/deployment.yaml
+            - examples/yaml/service.yaml
+          options:
+            dryRun: true
+            apply: false
+    - name: dev-argocd
+      type: argocd
+      order: 2
+      deployment:
+        apiVersion: nivora.io/v1alpha1
+        kind: Deployment
+        metadata:
+          name: demo-argocd-release
+        spec:
+          application: demo-springboot
+          environment: dev
+          target:
+            type: argocd
+            name: demo-argocd
+            applicationName: demo-springboot
+            repoURL: https://example.com/gitops/demo.git
+            path: apps/demo-springboot/dev
+            revision: main
+          artifacts:
+            - name: demo-springboot
+              type: image
+              reference: registry.example.com/demo/demo-springboot:1.0.0
+          gitops:
+            mode: plan
+            statusRead: true
+            sync: false

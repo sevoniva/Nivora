@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 2.6 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 2.7 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
@@ -321,6 +321,56 @@ channels:
         $ref: "#/components/messages/Event"
   devops.argocd.health.changed:
     address: devops.argocd.health.changed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.release.plan.created:
+    address: devops.release.plan.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.release.execution.created:
+    address: devops.release.execution.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.release.execution.started:
+    address: devops.release.execution.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.release.execution.target.started:
+    address: devops.release.execution.target.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.release.execution.target.completed:
+    address: devops.release.execution.target.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.release.execution.target.failed:
+    address: devops.release.execution.target.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.release.execution.succeeded:
+    address: devops.release.execution.succeeded
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.release.execution.partially_succeeded:
+    address: devops.release.execution.partially_succeeded
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.release.execution.failed:
+    address: devops.release.execution.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.release.execution.canceled:
+    address: devops.release.execution.canceled
     messages:
       event:
         $ref: "#/components/messages/Event"

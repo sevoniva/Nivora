@@ -1,0 +1,9 @@
+apiVersion: nivora.io/v1alpha1
+kind: ReleaseTarget
+metadata:
+  name: dev-yaml
+spec:
+  type: kubernetes-yaml
+  environment: dev
+  namespace: default
+  enabled: true

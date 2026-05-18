@@ -1,0 +1,11 @@
+apiVersion: nivora.io/v1alpha1
+kind: ReleaseTarget
+metadata:
+  name: dev-argocd
+spec:
+  type: argocd
+  environment: dev
+  applicationName: demo-springboot
+  repoURL: https://example.com/gitops/demo.git
+  path: apps/demo-springboot/dev
+  sync: false

@@ -23,6 +23,7 @@ import (
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	"github.com/sevoniva/nivora/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -116,6 +117,9 @@ func newReleaseCommand() *cobra.Command {
 	cmd.AddCommand(newReleaseCreateCommand())
 	cmd.AddCommand(newReleaseGetCommand())
 	cmd.AddCommand(newReleaseArtifactsCommand())
+	cmd.AddCommand(newReleasePlanCommand())
+	cmd.AddCommand(newReleaseDeployCommand())
+	cmd.AddCommand(newReleaseExecutionCommand())
 	return cmd
 }
 
@@ -192,6 +196,151 @@ func newReleaseArtifactsCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+args[0]+"/artifacts", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newReleasePlanCommand() *cobra.Command {
+	var file string
+	var local bool
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "plan --file <release-orchestration.yaml>",
+		Short: "Create a multi-target ReleasePlan",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if file == "" {
+				return fmt.Errorf("--file is required")
+			}
+			def, err := releaseorchestration.LoadDefinitionFile(file)
+			if err != nil {
+				return err
+			}
+			if !local {
+				body, err := json.Marshal(def)
+				if err != nil {
+					return err
+				}
+				path := "/api/v1/releases/" + def.Spec.ReleaseID + "/plan"
+				if def.Spec.ReleaseID == "" {
+					path = "/api/v1/releases/local/plan"
+				}
+				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, path, body)
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), payload)
+				return nil
+			}
+			record, err := server.NewReleaseOrchestrationService().Plan(cmd.Context(), releaseorchestration.PlanInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			printReleasePlanSummary(cmd.OutOrStdout(), record.Plan)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&file, "file", "", "release orchestration definition file")
+	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 2.7 local runtime")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	return cmd
+}
+
+func newReleaseDeployCommand() *cobra.Command {
+	var file string
+	var local bool
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "deploy --file <release-orchestration.yaml> --local",
+		Short: "Execute a multi-target release locally or against a Nivora server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if file == "" {
+				return fmt.Errorf("--file is required")
+			}
+			def, err := releaseorchestration.LoadDefinitionFile(file)
+			if err != nil {
+				return err
+			}
+			if !local {
+				body, err := json.Marshal(def)
+				if err != nil {
+					return err
+				}
+				path := "/api/v1/releases/" + def.Spec.ReleaseID + "/deploy"
+				if def.Spec.ReleaseID == "" {
+					path = "/api/v1/releases/local/deploy"
+				}
+				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, path, body)
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), payload)
+				return nil
+			}
+			started := time.Now()
+			record, err := server.NewReleaseOrchestrationService().Deploy(cmd.Context(), releaseorchestration.DeployInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "ReleaseExecution: %s\n", record.Execution.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", record.Execution.Status)
+			fmt.Fprintf(cmd.OutOrStdout(), "Targets: %d\n", len(record.Execution.Targets))
+			fmt.Fprintf(cmd.OutOrStdout(), "DeploymentRuns: %d\n", len(record.Execution.DeploymentRunIDs))
+			fmt.Fprintf(cmd.OutOrStdout(), "Duration: %s\n", time.Since(started).Round(time.Millisecond))
+			if record.Execution.Reason != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Reason: %s\n", record.Execution.Reason)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&file, "file", "", "release orchestration definition file")
+	cmd.Flags().BoolVar(&local, "local", true, "deploy with the in-process Phase 2.7 local runtime")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	return cmd
+}
+
+func newReleaseExecutionCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "execution", Short: "ReleaseExecution utilities"}
+	cmd.AddCommand(newReleaseExecutionInspectCommand("get", "Get a ReleaseExecution", ""))
+	cmd.AddCommand(newReleaseExecutionInspectCommand("timeline", "Get ReleaseExecution timeline", "/timeline"))
+	cmd.AddCommand(newReleaseExecutionInspectCommand("targets", "Get ReleaseExecution targets", "/targets"))
+	cmd.AddCommand(newReleaseExecutionCancelCommand())
+	return cmd
+}
+
+func newReleaseExecutionInspectCommand(name string, short string, suffix string) *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   name + " <execution-id>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/executions/"+args[0]+suffix, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newReleaseExecutionCancelCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "cancel <execution-id>",
+		Short: "Cancel a ReleaseExecution on a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/executions/"+args[0]+"/cancel", nil)
 			if err != nil {
 				return err
 			}
@@ -1039,6 +1188,24 @@ func printGitOpsPlanSummary(w io.Writer, plan deploymentusecase.GitOpsChangePlan
 	fmt.Fprintf(w, "Files: %d\n", len(plan.Files))
 	fmt.Fprintf(w, "Artifacts: %d\n", len(plan.ArtifactChanges))
 	fmt.Fprintf(w, "SyncRequested: %t\n", plan.SyncRequested)
+	if len(plan.Warnings) > 0 {
+		fmt.Fprintf(w, "Warnings:\n")
+		for _, warning := range plan.Warnings {
+			fmt.Fprintf(w, "- %s\n", warning)
+		}
+	}
+}
+
+func printReleasePlanSummary(w io.Writer, plan releaseorchestration.ReleasePlan) {
+	fmt.Fprintf(w, "ReleasePlan: %s\n", plan.ID)
+	fmt.Fprintf(w, "Release: %s\n", plan.ReleaseID)
+	fmt.Fprintf(w, "Environment: %s\n", plan.EnvironmentName)
+	fmt.Fprintf(w, "Strategy: %s\n", plan.Strategy)
+	fmt.Fprintf(w, "Targets: %d\n", len(plan.Targets))
+	fmt.Fprintf(w, "DeploymentPlans: %d\n", len(plan.DeploymentPlans))
+	if len(plan.ArtifactSummary) > 0 {
+		fmt.Fprintf(w, "Artifacts: %d\n", len(plan.ArtifactSummary))
+	}
 	if len(plan.Warnings) > 0 {
 		fmt.Fprintf(w, "Warnings:\n")
 		for _, warning := range plan.Warnings {

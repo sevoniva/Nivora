@@ -8,10 +8,11 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/sevoniva/nivora/internal/api/http/handlers"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -23,6 +24,10 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger) http.Handler
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Get("/version", handlers.Version(info))
 		api.Get("/system/info", handlers.SystemInfo(cfg))
+		api.Post("/pipeline-runs", handlers.CreatePipelineRun(pipelineService))
+		api.Get("/pipeline-runs/{id}", handlers.GetPipelineRun(pipelineService))
+		api.Get("/pipeline-runs/{id}/logs", handlers.GetPipelineRunLogs(pipelineService))
+		api.Get("/pipeline-runs/{id}/events", handlers.GetPipelineRunEvents(pipelineService))
 
 		for _, group := range placeholderGroups() {
 			group := group
@@ -50,7 +55,6 @@ func placeholderGroups() []routeGroup {
 		{"/repositories", "repositories"},
 		{"/artifact-registries", "artifact registries"},
 		{"/pipelines", "pipelines"},
-		{"/pipeline-runs", "pipeline runs"},
 		{"/releases", "releases"},
 		{"/deployments", "deployments"},
 		{"/runners", "runners"},

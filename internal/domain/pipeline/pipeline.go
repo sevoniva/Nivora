@@ -69,6 +69,9 @@ type PipelineRun struct {
 	PipelineID        string
 	PipelineVersionID string
 	Status            PipelineRunStatus
+	StartedAt         *time.Time
+	FinishedAt        *time.Time
+	FailureReason     string
 	CreatedAt         time.Time
 	UpdatedAt         time.Time
 }
@@ -78,25 +81,34 @@ type StageRun struct {
 	PipelineRunID string
 	Name          string
 	Status        JobRunStatus
+	StartedAt     *time.Time
+	FinishedAt    *time.Time
+	FailureReason string
 	CreatedAt     time.Time
 	UpdatedAt     time.Time
 }
 
 type JobRun struct {
-	ID         string
-	StageRunID string
-	Name       string
-	Status     JobRunStatus
-	RunnerID   string
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID            string
+	StageRunID    string
+	Name          string
+	Status        JobRunStatus
+	RunnerID      string
+	StartedAt     *time.Time
+	FinishedAt    *time.Time
+	FailureReason string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }
 
 type StepRun struct {
-	ID        string
-	JobRunID  string
-	Name      string
-	Status    JobRunStatus
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID            string
+	JobRunID      string
+	Name          string
+	Status        JobRunStatus
+	StartedAt     *time.Time
+	FinishedAt    *time.Time
+	FailureReason string
+	CreatedAt     time.Time
+	UpdatedAt     time.Time
 }

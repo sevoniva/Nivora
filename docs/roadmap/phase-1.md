@@ -24,7 +24,21 @@ Implement the smallest useful PipelineRun execution path.
 
 ## Expected Deliverables
 
-A basic flow from PipelineRun creation to controlled runner execution, logs, status, and audit.
+A basic flow from PipelineRun creation to controlled local runner execution, logs, status, events, and audit.
+
+## Current Phase 1 Implementation
+
+The first Phase 1 implementation supports minimal shell-based PipelineRun execution only:
+
+- parse a small Pipeline YAML definition
+- create PipelineRun, StageRun, JobRun, and StepRun records in memory
+- assign work to a Phase 1 local Runner
+- execute shell steps through the shell Executor
+- capture stdout and stderr logs
+- transition status to Succeeded or Failed
+- emit CloudEvents-style PipelineRun events through the in-memory EventBus
+- create in-memory AuditLog records
+- expose minimal HTTP and CLI entry points
 
 ## Acceptance Criteria
 
@@ -40,4 +54,3 @@ A basic flow from PipelineRun creation to controlled runner execution, logs, sta
 - Log streaming design.
 - Persistence tests.
 - API schema updates.
-

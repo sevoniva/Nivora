@@ -16,3 +16,6 @@ Different delivery steps need different execution mechanisms. Shell, SSH, Kubern
 
 An Executor is not a full workflow engine. It runs assigned work through a specific mechanism.
 
+## Phase 1 Behavior
+
+Phase 1 supports the shell Executor for safe test commands such as `echo` and `printf`. Privileged execution and remote execution are future work.

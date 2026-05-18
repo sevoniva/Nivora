@@ -12,7 +12,7 @@ This inventory lists the main documentation areas and their purpose.
 - `docs/architecture/`: architecture contract, current boundaries, target architecture, and model docs.
 - `docs/roadmap/`: phase-by-phase planning, deliverables, and contribution opportunities.
 - `docs/community/`: governance, contribution areas, decision-making, and maintainer review guidance.
+- `docs/dev/`: optional local development environment notes.
 - `docs/rfcs/`: RFC process and template for large proposals.
 - `docs/adr/`: accepted architecture decision records.
 - `docs/engineering/`: guardrails for dependencies, testing, security, release scope, and AI changes.
-

@@ -33,5 +33,4 @@ Future phases should define a protocol for registration, heartbeat, job assignme
 
 ## Current State
 
-Phase 0 includes placeholder runner registration and heartbeat logs plus a basic shell Executor for controlled local commands.
-
+Phase 1 includes a local in-process Runner that uses the shell Executor for minimal PipelineRun execution. Remote runner registration, polling, streaming protocols, and privileged execution are future work.

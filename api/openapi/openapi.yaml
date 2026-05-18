@@ -77,11 +77,69 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
   /api/v1/pipeline-runs:
-    get:
-      summary: Pipeline runs placeholder
+    post:
+      summary: Create and run a minimal shell PipelineRun
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PipelineDefinition"
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "201":
+          description: PipelineRun created and executed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunRecord"
+        "400":
+          description: Invalid pipeline definition
+  /api/v1/pipeline-runs/{id}:
+    get:
+      summary: Get a PipelineRun
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: PipelineRun record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunRecord"
+        "404":
+          description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/logs:
+    get:
+      summary: Get captured PipelineRun logs
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Captured logs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LogRecord"
+        "404":
+          description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/events:
+    get:
+      summary: Get PipelineRun events
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: PipelineRun events
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Event"
+        "404":
+          description: PipelineRun not found
   /api/v1/releases:
     get:
       summary: Releases placeholder
@@ -143,6 +201,13 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
 components:
+  parameters:
+    ID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
   responses:
     NotImplemented:
       description: Endpoint exists but is not implemented in Phase 0.
@@ -183,6 +248,94 @@ components:
         status:
           type: string
           enum: [Pending, Queued, Running, Paused, Succeeded, Failed, Canceled, Timeout]
+        failureReason:
+          type: string
+    PipelineDefinition:
+      type: object
+      required: [apiVersion, kind, metadata, spec]
+      properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
+          enum: [Pipeline]
+        metadata:
+          type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+        spec:
+          type: object
+          required: [stages]
+          properties:
+            stages:
+              type: array
+              items:
+                type: object
+                required: [name, jobs]
+                properties:
+                  name:
+                    type: string
+                  jobs:
+                    type: array
+                    items:
+                      type: object
+                      required: [name, executor, steps]
+                      properties:
+                        name:
+                          type: string
+                        executor:
+                          type: string
+                          enum: [shell]
+                        steps:
+                          type: array
+                          items:
+                            type: object
+                            required: [run]
+                            properties:
+                              name:
+                                type: string
+                              run:
+                                type: string
+    PipelineRunRecord:
+      type: object
+      properties:
+        pipeline:
+          type: object
+        run:
+          $ref: "#/components/schemas/PipelineRun"
+        stages:
+          type: array
+          items:
+            type: object
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogRecord"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+    LogRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        pipelineRunId:
+          type: string
+        jobRunId:
+          type: string
+        stepRunId:
+          type: string
+        stream:
+          type: string
+          enum: [stdout, stderr]
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
     DeploymentRun:
       type: object
       properties:

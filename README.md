@@ -92,6 +92,36 @@ go run ./cmd/nivora runner --config configs/runner.yaml
 curl http://localhost:8080/api/v1/version
 ```
 
+Run a minimal shell PipelineRun through the API:
+
+```sh
+curl -X POST http://localhost:8080/api/v1/pipeline-runs \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "apiVersion": "nivora.io/v1alpha1",
+    "kind": "Pipeline",
+    "metadata": {"name": "hello-shell"},
+    "spec": {
+      "stages": [{
+        "name": "build",
+        "jobs": [{
+          "name": "echo",
+          "executor": "shell",
+          "steps": [{"name": "say-hello", "run": "echo hello from nivora"}]
+        }]
+      }]
+    }
+  }'
+```
+
+The API accepts the same minimal Pipeline definition shape as the YAML examples. The CLI can read YAML directly.
+
+Run a local Phase 1 PipelineRun with the CLI:
+
+```sh
+go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
+```
+
 Unfinished API groups return a structured Phase 0 `not_implemented` JSON response.
 
 ## Verification

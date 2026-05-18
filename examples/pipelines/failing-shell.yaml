@@ -1,0 +1,16 @@
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: failing-shell
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: fail
+          executor: shell
+          steps:
+            - name: fail-step
+              run: |
+                echo "this pipeline is expected to fail" >&2
+                exit 2
+

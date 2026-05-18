@@ -1,4 +1,4 @@
-apiVersion: nivora.sevoniva.dev/v1alpha1
+apiVersion: nivora.io/v1alpha1
 kind: Pipeline
 metadata:
   name: simple-shell
@@ -9,5 +9,5 @@ spec:
         - name: echo
           executor: shell
           steps:
-            - run: echo "hello from nivora"
-
+            - name: say-hello
+              run: echo "hello from nivora"

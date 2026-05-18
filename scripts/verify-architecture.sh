@@ -28,14 +28,20 @@ check_forbidden "internal/domain" "internal/app" "domain must not import interna
 check_forbidden "internal/domain" "internal/adapters" "domain must not import internal/adapters"
 check_forbidden "internal/domain" "internal/infra" "domain must not import internal/infra"
 check_forbidden "internal/domain" "github.com/go-chi/chi" "domain must not import HTTP router packages"
+check_forbidden "internal/domain" "net/http" "domain must not import HTTP packages"
 check_forbidden "internal/domain" "github.com/jackc/pgx" "domain must not import database drivers"
+check_forbidden "internal/domain" "database/sql" "domain must not import database packages"
 check_forbidden "internal/domain" "k8s.io/client-go" "domain must not import Kubernetes clients"
+check_forbidden "internal/domain" "sigs.k8s.io" "domain must not import Kubernetes packages"
 check_forbidden "internal/domain" "github.com/aws/aws-sdk-go" "domain must not import AWS SDK"
+check_forbidden "internal/domain" "github.com/aws/aws-sdk-go-v2" "domain must not import AWS SDK v2"
 check_forbidden "internal/domain" "github.com/aliyun" "domain must not import Aliyun SDK"
 check_forbidden "internal/domain" "github.com/tencentcloud" "domain must not import Tencent Cloud SDK"
 
+check_forbidden "internal/usecase" "internal/api" "usecase must not import internal/api"
 check_forbidden "internal/usecase" "internal/adapters" "usecase must not import concrete adapters"
 check_forbidden "internal/usecase" "github.com/aws/aws-sdk-go" "usecase must not import AWS SDK directly"
+check_forbidden "internal/usecase" "github.com/aws/aws-sdk-go-v2" "usecase must not import AWS SDK v2 directly"
 check_forbidden "internal/usecase" "k8s.io/client-go" "usecase must not import Kubernetes clients directly"
 
 if find . -path './.git' -prune -o -type d -name utils -print | grep -q .; then

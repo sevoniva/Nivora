@@ -2,7 +2,9 @@
 
 Nivora is an open-source DevOps delivery control plane for CI/CD, GitOps, multi-cloud deployment, artifact orchestration, policy gates, runners, release audit, and future visualization APIs.
 
-Phase 0 is a backend skeleton. It defines the module boundaries, APIs, local development shape, and minimal runnable services. It does not implement full CI/CD execution, production GitOps reconciliation, cloud integrations, or a frontend.
+Nivora is currently in Phase 0 / Phase 0.5. Phase 0 defines the backend skeleton. Phase 0.5 hardens architecture guardrails, CI checks, and local development workflows.
+
+Nivora is not production-ready. It does not implement full CI/CD execution, production GitOps reconciliation, cloud integrations, Kubernetes or Argo CD execution, vendor integrations, or a frontend yet.
 
 ## Architecture Summary
 
@@ -26,7 +28,19 @@ The code follows ports/adapters boundaries:
 
 ## Local Development
 
-This repository defaults Go module downloads to a China-friendly proxy:
+This repository uses a neutral default Go proxy in local tooling:
+
+```sh
+GOPROXY=https://proxy.golang.org,direct
+```
+
+Developers in China can override it per command:
+
+```sh
+GOPROXY=https://goproxy.cn,direct make build
+```
+
+Or export it for the shell:
 
 ```sh
 export GOPROXY=https://goproxy.cn,direct
@@ -47,9 +61,7 @@ make dev-down
 Run checks:
 
 ```sh
-make tidy
-make test
-make build
+make verify
 ```
 
 ## Run Server
@@ -80,6 +92,16 @@ curl http://localhost:8080/api/v1/version
 
 Unfinished API groups return a structured Phase 0 `not_implemented` JSON response.
 
+## Verification
+
+Run the full local verification suite:
+
+```sh
+make verify
+```
+
+This checks formatting, module tidiness, `go vet`, tests, binary builds, architecture boundaries, and high-confidence secret patterns.
+
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md).
@@ -87,4 +109,3 @@ See [ROADMAP.md](ROADMAP.md).
 ## License
 
 Nivora is licensed under the Apache License 2.0.
-

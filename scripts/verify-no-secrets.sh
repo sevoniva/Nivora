@@ -12,12 +12,16 @@ patterns=(
   'glpat-[A-Za-z0-9_-]{20,}'
   'xox[baprs]-[A-Za-z0-9-]{10,}'
   'sk-[A-Za-z0-9]{32,}'
+  '-----BEGIN [A-Z ]*PRIVATE KEY-----'
+  'Authorization:[[:space:]]*Bearer[[:space:]]+[A-Za-z0-9._-]{20,}'
+  'password[[:space:]]*=[[:space:]]*["'\''][^"'\'']{12,}["'\'']'
 )
 
 exclude=(
   --exclude-dir=.git
   --exclude-dir=vendor
   --exclude-dir=node_modules
+  --exclude-dir=.nivora
   --exclude='verify-no-secrets.sh'
 )
 

@@ -1,0 +1,8 @@
+---
+description: Nivora repository guardrails
+alwaysApply: true
+---
+
+`AGENTS.md` is the canonical AI coding instruction file for Nivora.
+
+Follow `AGENTS.md` and the supporting architecture and engineering docs it references. Do not add conflicting rules in Cursor-specific files.

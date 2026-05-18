@@ -4,7 +4,19 @@ Thanks for helping build Nivora.
 
 ## Development Setup
 
-Install Go 1.22 or newer and Docker. For contributors in China, use:
+Install Go 1.22 or newer and Docker. The default local tooling uses:
+
+```sh
+GOPROXY=https://proxy.golang.org,direct
+```
+
+Contributors in China can override it per command:
+
+```sh
+GOPROXY=https://goproxy.cn,direct make verify
+```
+
+Or export it for the shell:
 
 ```sh
 export GOPROXY=https://goproxy.cn,direct
@@ -13,9 +25,7 @@ export GOPROXY=https://goproxy.cn,direct
 Then run:
 
 ```sh
-make tidy
-make test
-make build
+make verify
 ```
 
 Local dependencies can be started with:
@@ -55,4 +65,3 @@ make dev-up
 3. Keep provider SDK details inside the adapter.
 4. Add configuration only when the adapter is wired into an app.
 5. Add tests that do not require external services.
-

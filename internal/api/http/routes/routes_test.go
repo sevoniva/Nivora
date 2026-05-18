@@ -50,4 +50,14 @@ func TestPlaceholderRoute(t *testing.T) {
 	if rec.Code != http.StatusNotImplemented {
 		t.Fatalf("status = %d", rec.Code)
 	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("response is not json: %v", err)
+	}
+	if body["code"] != "not_implemented" {
+		t.Fatalf("code = %v", body["code"])
+	}
+	if body["path"] != "/api/v1/pipelines" {
+		t.Fatalf("path = %v", body["path"])
+	}
 }

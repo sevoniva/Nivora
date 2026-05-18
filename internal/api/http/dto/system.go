@@ -5,8 +5,9 @@ type StatusResponse struct {
 }
 
 type ErrorResponse struct {
-	Error   string `json:"error"`
+	Code    string `json:"code"`
 	Message string `json:"message"`
+	Path    string `json:"path,omitempty"`
 }
 
 type SystemInfoResponse struct {

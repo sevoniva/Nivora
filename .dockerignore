@@ -1,8 +1,11 @@
 .git
 .github
+.DS_Store
 .nivora
 bin
+build
 dist
+out
 tmp
+temp
 *.log
-

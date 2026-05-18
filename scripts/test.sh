@@ -1,5 +1,4 @@
 #!/usr/bin/env sh
 set -eu
 
-GOPROXY="${GOPROXY:-https://goproxy.cn,direct}" go test ./...
-
+GOPROXY="${GOPROXY:-https://proxy.golang.org,direct}" go test ./...

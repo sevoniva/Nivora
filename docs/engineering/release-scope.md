@@ -26,6 +26,28 @@ Not allowed:
 - production-grade workflow runtime
 - frontend
 
+## Phase 0.5
+
+Guardrails and validation only.
+
+Allowed:
+
+- AI and contributor guardrail cleanup
+- architecture verification scripts
+- secret verification scripts
+- CI check hardening
+- Makefile and local development polish
+- documentation corrections
+- structured placeholder API responses
+
+Not allowed:
+
+- real CI/CD execution
+- real cloud integrations
+- real Kubernetes or Argo CD integrations
+- production workflow runtime
+- frontend
+
 ## Phase 1
 
 Minimal pipeline execution.

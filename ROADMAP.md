@@ -6,6 +6,14 @@
 - Define control plane, worker, runner, and CLI binaries.
 - Add domain models, ports, placeholder adapters, API specs, migrations, docs, CI, and local development setup.
 
+## Phase 0.5: Guardrails and Validation
+
+- Harden AI and contributor guardrails.
+- Keep GOPROXY configurable for global contributors and China-based development.
+- Enforce formatting, tidy, vet, tests, builds, architecture checks, and secret checks in CI.
+- Polish local development verification scripts and Makefile targets.
+- Keep placeholder APIs honest and structured without adding business logic.
+
 ## Phase 1: Minimal Pipeline Execution
 
 - Persist projects, repositories, pipelines, and pipeline runs.
@@ -31,4 +39,3 @@
 
 - Build visualization APIs and frontend surfaces.
 - Add deployment topology, pipeline timelines, audit exploration, and operations dashboards.
-

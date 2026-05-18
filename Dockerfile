@@ -1,6 +1,7 @@
 FROM golang:1.22 AS builder
 
-ENV GOPROXY=https://goproxy.cn,direct
+ARG GOPROXY=https://proxy.golang.org,direct
+ENV GOPROXY=${GOPROXY}
 WORKDIR /src
 
 COPY go.mod go.sum* ./

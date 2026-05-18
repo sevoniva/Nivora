@@ -26,6 +26,8 @@ scripts/verify-no-secrets.sh
 .golangci.yml
 ```
 
+This repository currently includes the canonical `AGENTS.md`, tool-specific references for Claude, Copilot, and Cursor, engineering docs, and verification scripts. Optional files such as CODEOWNERS, PR templates, `.editorconfig`, or `.golangci.yml` can be added later when maintainers want them.
+
 ## Recommended Use
 
 After extracting:

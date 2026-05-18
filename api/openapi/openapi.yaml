@@ -165,9 +165,11 @@ components:
     Error:
       type: object
       properties:
-        error:
+        code:
           type: string
         message:
+          type: string
+        path:
           type: string
     PipelineRun:
       type: object
@@ -236,4 +238,3 @@ components:
           type: string
         subject:
           type: string
-

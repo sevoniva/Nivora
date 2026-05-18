@@ -37,8 +37,9 @@ func SystemInfo(cfg config.Config) http.HandlerFunc {
 func NotImplemented(resource string) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		RespondJSON(w, http.StatusNotImplemented, dto.ErrorResponse{
-			Error:   "not_implemented",
+			Code:    "not_implemented",
 			Message: resource + " API is not implemented in Phase 0",
+			Path:    r.URL.Path,
 		})
 	}
 }

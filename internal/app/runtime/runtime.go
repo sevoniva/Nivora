@@ -5,8 +5,10 @@ import (
 
 	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
+	argocdadapter "github.com/sevoniva/nivora/internal/adapters/executor/argocd"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
+	localgitops "github.com/sevoniva/nivora/internal/adapters/gitops/local"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
@@ -29,7 +31,7 @@ func NewDeploymentService() *deploymentusecase.Service {
 		yamlapply.NoopManifestClient{},
 		allowAllPolicyEngine{},
 		bus,
-	)
+	).WithGitOps(localgitops.New(), argocdadapter.NoopProvider{AllowSync: true})
 }
 
 func NewArtifactService() *artifactusecase.Service {

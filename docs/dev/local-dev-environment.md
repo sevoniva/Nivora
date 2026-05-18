@@ -66,10 +66,26 @@ Argo CD:
 kubectl --context kind-argocd-test -n argocd port-forward svc/argocd-server 8080:80
 ```
 
+Optional Argo CD values must come from environment variables:
+
+```sh
+export NIVORA_LOCAL_ARGOCD_URL='<url>'
+export NIVORA_LOCAL_ARGOCD_USERNAME='<username>'
+export NIVORA_LOCAL_ARGOCD_PASSWORD='<password>'
+```
+
 Gitea:
 
 ```sh
 kubectl --context kind-argocd-test -n gitea port-forward svc/gitea-http 3000:3000
+```
+
+Optional Gitea values must come from environment variables:
+
+```sh
+export NIVORA_LOCAL_GITEA_URL='<url>'
+export NIVORA_LOCAL_GITEA_USERNAME='<username>'
+export NIVORA_LOCAL_GITEA_PASSWORD='<password>'
 ```
 
 Harbor:

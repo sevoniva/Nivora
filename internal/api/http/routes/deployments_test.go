@@ -70,6 +70,83 @@ func TestDeploymentRoutes(t *testing.T) {
 	}
 }
 
+func TestGitOpsDeploymentRoutes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	body := gitOpsDeploymentRequestBody(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments/gitops/plan", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("gitops plan status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"applicationName":"demo-springboot"`)) {
+		t.Fatalf("gitops plan body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/deployments/gitops", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("gitops create status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var created map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	run := created["run"].(map[string]any)
+	runID := run["id"].(string)
+	for _, path := range []string{"/api/v1/deployments/" + runID + "/gitops-plan", "/api/v1/deployments/" + runID + "/diff", "/api/v1/deployments/" + runID + "/timeline"} {
+		req = httptest.NewRequest(http.MethodGet, path, nil)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d body = %s", path, rec.Code, rec.Body.String())
+		}
+	}
+}
+
+func gitOpsDeploymentRequestBody(t *testing.T) []byte {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"apiVersion": "nivora.io/v1alpha1",
+		"kind":       "Deployment",
+		"metadata": map[string]any{
+			"name": "demo-gitops",
+		},
+		"spec": map[string]any{
+			"application": "demo-springboot",
+			"environment": "dev",
+			"target": map[string]any{
+				"type":            "argocd",
+				"name":            "demo-argocd",
+				"applicationName": "demo-springboot",
+				"repoURL":         "https://example.com/gitops/demo.git",
+				"path":            "apps/demo-springboot/dev",
+				"revision":        "main",
+			},
+			"artifacts": []map[string]any{{
+				"name":      "demo-springboot",
+				"type":      "image",
+				"reference": "registry.example.com/demo/demo-springboot@sha256:example",
+			}},
+			"gitops": map[string]any{
+				"mode":               "plan",
+				"writeToWorkingTree": false,
+				"sync":               false,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	return body
+}
+
 func deploymentRequestBody(t *testing.T) []byte {
 	t.Helper()
 	dir := t.TempDir()

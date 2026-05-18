@@ -1,0 +1,28 @@
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-gitops-workingtree
+spec:
+  application: demo-springboot
+  environment: dev
+  target:
+    type: argocd
+    name: local-argocd-noop
+    applicationName: demo-springboot
+    repoURL: https://example.com/gitops/demo.git
+    path: apps/demo-springboot/dev
+    revision: main
+  artifacts:
+    - name: demo-springboot
+      type: image
+      reference: registry.example.com/demo/demo-springboot@sha256:example
+      target:
+        imageName: app
+  gitops:
+    mode: plan
+    writeToWorkingTree: false
+    workingTree: ./tmp/gitops
+    sync: false
+    statusRead: false
+    files:
+      - apps/demo-springboot/dev/deployment.yaml

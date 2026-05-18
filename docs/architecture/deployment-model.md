@@ -41,6 +41,12 @@ Future deployment modes may include:
 - webhook deployment
 - cloud-provider-specific deployment through CloudProvider Adapters
 
+## Phase 2.3 GitOps Foundation
+
+Phase 2.3 adds `argocd` target planning. Nivora can build a GitOpsChangePlan, optionally update a local working tree, model Argo CD application status through a noop provider, and record guarded sync requests. Sync is disabled by default and requires explicit confirmation.
+
+Nivora does not replace Argo CD. Argo CD remains the future reconciliation system for GitOps delivery, while Nivora coordinates release intent, artifact traceability, policy, audit, and timelines around it.
+
 ## Rollback
 
 Rollback should be modeled as an auditable operation with a reason, target, prior version or Artifact, status, logs, and verification result.

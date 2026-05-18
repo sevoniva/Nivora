@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 2.2 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 2.3 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
@@ -190,6 +190,37 @@ channels:
         $ref: "#/components/messages/Event"
   devops.artifact.warning.detected:
     address: devops.artifact.warning.detected
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.gitops.plan.created:
+    address: devops.gitops.plan.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.gitops.diff.generated:
+    address: devops.gitops.diff.generated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.gitops.workingtree.updated:
+    address: devops.gitops.workingtree.updated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.argocd.status.read:
+    address: devops.argocd.status.read
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.argocd.sync.requested:
+    address: devops.argocd.sync.requested
+    description: Guarded sync request event; production sync automation is not complete in Phase 2.3.
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.argocd.sync.skipped:
+    address: devops.argocd.sync.skipped
     messages:
       event:
         $ref: "#/components/messages/Event"

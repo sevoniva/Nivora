@@ -25,14 +25,24 @@ type Spec struct {
 	Target      Target     `json:"target" yaml:"target"`
 	Artifacts   []Artifact `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
 	Manifests   []string   `json:"manifests" yaml:"manifests"`
+	GitOps      GitOps     `json:"gitops,omitempty" yaml:"gitops,omitempty"`
 	Options     Options    `json:"options,omitempty" yaml:"options,omitempty"`
 }
 
 type Target struct {
-	Type      string `json:"type" yaml:"type"`
-	Name      string `json:"name" yaml:"name"`
-	Context   string `json:"context,omitempty" yaml:"context,omitempty"`
-	Namespace string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	Type            string `json:"type" yaml:"type"`
+	Name            string `json:"name" yaml:"name"`
+	Context         string `json:"context,omitempty" yaml:"context,omitempty"`
+	Namespace       string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	ApplicationName string `json:"applicationName,omitempty" yaml:"applicationName,omitempty"`
+	RepoURL         string `json:"repoURL,omitempty" yaml:"repoURL,omitempty"`
+	Path            string `json:"path,omitempty" yaml:"path,omitempty"`
+	Revision        string `json:"revision,omitempty" yaml:"revision,omitempty"`
+	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
+	ClusterURL      string `json:"clusterURL,omitempty" yaml:"clusterURL,omitempty"`
+	ClusterName     string `json:"clusterName,omitempty" yaml:"clusterName,omitempty"`
+	SyncPolicy      string `json:"syncPolicy,omitempty" yaml:"syncPolicy,omitempty"`
+	CredentialsRef  string `json:"credentialsRef,omitempty" yaml:"credentialsRef,omitempty"`
 }
 
 type Artifact struct {
@@ -46,6 +56,15 @@ type Artifact struct {
 type ArtifactTarget struct {
 	ImageName  string `json:"imageName,omitempty" yaml:"imageName,omitempty"`
 	Substitute bool   `json:"substitute,omitempty" yaml:"substitute,omitempty"`
+}
+
+type GitOps struct {
+	Mode               string   `json:"mode,omitempty" yaml:"mode,omitempty"`
+	WriteToWorkingTree bool     `json:"writeToWorkingTree" yaml:"writeToWorkingTree"`
+	WorkingTree        string   `json:"workingTree,omitempty" yaml:"workingTree,omitempty"`
+	Sync               bool     `json:"sync" yaml:"sync"`
+	StatusRead         bool     `json:"statusRead" yaml:"statusRead"`
+	Files              []string `json:"files,omitempty" yaml:"files,omitempty"`
 }
 
 type Options struct {
@@ -90,17 +109,28 @@ func (d Definition) Validate() error {
 	if d.Spec.Target.Type == "" {
 		return errors.New("deployment target.type is required")
 	}
-	if d.Spec.Target.Type != "kubernetes-yaml" {
-		return fmt.Errorf("deployment target.type %q is not supported in Phase 2.2", d.Spec.Target.Type)
+	if d.Spec.Target.Type != "kubernetes-yaml" && d.Spec.Target.Type != "argocd" {
+		return fmt.Errorf("deployment target.type %q is not supported in Phase 2.3", d.Spec.Target.Type)
 	}
 	if d.Spec.Target.Name == "" {
 		return errors.New("deployment target.name is required")
 	}
-	if d.Spec.Target.Namespace == "" {
+	if d.Spec.Target.Type == "kubernetes-yaml" && d.Spec.Target.Namespace == "" {
 		return errors.New("deployment target.namespace is required for kubernetes-yaml targets")
 	}
-	if len(d.Spec.Manifests) == 0 {
+	if d.Spec.Target.Type == "kubernetes-yaml" && len(d.Spec.Manifests) == 0 {
 		return errors.New("deployment must reference at least one manifest")
+	}
+	if d.Spec.Target.Type == "argocd" {
+		if d.Spec.Target.ApplicationName == "" {
+			return errors.New("deployment target.applicationName is required for argocd targets")
+		}
+		if d.Spec.Target.RepoURL == "" {
+			return errors.New("deployment target.repoURL is required for argocd targets")
+		}
+		if d.Spec.Target.Path == "" {
+			return errors.New("deployment target.path is required for argocd targets")
+		}
 	}
 	for i, path := range d.Spec.Manifests {
 		if path == "" {
@@ -123,6 +153,9 @@ func (d Definition) Validate() error {
 	}
 	if d.Spec.Options.TimeoutSeconds < 0 {
 		return errors.New("deployment options.timeoutSeconds cannot be negative")
+	}
+	if d.Spec.GitOps.Sync && d.Spec.GitOps.Mode == "" {
+		d.Spec.GitOps.Mode = "plan"
 	}
 	return nil
 }

@@ -58,3 +58,39 @@ func TestDefinitionValidationRejectsInvalidSpec(t *testing.T) {
 		})
 	}
 }
+
+func TestParseDefinitionValidatesGitOpsSpec(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-gitops
+spec:
+  application: demo-app
+  environment: dev
+  target:
+    type: argocd
+    name: demo-argocd
+    applicationName: demo-app
+    repoURL: https://example.com/gitops/demo.git
+    path: apps/demo/dev
+    revision: main
+  artifacts:
+    - name: demo-app
+      type: image
+      reference: registry.example.com/demo/app@sha256:example
+  gitops:
+    mode: plan
+    writeToWorkingTree: false
+    sync: false
+`))
+	if err != nil {
+		t.Fatalf("parse gitops definition: %v", err)
+	}
+	if def.Spec.Target.Type != "argocd" {
+		t.Fatalf("target type = %q", def.Spec.Target.Type)
+	}
+	if def.Spec.GitOps.Sync {
+		t.Fatal("sync should default false")
+	}
+}

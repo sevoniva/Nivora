@@ -9,9 +9,11 @@ Add release and deployment workflows suitable for early release modeling without
 - Phase 2.0 YAML deployment planning and dry-run foundation.
 - Phase 2.1 controlled Kubernetes YAML dry-run/apply runtime foundation.
 - Phase 2.2 artifact and release binding foundation.
+- Phase 2.3 GitOps and Argo CD foundation.
 - Static manifest rendering and validation.
 - DeploymentPlan, events, audit, logs, timeline, and cancellation basics.
 - Artifact reference parsing, immutability warnings, ReleaseArtifact binding, and manifest image verification.
+- GitOpsChangePlan, local working tree planning, noop Argo CD status/sync model, and guarded sync semantics.
 - Future YAML apply, Helm, and Kustomize rendering design.
 - Future Argo CD Adapter design.
 - Approval gates.
@@ -27,13 +29,15 @@ Add release and deployment workflows suitable for early release modeling without
 - Helm or Kustomize execution in Phase 2.2.
 - Full Harbor, Nexus, JFrog, or cloud registry integration in Phase 2.2.
 - Artifact scanning, signing, or SBOM verification in Phase 2.2.
+- Production Argo CD sync automation in Phase 2.3.
+- Remote Git provider authentication, commit, and push in Phase 2.3.
 - Multi-cloud provider expansion.
 - Full DevSecOps platform.
 - Visualization frontend.
 
 ## Expected Deliverables
 
-Release and DeploymentRun workflows that can model GitOps and non-GitOps deployment modes. Phase 2.2 specifically delivers safe YAML planning/dry-run behavior, explicit no-op local apply, resource inventory, rollout result modeling, rollback baseline, artifact reference parsing, ReleaseArtifact binding, and manifest image verification.
+Release and DeploymentRun workflows that can model GitOps and non-GitOps deployment modes. Phase 2.3 specifically delivers safe YAML planning/dry-run behavior, explicit no-op local apply, resource inventory, rollout result modeling, rollback baseline, artifact reference parsing, ReleaseArtifact binding, manifest image verification, GitOps planning, and Argo CD adapter foundation.
 
 ## Acceptance Criteria
 
@@ -42,6 +46,7 @@ Release and DeploymentRun workflows that can model GitOps and non-GitOps deploym
 - Apply is explicit and never default.
 - ReleaseArtifacts are explicit and auditable.
 - Deployment plans surface mutable artifact warnings.
+- GitOps sync is disabled by default and guarded.
 - DeploymentRun audit is complete enough for rollback analysis.
 - Approvals and environment locks are explicit.
 
@@ -51,4 +56,5 @@ Release and DeploymentRun workflows that can model GitOps and non-GitOps deploym
 - Renderer design.
 - Artifact reference parsing and registry adapter design.
 - Argo CD RFC.
+- GitOps working tree tests.
 - Approval and lock tests.

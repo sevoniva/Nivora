@@ -46,6 +46,8 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newArtifactCommand())
 	root.AddCommand(newReleaseCommand())
 	root.AddCommand(newDeploymentCommand())
+	root.AddCommand(newGitOpsCommand())
+	root.AddCommand(newArgoCDCommand())
 	root.AddCommand(newRunnerCommand())
 	return root
 }
@@ -577,6 +579,178 @@ func newDeploymentCancelCommand() *cobra.Command {
 	return cmd
 }
 
+func newGitOpsCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "gitops", Short: "GitOps planning utilities"}
+	cmd.AddCommand(newGitOpsPlanCommand())
+	cmd.AddCommand(newGitOpsDiffCommand())
+	cmd.AddCommand(newGitOpsWriteCommand())
+	return cmd
+}
+
+func newGitOpsPlanCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "plan --local <deployment.yaml>",
+		Short: "Build a local GitOps change plan",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			def, err := deploymentusecase.LoadDefinitionFile(args[0])
+			if err != nil {
+				return err
+			}
+			result, err := server.NewDeploymentService().Plan(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			printGitOpsPlanSummary(cmd.OutOrStdout(), result.Record.GitOpsPlan)
+			return nil
+		},
+	}
+	cmd.Flags().Bool("local", true, "use the in-process Phase 2.3 local runtime")
+	return cmd
+}
+
+func newGitOpsDiffCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "diff --local <deployment.yaml>",
+		Short: "Build a local GitOps diff plan without writing",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			def, err := deploymentusecase.LoadDefinitionFile(args[0])
+			if err != nil {
+				return err
+			}
+			def.Spec.GitOps.WriteToWorkingTree = false
+			result, err := server.NewDeploymentService().Plan(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			printGitOpsPlanSummary(cmd.OutOrStdout(), result.Record.GitOpsPlan)
+			return nil
+		},
+	}
+	cmd.Flags().Bool("local", true, "use the in-process Phase 2.3 local runtime")
+	return cmd
+}
+
+func newGitOpsWriteCommand() *cobra.Command {
+	var workingTree string
+	var confirm bool
+	cmd := &cobra.Command{
+		Use:   "write --local <deployment.yaml> --working-tree <path> --confirm",
+		Short: "Write GitOps changes to a local working tree",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !confirm {
+				return fmt.Errorf("gitops write requires --confirm")
+			}
+			if workingTree == "" {
+				return fmt.Errorf("--working-tree is required")
+			}
+			def, err := deploymentusecase.LoadDefinitionFile(args[0])
+			if err != nil {
+				return err
+			}
+			def.Spec.GitOps.WriteToWorkingTree = true
+			def.Spec.GitOps.WorkingTree = workingTree
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "DeploymentRun: %s\n", result.Record.Run.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", result.Record.Run.Status)
+			fmt.Fprintf(cmd.OutOrStdout(), "Diff: %s\n", result.Record.GitOpsDiff.Summary)
+			return nil
+		},
+	}
+	cmd.Flags().Bool("local", true, "use the in-process Phase 2.3 local runtime")
+	cmd.Flags().StringVar(&workingTree, "working-tree", "", "local GitOps working tree root")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm local working tree writes")
+	return cmd
+}
+
+func newArgoCDCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "argocd", Short: "Argo CD foundation utilities"}
+	cmd.AddCommand(newArgoCDStatusCommand())
+	cmd.AddCommand(newArgoCDSyncCommand())
+	return cmd
+}
+
+func newArgoCDStatusCommand() *cobra.Command {
+	var app string
+	cmd := &cobra.Command{
+		Use:   "status --app <name>",
+		Short: "Read modeled Argo CD application status through the local noop provider",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if app == "" {
+				return fmt.Errorf("--app is required")
+			}
+			def := gitOpsStatusDefinition(app)
+			def.Spec.GitOps.StatusRead = true
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), result.Record.ArgoCD)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&app, "app", "", "Argo CD application name")
+	cmd.Flags().String("server", "", "optional Argo CD URL for future adapters; ignored by the Phase 2.3 noop provider")
+	return cmd
+}
+
+func newArgoCDSyncCommand() *cobra.Command {
+	var app string
+	var confirm bool
+	var allowSync bool
+	cmd := &cobra.Command{
+		Use:   "sync --app <name> --confirm --allow-sync",
+		Short: "Request Argo CD sync through the guarded local noop provider",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if app == "" {
+				return fmt.Errorf("--app is required")
+			}
+			if !confirm || !allowSync {
+				return fmt.Errorf("argocd sync requires --confirm and --allow-sync")
+			}
+			def := gitOpsStatusDefinition(app)
+			def.Spec.GitOps.Sync = true
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, AllowSync: true, Confirm: true})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "DeploymentRun: %s\n", result.Record.Run.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", result.Record.Run.Status)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&app, "app", "", "Argo CD application name")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm sync request")
+	cmd.Flags().BoolVar(&allowSync, "allow-sync", false, "allow guarded sync request")
+	return cmd
+}
+
+func gitOpsStatusDefinition(app string) deploymentusecase.Definition {
+	return deploymentusecase.Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Deployment",
+		Metadata:   deploymentusecase.Metadata{Name: app + "-argocd-status"},
+		Spec: deploymentusecase.Spec{
+			Application: "argocd-status",
+			Environment: "local",
+			Target: deploymentusecase.Target{
+				Type:            "argocd",
+				Name:            "local-noop",
+				ApplicationName: app,
+				RepoURL:         "placeholder://argocd-status",
+				Path:            "apps/" + app,
+				Revision:        "HEAD",
+			},
+			GitOps: deploymentusecase.GitOps{Mode: "plan"},
+		},
+	}
+}
+
 func newRunnerCommand() *cobra.Command {
 	var configPath string
 	cmd := &cobra.Command{
@@ -709,6 +883,22 @@ func printDeploymentPlanSummary(w io.Writer, plan deploymentusecase.DeploymentPl
 	if plan.DiffSummary != "" {
 		fmt.Fprintf(w, "Diff: %s\n", plan.DiffSummary)
 	}
+	if len(plan.Warnings) > 0 {
+		fmt.Fprintf(w, "Warnings:\n")
+		for _, warning := range plan.Warnings {
+			fmt.Fprintf(w, "- %s\n", warning)
+		}
+	}
+}
+
+func printGitOpsPlanSummary(w io.Writer, plan deploymentusecase.GitOpsChangePlan) {
+	fmt.Fprintf(w, "Application: %s\n", plan.ApplicationName)
+	fmt.Fprintf(w, "Repo: %s\n", plan.RepoURL)
+	fmt.Fprintf(w, "Path: %s\n", plan.Path)
+	fmt.Fprintf(w, "Revision: %s\n", plan.Revision)
+	fmt.Fprintf(w, "Files: %d\n", len(plan.Files))
+	fmt.Fprintf(w, "Artifacts: %d\n", len(plan.ArtifactChanges))
+	fmt.Fprintf(w, "SyncRequested: %t\n", plan.SyncRequested)
 	if len(plan.Warnings) > 0 {
 		fmt.Fprintf(w, "Warnings:\n")
 		for _, warning := range plan.Warnings {

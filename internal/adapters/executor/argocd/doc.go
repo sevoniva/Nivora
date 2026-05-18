@@ -1,2 +1,2 @@
-// Package argocd will contain an Argo CD executor adapter. It is intentionally empty in Phase 0.
+// Package argocd contains the Phase 2.3 safe Argo CD adapter foundation.
 package argocd

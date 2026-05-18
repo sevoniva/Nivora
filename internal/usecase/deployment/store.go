@@ -6,10 +6,12 @@ import (
 	"sort"
 	"sync"
 
+	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	"github.com/sevoniva/nivora/internal/domain/release"
+	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 )
 
 var (
@@ -199,8 +201,16 @@ func cloneRecord(record RunRecord) RunRecord {
 	record.Steps = append([]domaindeployment.DeploymentStep(nil), record.Steps...)
 	record.Plan.Resources = append([]ManifestResourceSummary(nil), record.Plan.Resources...)
 	record.Plan.Artifacts = append([]string(nil), record.Plan.Artifacts...)
+	record.Plan.ArtifactDetails = append([]domainartifact.Inspection(nil), record.Plan.ArtifactDetails...)
+	record.Plan.ManifestImages = append([]ManifestImage(nil), record.Plan.ManifestImages...)
 	record.Plan.Actions = append([]string(nil), record.Plan.Actions...)
 	record.Plan.Warnings = append([]string(nil), record.Plan.Warnings...)
+	record.GitOpsPlan.Files = append([]string(nil), record.GitOpsPlan.Files...)
+	record.GitOpsPlan.FileChanges = append([]portgitops.FileChange(nil), record.GitOpsPlan.FileChanges...)
+	record.GitOpsPlan.ArtifactChanges = append([]string(nil), record.GitOpsPlan.ArtifactChanges...)
+	record.GitOpsPlan.ManifestValueChanges = append([]string(nil), record.GitOpsPlan.ManifestValueChanges...)
+	record.GitOpsPlan.Warnings = append([]string(nil), record.GitOpsPlan.Warnings...)
+	record.GitOpsDiff.Files = append([]portgitops.FileChange(nil), record.GitOpsDiff.Files...)
 	record.DryRun.Resources = append([]ManifestResourceSummary(nil), record.DryRun.Resources...)
 	record.DryRun.Warnings = append([]string(nil), record.DryRun.Warnings...)
 	record.Apply.Resources = append([]ManifestResourceSummary(nil), record.Apply.Resources...)

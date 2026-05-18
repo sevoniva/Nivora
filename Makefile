@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local smoke-local smoke-api smoke-deployment-dry-run dev-up dev-down migrate-up migrate-down
+.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local gitops-plan-local gitops-diff-local gitops-write-local argocd-status-local smoke-local smoke-api smoke-deployment-dry-run dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -67,6 +67,21 @@ deployment-run-local:
 deployment-apply-local:
 	@test "$$NIVORA_ALLOW_LOCAL_APPLY" = "true" || (echo "set NIVORA_ALLOW_LOCAL_APPLY=true to run local apply" >&2; exit 1)
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --confirm
+
+gitops-plan-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora gitops plan --local examples/deployments/argocd-plan.yaml
+
+gitops-diff-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora gitops diff --local examples/deployments/argocd-plan.yaml
+
+gitops-write-local:
+	@test "$$NIVORA_ALLOW_GITOPS_WRITE" = "true" || (echo "set NIVORA_ALLOW_GITOPS_WRITE=true to update ./tmp/gitops" >&2; exit 1)
+	mkdir -p tmp/gitops
+	cp -R examples/gitops/apps tmp/gitops/
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora gitops write --local examples/deployments/argocd-local-workingtree.yaml --working-tree ./tmp/gitops --confirm
+
+argocd-status-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora argocd status --app demo-springboot
 
 smoke-local:
 	./scripts/smoke-pipelinerun-local.sh

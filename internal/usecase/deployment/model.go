@@ -9,6 +9,8 @@ import (
 	"github.com/sevoniva/nivora/internal/domain/environment"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	"github.com/sevoniva/nivora/internal/domain/release"
+	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
+	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 )
 
@@ -21,6 +23,9 @@ type RunRecord struct {
 	Run         domaindeployment.DeploymentRun    `json:"run"`
 	Steps       []domaindeployment.DeploymentStep `json:"steps,omitempty"`
 	Plan        DeploymentPlan                    `json:"plan"`
+	GitOpsPlan  GitOpsChangePlan                  `json:"gitopsPlan,omitempty"`
+	GitOpsDiff  GitOpsDiff                        `json:"gitopsDiff,omitempty"`
+	ArgoCD      portargocd.ApplicationStatus      `json:"argocd,omitempty"`
 	DryRun      KubernetesDryRunResult            `json:"dryRun,omitempty"`
 	Apply       KubernetesApplyResult             `json:"apply,omitempty"`
 	Rollout     RolloutResult                     `json:"rollout,omitempty"`
@@ -55,6 +60,28 @@ type ManifestImage struct {
 	ResourceName string `json:"resourceName"`
 	Container    string `json:"container"`
 	Image        string `json:"image"`
+}
+
+type GitOpsChangePlan struct {
+	DeploymentRunID       string                       `json:"deploymentRunId"`
+	ApplicationName       string                       `json:"applicationName"`
+	RepoURL               string                       `json:"repoURL"`
+	Path                  string                       `json:"path"`
+	Revision              string                       `json:"revision,omitempty"`
+	Files                 []string                     `json:"files"`
+	FileChanges           []portgitops.FileChange      `json:"fileChanges,omitempty"`
+	ArtifactChanges       []string                     `json:"artifactChanges,omitempty"`
+	ManifestValueChanges  []string                     `json:"manifestValueChanges,omitempty"`
+	CommitMessageProposal string                       `json:"commitMessageProposal,omitempty"`
+	DryRun                bool                         `json:"dryRun"`
+	Warnings              []string                     `json:"warnings,omitempty"`
+	SyncRequested         bool                         `json:"syncRequested"`
+	Status                portargocd.ApplicationStatus `json:"status,omitempty"`
+}
+
+type GitOpsDiff struct {
+	Summary string                  `json:"summary"`
+	Files   []portgitops.FileChange `json:"files"`
 }
 
 type ManifestDocument struct {
@@ -120,6 +147,8 @@ type CreateRunInput struct {
 	Definition Definition
 	ActorID    string
 	AllowApply bool
+	AllowSync  bool
+	Confirm    bool
 }
 
 type CreateRunResult struct {

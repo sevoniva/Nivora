@@ -10,6 +10,8 @@ import (
 
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/event"
+	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
+	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 )
 
@@ -228,6 +230,71 @@ func TestServiceCancelCreatedRun(t *testing.T) {
 	}
 }
 
+func TestServicePlansGitOpsDeployment(t *testing.T) {
+	service, def := newGitOpsTestService(t)
+	result, err := service.Plan(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("plan gitops: %v", err)
+	}
+	plan := result.Record.GitOpsPlan
+	if plan.ApplicationName != "demo-springboot" || len(plan.ArtifactChanges) != 1 {
+		t.Fatalf("gitops plan = %#v", plan)
+	}
+	if !plan.DryRun || plan.SyncRequested {
+		t.Fatalf("plan flags = %#v", plan)
+	}
+}
+
+func TestServiceGitOpsRunSkipsSyncByDefault(t *testing.T) {
+	service, def := newGitOpsTestService(t)
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("run gitops: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunSucceeded {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	assertHasDeploymentEvent(t, result.Record.Events, EventGitOpsPlanCreated)
+	assertHasDeploymentEvent(t, result.Record.Events, EventArgoCDSyncSkipped)
+}
+
+func TestServiceGitOpsWorkingTreeUpdate(t *testing.T) {
+	service, def := newGitOpsTestService(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "apps/demo-springboot/dev/deployment.yaml")
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(file, []byte("containers:\n  - name: app\n    image: old.example/demo:old\n"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	def.Spec.GitOps.WriteToWorkingTree = true
+	def.Spec.GitOps.WorkingTree = dir
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("run gitops write: %v", err)
+	}
+	if len(result.Record.GitOpsDiff.Files) != 1 || !result.Record.GitOpsDiff.Files[0].Changed {
+		t.Fatalf("diff = %#v", result.Record.GitOpsDiff)
+	}
+	body, err := os.ReadFile(file)
+	if err != nil {
+		t.Fatalf("read updated file: %v", err)
+	}
+	if !strings.Contains(string(body), "registry.example.com/demo/demo-springboot@sha256:example") {
+		t.Fatalf("updated body = %s", string(body))
+	}
+}
+
+func TestServiceGitOpsSyncRequiresConfirmation(t *testing.T) {
+	service, def := newGitOpsTestService(t)
+	def.Spec.GitOps.Sync = true
+	_, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
+	if err == nil {
+		t.Fatal("expected sync confirmation error")
+	}
+}
+
 func TestMemoryStoreOrdersLogs(t *testing.T) {
 	store := NewMemoryStore()
 	record := RunRecord{Run: domaindeployment.DeploymentRun{ID: "run-logs"}}
@@ -303,6 +370,37 @@ metadata:
 	return service, def
 }
 
+func newGitOpsTestService(t *testing.T) (*Service, Definition) {
+	t.Helper()
+	service := NewService(NewMemoryStore(), StaticManifestRenderer{}, testManifestClient{}, testPolicy{allowed: true}, testEventBus{}).
+		WithGitOps(fakeWorkingTree{}, fakeArgoCDProvider{})
+	def := Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Deployment",
+		Metadata:   Metadata{Name: "demo-gitops"},
+		Spec: Spec{
+			Application: "demo-springboot",
+			Environment: "dev",
+			Target: Target{
+				Type:            "argocd",
+				Name:            "demo-argocd",
+				ApplicationName: "demo-springboot",
+				RepoURL:         "https://example.com/gitops/demo.git",
+				Path:            "apps/demo-springboot/dev",
+				Revision:        "main",
+			},
+			Artifacts: []Artifact{{
+				Name:      "demo-springboot",
+				Type:      "image",
+				Reference: "registry.example.com/demo/demo-springboot@sha256:example",
+				Target:    ArtifactTarget{ImageName: "app"},
+			}},
+			GitOps: GitOps{Mode: "plan", Files: []string{"apps/demo-springboot/dev/deployment.yaml"}},
+		},
+	}
+	return service, def
+}
+
 func assertHasDeploymentEvent(t *testing.T, events []event.Event, eventType string) {
 	t.Helper()
 	for _, evt := range events {
@@ -358,4 +456,35 @@ func (testEventBus) Subscribe(ctx context.Context, eventType string) (<-chan eve
 	ch := make(chan event.Event)
 	close(ch)
 	return ch, nil
+}
+
+type fakeWorkingTree struct{}
+
+func (fakeWorkingTree) ReadFile(ctx context.Context, root string, path string) (string, error) {
+	body, err := os.ReadFile(filepath.Join(root, path))
+	return string(body), err
+}
+
+func (fakeWorkingTree) WriteFile(ctx context.Context, root string, path string, content string) error {
+	return os.WriteFile(filepath.Join(root, path), []byte(content), 0o600)
+}
+
+func (fakeWorkingTree) Diff(ctx context.Context, root string, path string, before string, after string) (string, error) {
+	return before + "\n---\n" + after, nil
+}
+
+var _ portgitops.WorkingTree = fakeWorkingTree{}
+
+type fakeArgoCDProvider struct{}
+
+func (fakeArgoCDProvider) ValidateCredential(ctx context.Context, credential portargocd.CredentialRef) error {
+	return nil
+}
+
+func (fakeArgoCDProvider) GetApplicationStatus(ctx context.Context, applicationName string) (portargocd.ApplicationStatus, error) {
+	return portargocd.ApplicationStatus{ApplicationName: applicationName, SyncStatus: "Synced", HealthStatus: "Healthy", Message: "test status"}, nil
+}
+
+func (fakeArgoCDProvider) SyncApplication(ctx context.Context, request portargocd.SyncRequest) (portargocd.SyncResult, error) {
+	return portargocd.SyncResult{ApplicationName: request.ApplicationName, Requested: request.AllowSync && request.Confirmed, Message: "test sync"}, nil
 }

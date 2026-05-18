@@ -14,7 +14,9 @@ import (
 	"github.com/sevoniva/nivora/internal/domain/environment"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	"github.com/sevoniva/nivora/internal/domain/release"
+	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
 	"github.com/sevoniva/nivora/internal/ports/eventbus"
+	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 )
 
@@ -35,6 +37,12 @@ const (
 	EventDeploymentSucceeded         = "devops.deployment.succeeded"
 	EventDeploymentFailed            = "devops.deployment.failed"
 	EventDeploymentCanceled          = "devops.deployment.canceled"
+	EventGitOpsPlanCreated           = "devops.gitops.plan.created"
+	EventGitOpsDiffGenerated         = "devops.gitops.diff.generated"
+	EventGitOpsWorkingTreeUpdated    = "devops.gitops.workingtree.updated"
+	EventArgoCDStatusRead            = "devops.argocd.status.read"
+	EventArgoCDSyncRequested         = "devops.argocd.sync.requested"
+	EventArgoCDSyncSkipped           = "devops.argocd.sync.skipped"
 )
 
 type KubernetesManifestClient interface {
@@ -51,6 +59,8 @@ type Service struct {
 	client   ManifestClient
 	policy   policy.Engine
 	eventBus eventbus.EventBus
+	gitops   portgitops.WorkingTree
+	argocd   portargocd.Provider
 	now      func() time.Time
 }
 
@@ -65,6 +75,12 @@ func NewService(store Store, renderer ManifestRenderer, client ManifestClient, p
 	}
 }
 
+func (s *Service) WithGitOps(workingTree portgitops.WorkingTree, provider portargocd.Provider) *Service {
+	s.gitops = workingTree
+	s.argocd = provider
+	return s
+}
+
 func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (CreateRunResult, error) {
 	if err := input.Definition.Validate(); err != nil {
 		return CreateRunResult{}, err
@@ -72,12 +88,22 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 	if input.Definition.Spec.Options.Apply && !input.AllowApply {
 		return CreateRunResult{}, fmt.Errorf("deployment apply requires explicit confirmation")
 	}
+	if input.Definition.Spec.Target.Type == "argocd" && input.Definition.Spec.GitOps.Sync && (!input.AllowSync || !input.Confirm) {
+		return CreateRunResult{}, fmt.Errorf("argocd sync requires explicit --allow-sync and --confirm")
+	}
 	record := s.newRecord(input.Definition)
 	if err := s.store.Save(ctx, record); err != nil {
 		return CreateRunResult{}, err
 	}
 	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentCreated, "DeploymentRun created", input.ActorID, string(record.Run.Status), "DeploymentRun created"); err != nil {
 		return CreateRunResult{}, err
+	}
+	if input.Definition.Spec.Target.Type == "argocd" {
+		record, err := s.processGitOps(ctx, record, input.ActorID, input.AllowSync, input.Confirm)
+		if err != nil {
+			return CreateRunResult{}, err
+		}
+		return CreateRunResult{Record: record}, nil
 	}
 	record, err := s.process(ctx, record, input.ActorID)
 	if err != nil {
@@ -91,6 +117,11 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 		return CreateRunResult{}, err
 	}
 	record := s.newRecord(input.Definition)
+	if input.Definition.Spec.Target.Type == "argocd" {
+		record.GitOpsPlan = s.buildGitOpsPlan(record.Run.ID, input.Definition, nil)
+		record.Plan = deploymentPlanFromGitOps(record.GitOpsPlan, input.Definition)
+		return CreateRunResult{Record: record}, nil
+	}
 	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunPlanning, s.now(), ""); err != nil {
 		return CreateRunResult{}, err
 	}
@@ -105,6 +136,9 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 }
 
 func (s *Service) process(ctx context.Context, record RunRecord, actorID string) (RunRecord, error) {
+	if record.Definition.Spec.Target.Type == "argocd" {
+		return s.processGitOps(ctx, record, actorID, false, false)
+	}
 	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunPlanning, s.now(), ""); err != nil {
 		return RunRecord{}, err
 	}
@@ -262,6 +296,119 @@ func (s *Service) fail(ctx context.Context, record RunRecord, actorID string, re
 		return RunRecord{}, err
 	}
 	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentFailed, "DeploymentRun failed", actorID, string(record.Run.Status), reason); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.Get(ctx, record.Run.ID)
+}
+
+func (s *Service) processGitOps(ctx context.Context, record RunRecord, actorID string, allowSync bool, confirm bool) (RunRecord, error) {
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunPlanning, s.now(), ""); err != nil {
+		return RunRecord{}, err
+	}
+	record.GitOpsPlan = s.buildGitOpsPlan(record.Run.ID, record.Definition, nil)
+	record.Plan = deploymentPlanFromGitOps(record.GitOpsPlan, record.Definition)
+	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", "GitOps change plan created", int64(len(record.Logs)+1)))
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventGitOpsPlanCreated, "GitOps deployment planned", actorID, string(record.Run.Status), "GitOps change plan created"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunPreChecking, s.now(), ""); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentPrecheckCompleted, "Deployment policy pre-check completed", actorID, string(record.Run.Status), "GitOps policy pre-check allowed"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+
+	if record.Definition.Spec.GitOps.WriteToWorkingTree {
+		updated, diff, err := s.applyGitOpsWorkingTree(ctx, record.GitOpsPlan, record.Definition)
+		if err != nil {
+			return s.fail(ctx, record, actorID, err.Error())
+		}
+		record.GitOpsPlan = updated
+		record.GitOpsDiff = diff
+		record.Plan.Warnings = append(record.Plan.Warnings, updated.Warnings...)
+		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", diff.Summary, int64(len(record.Logs)+1)))
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventGitOpsDiffGenerated, "GitOps diff generated", actorID, string(record.Run.Status), diff.Summary); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventGitOpsWorkingTreeUpdated, "GitOps working tree changed", actorID, string(record.Run.Status), "GitOps working tree updated locally"); err != nil {
+			return RunRecord{}, err
+		}
+		record, _ = s.store.Get(ctx, record.Run.ID)
+	}
+
+	if s.argocd != nil && record.Definition.Spec.GitOps.StatusRead {
+		status, err := s.argocd.GetApplicationStatus(ctx, record.Definition.Spec.Target.ApplicationName)
+		if err != nil {
+			return s.fail(ctx, record, actorID, err.Error())
+		}
+		record.ArgoCD = status
+		record.GitOpsPlan.Status = status
+		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", status.Message, int64(len(record.Logs)+1)))
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDStatusRead, "Argo CD status read", actorID, string(record.Run.Status), status.Message); err != nil {
+			return RunRecord{}, err
+		}
+		record, _ = s.store.Get(ctx, record.Run.ID)
+	}
+
+	if record.Definition.Spec.GitOps.Sync {
+		if s.argocd == nil {
+			return s.fail(ctx, record, actorID, "argocd provider is not configured")
+		}
+		result, err := s.argocd.SyncApplication(ctx, portargocd.SyncRequest{
+			ApplicationName: record.Definition.Spec.Target.ApplicationName,
+			Revision:        record.Definition.Spec.Target.Revision,
+			AllowSync:       allowSync,
+			Confirmed:       confirm,
+		})
+		if err != nil {
+			return s.fail(ctx, record, actorID, err.Error())
+		}
+		eventType := EventArgoCDSyncSkipped
+		action := "Argo CD sync skipped"
+		if result.Requested {
+			eventType = EventArgoCDSyncRequested
+			action = "Argo CD sync requested"
+		}
+		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", result.Message, int64(len(record.Logs)+1)))
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, eventType, action, actorID, string(record.Run.Status), result.Message); err != nil {
+			return RunRecord{}, err
+		}
+		record, _ = s.store.Get(ctx, record.Run.ID)
+	} else if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDSyncSkipped, "Argo CD sync skipped", actorID, string(record.Run.Status), "sync=false; Argo CD sync was not requested"); err != nil {
+		return RunRecord{}, err
+	}
+
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunVerifying, s.now(), "GitOps plan verification completed"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunSucceeded, s.now(), "gitops deployment plan completed"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentSucceeded, "DeploymentRun succeeded", actorID, string(record.Run.Status), "GitOps DeploymentRun succeeded"); err != nil {
 		return RunRecord{}, err
 	}
 	return s.store.Get(ctx, record.Run.ID)
@@ -459,6 +606,130 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 		Warnings:        warnings,
 		DiffSummary:     fmt.Sprintf("desired state contains %d manifest resource(s); live diff is not available in Phase 2.2", len(docs)),
 	}
+}
+
+func (s *Service) buildGitOpsPlan(runID string, def Definition, changes []portgitops.FileChange) GitOpsChangePlan {
+	files := append([]string(nil), def.Spec.GitOps.Files...)
+	if len(files) == 0 && def.Spec.Target.Path != "" {
+		files = append(files, strings.Trim(def.Spec.Target.Path, "/")+"/deployment.yaml")
+	}
+	artifacts := make([]string, 0, len(def.Spec.Artifacts))
+	for _, artifact := range def.Spec.Artifacts {
+		artifacts = append(artifacts, artifact.Reference)
+	}
+	warnings := []string{"GitOps plan-only mode is the safe Phase 2.3 default"}
+	if def.Spec.GitOps.WriteToWorkingTree && def.Spec.GitOps.WorkingTree == "" {
+		warnings = append(warnings, "writeToWorkingTree=true requires gitops.workingTree")
+	}
+	if def.Spec.GitOps.Sync {
+		warnings = append(warnings, "Argo CD sync requested; sync is disabled unless explicitly allowed and confirmed")
+	}
+	return GitOpsChangePlan{
+		DeploymentRunID:       runID,
+		ApplicationName:       def.Spec.Target.ApplicationName,
+		RepoURL:               def.Spec.Target.RepoURL,
+		Path:                  def.Spec.Target.Path,
+		Revision:              def.Spec.Target.Revision,
+		Files:                 files,
+		FileChanges:           changes,
+		ArtifactChanges:       artifacts,
+		ManifestValueChanges:  plannedImageChanges(def),
+		CommitMessageProposal: fmt.Sprintf("chore: update %s release artifacts", def.Spec.Application),
+		DryRun:                !def.Spec.GitOps.WriteToWorkingTree,
+		Warnings:              warnings,
+		SyncRequested:         def.Spec.GitOps.Sync,
+	}
+}
+
+func deploymentPlanFromGitOps(plan GitOpsChangePlan, def Definition) DeploymentPlan {
+	actions := []string{"build GitOps change plan", "policy pre-check"}
+	if def.Spec.GitOps.WriteToWorkingTree {
+		actions = append(actions, "update local working tree", "generate diff")
+	}
+	if def.Spec.GitOps.StatusRead {
+		actions = append(actions, "read Argo CD application status")
+	}
+	if def.Spec.GitOps.Sync {
+		actions = append(actions, "request Argo CD sync if explicitly allowed")
+	}
+	return DeploymentPlan{
+		DeploymentRunID: plan.DeploymentRunID,
+		TargetType:      def.Spec.Target.Type,
+		TargetContext:   def.Spec.Target.RepoURL,
+		Namespace:       def.Spec.Target.Namespace,
+		Artifacts:       append([]string(nil), plan.ArtifactChanges...),
+		DryRun:          !def.Spec.GitOps.WriteToWorkingTree && !def.Spec.GitOps.Sync,
+		Apply:           def.Spec.GitOps.WriteToWorkingTree,
+		Actions:         actions,
+		Warnings:        append([]string(nil), plan.Warnings...),
+		DiffSummary:     fmt.Sprintf("GitOps plan for %s in %s; remote Git diff is not available in Phase 2.3", plan.ApplicationName, plan.Path),
+	}
+}
+
+func plannedImageChanges(def Definition) []string {
+	changes := make([]string, 0, len(def.Spec.Artifacts))
+	for _, artifact := range def.Spec.Artifacts {
+		changes = append(changes, fmt.Sprintf("set %s image to %s", artifact.Name, artifact.Reference))
+	}
+	return changes
+}
+
+func (s *Service) applyGitOpsWorkingTree(ctx context.Context, plan GitOpsChangePlan, def Definition) (GitOpsChangePlan, GitOpsDiff, error) {
+	if s.gitops == nil {
+		return plan, GitOpsDiff{}, fmt.Errorf("gitops working tree adapter is not configured")
+	}
+	if def.Spec.GitOps.WorkingTree == "" {
+		return plan, GitOpsDiff{}, fmt.Errorf("gitops.workingTree is required when writeToWorkingTree=true")
+	}
+	if len(plan.Files) == 0 {
+		return plan, GitOpsDiff{}, fmt.Errorf("gitops plan has no files to update")
+	}
+	var changes []portgitops.FileChange
+	for _, file := range plan.Files {
+		before, err := s.gitops.ReadFile(ctx, def.Spec.GitOps.WorkingTree, file)
+		if err != nil {
+			return plan, GitOpsDiff{}, err
+		}
+		after := before
+		for _, artifact := range def.Spec.Artifacts {
+			if artifact.Target.ImageName == "" {
+				continue
+			}
+			after = replaceContainerImage(after, artifact.Target.ImageName, artifact.Reference)
+		}
+		diff, err := s.gitops.Diff(ctx, def.Spec.GitOps.WorkingTree, file, before, after)
+		if err != nil {
+			return plan, GitOpsDiff{}, err
+		}
+		change := portgitops.FileChange{Path: file, Before: before, After: after, Diff: diff, Changed: before != after, Operation: "update-image"}
+		if before == after {
+			change.Warning = "no matching image field changed"
+		} else if err := s.gitops.WriteFile(ctx, def.Spec.GitOps.WorkingTree, file, after); err != nil {
+			return plan, GitOpsDiff{}, err
+		}
+		changes = append(changes, change)
+	}
+	plan.FileChanges = changes
+	plan.DryRun = false
+	return plan, GitOpsDiff{Summary: fmt.Sprintf("generated local GitOps diff for %d file(s)", len(changes)), Files: changes}, nil
+}
+
+func replaceContainerImage(content string, containerName string, reference string) string {
+	lines := strings.Split(content, "\n")
+	for i, line := range lines {
+		if !strings.Contains(line, "name: "+containerName) {
+			continue
+		}
+		for j := i + 1; j < len(lines) && j <= i+8; j++ {
+			trimmed := strings.TrimSpace(lines[j])
+			if strings.HasPrefix(trimmed, "image: ") {
+				prefix := lines[j][:strings.Index(lines[j], "image: ")]
+				lines[j] = prefix + "image: " + reference
+				return strings.Join(lines, "\n")
+			}
+		}
+	}
+	return content
 }
 
 func verifyManifestImages(specArtifacts []Artifact, artifactDetails []domainartifact.Inspection, images []ManifestImage) []string {

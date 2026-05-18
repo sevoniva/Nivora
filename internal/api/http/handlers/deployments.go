@@ -54,6 +54,22 @@ func PlanDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 	}
 }
 
+func PlanGitOpsDeployment(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var def deploymentusecase.Definition
+		if err := json.NewDecoder(r.Body).Decode(&def); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a deployment definition"})
+			return
+		}
+		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{Definition: def})
+		if err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "gitops_plan_failed", Message: err.Error()})
+			return
+		}
+		RespondJSON(w, http.StatusOK, result.Record.GitOpsPlan)
+	}
+}
+
 func ListDeploymentRuns(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		records, err := service.List(r.Context())
@@ -76,6 +92,28 @@ func GetDeploymentPlan(service *deploymentusecase.Service) http.HandlerFunc {
 			return
 		}
 		RespondJSON(w, http.StatusOK, record.Plan)
+	}
+}
+
+func GetDeploymentGitOpsPlan(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondDeploymentResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record.GitOpsPlan)
+	}
+}
+
+func GetDeploymentDiff(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondDeploymentResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record.GitOpsDiff)
 	}
 }
 

@@ -3,6 +3,7 @@ package deployment
 import (
 	"time"
 
+	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/environment"
@@ -31,20 +32,29 @@ type RunRecord struct {
 }
 
 type DeploymentPlan struct {
-	DeploymentRunID string                    `json:"deploymentRunId"`
-	TargetType      string                    `json:"targetType"`
-	TargetContext   string                    `json:"targetContext,omitempty"`
-	Namespace       string                    `json:"namespace,omitempty"`
-	ManifestCount   int                       `json:"manifestCount"`
-	Resources       []ManifestResourceSummary `json:"resources"`
-	Artifacts       []string                  `json:"artifacts,omitempty"`
-	DryRun          bool                      `json:"dryRun"`
-	Apply           bool                      `json:"apply"`
-	Wait            bool                      `json:"wait"`
-	TimeoutSeconds  int                       `json:"timeoutSeconds,omitempty"`
-	Actions         []string                  `json:"actions"`
-	Warnings        []string                  `json:"warnings,omitempty"`
-	DiffSummary     string                    `json:"diffSummary"`
+	DeploymentRunID string                      `json:"deploymentRunId"`
+	TargetType      string                      `json:"targetType"`
+	TargetContext   string                      `json:"targetContext,omitempty"`
+	Namespace       string                      `json:"namespace,omitempty"`
+	ManifestCount   int                         `json:"manifestCount"`
+	Resources       []ManifestResourceSummary   `json:"resources"`
+	Artifacts       []string                    `json:"artifacts,omitempty"`
+	ArtifactDetails []domainartifact.Inspection `json:"artifactDetails,omitempty"`
+	ManifestImages  []ManifestImage             `json:"manifestImages,omitempty"`
+	DryRun          bool                        `json:"dryRun"`
+	Apply           bool                        `json:"apply"`
+	Wait            bool                        `json:"wait"`
+	TimeoutSeconds  int                         `json:"timeoutSeconds,omitempty"`
+	Actions         []string                    `json:"actions"`
+	Warnings        []string                    `json:"warnings,omitempty"`
+	DiffSummary     string                      `json:"diffSummary"`
+}
+
+type ManifestImage struct {
+	ResourceKind string `json:"resourceKind"`
+	ResourceName string `json:"resourceName"`
+	Container    string `json:"container"`
+	Image        string `json:"image"`
 }
 
 type ManifestDocument struct {

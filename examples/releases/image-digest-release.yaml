@@ -1,0 +1,13 @@
+apiVersion: nivora.io/v1alpha1
+kind: Release
+metadata:
+  name: digest-demo
+spec:
+  version: 1.0.0
+  application: digest-demo
+  artifacts:
+    - name: digest-demo
+      type: image
+      role: primary
+      required: true
+      reference: registry.example.com/team/digest-demo@sha256:abcdef

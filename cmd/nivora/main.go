@@ -16,7 +16,9 @@ import (
 	"github.com/sevoniva/nivora/internal/app/runner"
 	"github.com/sevoniva/nivora/internal/app/server"
 	"github.com/sevoniva/nivora/internal/app/worker"
+	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	"github.com/sevoniva/nivora/internal/version"
@@ -41,9 +43,148 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newRunCommand("worker", "configs/worker.yaml", worker.Run))
 	root.AddCommand(newConfigCommand())
 	root.AddCommand(newPipelineCommand())
+	root.AddCommand(newArtifactCommand())
+	root.AddCommand(newReleaseCommand())
 	root.AddCommand(newDeploymentCommand())
 	root.AddCommand(newRunnerCommand())
 	return root
+}
+
+func newArtifactCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "artifact", Short: "Artifact utilities"}
+	cmd.AddCommand(newArtifactInspectCommand())
+	cmd.AddCommand(newArtifactResolveCommand())
+	return cmd
+}
+
+func newArtifactInspectCommand() *cobra.Command {
+	var artifactType string
+	cmd := &cobra.Command{
+		Use:   "inspect <reference>",
+		Short: "Inspect and normalize an artifact reference locally",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := server.NewArtifactService().Inspect(cmd.Context(), args[0], domainartifact.ArtifactType(artifactType))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), result)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&artifactType, "type", "image", "artifact type")
+	return cmd
+}
+
+func newArtifactResolveCommand() *cobra.Command {
+	var artifactType string
+	cmd := &cobra.Command{
+		Use:   "resolve <reference>",
+		Short: "Resolve artifact identity locally when already immutable",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			result, err := server.NewArtifactService().Resolve(cmd.Context(), args[0], domainartifact.ArtifactType(artifactType))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), result)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&artifactType, "type", "image", "artifact type")
+	return cmd
+}
+
+func newReleaseCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "release", Short: "Release utilities"}
+	cmd.AddCommand(newReleaseCreateCommand())
+	cmd.AddCommand(newReleaseGetCommand())
+	cmd.AddCommand(newReleaseArtifactsCommand())
+	return cmd
+}
+
+func newReleaseCreateCommand() *cobra.Command {
+	var file string
+	var local bool
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "create --file <release.yaml>",
+		Short: "Create a release and bind artifacts",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if file == "" {
+				return fmt.Errorf("--file is required")
+			}
+			def, err := artifactusecase.LoadReleaseDefinitionFile(file)
+			if err != nil {
+				return err
+			}
+			if !local {
+				body, err := json.Marshal(def)
+				if err != nil {
+					return err
+				}
+				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases", body)
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), payload)
+				return nil
+			}
+			record, err := server.NewArtifactService().CreateRelease(cmd.Context(), artifactusecase.CreateReleaseInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "Release: %s\n", record.Release.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Version: %s\n", record.Release.Version)
+			fmt.Fprintf(cmd.OutOrStdout(), "Artifacts: %d\n", len(record.Bindings))
+			if len(record.Warnings) > 0 {
+				fmt.Fprintf(cmd.OutOrStdout(), "Warnings: %d\n", len(record.Warnings))
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&file, "file", "", "release definition file")
+	cmd.Flags().BoolVar(&local, "local", true, "create release in the in-process local runtime")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	return cmd
+}
+
+func newReleaseGetCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "get <release-id>",
+		Short: "Get a release from a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newReleaseArtifactsCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "artifacts <release-id>",
+		Short: "List release artifacts from a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+args[0]+"/artifacts", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
 }
 
 func newVersionCommand() *cobra.Command {
@@ -276,7 +417,7 @@ func newDeploymentPlanCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 2.1 local runtime")
+	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 2.2 local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "", "Nivora server URL for --local=false")
 	return cmd
 }
@@ -324,7 +465,7 @@ func newDeploymentRunCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process Phase 2.1 local runtime")
+	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process Phase 2.2 local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "", "Nivora server URL for --local=false")
 	return cmd
 }
@@ -345,7 +486,7 @@ func newDeploymentApplyCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !local {
-				return fmt.Errorf("server-backed deployment apply is not implemented; use --local for Phase 2.1")
+				return fmt.Errorf("server-backed deployment apply is not implemented; use --local for Phase 2.2")
 			}
 			if !confirm {
 				return fmt.Errorf("deployment apply requires --confirm")
@@ -374,7 +515,7 @@ func newDeploymentApplyCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&local, "local", true, "apply with the in-process Phase 2.1 local runtime")
+	cmd.Flags().BoolVar(&local, "local", true, "apply with the in-process Phase 2.2 local runtime")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm explicit local apply")
 	return cmd
 }

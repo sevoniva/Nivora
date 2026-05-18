@@ -3,14 +3,11 @@ package routes
 import (
 	"bytes"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"testing"
 
 	"github.com/sevoniva/nivora/internal/infra/config"
-	"github.com/sevoniva/nivora/internal/version"
 )
 
 func TestPipelineRunRoutes(t *testing.T) {
@@ -18,7 +15,7 @@ func TestPipelineRunRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
-	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService(), newTestDeploymentService())
+	router := newTestRouter(cfg)
 
 	body := []byte(`{
 		"apiVersion": "nivora.io/v1alpha1",
@@ -80,7 +77,7 @@ func TestPipelineRunInvalidRequestIncludesRequestID(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
-	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService(), newTestDeploymentService())
+	router := newTestRouter(cfg)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs", bytes.NewReader([]byte(`not-json`)))
 	req.Header.Set("X-Request-Id", "test-request-id")
@@ -99,7 +96,7 @@ func TestSystemInfoIncludesRuntimeMode(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
-	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService(), newTestDeploymentService())
+	router := newTestRouter(cfg)
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/info", nil)
 	rec := httptest.NewRecorder()
@@ -117,7 +114,7 @@ func TestRunnerRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
-	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService(), newTestDeploymentService())
+	router := newTestRouter(cfg)
 
 	body := []byte(`{"id":"runner-api","name":"runner-api","status":"online","executors":["shell"],"labels":{"tier":"dev"}}`)
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/runners/register", bytes.NewReader(body))

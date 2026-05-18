@@ -36,9 +36,16 @@ type Target struct {
 }
 
 type Artifact struct {
-	Name      string `json:"name" yaml:"name"`
-	Type      string `json:"type" yaml:"type"`
-	Reference string `json:"reference" yaml:"reference"`
+	Name      string         `json:"name" yaml:"name"`
+	Type      string         `json:"type" yaml:"type"`
+	Reference string         `json:"reference" yaml:"reference"`
+	Digest    string         `json:"digest,omitempty" yaml:"digest,omitempty"`
+	Target    ArtifactTarget `json:"target,omitempty" yaml:"target,omitempty"`
+}
+
+type ArtifactTarget struct {
+	ImageName  string `json:"imageName,omitempty" yaml:"imageName,omitempty"`
+	Substitute bool   `json:"substitute,omitempty" yaml:"substitute,omitempty"`
 }
 
 type Options struct {
@@ -84,7 +91,7 @@ func (d Definition) Validate() error {
 		return errors.New("deployment target.type is required")
 	}
 	if d.Spec.Target.Type != "kubernetes-yaml" {
-		return fmt.Errorf("deployment target.type %q is not supported in Phase 2.1", d.Spec.Target.Type)
+		return fmt.Errorf("deployment target.type %q is not supported in Phase 2.2", d.Spec.Target.Type)
 	}
 	if d.Spec.Target.Name == "" {
 		return errors.New("deployment target.name is required")

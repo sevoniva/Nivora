@@ -5,6 +5,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
@@ -51,6 +52,41 @@ func TestServiceCreateAndRunDryRunDeployment(t *testing.T) {
 	}
 	if len(audits) < 4 {
 		t.Fatalf("audit count = %d", len(audits))
+	}
+}
+
+func TestServiceDeploymentPlanWarnsForUnboundManifestImage(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	def.Spec.Artifacts = nil
+	result, err := service.Plan(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if len(result.Record.Plan.ManifestImages) == 0 {
+		t.Fatal("expected manifest image inventory")
+	}
+	if len(result.Record.Plan.Warnings) == 0 {
+		t.Fatal("expected manifest image warning")
+	}
+}
+
+func TestServiceDeploymentPlanBindsManifestImage(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	def.Spec.Artifacts[0].Target.ImageName = "demo-app"
+	result, err := service.Plan(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	if len(result.Record.Plan.ArtifactDetails) != 1 {
+		t.Fatalf("artifact details = %d", len(result.Record.Plan.ArtifactDetails))
+	}
+	if len(result.Record.Plan.ManifestImages) != 1 {
+		t.Fatalf("manifest images = %d", len(result.Record.Plan.ManifestImages))
+	}
+	for _, warning := range result.Record.Plan.Warnings {
+		if strings.Contains(warning, "differs from bound artifact") || strings.Contains(warning, "not bound to a release artifact") {
+			t.Fatalf("unexpected binding warning: %s", warning)
+		}
 	}
 }
 
@@ -226,6 +262,18 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: demo
+spec:
+  selector:
+    matchLabels:
+      app: demo
+  template:
+    metadata:
+      labels:
+        app: demo
+    spec:
+      containers:
+        - name: demo-app
+          image: example.local/demo:dev
 ---
 apiVersion: v1
 kind: Service

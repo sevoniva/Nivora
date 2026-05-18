@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 2.1 supports minimal shell PipelineRun execution and controlled Kubernetes YAML DeploymentRun dry-run/apply foundation.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 2.2 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, and artifact/release binding foundations.
 servers:
   - url: http://localhost:8080
 paths:
@@ -74,6 +74,42 @@ paths:
       responses:
         "501":
           $ref: "#/components/responses/NotImplemented"
+  /api/v1/artifacts/inspect:
+    post:
+      summary: Inspect and normalize an artifact reference without requiring registry access
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtifactReference"
+      responses:
+        "200":
+          description: Artifact inspection result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactInspection"
+        "400":
+          description: Invalid artifact reference
+  /api/v1/artifacts/resolve:
+    post:
+      summary: Resolve immutable artifact identity when already available or supported by the provider
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtifactReference"
+      responses:
+        "200":
+          description: Artifact resolution result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactResolution"
+        "400":
+          description: Invalid artifact reference
   /api/v1/pipelines:
     get:
       summary: Pipelines placeholder
@@ -189,10 +225,63 @@ paths:
           description: PipelineRun not found
   /api/v1/releases:
     get:
-      summary: Releases placeholder
+      summary: List Releases in the in-memory Phase 2.2 runtime
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Release records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CreateReleaseResponse"
+    post:
+      summary: Create a Release and bind ReleaseArtifacts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateReleaseRequest"
+      responses:
+        "201":
+          description: Release created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateReleaseResponse"
+        "400":
+          description: Invalid release definition
+  /api/v1/releases/{id}:
+    get:
+      summary: Get a Release
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Release record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateReleaseResponse"
+        "404":
+          description: Release not found
+  /api/v1/releases/{id}/artifacts:
+    get:
+      summary: Get ReleaseArtifact bindings for a Release
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: ReleaseArtifact bindings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ReleaseArtifact"
+        "404":
+          description: Release not found
   /api/v1/deployments:
     get:
       summary: List DeploymentRuns in the in-memory Phase 2.1 runtime
@@ -499,6 +588,223 @@ components:
           type: string
         runtime_mode:
           type: string
+    ArtifactReference:
+      type: object
+      required: [reference]
+      properties:
+        reference:
+          type: string
+        type:
+          type: string
+          enum: [image, jar, binary, chart, yaml, tar, npm, maven, unknown]
+    ArtifactWarning:
+      type: object
+      properties:
+        code:
+          type: string
+        message:
+          type: string
+        severity:
+          type: string
+    ArtifactInspection:
+      type: object
+      properties:
+        reference:
+          type: object
+          properties:
+            type:
+              type: string
+            original:
+              type: string
+            normalized:
+              type: string
+            registry:
+              type: string
+            repository:
+              type: string
+            name:
+              type: string
+            version:
+              type: string
+            tag:
+              type: string
+            digest:
+              type: string
+            scheme:
+              type: string
+            immutable:
+              type: boolean
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtifactWarning"
+    ArtifactResolution:
+      type: object
+      properties:
+        reference:
+          type: object
+        digest:
+          type: string
+        resolved:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtifactWarning"
+    Artifact:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        reference:
+          type: string
+        digest:
+          type: string
+        registry:
+          type: string
+        repository:
+          type: string
+        mediaType:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    Release:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        version:
+          type: string
+        applicationId:
+          type: string
+        environmentId:
+          type: string
+        sourcePipelineRunId:
+          type: string
+        commit:
+          type: string
+        status:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    ReleaseArtifact:
+      type: object
+      properties:
+        id:
+          type: string
+        releaseId:
+          type: string
+        artifactId:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        role:
+          type: string
+        required:
+          type: boolean
+        reference:
+          type: string
+        digest:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    CreateReleaseRequest:
+      type: object
+      required: [apiVersion, kind, metadata, spec]
+      properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
+          enum: [Release]
+        metadata:
+          type: object
+          required: [name]
+          properties:
+            name:
+              type: string
+        spec:
+          type: object
+          required: [version, artifacts]
+          properties:
+            version:
+              type: string
+            application:
+              type: string
+            environment:
+              type: string
+            sourcePipelineRunId:
+              type: string
+            commit:
+              type: string
+            artifacts:
+              type: array
+              items:
+                type: object
+                required: [name, type, reference]
+                properties:
+                  name:
+                    type: string
+                  type:
+                    type: string
+                  role:
+                    type: string
+                  required:
+                    type: boolean
+                  reference:
+                    type: string
+                  metadata:
+                    type: object
+                    additionalProperties:
+                      type: string
+    CreateReleaseResponse:
+      type: object
+      properties:
+        release:
+          $ref: "#/components/schemas/Release"
+        artifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Artifact"
+        bindings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReleaseArtifact"
+        inspections:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtifactInspection"
+        warnings:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtifactWarning"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        audits:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
     PipelineRun:
       type: object
       properties:
@@ -742,6 +1048,15 @@ components:
                 type: string
               reference:
                 type: string
+              digest:
+                type: string
+              target:
+                type: object
+                properties:
+                  imageName:
+                    type: string
+                  substitute:
+                    type: boolean
         manifests:
           type: array
           items:
@@ -824,6 +1139,14 @@ components:
           type: array
           items:
             type: string
+        artifactDetails:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtifactInspection"
+        manifestImages:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManifestImage"
         dryRun:
           type: boolean
         apply:
@@ -889,6 +1212,17 @@ components:
           type: object
           additionalProperties:
             type: string
+    ManifestImage:
+      type: object
+      properties:
+        resourceKind:
+          type: string
+        resourceName:
+          type: string
+        container:
+          type: string
+        image:
+          type: string
     DeploymentResource:
       $ref: "#/components/schemas/ManifestResourceSummary"
     KubernetesDryRunResult:

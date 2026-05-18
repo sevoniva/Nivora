@@ -1,0 +1,35 @@
+# Artifact and Release Binding
+
+Phase 2.2 introduces a local, testable foundation for release artifacts. It is designed for contributor development and does not require a registry.
+
+## Inspect an Artifact Reference
+
+```bash
+go run ./cmd/nivora artifact inspect registry.example.com/team/app:1.0.0
+go run ./cmd/nivora artifact inspect registry.example.com/team/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+```
+
+Inspection parses the reference, normalizes it, and returns warnings for mutable or incomplete references.
+
+## Create a Release Locally
+
+```bash
+go run ./cmd/nivora release create --local --file examples/releases/simple-release.yaml
+```
+
+The local command creates an in-memory Release record, binds ReleaseArtifacts, emits events, and records audit entries. The local process does not persist records after the command exits.
+
+## Deployment Planning With Artifacts
+
+Deployment specs can include artifact references. Phase 2.2 verifies simple Kubernetes workload image references against those artifacts and adds warnings to the DeploymentPlan when:
+
+- a manifest image is not bound to an artifact
+- a manifest image uses `latest`
+- a manifest image lacks a digest
+- an explicitly targeted artifact does not match the manifest image
+
+Manifest mutation is not the default. Image substitution is reserved for explicit future work and must stay auditable.
+
+## Registry Access
+
+Harbor, Nexus, JFrog, cloud registries, authenticated digest resolution, artifact scanning, signing, and SBOM verification are future phases. Do not hardcode registry endpoints or credentials. Optional local registry values must come from environment variables only and must never be committed.

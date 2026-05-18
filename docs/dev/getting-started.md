@@ -59,5 +59,5 @@ go run ./cmd/nivora pipeline timeline <pipeline-run-id> --server http://localhos
 
 - Runtime state is in memory.
 - Local CLI mode executes and prints a run but does not persist it across CLI invocations.
-- No Kubernetes, Argo CD, cloud, Git provider, or artifact registry integrations are implemented in this phase.
+- No production Kubernetes, Argo CD, cloud, Git provider, or full artifact registry integrations are implemented in this phase. Phase 2.2 includes local artifact reference parsing and ReleaseArtifact binding only.
 - The project is not production-ready.

@@ -49,6 +49,12 @@ Rollback should be modeled as an auditable operation with a reason, target, prio
 
 Phase 2.1 produces a stable desired-state summary and a diff placeholder. Live cluster diff is future work. Rollout verification is modeled through the manifest client port and defaults to a no-op local result.
 
+## Artifact Binding
+
+Phase 2.2 connects DeploymentPlan output to ReleaseArtifacts. Deployment specs may include inline artifact references, and the planner records normalized artifact summaries, immutability warnings, and simple manifest image verification warnings.
+
+This is verify-first behavior. Nivora does not mutate manifests by default, does not resolve registry digests over the network, and does not claim full registry integration.
+
 ## Current State
 
-Phase 2.1 supports YAML deployment planning, dry-run, explicit local no-op apply, resource inventory, rollout result modeling, and rollback baseline only. Production Kubernetes apply, Helm, Kustomize, Argo CD, cloud providers, host deployment, and registry integrations remain future work.
+Phase 2.2 supports YAML deployment planning, dry-run, explicit local no-op apply, resource inventory, rollout result modeling, rollback baseline, artifact summaries, and manifest image verification only. Production Kubernetes apply, Helm, Kustomize, Argo CD, cloud providers, host deployment, registry integrations, image signing, and scanning remain future work.

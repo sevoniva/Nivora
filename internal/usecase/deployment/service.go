@@ -5,8 +5,10 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
+	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/environment"
@@ -336,7 +338,10 @@ func (s *Service) newRecord(def Definition) RunRecord {
 			ReleaseID: releaseID,
 			Name:      artifact.Name,
 			Type:      artifact.Type,
+			Role:      "deployment",
+			Required:  true,
 			Reference: artifact.Reference,
+			Digest:    artifact.Digest,
 			CreatedAt: now,
 			UpdatedAt: now,
 		})
@@ -345,8 +350,10 @@ func (s *Service) newRecord(def Definition) RunRecord {
 		Definition: def,
 		Release: release.Release{
 			ID:            releaseID,
+			Name:          def.Metadata.Name,
 			ApplicationID: def.Spec.Application,
 			Version:       def.Metadata.Name,
+			Status:        "Created",
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		},
@@ -385,16 +392,47 @@ func (s *Service) newRecord(def Definition) RunRecord {
 
 func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocument) DeploymentPlan {
 	artifacts := make([]string, 0, len(def.Spec.Artifacts))
+	artifactDetails := make([]domainartifact.Inspection, 0, len(def.Spec.Artifacts))
 	for _, artifact := range def.Spec.Artifacts {
-		artifacts = append(artifacts, artifact.Reference)
+		reference := artifact.Reference
+		if artifact.Digest != "" && !containsDigest(reference) {
+			reference = reference + "@" + artifact.Digest
+		}
+		inspection, err := domainartifact.InspectReference(reference, domainartifact.ArtifactType(artifact.Type))
+		if err != nil {
+			warnings := []string{"live cluster diff is not implemented in Phase 2.2", fmt.Sprintf("artifact %q could not be inspected: %v", artifact.Name, err)}
+			return DeploymentPlan{
+				DeploymentRunID: runID,
+				TargetType:      def.Spec.Target.Type,
+				TargetContext:   def.Spec.Target.Context,
+				Namespace:       def.Spec.Target.Namespace,
+				Artifacts:       []string{artifact.Reference},
+				DryRun:          def.Spec.Options.dryRunOnly(),
+				Apply:           def.Spec.Options.Apply,
+				Wait:            def.Spec.Options.Wait,
+				TimeoutSeconds:  def.Spec.Options.TimeoutSeconds,
+				Actions:         []string{"render manifests", "validate manifests", "policy pre-check", "server-side dry-run"},
+				Warnings:        warnings,
+				DiffSummary:     "artifact inspection failed",
+			}
+		}
+		artifacts = append(artifacts, inspection.Reference.Normalized)
+		artifactDetails = append(artifactDetails, inspection)
 	}
 	resources := make([]ManifestResourceSummary, 0, len(docs))
 	for _, doc := range docs {
 		resources = append(resources, doc.Resource)
 	}
-	warnings := []string{"live cluster diff is not implemented in Phase 2.1"}
+	manifestImages := ExtractManifestImages(docs)
+	warnings := []string{"live cluster diff is not implemented in Phase 2.2"}
+	for _, detail := range artifactDetails {
+		for _, warning := range detail.Warnings {
+			warnings = append(warnings, fmt.Sprintf("artifact %s: %s", detail.Reference.Normalized, warning.Message))
+		}
+	}
+	warnings = append(warnings, verifyManifestImages(def.Spec.Artifacts, artifactDetails, manifestImages)...)
 	if def.Spec.Options.Apply {
-		warnings = append(warnings, "apply requested; Phase 2.1 apply requires explicit confirmation and uses the configured manifest client")
+		warnings = append(warnings, "apply requested; Phase 2.2 apply requires explicit confirmation and uses the configured manifest client")
 	}
 	actions := []string{"render manifests", "validate manifests", "policy pre-check", "server-side dry-run"}
 	if def.Spec.Options.Apply {
@@ -411,14 +449,61 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 		ManifestCount:   len(docs),
 		Resources:       resources,
 		Artifacts:       artifacts,
+		ArtifactDetails: artifactDetails,
+		ManifestImages:  manifestImages,
 		DryRun:          def.Spec.Options.dryRunOnly(),
 		Apply:           def.Spec.Options.Apply,
 		Wait:            def.Spec.Options.Wait,
 		TimeoutSeconds:  def.Spec.Options.TimeoutSeconds,
 		Actions:         actions,
 		Warnings:        warnings,
-		DiffSummary:     fmt.Sprintf("desired state contains %d manifest resource(s); live diff is not available in Phase 2.1", len(docs)),
+		DiffSummary:     fmt.Sprintf("desired state contains %d manifest resource(s); live diff is not available in Phase 2.2", len(docs)),
 	}
+}
+
+func verifyManifestImages(specArtifacts []Artifact, artifactDetails []domainartifact.Inspection, images []ManifestImage) []string {
+	if len(images) == 0 {
+		return nil
+	}
+	expectedByContainer := make(map[string]domainartifact.Inspection)
+	expectedByName := make(map[string]domainartifact.Inspection)
+	for i, artifact := range specArtifacts {
+		if i >= len(artifactDetails) {
+			continue
+		}
+		detail := artifactDetails[i]
+		if artifact.Target.ImageName != "" {
+			expectedByContainer[artifact.Target.ImageName] = detail
+		}
+		expectedByName[detail.Reference.Name] = detail
+	}
+	var warnings []string
+	for _, image := range images {
+		inspection, err := domainartifact.InspectReference(image.Image, domainartifact.ArtifactTypeImage)
+		if err != nil {
+			warnings = append(warnings, fmt.Sprintf("manifest image %q could not be inspected: %v", image.Image, err))
+			continue
+		}
+		for _, warning := range inspection.Warnings {
+			warnings = append(warnings, fmt.Sprintf("manifest image %s: %s", image.Image, warning.Message))
+		}
+		expected, ok := expectedByContainer[image.Container]
+		if !ok {
+			expected, ok = expectedByName[inspection.Reference.Name]
+		}
+		if !ok {
+			warnings = append(warnings, fmt.Sprintf("manifest image %s is not bound to a release artifact", image.Image))
+			continue
+		}
+		if expected.Reference.Normalized != inspection.Reference.Normalized {
+			warnings = append(warnings, fmt.Sprintf("manifest image %s differs from bound artifact %s", image.Image, expected.Reference.Normalized))
+		}
+	}
+	return warnings
+}
+
+func containsDigest(reference string) bool {
+	return strings.Contains(reference, "@sha256:")
 }
 
 func (s *Service) rollbackBaseline(runID string, def Definition, resources []ManifestResourceSummary) *domaindeployment.RollbackRecord {
@@ -436,7 +521,7 @@ func (s *Service) rollbackBaseline(runID string, def Definition, resources []Man
 		TargetName:          def.Spec.Target.Name,
 		ManifestSnapshotRef: "memory://" + runID + "/previous-manifests",
 		ResourceRefs:        refs,
-		Reason:              "rollback execution is not implemented in Phase 2.1",
+		Reason:              "rollback execution is not implemented in Phase 2.2",
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}

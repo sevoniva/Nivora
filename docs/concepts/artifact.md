@@ -1,19 +1,28 @@
 # Artifact
 
-An Artifact is a build output or package reference intended to be immutable.
+An Artifact is a build output or package reference intended to be immutable. In Phase 2.2, Nivora can parse and inspect artifact references without contacting a registry, bind them to a Release, and carry artifact warnings into deployment planning.
 
 ## Why It Exists
 
 Release audit depends on knowing exactly what was delivered. Digests, signed artifacts, and immutable versions are preferred over mutable tags.
+
+An image tag such as `app:1.0.0` is useful, but it can still be moved by a registry operator. A digest reference such as `app@sha256:...` is stronger because it identifies content. Nivora therefore treats digest-backed references as immutable and emits warnings for `latest` or references that do not include a tag or digest.
 
 ## Relationships
 
 - May be produced by a PipelineRun.
 - Stored in an Artifact Registry.
 - Referenced by a Release.
+- Bound to a ReleaseArtifact for DeploymentRun planning.
+- Verified against manifest image references during YAML deployment planning.
 - Evaluated by security scanners or Policy gates in future phases.
+
+## Current Implementation
+
+Phase 2.2 supports a small artifact model, OCI image reference parsing, generic URI-style references, immutability warnings, and a generic OCI adapter foundation that does not require network access. It does not implement Harbor, Nexus, JFrog, ECR, ACR, TCR, or full registry authentication.
 
 ## Common Confusion
 
 An Artifact is not just a tag. A tag can move. A digest identifies content.
 
+Artifact inspection is not artifact scanning. Trivy, Cosign, SBOM handling, and registry-specific metadata are future phases.

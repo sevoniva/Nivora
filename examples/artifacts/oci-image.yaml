@@ -1,0 +1,8 @@
+apiVersion: nivora.io/v1alpha1
+kind: ArtifactReference
+metadata:
+  name: demo-image
+spec:
+  type: image
+  reference: registry.example.com/team/demo:1.0.0
+  note: "Parsing and inspection are local-only; digest resolution does not require network in this example."

@@ -136,3 +136,74 @@ func stringMap(value any) map[string]string {
 	}
 	return converted
 }
+
+func ExtractManifestImages(documents []ManifestDocument) []ManifestImage {
+	var images []ManifestImage
+	for _, doc := range documents {
+		var manifest map[string]any
+		if err := yaml.Unmarshal([]byte(doc.Content), &manifest); err != nil {
+			continue
+		}
+		images = append(images, extractImagesFromManifest(doc.Resource, manifest)...)
+	}
+	return images
+}
+
+func extractImagesFromManifest(resource ManifestResourceSummary, manifest map[string]any) []ManifestImage {
+	switch resource.Kind {
+	case "Deployment", "StatefulSet", "DaemonSet":
+		return imagesFromPodSpec(resource, nestedMap(manifest, "spec", "template", "spec"))
+	case "Job":
+		return imagesFromPodSpec(resource, nestedMap(manifest, "spec", "template", "spec"))
+	case "CronJob":
+		return imagesFromPodSpec(resource, nestedMap(manifest, "spec", "jobTemplate", "spec", "template", "spec"))
+	default:
+		return nil
+	}
+}
+
+func imagesFromPodSpec(resource ManifestResourceSummary, podSpec map[string]any) []ManifestImage {
+	var images []ManifestImage
+	for _, key := range []string{"initContainers", "containers"} {
+		for _, item := range listOfMaps(podSpec[key]) {
+			name, _ := item["name"].(string)
+			image, _ := item["image"].(string)
+			if image == "" {
+				continue
+			}
+			images = append(images, ManifestImage{
+				ResourceKind: resource.Kind,
+				ResourceName: resource.Name,
+				Container:    name,
+				Image:        image,
+			})
+		}
+	}
+	return images
+}
+
+func nestedMap(root map[string]any, keys ...string) map[string]any {
+	current := root
+	for _, key := range keys {
+		next, _ := current[key].(map[string]any)
+		if next == nil {
+			return nil
+		}
+		current = next
+	}
+	return current
+}
+
+func listOfMaps(value any) []map[string]any {
+	items, ok := value.([]any)
+	if !ok {
+		return nil
+	}
+	maps := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		if mapped, ok := item.(map[string]any); ok {
+			maps = append(maps, mapped)
+		}
+	}
+	return maps
+}

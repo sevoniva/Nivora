@@ -1,7 +1,7 @@
 apiVersion: nivora.io/v1alpha1
 kind: Deployment
 metadata:
-  name: demo-yaml-apply-local
+  name: demo-release-yaml-deployment
 spec:
   application: demo-springboot
   environment: dev
@@ -16,11 +16,8 @@ spec:
       target:
         imageName: app
   manifests:
-    - examples/yaml/configmap.yaml
     - examples/yaml/deployment.yaml
     - examples/yaml/service.yaml
   options:
-    dryRun: false
-    apply: true
-    wait: true
-    timeoutSeconds: 120
+    dryRun: true
+    apply: false

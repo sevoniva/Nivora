@@ -1,0 +1,14 @@
+apiVersion: nivora.io/v1alpha1
+kind: Release
+metadata:
+  name: demo-springboot
+spec:
+  version: 1.0.0
+  application: demo-springboot
+  environment: dev
+  artifacts:
+    - name: demo-springboot
+      type: image
+      role: primary
+      required: true
+      reference: example.invalid/sevoniva/demo-springboot:1.0.0

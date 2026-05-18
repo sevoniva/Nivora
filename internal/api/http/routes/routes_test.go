@@ -9,11 +9,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	"github.com/sevoniva/nivora/internal/version"
@@ -24,7 +26,7 @@ func TestHealthRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
-	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService(), newTestDeploymentService())
+	router := newTestRouter(cfg)
 
 	tests := []string{"/healthz", "/readyz", "/api/v1/version"}
 	for _, path := range tests {
@@ -48,7 +50,7 @@ func TestPlaceholderRoute(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
-	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService(), newTestDeploymentService())
+	router := newTestRouter(cfg)
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/pipelines", nil)
 	rec := httptest.NewRecorder()
 
@@ -77,6 +79,17 @@ func newTestPipelineService() *pipelineusecase.Service {
 	)
 }
 
+func newTestRouter(cfg config.Config) http.Handler {
+	return New(
+		cfg,
+		version.Current(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		newTestPipelineService(),
+		newTestDeploymentService(),
+		newTestArtifactService(),
+	)
+}
+
 func newTestDeploymentService() *deploymentusecase.Service {
 	return deploymentusecase.NewService(
 		deploymentusecase.NewMemoryStore(),
@@ -85,6 +98,10 @@ func newTestDeploymentService() *deploymentusecase.Service {
 		allowPolicy{},
 		memory.New(),
 	)
+}
+
+func newTestArtifactService() *artifactusecase.Service {
+	return artifactusecase.NewService(artifactusecase.NewMemoryStore(), ociartifact.New(), memory.New())
 }
 
 type allowPolicy struct{}

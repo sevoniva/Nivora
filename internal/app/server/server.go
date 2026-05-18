@@ -11,6 +11,7 @@ import (
 	appruntime "github.com/sevoniva/nivora/internal/app/runtime"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	"github.com/sevoniva/nivora/internal/infra/logging"
+	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	"github.com/sevoniva/nivora/internal/version"
@@ -28,7 +29,8 @@ func Run(ctx context.Context, configPath string) error {
 func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
 	pipelineService := NewPipelineService()
 	deploymentService := NewDeploymentService()
-	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService)
+	artifactService := NewArtifactService()
+	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.BindAddress,
 		Handler:           handler,
@@ -56,4 +58,8 @@ func NewPipelineService() *pipelineusecase.Service {
 
 func NewDeploymentService() *deploymentusecase.Service {
 	return appruntime.NewDeploymentService()
+}
+
+func NewArtifactService() *artifactusecase.Service {
+	return appruntime.NewArtifactService()
 }

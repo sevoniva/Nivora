@@ -13,7 +13,7 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, runner/executor model, logs/events/audit, and open-source contribution foundation. Production Kubernetes apply semantics, Argo CD, cloud provider, Git provider, and artifact registry integrations remain future phases.
+Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact and release binding foundation, runner/executor model, logs/events/audit, and open-source contribution foundation. Production Kubernetes apply semantics, Argo CD, cloud provider, Git provider, and full artifact registry integrations remain future phases.
 
 ## Current Status
 
@@ -25,6 +25,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | Minimal shell PipelineRun runtime | Completed |
 | Durable runtime foundation | Initial shell-only foundation completed |
 | Kubernetes YAML planning / dry-run / explicit local apply | Phase 2.1 foundation |
+| Artifact and ReleaseArtifact binding | Phase 2.2 foundation |
 | Argo CD GitOps | Planned |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
@@ -788,7 +789,7 @@ go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
 
 ## Example YAML Deployment Dry-Run
 
-Phase 2.1 supports non-destructive YAML deployment planning and dry-run validation, plus explicit local no-op apply for runtime testing. It renders static manifests, validates their basic shape, creates a DeploymentPlan, records resource inventory, logs/events/audit/timeline data, and does not apply resources to a cluster by default.
+Phase 2.2 supports non-destructive YAML deployment planning and dry-run validation, plus explicit local no-op apply for runtime testing. It renders static manifests, validates their basic shape, creates a DeploymentPlan, records resource inventory, verifies manifest images against bound artifacts, records logs/events/audit/timeline data, and does not apply resources to a cluster by default.
 
 ```yaml
 apiVersion: nivora.io/v1alpha1
@@ -915,11 +916,12 @@ flowchart LR
     P16["Phase 1.6<br/>Runtime DX & Acceptance"]
     P2["Phase 2.0<br/>YAML Planning Foundation"]
     P21["Phase 2.1<br/>Kubernetes YAML Runtime"]
-    P22["Future Phase 2<br/>GitOps & Release Hardening"]
+    P22["Phase 2.2<br/>Artifact & Release Binding"]
+    P23["Future Phase 2<br/>GitOps & Release Hardening"]
     P3["Phase 3<br/>Multi-cloud & DevSecOps"]
     P4["Phase 4<br/>Visualization"]
 
-    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P3 --> P4
+    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P3 --> P4
 ```
 
 See [ROADMAP.md](ROADMAP.md) and [docs/roadmap/overview.md](docs/roadmap/overview.md) for details.

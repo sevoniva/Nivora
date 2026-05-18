@@ -3,10 +3,12 @@ package runtime
 import (
 	"context"
 
+	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
@@ -28,6 +30,10 @@ func NewDeploymentService() *deploymentusecase.Service {
 		allowAllPolicyEngine{},
 		bus,
 	)
+}
+
+func NewArtifactService() *artifactusecase.Service {
+	return artifactusecase.NewService(artifactusecase.NewMemoryStore(), ociartifact.New(), memory.New())
 }
 
 type allowAllPolicyEngine struct{}

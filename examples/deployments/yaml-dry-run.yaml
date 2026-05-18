@@ -10,9 +10,11 @@ spec:
     name: dev-kind
     namespace: default
   artifacts:
-    - name: demo-springboot
+    - name: example-service
       type: image
-      reference: example.invalid/sevoniva/demo-springboot:example
+      reference: example.invalid/sevoniva/example-service:dev
+      target:
+        imageName: app
   manifests:
     - examples/yaml/configmap.yaml
     - examples/yaml/deployment.yaml

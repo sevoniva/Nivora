@@ -3,8 +3,6 @@ package routes
 import (
 	"bytes"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -12,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/sevoniva/nivora/internal/infra/config"
-	"github.com/sevoniva/nivora/internal/version"
 )
 
 func TestDeploymentRoutes(t *testing.T) {
@@ -20,7 +17,7 @@ func TestDeploymentRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
-	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService(), newTestDeploymentService())
+	router := newTestRouter(cfg)
 	body := deploymentRequestBody(t)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments/plan", bytes.NewReader(body))

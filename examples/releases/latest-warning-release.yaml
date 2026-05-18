@@ -1,0 +1,13 @@
+apiVersion: nivora.io/v1alpha1
+kind: Release
+metadata:
+  name: latest-warning-demo
+spec:
+  version: latest-warning
+  application: latest-warning-demo
+  artifacts:
+    - name: latest-warning-demo
+      type: image
+      role: primary
+      required: true
+      reference: nginx:latest

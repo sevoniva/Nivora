@@ -1,0 +1,16 @@
+apiVersion: nivora.io/v1alpha1
+kind: Release
+metadata:
+  name: demo-springboot-require-digest
+spec:
+  version: 1.0.0
+  application: demo-springboot
+  environment: dev
+  resolveDigest: true
+  requireDigest: true
+  artifacts:
+    - name: demo-springboot
+      type: image
+      role: primary
+      required: true
+      reference: registry.example.com/sevoniva/demo-springboot@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

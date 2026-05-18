@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
@@ -68,6 +69,29 @@ func TestPlaceholderRoute(t *testing.T) {
 	}
 	if body["path"] != "/api/v1/pipelines" {
 		t.Fatalf("path = %v", body["path"])
+	}
+}
+
+func TestArtifactRoutes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	for _, tc := range []struct {
+		path string
+		body string
+	}{
+		{"/api/v1/artifacts/inspect", `{"reference":"registry.example.com/team/app:1.0.0","type":"image"}`},
+		{"/api/v1/artifacts/resolve", `{"reference":"registry.example.com/team/app@sha256:abcdef","type":"image"}`},
+		{"/api/v1/artifact-registries/validate", `{"name":"local-oci","type":"oci","endpoint":"registry.example.com","insecure":false}`},
+	} {
+		req := httptest.NewRequest(http.MethodPost, tc.path, strings.NewReader(tc.body))
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d body = %s", tc.path, rec.Code, rec.Body.String())
+		}
 	}
 }
 

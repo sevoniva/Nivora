@@ -19,10 +19,15 @@ import (
 )
 
 const (
-	EventReleaseCreated          = "devops.release.created"
-	EventReleaseArtifactBound    = "devops.release.artifact.bound"
-	EventArtifactResolved        = "devops.artifact.resolved"
-	EventArtifactWarningDetected = "devops.artifact.warning.detected"
+	EventReleaseCreated                  = "devops.release.created"
+	EventReleaseArtifactBound            = "devops.release.artifact.bound"
+	EventArtifactReferenceParsed         = "devops.artifact.reference.parsed"
+	EventArtifactDigestResolutionStarted = "devops.artifact.digest.resolution.started"
+	EventArtifactDigestResolved          = "devops.artifact.digest.resolved"
+	EventArtifactDigestResolutionFailed  = "devops.artifact.digest.resolution.failed"
+	EventArtifactResolved                = "devops.artifact.resolved"
+	EventArtifactWarningDetected         = "devops.artifact.warning.detected"
+	EventArtifactMutableWarning          = "devops.artifact.mutable.warning"
 )
 
 var ErrReleaseNotFound = errors.New("release not found")
@@ -54,15 +59,13 @@ func (s *Service) Resolve(ctx context.Context, reference string, artifactType do
 		Warnings:  inspection.Warnings,
 	}
 	if resolution.Resolved {
+		resolution.DigestQualifiedReference = domainartifact.DigestQualifiedReference(inspection.Reference, resolution.Digest)
+		resolution.ResolvedAt = s.now()
 		return resolution, nil
 	}
-	digest, err := s.provider.ResolveDigest(ctx, inspection.Reference.Name, inspection.Reference.Normalized)
-	if err == nil && digest != "" {
-		resolution.Digest = digest
-		resolution.Resolved = true
-		resolution.Reference.Digest = digest
-		resolution.Reference.Immutable = true
-		return resolution, nil
+	resolution, err = s.provider.ResolveDigest(ctx, inspection.Reference.Name, inspection.Reference.Normalized)
+	if err != nil {
+		return domainartifact.Resolution{}, err
 	}
 	return resolution, nil
 }
@@ -87,19 +90,75 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 		SourcePipelineRunID: input.Definition.Spec.SourcePipelineRunID,
 		Commit:              input.Definition.Spec.Commit,
 		Status:              "Created",
-		Metadata:            map[string]string{"phase": "2.2"},
+		Metadata:            map[string]string{"phase": "2.5"},
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}
 	record := ReleaseRecord{Release: rel}
+	var pendingEvents []struct {
+		eventType string
+		message   string
+	}
 	for _, item := range input.Definition.Spec.Artifacts {
 		inspection, err := s.Inspect(ctx, item.Reference, domainartifact.ArtifactType(item.Type))
 		if err != nil {
 			return ReleaseRecord{}, err
 		}
-		resolution, err := s.Resolve(ctx, item.Reference, domainartifact.ArtifactType(item.Type))
-		if err != nil {
-			return ReleaseRecord{}, err
+		pendingEvents = append(pendingEvents, struct {
+			eventType string
+			message   string
+		}{EventArtifactReferenceParsed, inspection.Reference.Normalized})
+		resolveDigest := input.Definition.Spec.ResolveDigest
+		if item.ResolveDigest != nil {
+			resolveDigest = *item.ResolveDigest
+		}
+		requireDigest := input.Definition.Spec.RequireDigest
+		if item.RequireDigest != nil {
+			requireDigest = *item.RequireDigest
+		}
+		resolution := domainartifact.Resolution{
+			Reference: inspection.Reference,
+			Digest:    inspection.Reference.Digest,
+			Resolved:  inspection.Reference.Digest != "",
+			Warnings:  append([]domainartifact.Warning(nil), inspection.Warnings...),
+		}
+		if resolution.Resolved {
+			resolution.DigestQualifiedReference = domainartifact.DigestQualifiedReference(inspection.Reference, resolution.Digest)
+			resolution.ResolvedAt = now
+		}
+		if resolveDigest && !resolution.Resolved {
+			pendingEvents = append(pendingEvents, struct {
+				eventType string
+				message   string
+			}{EventArtifactDigestResolutionStarted, inspection.Reference.Normalized})
+			resolution, err = s.provider.ResolveDigest(ctx, inspection.Reference.Name, inspection.Reference.Normalized)
+			if err != nil {
+				pendingEvents = append(pendingEvents, struct {
+					eventType string
+					message   string
+				}{EventArtifactDigestResolutionFailed, err.Error()})
+				if requireDigest {
+					return ReleaseRecord{}, fmt.Errorf("resolve artifact digest for %q: %w", item.Reference, err)
+				}
+				resolution = domainartifact.Resolution{
+					Reference: inspection.Reference,
+					Digest:    inspection.Reference.Digest,
+					Resolved:  false,
+					Warnings: append(append([]domainartifact.Warning(nil), inspection.Warnings...), domainartifact.Warning{
+						Code:    "digest_resolution_failed",
+						Message: "digest resolution failed; release artifact remains tag-based",
+					}),
+				}
+			}
+		}
+		if requireDigest && !resolution.Resolved {
+			return ReleaseRecord{}, fmt.Errorf("artifact %q requires a digest but no digest was resolved", item.Reference)
+		}
+		if resolution.Resolved {
+			pendingEvents = append(pendingEvents, struct {
+				eventType string
+				message   string
+			}{EventArtifactDigestResolved, resolution.DigestQualifiedReference})
 		}
 		artifactID := newID("artifact")
 		artifact := domainartifact.Artifact{
@@ -111,27 +170,30 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 			Digest:     resolution.Digest,
 			Registry:   inspection.Reference.Registry,
 			Repository: inspection.Reference.Repository,
+			MediaType:  resolution.MediaType,
 			Metadata:   item.Metadata,
 			CreatedAt:  now,
 		}
 		bound := release.ReleaseArtifact{
-			ID:         newID("relart"),
-			ReleaseID:  rel.ID,
-			ArtifactID: artifactID,
-			Name:       item.Name,
-			Type:       string(inspection.Reference.Type),
-			Role:       item.Role,
-			Required:   item.Required,
-			Reference:  inspection.Reference.Normalized,
-			Digest:     resolution.Digest,
-			Metadata:   item.Metadata,
-			CreatedAt:  now,
-			UpdatedAt:  now,
+			ID:              newID("relart"),
+			ReleaseID:       rel.ID,
+			ArtifactID:      artifactID,
+			Name:            item.Name,
+			Type:            string(inspection.Reference.Type),
+			Role:            item.Role,
+			Required:        item.Required,
+			Reference:       inspection.Reference.Normalized,
+			Digest:          resolution.Digest,
+			DigestReference: resolution.DigestQualifiedReference,
+			Metadata:        item.Metadata,
+			CreatedAt:       now,
+			UpdatedAt:       now,
 		}
 		record.Artifacts = append(record.Artifacts, artifact)
 		record.Bindings = append(record.Bindings, bound)
 		record.Inspections = append(record.Inspections, inspection)
-		for _, warning := range inspection.Warnings {
+		record.Resolutions = append(record.Resolutions, resolution)
+		for _, warning := range resolution.Warnings {
 			record.Warnings = append(record.Warnings, warning)
 		}
 	}
@@ -141,6 +203,9 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 	if err := s.recordEventAndAudit(ctx, rel.ID, EventReleaseCreated, "Release created", input.ActorID, "Release created"); err != nil {
 		return ReleaseRecord{}, err
 	}
+	for _, pending := range pendingEvents {
+		_ = s.recordEvent(ctx, rel.ID, pending.eventType, pending.message)
+	}
 	for _, binding := range record.Bindings {
 		_ = s.recordEventAndAudit(ctx, rel.ID, EventReleaseArtifactBound, "Artifact bound to release", input.ActorID, binding.Reference)
 		if binding.Digest != "" {
@@ -149,6 +214,9 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 	}
 	for _, warning := range record.Warnings {
 		_ = s.recordEvent(ctx, rel.ID, EventArtifactWarningDetected, warning.Message)
+		if warning.Code == "mutable_latest_tag" || warning.Code == "tag_without_digest" {
+			_ = s.recordEvent(ctx, rel.ID, EventArtifactMutableWarning, warning.Message)
+		}
 		_ = s.store.AppendAudit(ctx, rel.ID, audit.AuditLog{
 			ID:        newID("audit"),
 			ActorID:   input.ActorID,
@@ -306,6 +374,7 @@ func cloneReleaseRecord(record ReleaseRecord) ReleaseRecord {
 	record.Artifacts = append([]domainartifact.Artifact(nil), record.Artifacts...)
 	record.Bindings = append([]release.ReleaseArtifact(nil), record.Bindings...)
 	record.Inspections = append([]domainartifact.Inspection(nil), record.Inspections...)
+	record.Resolutions = append([]domainartifact.Resolution(nil), record.Resolutions...)
 	record.Warnings = append([]domainartifact.Warning(nil), record.Warnings...)
 	record.Events = append([]event.Event(nil), record.Events...)
 	record.Audits = append([]audit.AuditLog(nil), record.Audits...)

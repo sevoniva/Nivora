@@ -1,0 +1,10 @@
+apiVersion: nivora.io/v1alpha1
+kind: ArtifactRegistry
+metadata:
+  name: harbor-oci-example
+spec:
+  type: oci
+  endpoint: https://harbor.example.com
+  insecure: false
+  credentialRef: harbor-robot-secret-ref
+  note: "Harbor is modeled as an OCI-compatible registry. Harbor management APIs are future work."

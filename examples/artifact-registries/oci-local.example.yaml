@@ -1,0 +1,10 @@
+apiVersion: nivora.io/v1alpha1
+kind: ArtifactRegistry
+metadata:
+  name: local-oci-example
+spec:
+  type: oci
+  endpoint: http://localhost:30500
+  insecure: true
+  credentialRef: ""
+  note: "Example-only local OCI registry config. Do not use insecure registries by default."

@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local gitops-plan-local gitops-diff-local gitops-write-local argocd-status-local smoke-local smoke-api smoke-deployment-dry-run dev-up dev-down migrate-up migrate-down
+.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local artifact-inspect-local oci-resolve-local gitops-plan-local gitops-diff-local gitops-write-local argocd-status-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -68,6 +68,12 @@ deployment-apply-local:
 	@test "$$NIVORA_ALLOW_LOCAL_APPLY" = "true" || (echo "set NIVORA_ALLOW_LOCAL_APPLY=true to run local apply" >&2; exit 1)
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --confirm
 
+artifact-inspect-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora artifact inspect registry.example.com/team/demo:1.0.0
+
+oci-resolve-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora artifact resolve registry.example.com/team/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+
 gitops-plan-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora gitops plan --local examples/deployments/argocd-plan.yaml
 
@@ -91,6 +97,9 @@ smoke-api:
 
 smoke-deployment-dry-run:
 	./scripts/smoke-deployment-dry-run.sh
+
+smoke-oci-resolve-local:
+	./scripts/smoke-oci-resolve-local.sh
 
 dev-up:
 	./scripts/dev-up.sh

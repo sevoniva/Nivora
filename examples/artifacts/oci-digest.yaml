@@ -1,0 +1,8 @@
+apiVersion: nivora.io/v1alpha1
+kind: ArtifactReference
+metadata:
+  name: demo-image-digest
+spec:
+  type: image
+  reference: registry.example.com/team/demo@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  note: "Digest-pinned references are treated as immutable without registry network access."

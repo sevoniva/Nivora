@@ -42,6 +42,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/deployments/gitops", handlers.CreateDeploymentRun(deploymentService))
 		api.Post("/artifacts/inspect", handlers.InspectArtifact(artifactService))
 		api.Post("/artifacts/resolve", handlers.ResolveArtifact(artifactService))
+		api.Post("/artifact-registries/validate", handlers.ValidateArtifactRegistry())
 		api.Get("/releases", handlers.ListReleases(artifactService))
 		api.Post("/releases", handlers.CreateRelease(artifactService))
 		api.Get("/releases/{id}", handlers.GetRelease(artifactService))

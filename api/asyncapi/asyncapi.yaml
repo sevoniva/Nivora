@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 2.4 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 2.5 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
@@ -223,6 +223,31 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.artifact.reference.parsed:
+    address: devops.artifact.reference.parsed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.artifact.digest.resolution.started:
+    address: devops.artifact.digest.resolution.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.artifact.digest.resolved:
+    address: devops.artifact.digest.resolved
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.artifact.digest.resolution.failed:
+    address: devops.artifact.digest.resolution.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.artifact.mutable.warning:
+    address: devops.artifact.mutable.warning
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.artifact.resolved:
     address: devops.artifact.resolved
     messages:
@@ -266,7 +291,7 @@ channels:
         $ref: "#/components/messages/Event"
   devops.artifact.scanned:
     address: devops.artifact.scanned
-    description: Reserved for future artifact scanning; not emitted by the Phase 2.2 runtime.
+    description: Reserved for future artifact scanning; not emitted by the Phase 2.5 runtime.
     messages:
       event:
         $ref: "#/components/messages/Event"

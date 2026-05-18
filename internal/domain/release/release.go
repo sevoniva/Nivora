@@ -17,16 +17,17 @@ type Release struct {
 }
 
 type ReleaseArtifact struct {
-	ID         string            `json:"id"`
-	ReleaseID  string            `json:"releaseId"`
-	ArtifactID string            `json:"artifactId,omitempty"`
-	Name       string            `json:"name"`
-	Type       string            `json:"type"`
-	Role       string            `json:"role,omitempty"`
-	Required   bool              `json:"required"`
-	Reference  string            `json:"reference"`
-	Digest     string            `json:"digest,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
-	CreatedAt  time.Time         `json:"createdAt"`
-	UpdatedAt  time.Time         `json:"updatedAt"`
+	ID              string            `json:"id"`
+	ReleaseID       string            `json:"releaseId"`
+	ArtifactID      string            `json:"artifactId,omitempty"`
+	Name            string            `json:"name"`
+	Type            string            `json:"type"`
+	Role            string            `json:"role,omitempty"`
+	Required        bool              `json:"required"`
+	Reference       string            `json:"reference"`
+	Digest          string            `json:"digest,omitempty"`
+	DigestReference string            `json:"digestReference,omitempty"`
+	Metadata        map[string]string `json:"metadata,omitempty"`
+	CreatedAt       time.Time         `json:"createdAt"`
+	UpdatedAt       time.Time         `json:"updatedAt"`
 }

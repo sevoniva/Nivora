@@ -15,9 +15,9 @@ Releases connect Artifacts to delivery decisions. They provide a stable object f
 
 ## Current Implementation
 
-Phase 2.2 adds explicit Release creation and ReleaseArtifact binding. The current implementation validates release definitions, parses artifact references, records immutability warnings, resolves digest identity only when already present in the reference, emits release/artifact events, and writes audit records in the in-memory runtime.
+Phase 2.5 supports explicit Release creation and ReleaseArtifact binding with optional OCI digest resolution. The current implementation validates release definitions, parses artifact references, records immutability warnings, can resolve digest identity through generic OCI registry APIs when configured, emits release/artifact events, and writes audit records in the in-memory runtime.
 
-Release records are still an early foundation. Durable database persistence, promotion workflows, approval rules, registry-backed digest resolution, and production release governance remain future work.
+Release records are still an early foundation. Durable database persistence, promotion workflows, approval rules, advanced credential handling, registry management APIs, and production release governance remain future work.
 
 ## Common Confusion
 

@@ -24,16 +24,20 @@ type ReleaseSpec struct {
 	Environment         string                `json:"environment,omitempty" yaml:"environment,omitempty"`
 	SourcePipelineRunID string                `json:"sourcePipelineRunId,omitempty" yaml:"sourcePipelineRunId,omitempty"`
 	Commit              string                `json:"commit,omitempty" yaml:"commit,omitempty"`
+	ResolveDigest       bool                  `json:"resolveDigest,omitempty" yaml:"resolveDigest,omitempty"`
+	RequireDigest       bool                  `json:"requireDigest,omitempty" yaml:"requireDigest,omitempty"`
 	Artifacts           []ReleaseArtifactSpec `json:"artifacts" yaml:"artifacts"`
 }
 
 type ReleaseArtifactSpec struct {
-	Name      string            `json:"name" yaml:"name"`
-	Type      string            `json:"type" yaml:"type"`
-	Role      string            `json:"role,omitempty" yaml:"role,omitempty"`
-	Required  bool              `json:"required" yaml:"required"`
-	Reference string            `json:"reference" yaml:"reference"`
-	Metadata  map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Name          string            `json:"name" yaml:"name"`
+	Type          string            `json:"type" yaml:"type"`
+	Role          string            `json:"role,omitempty" yaml:"role,omitempty"`
+	Required      bool              `json:"required" yaml:"required"`
+	Reference     string            `json:"reference" yaml:"reference"`
+	ResolveDigest *bool             `json:"resolveDigest,omitempty" yaml:"resolveDigest,omitempty"`
+	RequireDigest *bool             `json:"requireDigest,omitempty" yaml:"requireDigest,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 
 type CreateReleaseInput struct {
@@ -46,6 +50,7 @@ type ReleaseRecord struct {
 	Artifacts   []domainartifact.Artifact   `json:"artifacts"`
 	Bindings    []release.ReleaseArtifact   `json:"bindings"`
 	Inspections []domainartifact.Inspection `json:"inspections,omitempty"`
+	Resolutions []domainartifact.Resolution `json:"resolutions,omitempty"`
 	Warnings    []domainartifact.Warning    `json:"warnings,omitempty"`
 	Events      []event.Event               `json:"events,omitempty"`
 	Audits      []audit.AuditLog            `json:"audits,omitempty"`

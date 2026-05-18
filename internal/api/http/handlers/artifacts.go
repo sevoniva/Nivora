@@ -40,6 +40,46 @@ func ResolveArtifact(service *artifactusecase.Service) http.HandlerFunc {
 	}
 }
 
+type artifactRegistryValidateRequest struct {
+	Name     string `json:"name"`
+	Type     string `json:"type"`
+	Endpoint string `json:"endpoint"`
+	Insecure bool   `json:"insecure,omitempty"`
+}
+
+func ValidateArtifactRegistry() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req artifactRegistryValidateRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an artifact registry config"})
+			return
+		}
+		if req.Name == "" || req.Type == "" || req.Endpoint == "" {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_artifact_registry", Message: "name, type, and endpoint are required"})
+			return
+		}
+		if req.Type != "oci" {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "unsupported_artifact_registry", Message: "only generic OCI registry configuration is supported in this phase"})
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{
+			"valid":    true,
+			"name":     req.Name,
+			"type":     req.Type,
+			"endpoint": req.Endpoint,
+			"insecure": req.Insecure,
+			"warnings": registryWarnings(req),
+		})
+	}
+}
+
+func registryWarnings(req artifactRegistryValidateRequest) []string {
+	if req.Insecure {
+		return []string{"insecure OCI registry configuration is for local development only"}
+	}
+	return nil
+}
+
 func CreateRelease(service *artifactusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var def artifactusecase.ReleaseDefinition

@@ -1,6 +1,6 @@
 # Artifact
 
-An Artifact is a build output or package reference intended to be immutable. In Phase 2.2, Nivora can parse and inspect artifact references without contacting a registry, bind them to a Release, and carry artifact warnings into deployment planning.
+An Artifact is a build output or package reference intended to be immutable. In Phase 2.5, Nivora can parse and inspect artifact references, optionally resolve OCI image digests through generic registry APIs, bind them to a Release, and carry artifact warnings into deployment planning.
 
 ## Why It Exists
 
@@ -19,7 +19,7 @@ An image tag such as `app:1.0.0` is useful, but it can still be moved by a regis
 
 ## Current Implementation
 
-Phase 2.2 supports a small artifact model, OCI image reference parsing, generic URI-style references, immutability warnings, and a generic OCI adapter foundation that does not require network access. It does not implement Harbor, Nexus, JFrog, ECR, ACR, TCR, or full registry authentication.
+Phase 2.5 supports a small artifact model, OCI image reference parsing, generic URI-style references, immutability warnings, and generic OCI digest resolution. Harbor is treated as an OCI-compatible registry endpoint in this phase. Nivora does not implement Harbor management APIs, Nexus, JFrog, ECR, ACR, TCR, signing, scanning, or full registry administration.
 
 ## Common Confusion
 

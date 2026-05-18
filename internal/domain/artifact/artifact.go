@@ -28,6 +28,8 @@ type ArtifactRegistry struct {
 	Name      string    `json:"name"`
 	Type      string    `json:"type"`
 	URL       string    `json:"url"`
+	Endpoint  string    `json:"endpoint,omitempty"`
+	Insecure  bool      `json:"insecure,omitempty"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
 }
@@ -48,17 +50,19 @@ type Artifact struct {
 }
 
 type Reference struct {
-	Type       ArtifactType `json:"type"`
-	Original   string       `json:"original"`
-	Normalized string       `json:"normalized"`
-	Registry   string       `json:"registry,omitempty"`
-	Repository string       `json:"repository,omitempty"`
-	Name       string       `json:"name,omitempty"`
-	Version    string       `json:"version,omitempty"`
-	Tag        string       `json:"tag,omitempty"`
-	Digest     string       `json:"digest,omitempty"`
-	Scheme     string       `json:"scheme,omitempty"`
-	Immutable  bool         `json:"immutable"`
+	Type           ArtifactType `json:"type"`
+	Original       string       `json:"original"`
+	Normalized     string       `json:"normalized"`
+	Registry       string       `json:"registry,omitempty"`
+	Repository     string       `json:"repository,omitempty"`
+	Name           string       `json:"name,omitempty"`
+	Version        string       `json:"version,omitempty"`
+	Tag            string       `json:"tag,omitempty"`
+	Digest         string       `json:"digest,omitempty"`
+	Scheme         string       `json:"scheme,omitempty"`
+	Immutable      bool         `json:"immutable"`
+	IsDigestPinned bool         `json:"isDigestPinned"`
+	IsLatest       bool         `json:"isLatest"`
 }
 
 type Warning struct {
@@ -72,10 +76,13 @@ type Inspection struct {
 }
 
 type Resolution struct {
-	Reference Reference `json:"reference"`
-	Digest    string    `json:"digest,omitempty"`
-	Resolved  bool      `json:"resolved"`
-	Warnings  []Warning `json:"warnings,omitempty"`
+	Reference                Reference `json:"reference"`
+	Digest                   string    `json:"digest,omitempty"`
+	DigestQualifiedReference string    `json:"digestQualifiedReference,omitempty"`
+	MediaType                string    `json:"mediaType,omitempty"`
+	Resolved                 bool      `json:"resolved"`
+	ResolvedAt               time.Time `json:"resolvedAt,omitempty"`
+	Warnings                 []Warning `json:"warnings,omitempty"`
 }
 
 var ErrInvalidReference = errors.New("invalid artifact reference")
@@ -125,7 +132,7 @@ func parseOCIReference(reference string, artifactType ArtifactType) (Reference, 
 	if before, after, ok := strings.Cut(reference, "@"); ok {
 		namePart = before
 		digest = after
-		if !strings.HasPrefix(digest, "sha256:") {
+		if !strings.HasPrefix(digest, "sha256:") || strings.TrimPrefix(digest, "sha256:") == "" {
 			return Reference{}, fmt.Errorf("%w: unsupported digest %q", ErrInvalidReference, digest)
 		}
 	}
@@ -159,16 +166,18 @@ func parseOCIReference(reference string, artifactType ArtifactType) (Reference, 
 		version = digest
 	}
 	return Reference{
-		Type:       artifactType,
-		Original:   reference,
-		Normalized: normalized,
-		Registry:   registry,
-		Repository: repository,
-		Name:       path.Base(repository),
-		Version:    version,
-		Tag:        tag,
-		Digest:     digest,
-		Immutable:  digest != "",
+		Type:           artifactType,
+		Original:       reference,
+		Normalized:     normalized,
+		Registry:       registry,
+		Repository:     repository,
+		Name:           path.Base(repository),
+		Version:        version,
+		Tag:            tag,
+		Digest:         digest,
+		Immutable:      digest != "",
+		IsDigestPinned: digest != "",
+		IsLatest:       tag == "latest",
 	}, nil
 }
 
@@ -176,14 +185,27 @@ func parseGenericReference(reference string, artifactType ArtifactType) Referenc
 	scheme, rest, _ := strings.Cut(reference, "://")
 	name := path.Base(rest)
 	return Reference{
-		Type:       artifactType,
-		Original:   reference,
-		Normalized: reference,
-		Name:       name,
-		Version:    name,
-		Scheme:     scheme,
-		Immutable:  !strings.Contains(name, "latest"),
+		Type:           artifactType,
+		Original:       reference,
+		Normalized:     reference,
+		Name:           name,
+		Version:        name,
+		Scheme:         scheme,
+		Immutable:      !strings.Contains(name, "latest"),
+		IsDigestPinned: false,
+		IsLatest:       strings.Contains(name, "latest"),
 	}
+}
+
+func DigestQualifiedReference(ref Reference, digest string) string {
+	if digest == "" {
+		return ref.Normalized
+	}
+	base := ref.Normalized
+	if before, _, ok := strings.Cut(base, "@"); ok {
+		base = before
+	}
+	return base + "@" + digest
 }
 
 func inferType(reference string) ArtifactType {

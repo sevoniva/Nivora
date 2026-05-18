@@ -22,6 +22,39 @@ func TestParseOCIReferenceWithDigest(t *testing.T) {
 	}
 }
 
+func TestParseOCIReferenceWithRegistryPort(t *testing.T) {
+	ref, err := ParseReference("localhost:30500/team/app:dev", ArtifactTypeImage)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if ref.Registry != "localhost:30500" || ref.Repository != "team/app" || ref.Name != "app" || ref.Tag != "dev" {
+		t.Fatalf("reference = %#v", ref)
+	}
+}
+
+func TestParseOCIReferenceWithTagAndDigest(t *testing.T) {
+	ref, err := ParseReference("registry.example.com/team/app:1.0.0@sha256:abcdef", ArtifactTypeImage)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if ref.Tag != "1.0.0" || ref.Digest != "sha256:abcdef" || !ref.IsDigestPinned || !ref.Immutable {
+		t.Fatalf("reference = %#v", ref)
+	}
+	if got := DigestQualifiedReference(ref, ref.Digest); got != "registry.example.com/team/app:1.0.0@sha256:abcdef" {
+		t.Fatalf("digest qualified = %q", got)
+	}
+}
+
+func TestParseRepositoryImageWithoutRegistry(t *testing.T) {
+	ref, err := ParseReference("team/app:1.0.0", ArtifactTypeImage)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if ref.Registry != "" || ref.Repository != "team/app" || ref.Tag != "1.0.0" {
+		t.Fatalf("reference = %#v", ref)
+	}
+}
+
 func TestImmutabilityWarnings(t *testing.T) {
 	latest, err := InspectReference("nginx:latest", ArtifactTypeImage)
 	if err != nil {

@@ -13,6 +13,8 @@ import (
 	"syscall"
 	"time"
 
+	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
+	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	"github.com/sevoniva/nivora/internal/app/runner"
 	"github.com/sevoniva/nivora/internal/app/server"
 	"github.com/sevoniva/nivora/internal/app/worker"
@@ -80,12 +82,22 @@ func newArtifactInspectCommand() *cobra.Command {
 
 func newArtifactResolveCommand() *cobra.Command {
 	var artifactType string
+	var registryEndpoint string
+	var insecure bool
 	cmd := &cobra.Command{
 		Use:   "resolve <reference>",
-		Short: "Resolve artifact identity locally when already immutable",
+		Short: "Resolve artifact digest through generic OCI registry APIs when configured",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			result, err := server.NewArtifactService().Resolve(cmd.Context(), args[0], domainartifact.ArtifactType(artifactType))
+			service := server.NewArtifactService()
+			if registryEndpoint != "" || insecure {
+				service = artifactusecase.NewService(
+					artifactusecase.NewMemoryStore(),
+					ociartifact.New(ociartifact.WithConfig(ociartifact.Config{Endpoint: registryEndpoint, Insecure: insecure})),
+					memory.New(),
+				)
+			}
+			result, err := service.Resolve(cmd.Context(), args[0], domainartifact.ArtifactType(artifactType))
 			if err != nil {
 				return err
 			}
@@ -94,6 +106,8 @@ func newArtifactResolveCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&artifactType, "type", "image", "artifact type")
+	cmd.Flags().StringVar(&registryEndpoint, "registry", "", "optional OCI registry endpoint override")
+	cmd.Flags().BoolVar(&insecure, "insecure", false, "allow HTTP OCI registry endpoint for local development")
 	return cmd
 }
 

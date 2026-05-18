@@ -105,6 +105,8 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 - [Kubernetes Resource Inventory](dev/kubernetes-resource-inventory.md)
 - [Kubernetes Health](dev/kubernetes-health.md)
 - [Rollback Plan](dev/rollback-plan.md)
+- [OCI Digest Resolution](dev/oci-digest-resolution.md)
+- [Local Harbor Validation](dev/local-harbor-validation.md)
 - [Runtime Acceptance Matrix](dev/runtime-acceptance.md)
 - [Runtime Troubleshooting](dev/troubleshooting.md)
 - [AI Change Policy](engineering/ai-change-policy.md)

@@ -11,11 +11,13 @@ Add release and deployment workflows suitable for early release modeling without
 - Phase 2.2 artifact and release binding foundation.
 - Phase 2.3 GitOps and Argo CD foundation.
 - Phase 2.4 Kubernetes resource inventory, health, snapshots, diff, and rollback plan foundation.
+- Phase 2.5 OCI artifact digest resolution foundation.
 - Static manifest rendering and validation.
 - DeploymentPlan, events, audit, logs, timeline, and cancellation basics.
 - Artifact reference parsing, immutability warnings, ReleaseArtifact binding, and manifest image verification.
 - GitOpsChangePlan, local working tree planning, noop Argo CD status/sync model, and guarded sync semantics.
 - Manifest snapshots, desired resource inventory, lightweight health, and non-destructive rollback plans.
+- Generic OCI digest resolution, Harbor-compatible registry configuration, and digest-required ReleaseArtifact binding.
 - Future YAML apply, Helm, and Kustomize rendering design.
 - Future Argo CD Adapter design.
 - Approval gates.
@@ -35,13 +37,15 @@ Add release and deployment workflows suitable for early release modeling without
 - Remote Git provider authentication, commit, and push in Phase 2.3.
 - Destructive rollback execution in Phase 2.4.
 - Full Kubernetes controller behavior or CRD health in Phase 2.4.
+- Harbor management APIs, Nexus/JFrog management APIs, or cloud registry adapters in Phase 2.5.
+- Vulnerability scanning, signing, Cosign, and SBOM workflows in Phase 2.5.
 - Multi-cloud provider expansion.
 - Full DevSecOps platform.
 - Visualization frontend.
 
 ## Expected Deliverables
 
-Release and DeploymentRun workflows that can model GitOps and non-GitOps deployment modes. Phase 2.4 specifically includes safe YAML planning/dry-run behavior, explicit no-op local apply, artifact reference parsing, ReleaseArtifact binding, manifest image verification, GitOps planning, Argo CD adapter foundation, resource inventory, lightweight health evaluation, manifest snapshots, desired-state diff summaries, and non-destructive rollback plans.
+Release and DeploymentRun workflows that can model GitOps and non-GitOps deployment modes. Phase 2.5 specifically includes safe YAML planning/dry-run behavior, explicit no-op local apply, artifact reference parsing, generic OCI digest resolution, ReleaseArtifact binding, manifest image verification, GitOps planning, Argo CD adapter foundation, resource inventory, lightweight health evaluation, manifest snapshots, desired-state diff summaries, and non-destructive rollback plans.
 
 ## Acceptance Criteria
 
@@ -50,6 +54,7 @@ Release and DeploymentRun workflows that can model GitOps and non-GitOps deploym
 - Apply is explicit and never default.
 - ReleaseArtifacts are explicit and auditable.
 - Deployment plans surface mutable artifact warnings.
+- Digest-required releases fail when a digest cannot be provided or resolved.
 - GitOps sync is disabled by default and guarded.
 - Secret values are never stored in resource inventory or snapshots.
 - Rollback plans are non-destructive by default.

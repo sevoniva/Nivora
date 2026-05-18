@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 2.3 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 2.4 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
@@ -136,6 +136,46 @@ channels:
         $ref: "#/components/messages/Event"
   devops.deployment.canceled:
     address: devops.deployment.canceled
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.inventory.created:
+    address: devops.deployment.inventory.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.snapshot.created:
+    address: devops.deployment.snapshot.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.health.started:
+    address: devops.deployment.health.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.health.completed:
+    address: devops.deployment.health.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.rollback.plan.created:
+    address: devops.deployment.rollback.plan.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.diff.generated:
+    address: devops.deployment.diff.generated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.resource.observed:
+    address: devops.deployment.resource.observed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.resource.degraded:
+    address: devops.deployment.resource.degraded
     messages:
       event:
         $ref: "#/components/messages/Event"

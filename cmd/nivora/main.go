@@ -376,11 +376,48 @@ func newDeploymentCommand() *cobra.Command {
 	cmd.AddCommand(newDeploymentDryRunCommand())
 	cmd.AddCommand(newDeploymentApplyCommand())
 	cmd.AddCommand(newDeploymentGetCommand())
+	cmd.AddCommand(newDeploymentLocalInspectCommand("health", "Get DeploymentRun health", "/health", func(record deploymentusecase.RunRecord) any { return record.Health }))
+	cmd.AddCommand(newDeploymentLocalInspectCommand("diff", "Get DeploymentRun diff", "/diff", func(record deploymentusecase.RunRecord) any { return record.Diff }))
+	cmd.AddCommand(newDeploymentLocalInspectCommand("snapshot", "Get DeploymentRun manifest snapshot", "/manifest-snapshot", func(record deploymentusecase.RunRecord) any { return record.Snapshot }))
+	cmd.AddCommand(newDeploymentLocalInspectCommand("rollback-plan", "Get DeploymentRun rollback plan", "/rollback-plan", func(record deploymentusecase.RunRecord) any { return record.RollbackPlan }))
 	cmd.AddCommand(newDeploymentInspectCommand("resources", "Get DeploymentRun resources", "/resources"))
 	cmd.AddCommand(newDeploymentInspectCommand("logs", "Get DeploymentRun logs", "/logs"))
 	cmd.AddCommand(newDeploymentInspectCommand("events", "Get DeploymentRun events", "/events"))
 	cmd.AddCommand(newDeploymentInspectCommand("timeline", "Get DeploymentRun timeline", "/timeline"))
 	cmd.AddCommand(newDeploymentCancelCommand())
+	return cmd
+}
+
+func newDeploymentLocalInspectCommand(name string, short string, suffix string, selector func(deploymentusecase.RunRecord) any) *cobra.Command {
+	var local bool
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   name + " [--local <deployment.yaml> | <deployment-run-id>]",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if local {
+				def, err := deploymentusecase.LoadDefinitionFile(args[0])
+				if err != nil {
+					return err
+				}
+				result, err := server.NewDeploymentService().Plan(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def})
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), selector(result.Record))
+				return nil
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/deployments/"+args[0]+suffix, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&local, "local", false, "evaluate a local deployment definition instead of querying a server")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	return cmd
 }
 

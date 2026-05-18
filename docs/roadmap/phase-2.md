@@ -10,10 +10,12 @@ Add release and deployment workflows suitable for early release modeling without
 - Phase 2.1 controlled Kubernetes YAML dry-run/apply runtime foundation.
 - Phase 2.2 artifact and release binding foundation.
 - Phase 2.3 GitOps and Argo CD foundation.
+- Phase 2.4 Kubernetes resource inventory, health, snapshots, diff, and rollback plan foundation.
 - Static manifest rendering and validation.
 - DeploymentPlan, events, audit, logs, timeline, and cancellation basics.
 - Artifact reference parsing, immutability warnings, ReleaseArtifact binding, and manifest image verification.
 - GitOpsChangePlan, local working tree planning, noop Argo CD status/sync model, and guarded sync semantics.
+- Manifest snapshots, desired resource inventory, lightweight health, and non-destructive rollback plans.
 - Future YAML apply, Helm, and Kustomize rendering design.
 - Future Argo CD Adapter design.
 - Approval gates.
@@ -31,13 +33,15 @@ Add release and deployment workflows suitable for early release modeling without
 - Artifact scanning, signing, or SBOM verification in Phase 2.2.
 - Production Argo CD sync automation in Phase 2.3.
 - Remote Git provider authentication, commit, and push in Phase 2.3.
+- Destructive rollback execution in Phase 2.4.
+- Full Kubernetes controller behavior or CRD health in Phase 2.4.
 - Multi-cloud provider expansion.
 - Full DevSecOps platform.
 - Visualization frontend.
 
 ## Expected Deliverables
 
-Release and DeploymentRun workflows that can model GitOps and non-GitOps deployment modes. Phase 2.3 specifically delivers safe YAML planning/dry-run behavior, explicit no-op local apply, resource inventory, rollout result modeling, rollback baseline, artifact reference parsing, ReleaseArtifact binding, manifest image verification, GitOps planning, and Argo CD adapter foundation.
+Release and DeploymentRun workflows that can model GitOps and non-GitOps deployment modes. Phase 2.4 specifically includes safe YAML planning/dry-run behavior, explicit no-op local apply, artifact reference parsing, ReleaseArtifact binding, manifest image verification, GitOps planning, Argo CD adapter foundation, resource inventory, lightweight health evaluation, manifest snapshots, desired-state diff summaries, and non-destructive rollback plans.
 
 ## Acceptance Criteria
 
@@ -47,6 +51,8 @@ Release and DeploymentRun workflows that can model GitOps and non-GitOps deploym
 - ReleaseArtifacts are explicit and auditable.
 - Deployment plans surface mutable artifact warnings.
 - GitOps sync is disabled by default and guarded.
+- Secret values are never stored in resource inventory or snapshots.
+- Rollback plans are non-destructive by default.
 - DeploymentRun audit is complete enough for rollback analysis.
 - Approvals and environment locks are explicit.
 

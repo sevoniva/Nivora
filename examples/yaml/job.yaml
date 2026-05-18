@@ -1,0 +1,12 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: example-job
+spec:
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: job
+          image: example.invalid/sevoniva/example-job:dev
+          command: ["sh", "-c", "echo hello from nivora job"]

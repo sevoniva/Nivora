@@ -1,0 +1,23 @@
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-yaml-rollback-plan
+spec:
+  application: demo-springboot
+  environment: dev
+  target:
+    type: kubernetes-yaml
+    name: local-noop
+    namespace: default
+  artifacts:
+    - name: example-service
+      type: image
+      reference: example.invalid/sevoniva/example-service:dev
+      target:
+        imageName: app
+  manifests:
+    - examples/yaml/deployment.yaml
+    - examples/yaml/service.yaml
+  options:
+    dryRun: true
+    apply: false

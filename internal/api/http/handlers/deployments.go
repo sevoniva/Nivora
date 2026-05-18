@@ -131,6 +131,34 @@ func GetDeploymentResources(service *deploymentusecase.Service) http.HandlerFunc
 	}
 }
 
+func GetDeploymentHealth(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		health, err := service.Health(r.Context(), chi.URLParam(r, "id"))
+		respondDeploymentResult(w, r, health, err)
+	}
+}
+
+func GetDeploymentRuntimeDiff(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		diff, err := service.Diff(r.Context(), chi.URLParam(r, "id"))
+		respondDeploymentResult(w, r, diff, err)
+	}
+}
+
+func GetDeploymentManifestSnapshot(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		snapshot, err := service.Snapshot(r.Context(), chi.URLParam(r, "id"))
+		respondDeploymentResult(w, r, snapshot, err)
+	}
+}
+
+func GetDeploymentRollbackPlan(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		plan, err := service.RollbackPlan(r.Context(), chi.URLParam(r, "id"))
+		respondDeploymentResult(w, r, plan, err)
+	}
+}
+
 func GetDeploymentEvents(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		events, err := service.Events(r.Context(), chi.URLParam(r, "id"))

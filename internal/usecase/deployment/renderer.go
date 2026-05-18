@@ -3,9 +3,13 @@ package deployment
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"io"
 	"os"
+	"strings"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -55,6 +59,9 @@ func (r StaticManifestRenderer) Render(ctx context.Context, manifestPaths []stri
 			if err != nil {
 				return nil, err
 			}
+			if summary.Kind == "Secret" {
+				content = redactSecretContent(content)
+			}
 			documents = append(documents, ManifestDocument{
 				SourceFile: path,
 				Index:      index,
@@ -68,6 +75,21 @@ func (r StaticManifestRenderer) Render(ctx context.Context, manifestPaths []stri
 		return nil, fmt.Errorf("no manifest documents rendered")
 	}
 	return documents, nil
+}
+
+func redactSecretContent(content []byte) []byte {
+	var manifest map[string]any
+	if err := yaml.Unmarshal(content, &manifest); err != nil {
+		return []byte("kind: Secret\nmetadata:\n  name: redacted\n")
+	}
+	delete(manifest, "data")
+	delete(manifest, "stringData")
+	manifest["nivoraRedaction"] = "secret data removed"
+	body, err := yaml.Marshal(manifest)
+	if err != nil {
+		return []byte("kind: Secret\nmetadata:\n  name: redacted\n")
+	}
+	return body
 }
 
 func emptyDocument(node yaml.Node) bool {
@@ -90,6 +112,7 @@ func summarizeManifest(sourceFile string, index int, content []byte, defaultName
 		return ManifestResourceSummary{}, fmt.Errorf("parse manifest %q document %d: %w", sourceFile, index, err)
 	}
 	apiVersion, _ := manifest["apiVersion"].(string)
+	group, version := splitAPIVersion(apiVersion)
 	kind, _ := manifest["kind"].(string)
 	metadata, _ := manifest["metadata"].(map[string]any)
 	name, _ := metadata["name"].(string)
@@ -110,6 +133,8 @@ func summarizeManifest(sourceFile string, index int, content []byte, defaultName
 	}
 	return ManifestResourceSummary{
 		APIVersion:  apiVersion,
+		Group:       group,
+		Version:     version,
 		Kind:        kind,
 		Name:        name,
 		Namespace:   namespace,
@@ -117,7 +142,28 @@ func summarizeManifest(sourceFile string, index int, content []byte, defaultName
 		Annotations: annotations,
 		SourceFile:  sourceFile,
 		Index:       index,
+		DesiredHash: contentHash(content),
+		Status:      "Desired",
+		Health:      ResourceHealthUnknown,
+		CreatedAt:   time.Now().UTC(),
+		UpdatedAt:   time.Now().UTC(),
 	}, nil
+}
+
+func splitAPIVersion(apiVersion string) (string, string) {
+	if apiVersion == "" {
+		return "", ""
+	}
+	parts := strings.SplitN(apiVersion, "/", 2)
+	if len(parts) == 1 {
+		return "", parts[0]
+	}
+	return parts[0], parts[1]
+}
+
+func contentHash(content []byte) string {
+	sum := sha256.Sum256(bytes.TrimSpace(content))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func stringMap(value any) map[string]string {

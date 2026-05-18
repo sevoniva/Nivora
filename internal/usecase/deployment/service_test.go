@@ -29,6 +29,12 @@ func TestServiceCreateAndRunDryRunDeployment(t *testing.T) {
 	if record.Plan.ManifestCount != 2 {
 		t.Fatalf("manifest count = %d", record.Plan.ManifestCount)
 	}
+	if record.Snapshot.ContentHash == "" || record.RollbackPlan.Executable {
+		t.Fatalf("snapshot/rollback = %#v %#v", record.Snapshot, record.RollbackPlan)
+	}
+	if record.Health.ResourcesChecked == 0 || record.Diff.Summary == "" {
+		t.Fatalf("health/diff = %#v %#v", record.Health, record.Diff)
+	}
 	if len(record.Logs) == 0 {
 		t.Fatal("expected logs")
 	}
@@ -39,6 +45,10 @@ func TestServiceCreateAndRunDryRunDeployment(t *testing.T) {
 	assertHasDeploymentEvent(t, events, EventDeploymentCreated)
 	assertHasDeploymentEvent(t, events, EventDeploymentPrecheckCompleted)
 	assertHasDeploymentEvent(t, events, EventDeploymentDryRunCompleted)
+	assertHasDeploymentEvent(t, events, EventDeploymentInventoryCreated)
+	assertHasDeploymentEvent(t, events, EventDeploymentSnapshotCreated)
+	assertHasDeploymentEvent(t, events, EventDeploymentHealthCompleted)
+	assertHasDeploymentEvent(t, events, EventDeploymentRollbackPlanCreated)
 	assertHasDeploymentEvent(t, events, EventDeploymentSucceeded)
 
 	timeline, err := service.Timeline(context.Background(), record.Run.ID)

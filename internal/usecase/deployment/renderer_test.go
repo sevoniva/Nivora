@@ -4,6 +4,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -32,6 +33,15 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: demo-config
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: demo-secret
+  labels:
+    app: demo
+data:
+  redactionFixture: remove-me
 `), 0o600); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
@@ -40,7 +50,7 @@ metadata:
 	if err != nil {
 		t.Fatalf("render: %v", err)
 	}
-	if len(docs) != 3 {
+	if len(docs) != 4 {
 		t.Fatalf("doc count = %d", len(docs))
 	}
 	if docs[0].Resource.Kind != "Deployment" || docs[0].Resource.Namespace != "default" {
@@ -54,6 +64,15 @@ metadata:
 	}
 	if docs[2].Resource.Kind != "ConfigMap" || docs[2].Resource.Namespace != "default" {
 		t.Fatalf("third resource = %#v", docs[2].Resource)
+	}
+	if docs[3].Resource.Kind != "Secret" || docs[3].Resource.Labels["app"] != "demo" || docs[3].Resource.DesiredHash == "" {
+		t.Fatalf("secret metadata inventory = %#v", docs[3].Resource)
+	}
+	if docs[3].Resource.Annotations["redactionFixture"] != "" {
+		t.Fatalf("secret data leaked into metadata inventory = %#v", docs[3].Resource)
+	}
+	if strings.Contains(docs[3].Content, "remove-me") || strings.Contains(docs[3].Content, "redactionFixture") {
+		t.Fatalf("secret content was not redacted: %s", docs[3].Content)
 	}
 }
 

@@ -63,4 +63,4 @@ This is verify-first behavior. Nivora does not mutate manifests by default, does
 
 ## Current State
 
-Phase 2.2 supports YAML deployment planning, dry-run, explicit local no-op apply, resource inventory, rollout result modeling, rollback baseline, artifact summaries, and manifest image verification only. Production Kubernetes apply, Helm, Kustomize, Argo CD, cloud providers, host deployment, registry integrations, image signing, and scanning remain future work.
+Phase 2.4 supports YAML deployment planning, dry-run, explicit local no-op apply, resource inventory, lightweight health evaluation, manifest snapshots, desired-state diff summaries, rollback plan baseline, artifact summaries, GitOps planning, and manifest image verification only. Production Kubernetes apply semantics, destructive rollback, Helm, Kustomize, production Argo CD sync, cloud providers, host deployment, registry integrations, image signing, and scanning remain future work.

@@ -110,7 +110,7 @@ func (d Definition) Validate() error {
 		return errors.New("deployment target.type is required")
 	}
 	if d.Spec.Target.Type != "kubernetes-yaml" && d.Spec.Target.Type != "argocd" {
-		return fmt.Errorf("deployment target.type %q is not supported in Phase 2.3", d.Spec.Target.Type)
+		return fmt.Errorf("deployment target.type %q is not supported in the current deployment runtime", d.Spec.Target.Type)
 	}
 	if d.Spec.Target.Name == "" {
 		return errors.New("deployment target.name is required")

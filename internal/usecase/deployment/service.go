@@ -3,6 +3,7 @@ package deployment
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"strings"
@@ -21,28 +22,36 @@ import (
 )
 
 const (
-	EventDeploymentCreated           = "devops.deployment.created"
-	EventDeploymentPlanning          = "devops.deployment.planning"
-	EventDeploymentPrecheckStarted   = "devops.deployment.precheck.started"
-	EventDeploymentPrecheckCompleted = "devops.deployment.precheck.completed"
-	EventDeploymentDryRunStarted     = "devops.deployment.dryrun.started"
-	EventDeploymentDryRunCompleted   = "devops.deployment.dryrun.completed"
-	EventDeploymentDryRunFailed      = "devops.deployment.dryrun.failed"
-	EventDeploymentApplyStarted      = "devops.deployment.apply.started"
-	EventDeploymentApplyCompleted    = "devops.deployment.apply.completed"
-	EventDeploymentApplyFailed       = "devops.deployment.apply.failed"
-	EventDeploymentVerifyStarted     = "devops.deployment.verify.started"
-	EventDeploymentVerifyCompleted   = "devops.deployment.verify.completed"
-	EventDeploymentVerifyFailed      = "devops.deployment.verify.failed"
-	EventDeploymentSucceeded         = "devops.deployment.succeeded"
-	EventDeploymentFailed            = "devops.deployment.failed"
-	EventDeploymentCanceled          = "devops.deployment.canceled"
-	EventGitOpsPlanCreated           = "devops.gitops.plan.created"
-	EventGitOpsDiffGenerated         = "devops.gitops.diff.generated"
-	EventGitOpsWorkingTreeUpdated    = "devops.gitops.workingtree.updated"
-	EventArgoCDStatusRead            = "devops.argocd.status.read"
-	EventArgoCDSyncRequested         = "devops.argocd.sync.requested"
-	EventArgoCDSyncSkipped           = "devops.argocd.sync.skipped"
+	EventDeploymentCreated             = "devops.deployment.created"
+	EventDeploymentPlanning            = "devops.deployment.planning"
+	EventDeploymentPrecheckStarted     = "devops.deployment.precheck.started"
+	EventDeploymentPrecheckCompleted   = "devops.deployment.precheck.completed"
+	EventDeploymentDryRunStarted       = "devops.deployment.dryrun.started"
+	EventDeploymentDryRunCompleted     = "devops.deployment.dryrun.completed"
+	EventDeploymentDryRunFailed        = "devops.deployment.dryrun.failed"
+	EventDeploymentApplyStarted        = "devops.deployment.apply.started"
+	EventDeploymentApplyCompleted      = "devops.deployment.apply.completed"
+	EventDeploymentApplyFailed         = "devops.deployment.apply.failed"
+	EventDeploymentVerifyStarted       = "devops.deployment.verify.started"
+	EventDeploymentVerifyCompleted     = "devops.deployment.verify.completed"
+	EventDeploymentVerifyFailed        = "devops.deployment.verify.failed"
+	EventDeploymentSucceeded           = "devops.deployment.succeeded"
+	EventDeploymentFailed              = "devops.deployment.failed"
+	EventDeploymentCanceled            = "devops.deployment.canceled"
+	EventDeploymentInventoryCreated    = "devops.deployment.inventory.created"
+	EventDeploymentSnapshotCreated     = "devops.deployment.snapshot.created"
+	EventDeploymentHealthStarted       = "devops.deployment.health.started"
+	EventDeploymentHealthCompleted     = "devops.deployment.health.completed"
+	EventDeploymentRollbackPlanCreated = "devops.deployment.rollback.plan.created"
+	EventDeploymentDiffGenerated       = "devops.deployment.diff.generated"
+	EventDeploymentResourceObserved    = "devops.deployment.resource.observed"
+	EventDeploymentResourceDegraded    = "devops.deployment.resource.degraded"
+	EventGitOpsPlanCreated             = "devops.gitops.plan.created"
+	EventGitOpsDiffGenerated           = "devops.gitops.diff.generated"
+	EventGitOpsWorkingTreeUpdated      = "devops.gitops.workingtree.updated"
+	EventArgoCDStatusRead              = "devops.argocd.status.read"
+	EventArgoCDSyncRequested           = "devops.argocd.sync.requested"
+	EventArgoCDSyncSkipped             = "devops.argocd.sync.skipped"
 )
 
 type KubernetesManifestClient interface {
@@ -130,7 +139,7 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 		return CreateRunResult{}, err
 	}
 	record.Plan = s.buildPlan(record.Run.ID, input.Definition, documents)
-	record.Rollback = s.rollbackBaseline(record.Run.ID, input.Definition, record.Plan.Resources)
+	record = s.attachResourceObservability(record, input.Definition, documents)
 	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("rendered %d manifest document(s)", len(documents)), int64(len(record.Logs)+1)))
 	return CreateRunResult{Record: record}, nil
 }
@@ -154,8 +163,29 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 		return s.fail(ctx, record, actorID, err.Error())
 	}
 	record.Plan = s.buildPlan(record.Run.ID, record.Definition, documents)
-	record.Rollback = s.rollbackBaseline(record.Run.ID, record.Definition, record.Plan.Resources)
+	record = s.attachResourceObservability(record, record.Definition, documents)
 	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("rendered %d manifest document(s)", len(documents)), int64(len(record.Logs)+1)))
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentInventoryCreated, "Resource inventory captured", actorID, string(record.Run.Status), "Resource inventory captured"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentSnapshotCreated, "Manifest snapshot created", actorID, string(record.Run.Status), "Manifest snapshot created"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentDiffGenerated, "Deployment diff generated", actorID, string(record.Run.Status), record.Diff.Summary); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentRollbackPlanCreated, "Rollback plan created", actorID, string(record.Run.Status), "Non-destructive rollback plan created"); err != nil {
+		return RunRecord{}, err
+	}
+	for _, resource := range record.Plan.Resources {
+		if err := s.recordRuntimeEventOnly(ctx, record.Run.ID, EventDeploymentResourceObserved, string(record.Run.Status), resourceRef(resource)); err != nil {
+			return RunRecord{}, err
+		}
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
 
 	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunPreChecking, s.now(), ""); err != nil {
 		return RunRecord{}, err
@@ -211,6 +241,20 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 		return RunRecord{}, err
 	}
 	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentDryRunCompleted, "Deployment dry-run completed", actorID, string(record.Run.Status), "Deployment dry-run completed"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentHealthStarted, "Health evaluation started", actorID, string(record.Run.Status), "Deployment health evaluation started"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	record.Health = evaluateResourceHealth(record.Run.ID, record.Plan.Resources, s.now())
+	record.Rollout = rolloutFromHealth(record.Health)
+	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("health evaluation completed: %s", record.Health.Status), int64(len(record.Logs)+1)))
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentHealthCompleted, "Health evaluation completed", actorID, string(record.Run.Status), string(record.Health.Status)); err != nil {
 		return RunRecord{}, err
 	}
 	record, _ = s.store.Get(ctx, record.Run.ID)
@@ -431,6 +475,38 @@ func (s *Service) Resources(ctx context.Context, id string) ([]ManifestResourceS
 	return append([]ManifestResourceSummary(nil), record.Plan.Resources...), nil
 }
 
+func (s *Service) Health(ctx context.Context, id string) (HealthEvaluation, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return HealthEvaluation{}, err
+	}
+	return record.Health, nil
+}
+
+func (s *Service) Diff(ctx context.Context, id string) (DeploymentDiff, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return DeploymentDiff{}, err
+	}
+	return record.Diff, nil
+}
+
+func (s *Service) Snapshot(ctx context.Context, id string) (ManifestSnapshot, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return ManifestSnapshot{}, err
+	}
+	return record.Snapshot, nil
+}
+
+func (s *Service) RollbackPlan(ctx context.Context, id string) (RollbackPlan, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return RollbackPlan{}, err
+	}
+	return record.RollbackPlan, nil
+}
+
 func (s *Service) Timeline(ctx context.Context, id string) ([]TimelineEntry, error) {
 	events, err := s.Events(ctx, id)
 	if err != nil {
@@ -547,7 +623,7 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 		}
 		inspection, err := domainartifact.InspectReference(reference, domainartifact.ArtifactType(artifact.Type))
 		if err != nil {
-			warnings := []string{"live cluster diff is not implemented in Phase 2.2", fmt.Sprintf("artifact %q could not be inspected: %v", artifact.Name, err)}
+			warnings := []string{"live cluster diff is not implemented in Phase 2.4", fmt.Sprintf("artifact %q could not be inspected: %v", artifact.Name, err)}
 			return DeploymentPlan{
 				DeploymentRunID: runID,
 				TargetType:      def.Spec.Target.Type,
@@ -571,7 +647,7 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 		resources = append(resources, doc.Resource)
 	}
 	manifestImages := ExtractManifestImages(docs)
-	warnings := []string{"live cluster diff is not implemented in Phase 2.2"}
+	warnings := []string{"live cluster diff is not implemented in Phase 2.4"}
 	for _, detail := range artifactDetails {
 		for _, warning := range detail.Warnings {
 			warnings = append(warnings, fmt.Sprintf("artifact %s: %s", detail.Reference.Normalized, warning.Message))
@@ -579,7 +655,7 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 	}
 	warnings = append(warnings, verifyManifestImages(def.Spec.Artifacts, artifactDetails, manifestImages)...)
 	if def.Spec.Options.Apply {
-		warnings = append(warnings, "apply requested; Phase 2.2 apply requires explicit confirmation and uses the configured manifest client")
+		warnings = append(warnings, "apply requested; Phase 2.4 apply requires explicit confirmation and uses the configured manifest client")
 	}
 	actions := []string{"render manifests", "validate manifests", "policy pre-check", "server-side dry-run"}
 	if def.Spec.Options.Apply {
@@ -604,8 +680,149 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 		TimeoutSeconds:  def.Spec.Options.TimeoutSeconds,
 		Actions:         actions,
 		Warnings:        warnings,
-		DiffSummary:     fmt.Sprintf("desired state contains %d manifest resource(s); live diff is not available in Phase 2.2", len(docs)),
+		DiffSummary:     fmt.Sprintf("desired state contains %d manifest resource(s); live diff is not available in Phase 2.4", len(docs)),
 	}
+}
+
+func (s *Service) attachResourceObservability(record RunRecord, def Definition, docs []ManifestDocument) RunRecord {
+	now := s.now()
+	record.Inventory = ResourceInventory{
+		DeploymentRunID: record.Run.ID,
+		Desired:         append([]ManifestResourceSummary(nil), record.Plan.Resources...),
+		Applied:         append([]ManifestResourceSummary(nil), record.Plan.Resources...),
+		Warnings:        []string{"live Kubernetes resource observation is not required in Phase 2.4"},
+		CreatedAt:       now,
+		UpdatedAt:       now,
+	}
+	record.Snapshot = buildManifestSnapshot(record.Run.ID, docs, now)
+	record.Run.ManifestSnapshotRef = record.Snapshot.StorageRef
+	record.Diff = buildDeploymentDiff(record.Run.ID, record.Plan.Resources)
+	record.Rollback = s.rollbackBaseline(record.Run.ID, def, record.Plan.Resources)
+	record.RollbackPlan = RollbackPlan{
+		DeploymentRunID:   record.Run.ID,
+		CurrentSnapshotID: record.Snapshot.ID,
+		TargetType:        def.Spec.Target.Type,
+		TargetName:        def.Spec.Target.Name,
+		Resources:         append([]ManifestResourceSummary(nil), record.Plan.Resources...),
+		Strategy:          "manifest-restore",
+		Executable:        false,
+		Warnings:          []string{"rollback execution is not implemented in Phase 2.4; this plan is non-destructive"},
+		CreatedAt:         now,
+	}
+	record.Health = evaluateResourceHealth(record.Run.ID, record.Plan.Resources, now)
+	return record
+}
+
+func buildManifestSnapshot(runID string, docs []ManifestDocument, now time.Time) ManifestSnapshot {
+	var content strings.Builder
+	for _, doc := range docs {
+		content.WriteString("---\n")
+		content.WriteString(doc.Content)
+		if !strings.HasSuffix(doc.Content, "\n") {
+			content.WriteString("\n")
+		}
+	}
+	sum := sha256.Sum256([]byte(content.String()))
+	inline := content.String()
+	if len(inline) > 64*1024 {
+		inline = ""
+	}
+	return ManifestSnapshot{
+		ID:              newID("snapshot"),
+		DeploymentRunID: runID,
+		ContentHash:     "sha256:" + hex.EncodeToString(sum[:]),
+		DocumentCount:   len(docs),
+		ResourceCount:   len(docs),
+		StorageRef:      "memory://" + runID + "/manifest-snapshot",
+		InlineContent:   inline,
+		CreatedAt:       now,
+	}
+}
+
+func buildDeploymentDiff(runID string, resources []ManifestResourceSummary) DeploymentDiff {
+	refs := make([]string, 0, len(resources))
+	for _, resource := range resources {
+		refs = append(refs, resourceRef(resource))
+	}
+	return DeploymentDiff{
+		DeploymentRunID:  runID,
+		AddedResources:   append([]string(nil), refs...),
+		UnknownLiveState: append([]string(nil), refs...),
+		Summary:          fmt.Sprintf("desired state contains %d resource(s); live state is unknown in Phase 2.4", len(resources)),
+		Warnings:         []string{"live Kubernetes diff is not implemented in Phase 2.4"},
+	}
+}
+
+func evaluateResourceHealth(runID string, resources []ManifestResourceSummary, now time.Time) HealthEvaluation {
+	eval := HealthEvaluation{DeploymentRunID: runID, Status: ResourceHealthUnknown, EvaluatedAt: now}
+	for _, resource := range resources {
+		health := defaultHealth(resource.Kind)
+		if health == ResourceHealthHealthy {
+			eval.Healthy++
+		} else if health == ResourceHealthDegraded {
+			eval.Degraded++
+		}
+		summary := ResourceHealthSummary{
+			Resource:       resource,
+			DesiredExists:  true,
+			LiveExists:     false,
+			Health:         health,
+			DiffSummary:    "live state not observed",
+			LastObservedAt: now,
+			Warnings:       []string{"live Kubernetes health is not observed in the default Phase 2.4 runtime"},
+		}
+		eval.Resources = append(eval.Resources, summary)
+		eval.ResourcesChecked++
+	}
+	if eval.ResourcesChecked == 0 {
+		eval.Warnings = append(eval.Warnings, "no resources to evaluate")
+		return eval
+	}
+	eval.Status = ResourceHealthProgressing
+	if eval.Healthy == eval.ResourcesChecked {
+		eval.Status = ResourceHealthHealthy
+	}
+	if eval.Degraded > 0 {
+		eval.Status = ResourceHealthDegraded
+	}
+	return eval
+}
+
+func defaultHealth(kind string) ResourceHealth {
+	switch kind {
+	case "Deployment", "StatefulSet", "DaemonSet", "Job", "CronJob":
+		return ResourceHealthProgressing
+	case "Service", "ConfigMap", "Secret", "Ingress", "Namespace", "ServiceAccount", "Role", "RoleBinding", "ClusterRole", "ClusterRoleBinding":
+		return ResourceHealthHealthy
+	default:
+		return ResourceHealthUnsupported
+	}
+}
+
+func rolloutFromHealth(health HealthEvaluation) RolloutResult {
+	return RolloutResult{
+		Mode:      "local-health",
+		Message:   fmt.Sprintf("health evaluation completed with status %s", health.Status),
+		Warnings:  append([]string(nil), health.Warnings...),
+		Resources: healthResources(health.Resources),
+	}
+}
+
+func healthResources(items []ResourceHealthSummary) []ManifestResourceSummary {
+	resources := make([]ManifestResourceSummary, 0, len(items))
+	for _, item := range items {
+		resource := item.Resource
+		resource.Health = item.Health
+		resources = append(resources, resource)
+	}
+	return resources
+}
+
+func resourceRef(resource ManifestResourceSummary) string {
+	if resource.Namespace == "" {
+		return fmt.Sprintf("%s/%s", resource.Kind, resource.Name)
+	}
+	return fmt.Sprintf("%s/%s/%s", resource.Kind, resource.Namespace, resource.Name)
 }
 
 func (s *Service) buildGitOpsPlan(runID string, def Definition, changes []portgitops.FileChange) GitOpsChangePlan {
@@ -792,7 +1009,7 @@ func (s *Service) rollbackBaseline(runID string, def Definition, resources []Man
 		TargetName:          def.Spec.Target.Name,
 		ManifestSnapshotRef: "memory://" + runID + "/previous-manifests",
 		ResourceRefs:        refs,
-		Reason:              "rollback execution is not implemented in Phase 2.2",
+		Reason:              "rollback execution is not implemented in Phase 2.4",
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}
@@ -850,6 +1067,10 @@ func (s *Service) recordEvent(ctx context.Context, runID string, eventType strin
 		return err
 	}
 	return s.store.AppendEvent(ctx, runID, evt)
+}
+
+func (s *Service) recordRuntimeEventOnly(ctx context.Context, runID string, eventType string, status string, message string) error {
+	return s.recordEvent(ctx, runID, eventType, status, message)
 }
 
 func (s *Service) recordRuntimeEvent(ctx context.Context, record RunRecord, eventType string, status string, message string) (RunRecord, error) {

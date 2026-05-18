@@ -78,7 +78,7 @@ Do not create new top-level directories unless the reason is clear.
 
 ## 5. Phase Control
 
-Current phase: Phase 0 / Phase 0.5 backend skeleton and guardrails, unless the user explicitly says otherwise.
+Current phase: Phase 0 / Phase 0.5 / Phase 0.6 backend skeleton, guardrails, and planning docs, unless the user explicitly says otherwise.
 
 Allowed in Phase 0:
 
@@ -99,6 +99,7 @@ Allowed in Phase 0:
 - CI workflow
 - minimal tests
 - architecture validation and guardrail polish
+- public planning, concept, roadmap, community, and RFC documentation
 
 Not allowed in Phase 0 unless explicitly requested:
 

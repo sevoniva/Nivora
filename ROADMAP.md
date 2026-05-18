@@ -1,5 +1,7 @@
 # Roadmap
 
+This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/overview.md](docs/roadmap/overview.md).
+
 ## Phase 0: Skeleton
 
 - Establish Go module structure.
@@ -13,6 +15,12 @@
 - Enforce formatting, tidy, vet, tests, builds, architecture checks, and secret checks in CI.
 - Polish local development verification scripts and Makefile targets.
 - Keep placeholder APIs honest and structured without adding business logic.
+
+## Phase 0.6: Planning and Collaboration Docs
+
+- Add public planning docs, project charter, product vision, architecture blueprint, concept docs, roadmap docs, community docs, and RFC template.
+- Keep current implementation clearly separated from target architecture.
+- Improve contribution paths without adding Phase 1 business logic.
 
 ## Phase 1: Minimal Pipeline Execution
 

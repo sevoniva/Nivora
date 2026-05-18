@@ -48,6 +48,29 @@ Not allowed:
 - production workflow runtime
 - frontend
 
+## Phase 0.6
+
+Public planning and collaboration docs only.
+
+Allowed:
+
+- project charter
+- product vision and problem statement
+- concept docs
+- target architecture docs
+- detailed roadmap docs
+- community and governance docs
+- RFC process and template
+- documentation style guide
+
+Not allowed:
+
+- Phase 1 PipelineRun execution
+- real cloud integrations
+- real Kubernetes or Argo CD integrations
+- real Git provider or Artifact Registry integrations
+- frontend
+
 ## Phase 1
 
 Minimal pipeline execution.

@@ -2,9 +2,11 @@
 
 Nivora is an open-source DevOps delivery control plane for CI/CD, GitOps, multi-cloud deployment, artifact orchestration, policy gates, runners, release audit, and future visualization APIs.
 
-Nivora is currently in Phase 0 / Phase 0.5. Phase 0 defines the backend skeleton. Phase 0.5 hardens architecture guardrails, CI checks, and local development workflows.
+Nivora is currently in Phase 0 / Phase 0.5 / Phase 0.6. Current focus is the backend skeleton, architecture guardrails, public planning, and contribution foundation.
 
 Nivora is not production-ready. It does not implement full CI/CD execution, production GitOps reconciliation, cloud integrations, Kubernetes or Argo CD execution, vendor integrations, or a frontend yet.
+
+For the project charter, see [PROJECT_CHARTER.md](PROJECT_CHARTER.md). For the full documentation index, see [docs/README.md](docs/README.md).
 
 ## Architecture Summary
 
@@ -105,6 +107,12 @@ This checks formatting, module tidiness, `go vet`, tests, binary builds, archite
 ## Roadmap
 
 See [ROADMAP.md](ROADMAP.md).
+
+Detailed roadmap docs live under [docs/roadmap/](docs/roadmap/overview.md). Large future proposals should use the [RFC process](docs/rfcs/README.md).
+
+## Contributing
+
+Read [CONTRIBUTING.md](CONTRIBUTING.md). AI coding agents must follow [AGENTS.md](AGENTS.md), which is the canonical AI instruction file.
 
 ## License
 

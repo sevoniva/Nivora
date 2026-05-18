@@ -201,6 +201,17 @@ func cloneRecord(record RunRecord) RunRecord {
 	record.Plan.Artifacts = append([]string(nil), record.Plan.Artifacts...)
 	record.Plan.Actions = append([]string(nil), record.Plan.Actions...)
 	record.Plan.Warnings = append([]string(nil), record.Plan.Warnings...)
+	record.DryRun.Resources = append([]ManifestResourceSummary(nil), record.DryRun.Resources...)
+	record.DryRun.Warnings = append([]string(nil), record.DryRun.Warnings...)
+	record.Apply.Resources = append([]ManifestResourceSummary(nil), record.Apply.Resources...)
+	record.Apply.Warnings = append([]string(nil), record.Apply.Warnings...)
+	record.Rollout.Resources = append([]ManifestResourceSummary(nil), record.Rollout.Resources...)
+	record.Rollout.Warnings = append([]string(nil), record.Rollout.Warnings...)
+	if record.Rollback != nil {
+		rollback := *record.Rollback
+		rollback.ResourceRefs = append([]string(nil), record.Rollback.ResourceRefs...)
+		record.Rollback = &rollback
+	}
 	record.Logs = append([]event.LogChunk(nil), record.Logs...)
 	record.Events = append([]event.Event(nil), record.Events...)
 	record.Audits = append([]audit.AuditLog(nil), record.Audits...)

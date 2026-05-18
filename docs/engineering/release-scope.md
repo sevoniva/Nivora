@@ -83,7 +83,7 @@ Git webhook -> PipelineRun -> Runner -> Executor -> Logs -> Status -> Audit
 
 ## Phase 2
 
-Release and deployment foundation. Phase 2.0 is limited to YAML deployment planning and non-destructive dry-run validation.
+Release and deployment foundation. Phase 2.1 is limited to YAML deployment planning, non-destructive dry-run validation, explicit no-op local apply, resource inventory, rollout result modeling, and rollback baseline.
 
 Target capabilities:
 

@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: example-service-config
+  labels:
+    app.kubernetes.io/name: example-service
+    app.kubernetes.io/part-of: nivora-example
+data:
+  NIVORA_EXAMPLE_MODE: local

@@ -13,7 +13,7 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, shell PipelineRun runtime, YAML DeploymentRun planning/dry-run foundation, runner/executor model, logs/events/audit, and open-source contribution foundation. Production Kubernetes apply, Argo CD, cloud provider, Git provider, and artifact registry integrations remain future phases.
+Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, runner/executor model, logs/events/audit, and open-source contribution foundation. Production Kubernetes apply semantics, Argo CD, cloud provider, Git provider, and artifact registry integrations remain future phases.
 
 ## Current Status
 
@@ -24,7 +24,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | Public planning docs | Completed |
 | Minimal shell PipelineRun runtime | Completed |
 | Durable runtime foundation | Initial shell-only foundation completed |
-| Kubernetes YAML planning / dry-run | Phase 2.0 foundation |
+| Kubernetes YAML planning / dry-run / explicit local apply | Phase 2.1 foundation |
 | Argo CD GitOps | Planned |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
@@ -735,7 +735,8 @@ go run ./cmd/nivora pipeline get <pipeline-run-id> --server http://localhost:808
 go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080
 go run ./cmd/nivora pipeline timeline <pipeline-run-id> --server http://localhost:8080
 go run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
-go run ./cmd/nivora deployment run --local examples/deployments/yaml-dry-run.yaml
+go run ./cmd/nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
+go run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --confirm
 ```
 
 ## Local Development
@@ -787,7 +788,7 @@ go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
 
 ## Example YAML Deployment Dry-Run
 
-Phase 2.0 supports non-destructive YAML deployment planning and dry-run validation. It renders static manifests, validates their basic shape, creates a DeploymentPlan, records logs/events/audit/timeline data, and does not apply resources to a cluster by default.
+Phase 2.1 supports non-destructive YAML deployment planning and dry-run validation, plus explicit local no-op apply for runtime testing. It renders static manifests, validates their basic shape, creates a DeploymentPlan, records resource inventory, logs/events/audit/timeline data, and does not apply resources to a cluster by default.
 
 ```yaml
 apiVersion: nivora.io/v1alpha1
@@ -802,6 +803,7 @@ spec:
     name: dev-kind
     namespace: default
   manifests:
+    - examples/yaml/configmap.yaml
     - examples/yaml/deployment.yaml
     - examples/yaml/service.yaml
   options:
@@ -813,10 +815,16 @@ Run it locally:
 
 ```bash
 go run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
-go run ./cmd/nivora deployment run --local examples/deployments/yaml-dry-run.yaml
+go run ./cmd/nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
 ```
 
-This is a planning/dry-run foundation only. Production Kubernetes apply, Helm, Kustomize, Argo CD, cloud providers, host deployment, and registry integrations remain future work.
+Explicit local apply requires a separate command and confirmation:
+
+```bash
+go run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --confirm
+```
+
+The default local apply path uses the safe no-op manifest client. Production Kubernetes apply semantics, Helm, Kustomize, Argo CD, cloud providers, host deployment, and registry integrations remain future work.
 
 Run a minimal shell PipelineRun through the API:
 
@@ -905,12 +913,13 @@ flowchart LR
     P1["Phase 1<br/>Minimal Runtime"]
     P15["Phase 1.5<br/>Durable Runtime Foundation"]
     P16["Phase 1.6<br/>Runtime DX & Acceptance"]
-    P2["Phase 2<br/>YAML Deployment Foundation"]
-    P21["Phase 2.1<br/>GitOps"]
+    P2["Phase 2.0<br/>YAML Planning Foundation"]
+    P21["Phase 2.1<br/>Kubernetes YAML Runtime"]
+    P22["Future Phase 2<br/>GitOps & Release Hardening"]
     P3["Phase 3<br/>Multi-cloud & DevSecOps"]
     P4["Phase 4<br/>Visualization"]
 
-    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P3 --> P4
+    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P3 --> P4
 ```
 
 See [ROADMAP.md](ROADMAP.md) and [docs/roadmap/overview.md](docs/roadmap/overview.md) for details.

@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-run-local smoke-local smoke-api dev-up dev-down migrate-up migrate-down
+.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local smoke-local smoke-api smoke-deployment-dry-run dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -39,7 +39,7 @@ verify-runtime:
 
 verify-deployment:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
-	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment run --local examples/deployments/yaml-dry-run.yaml
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
 
 verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-runtime verify-deployment
 
@@ -58,14 +58,24 @@ pipeline-run-local:
 deployment-plan-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
 
+deployment-dry-run-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
+
 deployment-run-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment run --local examples/deployments/yaml-dry-run.yaml
+
+deployment-apply-local:
+	@test "$$NIVORA_ALLOW_LOCAL_APPLY" = "true" || (echo "set NIVORA_ALLOW_LOCAL_APPLY=true to run local apply" >&2; exit 1)
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --confirm
 
 smoke-local:
 	./scripts/smoke-pipelinerun-local.sh
 
 smoke-api:
 	./scripts/smoke-api.sh
+
+smoke-deployment-dry-run:
+	./scripts/smoke-deployment-dry-run.sh
 
 dev-up:
 	./scripts/dev-up.sh

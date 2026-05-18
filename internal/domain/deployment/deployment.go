@@ -60,10 +60,15 @@ type DeploymentStep struct {
 }
 
 type RollbackRecord struct {
-	ID              string    `json:"id"`
-	DeploymentRunID string    `json:"deploymentRunId"`
-	Strategy        string    `json:"strategy"`
-	Reason          string    `json:"reason,omitempty"`
-	CreatedAt       time.Time `json:"createdAt"`
-	UpdatedAt       time.Time `json:"updatedAt"`
+	ID                  string    `json:"id"`
+	DeploymentRunID     string    `json:"deploymentRunId"`
+	Strategy            string    `json:"strategy"`
+	Status              string    `json:"status"`
+	TargetType          string    `json:"targetType,omitempty"`
+	TargetName          string    `json:"targetName,omitempty"`
+	ManifestSnapshotRef string    `json:"manifestSnapshotRef,omitempty"`
+	ResourceRefs        []string  `json:"resourceRefs,omitempty"`
+	Reason              string    `json:"reason,omitempty"`
+	CreatedAt           time.Time `json:"createdAt"`
+	UpdatedAt           time.Time `json:"updatedAt"`
 }

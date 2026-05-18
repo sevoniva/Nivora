@@ -15,6 +15,7 @@ type ReleaseTarget struct {
 	EnvironmentID string    `json:"environmentId"`
 	Name          string    `json:"name"`
 	TargetType    string    `json:"targetType"`
+	Context       string    `json:"context,omitempty"`
 	Namespace     string    `json:"namespace,omitempty"`
 	CreatedAt     time.Time `json:"createdAt"`
 	UpdatedAt     time.Time `json:"updatedAt"`

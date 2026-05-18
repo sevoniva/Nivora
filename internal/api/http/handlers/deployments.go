@@ -86,6 +86,13 @@ func GetDeploymentLogs(service *deploymentusecase.Service) http.HandlerFunc {
 	}
 }
 
+func GetDeploymentResources(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		resources, err := service.Resources(r.Context(), chi.URLParam(r, "id"))
+		respondDeploymentResult(w, r, resources, err)
+	}
+}
+
 func GetDeploymentEvents(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		events, err := service.Events(r.Context(), chi.URLParam(r, "id"))

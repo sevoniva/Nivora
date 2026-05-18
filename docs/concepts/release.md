@@ -15,7 +15,7 @@ Releases connect Artifacts to delivery decisions. They provide a stable object f
 
 ## Current Implementation
 
-Phase 2.0 creates a minimal in-memory Release intent from a deployment spec before creating a DeploymentRun. Release persistence, promotion workflows, approval rules, and artifact registry resolution remain future work.
+Phase 2.1 creates a minimal in-memory Release intent from a deployment spec before creating a DeploymentRun. Release persistence, promotion workflows, approval rules, and artifact registry resolution remain future work.
 
 ## Common Confusion
 

@@ -17,7 +17,7 @@ Environments allow policies, approvals, locks, audit rules, and Release Targets 
 
 A Release Target may be a host group, Kubernetes cluster, Argo CD application, cloud target, or webhook target.
 
-In Phase 2.0, the implemented target type is `kubernetes-yaml` for static manifest planning and dry-run validation only. The target namespace is explicit in the deployment spec, but no kubeconfig or cluster endpoint is required for normal tests.
+In Phase 2.1, the implemented target type is `kubernetes-yaml` for static manifest planning, dry-run validation, and explicit no-op local apply. The target namespace is explicit in the deployment spec, but no kubeconfig or cluster endpoint is required for normal tests.
 
 ## Common Confusion
 

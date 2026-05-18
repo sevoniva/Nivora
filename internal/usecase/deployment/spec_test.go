@@ -46,6 +46,8 @@ func TestDefinitionValidationRejectsInvalidSpec(t *testing.T) {
 		{name: "unsupported target type", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "argocd", Name: "target"}, Manifests: []string{"a.yaml"}}}},
 		{name: "missing namespace", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target"}, Manifests: []string{"a.yaml"}}}},
 		{name: "missing manifests", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target", Namespace: "default"}}}},
+		{name: "apply with dry run", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target", Namespace: "default"}, Manifests: []string{"a.yaml"}, Options: Options{Apply: true, DryRun: true}}}},
+		{name: "negative timeout", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target", Namespace: "default"}, Manifests: []string{"a.yaml"}, Options: Options{TimeoutSeconds: -1}}}},
 	}
 
 	for _, tt := range tests {

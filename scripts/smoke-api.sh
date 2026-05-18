@@ -90,7 +90,7 @@ deployment_response="$(curl -fsS -X POST "${BASE_URL}/api/v1/deployments" \
       "application": "smoke-app",
       "environment": "dev",
       "target": {"type": "kubernetes-yaml", "name": "local-dry-run", "namespace": "default"},
-      "manifests": ["examples/yaml/deployment.yaml", "examples/yaml/service.yaml"],
+      "manifests": ["examples/yaml/configmap.yaml", "examples/yaml/deployment.yaml", "examples/yaml/service.yaml"],
       "options": {"dryRun": true, "apply": false}
     }
   }')"
@@ -109,8 +109,12 @@ if [ -z "$deployment_run_id" ]; then
 fi
 
 echo "==> Checking deployment plan, logs, and timeline for ${deployment_run_id}"
-curl -fsS "${BASE_URL}/api/v1/deployments/${deployment_run_id}/plan" | grep '"manifestCount":2' >/dev/null || {
+curl -fsS "${BASE_URL}/api/v1/deployments/${deployment_run_id}/plan" | grep '"manifestCount":3' >/dev/null || {
   echo "DeploymentRun plan was not accessible" >&2
+  exit 1
+}
+curl -fsS "${BASE_URL}/api/v1/deployments/${deployment_run_id}/resources" | grep 'ConfigMap' >/dev/null || {
+  echo "DeploymentRun resources were not accessible" >&2
   exit 1
 }
 curl -fsS "${BASE_URL}/api/v1/deployments/${deployment_run_id}/logs" | grep 'dry-run validation completed' >/dev/null || {

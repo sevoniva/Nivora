@@ -20,6 +20,10 @@ type RunRecord struct {
 	Run         domaindeployment.DeploymentRun    `json:"run"`
 	Steps       []domaindeployment.DeploymentStep `json:"steps,omitempty"`
 	Plan        DeploymentPlan                    `json:"plan"`
+	DryRun      KubernetesDryRunResult            `json:"dryRun,omitempty"`
+	Apply       KubernetesApplyResult             `json:"apply,omitempty"`
+	Rollout     RolloutResult                     `json:"rollout,omitempty"`
+	Rollback    *domaindeployment.RollbackRecord  `json:"rollback,omitempty"`
 	Logs        []event.LogChunk                  `json:"logs,omitempty"`
 	Events      []event.Event                     `json:"events,omitempty"`
 	Audits      []audit.AuditLog                  `json:"audits,omitempty"`
@@ -29,12 +33,15 @@ type RunRecord struct {
 type DeploymentPlan struct {
 	DeploymentRunID string                    `json:"deploymentRunId"`
 	TargetType      string                    `json:"targetType"`
+	TargetContext   string                    `json:"targetContext,omitempty"`
 	Namespace       string                    `json:"namespace,omitempty"`
 	ManifestCount   int                       `json:"manifestCount"`
 	Resources       []ManifestResourceSummary `json:"resources"`
 	Artifacts       []string                  `json:"artifacts,omitempty"`
 	DryRun          bool                      `json:"dryRun"`
 	Apply           bool                      `json:"apply"`
+	Wait            bool                      `json:"wait"`
+	TimeoutSeconds  int                       `json:"timeoutSeconds,omitempty"`
 	Actions         []string                  `json:"actions"`
 	Warnings        []string                  `json:"warnings,omitempty"`
 	DiffSummary     string                    `json:"diffSummary"`
@@ -48,12 +55,47 @@ type ManifestDocument struct {
 }
 
 type ManifestResourceSummary struct {
-	APIVersion string `json:"apiVersion"`
-	Kind       string `json:"kind"`
-	Name       string `json:"name"`
-	Namespace  string `json:"namespace,omitempty"`
-	SourceFile string `json:"sourceFile,omitempty"`
-	Index      int    `json:"index"`
+	APIVersion  string            `json:"apiVersion"`
+	Kind        string            `json:"kind"`
+	Name        string            `json:"name"`
+	Namespace   string            `json:"namespace,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+	SourceFile  string            `json:"sourceFile,omitempty"`
+	Index       int               `json:"index"`
+}
+
+type ManifestRequest struct {
+	Plan           DeploymentPlan     `json:"plan"`
+	Documents      []ManifestDocument `json:"documents"`
+	TimeoutSeconds int                `json:"timeoutSeconds,omitempty"`
+}
+
+type KubernetesDryRunResult struct {
+	Mode      string                    `json:"mode,omitempty"`
+	Message   string                    `json:"message,omitempty"`
+	Resources []ManifestResourceSummary `json:"resources,omitempty"`
+	Warnings  []string                  `json:"warnings,omitempty"`
+	Stdout    string                    `json:"stdout,omitempty"`
+	Stderr    string                    `json:"stderr,omitempty"`
+}
+
+type KubernetesApplyResult struct {
+	Mode      string                    `json:"mode,omitempty"`
+	Message   string                    `json:"message,omitempty"`
+	Resources []ManifestResourceSummary `json:"resources,omitempty"`
+	Warnings  []string                  `json:"warnings,omitempty"`
+	Stdout    string                    `json:"stdout,omitempty"`
+	Stderr    string                    `json:"stderr,omitempty"`
+}
+
+type RolloutResult struct {
+	Mode      string                    `json:"mode,omitempty"`
+	Message   string                    `json:"message,omitempty"`
+	Resources []ManifestResourceSummary `json:"resources,omitempty"`
+	Warnings  []string                  `json:"warnings,omitempty"`
+	Stdout    string                    `json:"stdout,omitempty"`
+	Stderr    string                    `json:"stderr,omitempty"`
 }
 
 type TimelineEntry struct {
@@ -67,6 +109,7 @@ type TimelineEntry struct {
 type CreateRunInput struct {
 	Definition Definition
 	ActorID    string
+	AllowApply bool
 }
 
 type CreateRunResult struct {

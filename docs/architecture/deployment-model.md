@@ -9,11 +9,11 @@ Nivora treats deployment as a workflow from Release intent to an Environment or 
 - Environment: delivery context such as dev, staging, production, region, or tenant.
 - Release Target: concrete target such as a host group, Kubernetes cluster, Argo CD application, cloud target, or webhook target.
 
-## Phase 2.0 YAML Foundation
+## Phase 2.1 YAML Runtime Foundation
 
-Phase 2.0 introduces the first CD-side execution foundation. It supports a minimal `Deployment` YAML spec that creates a DeploymentRun, renders static YAML manifest files, validates manifest shape, builds a DeploymentPlan, runs a policy pre-check placeholder, performs non-destructive dry-run validation through the local no-op manifest client, and records logs, events, audit entries, and timeline data.
+Phase 2.1 extends the CD-side foundation. It supports a minimal `Deployment` YAML spec that creates a DeploymentRun, renders static YAML manifest files, validates manifest shape, builds a DeploymentPlan, runs a policy pre-check placeholder, performs controlled server-side dry-run behavior through a manifest client port, can run explicit no-op local apply when confirmed, and records logs, events, audit entries, resource inventory, rollout result, rollback baseline, and timeline data.
 
-The Phase 2.0 flow is:
+The Phase 2.1 flow is:
 
 ```text
 Release intent
@@ -22,10 +22,12 @@ Release intent
 -> deployment plan
 -> policy pre-check
 -> dry-run validation
+-> optional explicit apply
+-> optional rollout verification
 -> status/events/audit/logs
 ```
 
-Dry-run success means Nivora successfully rendered and validated the desired manifests in its current storage/runtime mode. It does not mean resources were applied to a cluster.
+Dry-run success means Nivora successfully rendered and validated the desired manifests in its current storage/runtime mode. It does not mean resources were applied to a cluster. Apply is explicit and never default.
 
 ## Deployment Modes
 
@@ -45,8 +47,8 @@ Rollback should be modeled as an auditable operation with a reason, target, prio
 
 ## Deployment Diff and Health Verification
 
-Phase 2.0 produces a stable desired-state summary and a diff placeholder. Live cluster diff and health verification are future work. These features should be target-aware and should not assume Kubernetes or Argo CD is always present.
+Phase 2.1 produces a stable desired-state summary and a diff placeholder. Live cluster diff is future work. Rollout verification is modeled through the manifest client port and defaults to a no-op local result.
 
 ## Current State
 
-Phase 2.0 supports YAML deployment planning and dry-run foundation only. Production Kubernetes apply, Helm, Kustomize, Argo CD, cloud providers, host deployment, and registry integrations remain future work.
+Phase 2.1 supports YAML deployment planning, dry-run, explicit local no-op apply, resource inventory, rollout result modeling, and rollback baseline only. Production Kubernetes apply, Helm, Kustomize, Argo CD, cloud providers, host deployment, and registry integrations remain future work.

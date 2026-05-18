@@ -91,7 +91,7 @@ func TestServiceFailsWhenPolicyDenies(t *testing.T) {
 }
 
 func TestServiceFailsWhenDryRunClientFails(t *testing.T) {
-	service, def := newTestService(t, true, errors.New("dry-run failed"))
+	service, def := newTestServiceWithClient(t, true, testManifestClient{dryRunErr: errors.New("dry-run failed")})
 
 	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
 	if err != nil {
@@ -103,6 +103,73 @@ func TestServiceFailsWhenDryRunClientFails(t *testing.T) {
 	if result.Record.Run.Reason != "dry-run failed" {
 		t.Fatalf("reason = %q", result.Record.Run.Reason)
 	}
+}
+
+func TestServiceRejectsApplyWithoutExplicitConfirmation(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	def.Spec.Options = Options{Apply: true, DryRun: false}
+
+	_, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
+	if err == nil {
+		t.Fatal("expected apply confirmation error")
+	}
+}
+
+func TestServiceApplySuccessWithRollout(t *testing.T) {
+	service, def := newTestServiceWithClient(t, true, testManifestClient{})
+	def.Spec.Options = Options{Apply: true, DryRun: false, Wait: true, TimeoutSeconds: 30}
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true})
+	if err != nil {
+		t.Fatalf("apply run: %v", err)
+	}
+	record := result.Record
+	if record.Run.Status != domaindeployment.DeploymentRunSucceeded {
+		t.Fatalf("status = %s", record.Run.Status)
+	}
+	if !record.Plan.Apply || !record.Plan.Wait {
+		t.Fatalf("plan = %#v", record.Plan)
+	}
+	if record.Apply.Message == "" {
+		t.Fatal("expected apply result")
+	}
+	if record.Rollout.Message == "" {
+		t.Fatal("expected rollout result")
+	}
+	if record.Rollback == nil || len(record.Rollback.ResourceRefs) == 0 {
+		t.Fatalf("rollback baseline = %#v", record.Rollback)
+	}
+	assertHasDeploymentEvent(t, record.Events, EventDeploymentApplyStarted)
+	assertHasDeploymentEvent(t, record.Events, EventDeploymentApplyCompleted)
+	assertHasDeploymentEvent(t, record.Events, EventDeploymentVerifyCompleted)
+}
+
+func TestServiceApplyFailure(t *testing.T) {
+	service, def := newTestServiceWithClient(t, true, testManifestClient{applyErr: errors.New("apply failed")})
+	def.Spec.Options = Options{Apply: true, DryRun: false}
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true})
+	if err != nil {
+		t.Fatalf("apply failure should persist failed run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	assertHasDeploymentEvent(t, result.Record.Events, EventDeploymentApplyFailed)
+}
+
+func TestServiceRolloutFailure(t *testing.T) {
+	service, def := newTestServiceWithClient(t, true, testManifestClient{rolloutErr: errors.New("rollout timeout")})
+	def.Spec.Options = Options{Apply: true, DryRun: false, Wait: true}
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true})
+	if err != nil {
+		t.Fatalf("rollout failure should persist failed run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	assertHasDeploymentEvent(t, result.Record.Events, EventDeploymentVerifyFailed)
 }
 
 func TestServiceCancelCreatedRun(t *testing.T) {
@@ -147,6 +214,10 @@ func TestMemoryStoreOrdersLogs(t *testing.T) {
 }
 
 func newTestService(t *testing.T, policyAllowed bool, clientErr error) (*Service, Definition) {
+	return newTestServiceWithClient(t, policyAllowed, testManifestClient{dryRunErr: clientErr})
+}
+
+func newTestServiceWithClient(t *testing.T, policyAllowed bool, client ManifestClient) (*Service, Definition) {
 	t.Helper()
 	dir := t.TempDir()
 	manifest := filepath.Join(dir, "resources.yaml")
@@ -180,7 +251,7 @@ metadata:
 			Options:   Options{DryRun: true, Apply: false},
 		},
 	}
-	service := NewService(NewMemoryStore(), StaticManifestRenderer{}, failingManifestClient{err: clientErr}, testPolicy{allowed: policyAllowed}, testEventBus{})
+	service := NewService(NewMemoryStore(), StaticManifestRenderer{}, client, testPolicy{allowed: policyAllowed}, testEventBus{})
 	return service, def
 }
 
@@ -205,12 +276,31 @@ func (p testPolicy) Evaluate(ctx context.Context, request policy.Request) (polic
 	return policy.Result{Allowed: false, Reasons: []string{"denied by test policy"}}, nil
 }
 
-type failingManifestClient struct {
-	err error
+type testManifestClient struct {
+	dryRunErr  error
+	applyErr   error
+	rolloutErr error
 }
 
-func (c failingManifestClient) DryRun(ctx context.Context, plan DeploymentPlan, documents []ManifestDocument) error {
-	return c.err
+func (c testManifestClient) ServerDryRun(ctx context.Context, request ManifestRequest) (KubernetesDryRunResult, error) {
+	if c.dryRunErr != nil {
+		return KubernetesDryRunResult{}, c.dryRunErr
+	}
+	return KubernetesDryRunResult{Mode: "test", Message: "dry-run ok", Resources: request.Plan.Resources}, nil
+}
+
+func (c testManifestClient) Apply(ctx context.Context, request ManifestRequest) (KubernetesApplyResult, error) {
+	if c.applyErr != nil {
+		return KubernetesApplyResult{}, c.applyErr
+	}
+	return KubernetesApplyResult{Mode: "test", Message: "apply ok", Resources: request.Plan.Resources}, nil
+}
+
+func (c testManifestClient) WatchRollout(ctx context.Context, request ManifestRequest) (RolloutResult, error) {
+	if c.rolloutErr != nil {
+		return RolloutResult{}, c.rolloutErr
+	}
+	return RolloutResult{Mode: "test", Message: "rollout ok", Resources: request.Plan.Resources}, nil
 }
 
 type testEventBus struct{}

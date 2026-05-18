@@ -31,6 +31,7 @@ type Spec struct {
 type Target struct {
 	Type      string `json:"type" yaml:"type"`
 	Name      string `json:"name" yaml:"name"`
+	Context   string `json:"context,omitempty" yaml:"context,omitempty"`
 	Namespace string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
 }
 
@@ -41,8 +42,10 @@ type Artifact struct {
 }
 
 type Options struct {
-	DryRun bool `json:"dryRun" yaml:"dryRun"`
-	Apply  bool `json:"apply" yaml:"apply"`
+	DryRun         bool `json:"dryRun" yaml:"dryRun"`
+	Apply          bool `json:"apply" yaml:"apply"`
+	Wait           bool `json:"wait" yaml:"wait"`
+	TimeoutSeconds int  `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
 }
 
 func LoadDefinitionFile(path string) (Definition, error) {
@@ -81,7 +84,7 @@ func (d Definition) Validate() error {
 		return errors.New("deployment target.type is required")
 	}
 	if d.Spec.Target.Type != "kubernetes-yaml" {
-		return fmt.Errorf("deployment target.type %q is not supported in Phase 2.0", d.Spec.Target.Type)
+		return fmt.Errorf("deployment target.type %q is not supported in Phase 2.1", d.Spec.Target.Type)
 	}
 	if d.Spec.Target.Name == "" {
 		return errors.New("deployment target.name is required")
@@ -108,5 +111,15 @@ func (d Definition) Validate() error {
 			return fmt.Errorf("deployment artifact %q reference is required", artifact.Name)
 		}
 	}
+	if d.Spec.Options.Apply && d.Spec.Options.DryRun {
+		return errors.New("deployment options.apply=true requires options.dryRun=false")
+	}
+	if d.Spec.Options.TimeoutSeconds < 0 {
+		return errors.New("deployment options.timeoutSeconds cannot be negative")
+	}
 	return nil
+}
+
+func (o Options) dryRunOnly() bool {
+	return !o.Apply
 }

@@ -1,13 +1,13 @@
 apiVersion: nivora.io/v1alpha1
 kind: Deployment
 metadata:
-  name: demo-yaml-deployment
+  name: demo-yaml-apply-local
 spec:
   application: demo-springboot
   environment: dev
   target:
     type: kubernetes-yaml
-    name: dev-kind
+    name: local-noop
     namespace: default
   artifacts:
     - name: demo-springboot
@@ -18,5 +18,7 @@ spec:
     - examples/yaml/deployment.yaml
     - examples/yaml/service.yaml
   options:
-    dryRun: true
-    apply: false
+    dryRun: false
+    apply: true
+    wait: true
+    timeoutSeconds: 120

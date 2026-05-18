@@ -14,7 +14,7 @@ Policies help decide whether a PipelineRun, Release, or DeploymentRun may procee
 
 ## Current Implementation
 
-Phase 2.0 calls a PolicyEngine during DeploymentRun pre-check. The default local runtime uses an allow-all placeholder so the workflow is explicit without pretending a production policy engine exists. Real policy engines, admission checks, and security scanner integrations remain future work.
+Phase 2.1 calls a PolicyEngine during DeploymentRun pre-check. The default local runtime uses an allow-all placeholder so the workflow is explicit without pretending a production policy engine exists. Real policy engines, admission checks, and security scanner integrations remain future work.
 
 ## Common Confusion
 

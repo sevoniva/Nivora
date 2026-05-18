@@ -1,6 +1,6 @@
 # YAML Deployment Dry-Run
 
-Phase 2.0 adds a minimal DeploymentRun foundation for static YAML manifests. It is intentionally non-destructive.
+Phase 2.1 keeps dry-run as the primary safe DeploymentRun path for static YAML manifests. It is intentionally non-destructive.
 
 ## What It Does
 
@@ -10,7 +10,7 @@ Phase 2.0 adds a minimal DeploymentRun foundation for static YAML manifests. It 
 - Validates `apiVersion`, `kind`, and `metadata.name`.
 - Builds a DeploymentPlan and resource summary.
 - Runs a PolicyEngine pre-check through the local allow-all placeholder.
-- Runs non-destructive dry-run validation through the local no-op manifest client.
+- Runs non-destructive server-side dry-run behavior through the KubernetesManifestClient port.
 - Records logs, events, audit records, and timeline entries.
 
 ## What It Does Not Do
@@ -26,7 +26,7 @@ Phase 2.0 adds a minimal DeploymentRun foundation for static YAML manifests. It 
 
 ```bash
 go run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
-go run ./cmd/nivora deployment run --local examples/deployments/yaml-dry-run.yaml
+go run ./cmd/nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
 make deployment-plan-local
 make deployment-run-local
 make verify-deployment

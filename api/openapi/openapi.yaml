@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 2.0 supports minimal shell PipelineRun execution and non-destructive YAML DeploymentRun planning/dry-run.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 2.1 supports minimal shell PipelineRun execution and controlled Kubernetes YAML DeploymentRun dry-run/apply foundation.
 servers:
   - url: http://localhost:8080
 paths:
@@ -195,7 +195,7 @@ paths:
           $ref: "#/components/responses/NotImplemented"
   /api/v1/deployments:
     get:
-      summary: List DeploymentRuns in the in-memory Phase 2.0 runtime
+      summary: List DeploymentRuns in the in-memory Phase 2.1 runtime
       responses:
         "200":
           description: DeploymentRun records
@@ -282,6 +282,22 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/LogChunk"
+        "404":
+          description: DeploymentRun not found
+  /api/v1/deployments/{id}/resources:
+    get:
+      summary: Get DeploymentRun resource inventory
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: DeploymentRun resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/DeploymentResource"
         "404":
           description: DeploymentRun not found
   /api/v1/deployments/{id}/events:
@@ -710,6 +726,8 @@ components:
               enum: [kubernetes-yaml]
             name:
               type: string
+            context:
+              type: string
             namespace:
               type: string
         artifacts:
@@ -735,6 +753,11 @@ components:
               type: boolean
             apply:
               type: boolean
+            wait:
+              type: boolean
+            timeoutSeconds:
+              type: integer
+              minimum: 0
     DeploymentRunRecord:
       type: object
       properties:
@@ -758,6 +781,14 @@ components:
             $ref: "#/components/schemas/DeploymentStep"
         plan:
           $ref: "#/components/schemas/DeploymentPlan"
+        dryRun:
+          $ref: "#/components/schemas/KubernetesDryRunResult"
+        apply:
+          $ref: "#/components/schemas/KubernetesApplyResult"
+        rollout:
+          $ref: "#/components/schemas/RolloutResult"
+        rollback:
+          $ref: "#/components/schemas/RollbackRecord"
         logs:
           type: array
           items:
@@ -781,6 +812,8 @@ components:
           type: string
         namespace:
           type: string
+        targetContext:
+          type: string
         manifestCount:
           type: integer
         resources:
@@ -795,6 +828,10 @@ components:
           type: boolean
         apply:
           type: boolean
+        wait:
+          type: boolean
+        timeoutSeconds:
+          type: integer
         actions:
           type: array
           items:
@@ -839,6 +876,100 @@ components:
         name:
           type: string
         namespace:
+          type: string
+        sourceFile:
+          type: string
+        index:
+          type: integer
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        annotations:
+          type: object
+          additionalProperties:
+            type: string
+    DeploymentResource:
+      $ref: "#/components/schemas/ManifestResourceSummary"
+    KubernetesDryRunResult:
+      type: object
+      properties:
+        mode:
+          type: string
+        message:
+          type: string
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManifestResourceSummary"
+        warnings:
+          type: array
+          items:
+            type: string
+        stdout:
+          type: string
+        stderr:
+          type: string
+    KubernetesApplyResult:
+      type: object
+      properties:
+        mode:
+          type: string
+        message:
+          type: string
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManifestResourceSummary"
+        warnings:
+          type: array
+          items:
+            type: string
+        stdout:
+          type: string
+        stderr:
+          type: string
+    RolloutResult:
+      type: object
+      properties:
+        mode:
+          type: string
+        message:
+          type: string
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManifestResourceSummary"
+        warnings:
+          type: array
+          items:
+            type: string
+        stdout:
+          type: string
+        stderr:
+          type: string
+    RollbackRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        deploymentRunId:
+          type: string
+        strategy:
+          type: string
+        status:
+          type: string
+        targetType:
+          type: string
+        targetName:
+          type: string
+        manifestSnapshotRef:
+          type: string
+        resourceRefs:
+          type: array
+          items:
+            type: string
+        reason:
           type: string
     PolicyResult:
       type: object

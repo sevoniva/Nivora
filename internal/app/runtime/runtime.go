@@ -5,6 +5,7 @@ import (
 
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
+	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -23,7 +24,7 @@ func NewDeploymentService() *deploymentusecase.Service {
 	return deploymentusecase.NewService(
 		store,
 		deploymentusecase.NewStaticManifestRenderer(),
-		deploymentusecase.NoopManifestClient{},
+		yamlapply.NoopManifestClient{},
 		allowAllPolicyEngine{},
 		bus,
 	)
@@ -36,6 +37,6 @@ func (allowAllPolicyEngine) Evaluate(ctx context.Context, request policy.Request
 	case <-ctx.Done():
 		return policy.Result{}, ctx.Err()
 	default:
-		return policy.Result{Allowed: true, Reasons: []string{"Phase 2.0 allow-all policy placeholder"}}, nil
+		return policy.Result{Allowed: true, Reasons: []string{"Phase 2.1 allow-all policy placeholder"}}, nil
 	}
 }

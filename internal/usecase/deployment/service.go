@@ -23,25 +23,25 @@ const (
 	EventDeploymentPrecheckCompleted = "devops.deployment.precheck.completed"
 	EventDeploymentDryRunStarted     = "devops.deployment.dryrun.started"
 	EventDeploymentDryRunCompleted   = "devops.deployment.dryrun.completed"
+	EventDeploymentDryRunFailed      = "devops.deployment.dryrun.failed"
+	EventDeploymentApplyStarted      = "devops.deployment.apply.started"
+	EventDeploymentApplyCompleted    = "devops.deployment.apply.completed"
+	EventDeploymentApplyFailed       = "devops.deployment.apply.failed"
+	EventDeploymentVerifyStarted     = "devops.deployment.verify.started"
+	EventDeploymentVerifyCompleted   = "devops.deployment.verify.completed"
+	EventDeploymentVerifyFailed      = "devops.deployment.verify.failed"
 	EventDeploymentSucceeded         = "devops.deployment.succeeded"
 	EventDeploymentFailed            = "devops.deployment.failed"
 	EventDeploymentCanceled          = "devops.deployment.canceled"
 )
 
-type ManifestClient interface {
-	DryRun(ctx context.Context, plan DeploymentPlan, documents []ManifestDocument) error
+type KubernetesManifestClient interface {
+	ServerDryRun(ctx context.Context, request ManifestRequest) (KubernetesDryRunResult, error)
+	Apply(ctx context.Context, request ManifestRequest) (KubernetesApplyResult, error)
+	WatchRollout(ctx context.Context, request ManifestRequest) (RolloutResult, error)
 }
 
-type NoopManifestClient struct{}
-
-func (NoopManifestClient) DryRun(ctx context.Context, plan DeploymentPlan, documents []ManifestDocument) error {
-	select {
-	case <-ctx.Done():
-		return ctx.Err()
-	default:
-		return nil
-	}
-}
+type ManifestClient = KubernetesManifestClient
 
 type Service struct {
 	store    Store
@@ -66,6 +66,9 @@ func NewService(store Store, renderer ManifestRenderer, client ManifestClient, p
 func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (CreateRunResult, error) {
 	if err := input.Definition.Validate(); err != nil {
 		return CreateRunResult{}, err
+	}
+	if input.Definition.Spec.Options.Apply && !input.AllowApply {
+		return CreateRunResult{}, fmt.Errorf("deployment apply requires explicit confirmation")
 	}
 	record := s.newRecord(input.Definition)
 	if err := s.store.Save(ctx, record); err != nil {
@@ -94,6 +97,7 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 		return CreateRunResult{}, err
 	}
 	record.Plan = s.buildPlan(record.Run.ID, input.Definition, documents)
+	record.Rollback = s.rollbackBaseline(record.Run.ID, input.Definition, record.Plan.Resources)
 	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("rendered %d manifest document(s)", len(documents)), int64(len(record.Logs)+1)))
 	return CreateRunResult{Record: record}, nil
 }
@@ -114,6 +118,7 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 		return s.fail(ctx, record, actorID, err.Error())
 	}
 	record.Plan = s.buildPlan(record.Run.ID, record.Definition, documents)
+	record.Rollback = s.rollbackBaseline(record.Run.ID, record.Definition, record.Plan.Resources)
 	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("rendered %d manifest document(s)", len(documents)), int64(len(record.Logs)+1)))
 
 	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunPreChecking, s.now(), ""); err != nil {
@@ -158,20 +163,91 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 	if record, err = s.recordRuntimeEvent(ctx, record, EventDeploymentDryRunStarted, string(record.Run.Status), "Deployment dry-run started"); err != nil {
 		return RunRecord{}, err
 	}
-	if err := s.client.DryRun(ctx, record.Plan, documents); err != nil {
+	request := ManifestRequest{Plan: record.Plan, Documents: documents, TimeoutSeconds: record.Plan.TimeoutSeconds}
+	dryRunResult, err := s.client.ServerDryRun(ctx, request)
+	if err != nil {
+		record, _ = s.recordRuntimeEvent(ctx, record, EventDeploymentDryRunFailed, string(domaindeployment.DeploymentRunFailed), err.Error())
 		return s.fail(ctx, record, actorID, err.Error())
 	}
-	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", "dry-run validation completed", int64(len(record.Logs)+1)))
-	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunSucceeded, s.now(), "dry-run deployment run succeeded"); err != nil {
-		return RunRecord{}, err
-	}
+	record.DryRun = dryRunResult
+	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", dryRunResult.Message, int64(len(record.Logs)+1)))
 	if err := s.store.Save(ctx, record); err != nil {
 		return RunRecord{}, err
 	}
 	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentDryRunCompleted, "Deployment dry-run completed", actorID, string(record.Run.Status), "Deployment dry-run completed"); err != nil {
 		return RunRecord{}, err
 	}
-	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentSucceeded, "DeploymentRun succeeded", actorID, string(record.Run.Status), "DeploymentRun dry-run succeeded"); err != nil {
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	if !record.Plan.Apply {
+		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", "dry-run validation completed", int64(len(record.Logs)+1)))
+		if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunSucceeded, s.now(), "dry-run deployment run succeeded"); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentSucceeded, "DeploymentRun succeeded", actorID, string(record.Run.Status), "DeploymentRun dry-run succeeded"); err != nil {
+			return RunRecord{}, err
+		}
+		return s.store.Get(ctx, record.Run.ID)
+	}
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunDeploying, s.now(), ""); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentApplyStarted, "Deployment apply started", actorID, string(record.Run.Status), "Deployment apply started"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	applyResult, err := s.client.Apply(ctx, request)
+	if err != nil {
+		record, _ = s.recordRuntimeEvent(ctx, record, EventDeploymentApplyFailed, string(domaindeployment.DeploymentRunFailed), err.Error())
+		return s.fail(ctx, record, actorID, err.Error())
+	}
+	record.Apply = applyResult
+	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", applyResult.Message, int64(len(record.Logs)+1)))
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentApplyCompleted, "Deployment apply completed", actorID, string(record.Run.Status), "Deployment apply completed"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	if record.Plan.Wait {
+		if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunVerifying, s.now(), ""); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentVerifyStarted, "Deployment verification started", actorID, string(record.Run.Status), "Deployment rollout verification started"); err != nil {
+			return RunRecord{}, err
+		}
+		record, _ = s.store.Get(ctx, record.Run.ID)
+		rolloutResult, err := s.client.WatchRollout(ctx, request)
+		if err != nil {
+			record, _ = s.recordRuntimeEvent(ctx, record, EventDeploymentVerifyFailed, string(domaindeployment.DeploymentRunFailed), err.Error())
+			return s.fail(ctx, record, actorID, err.Error())
+		}
+		record.Rollout = rolloutResult
+		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", rolloutResult.Message, int64(len(record.Logs)+1)))
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentVerifyCompleted, "Deployment verification completed", actorID, string(record.Run.Status), "Deployment rollout verification completed"); err != nil {
+			return RunRecord{}, err
+		}
+		record, _ = s.store.Get(ctx, record.Run.ID)
+	}
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunSucceeded, s.now(), "kubernetes YAML apply completed"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentSucceeded, "DeploymentRun succeeded", actorID, string(record.Run.Status), "DeploymentRun apply succeeded"); err != nil {
 		return RunRecord{}, err
 	}
 	return s.store.Get(ctx, record.Run.ID)
@@ -196,6 +272,14 @@ func (s *Service) Logs(ctx context.Context, id string) ([]event.LogChunk, error)
 }
 func (s *Service) Events(ctx context.Context, id string) ([]event.Event, error) {
 	return s.store.Events(ctx, id)
+}
+
+func (s *Service) Resources(ctx context.Context, id string) ([]ManifestResourceSummary, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return append([]ManifestResourceSummary(nil), record.Plan.Resources...), nil
 }
 
 func (s *Service) Timeline(ctx context.Context, id string) ([]TimelineEntry, error) {
@@ -278,6 +362,7 @@ func (s *Service) newRecord(def Definition) RunRecord {
 			EnvironmentID: envID,
 			Name:          def.Spec.Target.Name,
 			TargetType:    def.Spec.Target.Type,
+			Context:       def.Spec.Target.Context,
 			Namespace:     def.Spec.Target.Namespace,
 			CreatedAt:     now,
 			UpdatedAt:     now,
@@ -307,22 +392,53 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 	for _, doc := range docs {
 		resources = append(resources, doc.Resource)
 	}
-	warnings := []string{"live cluster diff is not implemented in Phase 2.0"}
+	warnings := []string{"live cluster diff is not implemented in Phase 2.1"}
 	if def.Spec.Options.Apply {
-		warnings = append(warnings, "apply requested but Phase 2.0 uses non-destructive dry-run validation only")
+		warnings = append(warnings, "apply requested; Phase 2.1 apply requires explicit confirmation and uses the configured manifest client")
+	}
+	actions := []string{"render manifests", "validate manifests", "policy pre-check", "server-side dry-run"}
+	if def.Spec.Options.Apply {
+		actions = append(actions, "apply manifests")
+	}
+	if def.Spec.Options.Apply && def.Spec.Options.Wait {
+		actions = append(actions, "rollout verification")
 	}
 	return DeploymentPlan{
 		DeploymentRunID: runID,
 		TargetType:      def.Spec.Target.Type,
+		TargetContext:   def.Spec.Target.Context,
 		Namespace:       def.Spec.Target.Namespace,
 		ManifestCount:   len(docs),
 		Resources:       resources,
 		Artifacts:       artifacts,
-		DryRun:          true,
-		Apply:           false,
-		Actions:         []string{"render manifests", "validate manifests", "policy pre-check", "dry-run validation"},
+		DryRun:          def.Spec.Options.dryRunOnly(),
+		Apply:           def.Spec.Options.Apply,
+		Wait:            def.Spec.Options.Wait,
+		TimeoutSeconds:  def.Spec.Options.TimeoutSeconds,
+		Actions:         actions,
 		Warnings:        warnings,
-		DiffSummary:     fmt.Sprintf("desired state contains %d manifest resource(s); live diff is not available in Phase 2.0", len(docs)),
+		DiffSummary:     fmt.Sprintf("desired state contains %d manifest resource(s); live diff is not available in Phase 2.1", len(docs)),
+	}
+}
+
+func (s *Service) rollbackBaseline(runID string, def Definition, resources []ManifestResourceSummary) *domaindeployment.RollbackRecord {
+	refs := make([]string, 0, len(resources))
+	for _, resource := range resources {
+		refs = append(refs, fmt.Sprintf("%s/%s/%s", resource.Kind, resource.Namespace, resource.Name))
+	}
+	now := s.now()
+	return &domaindeployment.RollbackRecord{
+		ID:                  newID("rollback"),
+		DeploymentRunID:     runID,
+		Strategy:            "manifest-snapshot",
+		Status:              "placeholder",
+		TargetType:          def.Spec.Target.Type,
+		TargetName:          def.Spec.Target.Name,
+		ManifestSnapshotRef: "memory://" + runID + "/previous-manifests",
+		ResourceRefs:        refs,
+		Reason:              "rollback execution is not implemented in Phase 2.1",
+		CreatedAt:           now,
+		UpdatedAt:           now,
 	}
 }
 
@@ -335,6 +451,16 @@ func (s *Service) logChunk(runID string, stream string, content string, sequence
 		Content:         content,
 		CreatedAt:       s.now(),
 	}
+}
+
+func validateManifestRequest(request ManifestRequest) error {
+	if request.Plan.DeploymentRunID == "" {
+		return fmt.Errorf("deploymentRunId is required")
+	}
+	if len(request.Documents) == 0 {
+		return fmt.Errorf("at least one manifest document is required")
+	}
+	return nil
 }
 
 func (s *Service) recordEventAndAudit(ctx context.Context, runID string, eventType string, action string, actorID string, status string, message string) error {

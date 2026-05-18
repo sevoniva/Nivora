@@ -41,6 +41,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/deployments", handlers.CreateDeploymentRun(deploymentService))
 		api.Get("/deployments/{id}", handlers.GetDeploymentRun(deploymentService))
 		api.Get("/deployments/{id}/plan", handlers.GetDeploymentPlan(deploymentService))
+		api.Get("/deployments/{id}/resources", handlers.GetDeploymentResources(deploymentService))
 		api.Get("/deployments/{id}/logs", handlers.GetDeploymentLogs(deploymentService))
 		api.Get("/deployments/{id}/events", handlers.GetDeploymentEvents(deploymentService))
 		api.Get("/deployments/{id}/timeline", handlers.GetDeploymentTimeline(deploymentService))

@@ -94,6 +94,8 @@ func summarizeManifest(sourceFile string, index int, content []byte, defaultName
 	metadata, _ := manifest["metadata"].(map[string]any)
 	name, _ := metadata["name"].(string)
 	namespace, _ := metadata["namespace"].(string)
+	labels := stringMap(metadata["labels"])
+	annotations := stringMap(metadata["annotations"])
 	if namespace == "" {
 		namespace = defaultNamespace
 	}
@@ -107,11 +109,30 @@ func summarizeManifest(sourceFile string, index int, content []byte, defaultName
 		return ManifestResourceSummary{}, fmt.Errorf("manifest %q document %d metadata.name is required", sourceFile, index)
 	}
 	return ManifestResourceSummary{
-		APIVersion: apiVersion,
-		Kind:       kind,
-		Name:       name,
-		Namespace:  namespace,
-		SourceFile: sourceFile,
-		Index:      index,
+		APIVersion:  apiVersion,
+		Kind:        kind,
+		Name:        name,
+		Namespace:   namespace,
+		Labels:      labels,
+		Annotations: annotations,
+		SourceFile:  sourceFile,
+		Index:       index,
 	}, nil
+}
+
+func stringMap(value any) map[string]string {
+	raw, ok := value.(map[string]any)
+	if !ok || len(raw) == 0 {
+		return nil
+	}
+	converted := make(map[string]string, len(raw))
+	for key, value := range raw {
+		if text, ok := value.(string); ok {
+			converted[key] = text
+		}
+	}
+	if len(converted) == 0 {
+		return nil
+	}
+	return converted
 }

@@ -11,6 +11,7 @@ import (
 
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
+	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
@@ -80,7 +81,7 @@ func newTestDeploymentService() *deploymentusecase.Service {
 	return deploymentusecase.NewService(
 		deploymentusecase.NewMemoryStore(),
 		deploymentusecase.StaticManifestRenderer{},
-		deploymentusecase.NoopManifestClient{},
+		yamlapply.NoopManifestClient{},
 		allowPolicy{},
 		memory.New(),
 	)

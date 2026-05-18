@@ -43,8 +43,9 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 
 - Add release and deployment workflows.
 - Phase 2.0 adds YAML deployment planning and non-destructive dry-run foundation.
-- Future Phase 2 work adds GitOps deployment mode, approval gates, release audit trails, deployment diff, health verification, and rollback foundation.
-- Keep production Kubernetes apply, Helm, Kustomize, and Argo CD implementation out of Phase 2.0.
+- Phase 2.1 adds controlled Kubernetes YAML dry-run/apply runtime foundation with explicit local apply, resource inventory, rollout result modeling, and rollback baseline.
+- Future Phase 2 work adds GitOps deployment mode, approval gates, release audit trails, live deployment diff, production health verification, and rollback execution.
+- Keep production Kubernetes apply semantics, Helm, Kustomize, and Argo CD implementation out of Phase 2.1.
 
 ## Phase 3: Multi-Cloud and DevSecOps
 

@@ -230,7 +230,10 @@ func newDeploymentCommand() *cobra.Command {
 	}
 	cmd.AddCommand(newDeploymentPlanCommand())
 	cmd.AddCommand(newDeploymentRunCommand())
+	cmd.AddCommand(newDeploymentDryRunCommand())
+	cmd.AddCommand(newDeploymentApplyCommand())
 	cmd.AddCommand(newDeploymentGetCommand())
+	cmd.AddCommand(newDeploymentInspectCommand("resources", "Get DeploymentRun resources", "/resources"))
 	cmd.AddCommand(newDeploymentInspectCommand("logs", "Get DeploymentRun logs", "/logs"))
 	cmd.AddCommand(newDeploymentInspectCommand("events", "Get DeploymentRun events", "/events"))
 	cmd.AddCommand(newDeploymentInspectCommand("timeline", "Get DeploymentRun timeline", "/timeline"))
@@ -273,7 +276,7 @@ func newDeploymentPlanCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 2.0 local runtime")
+	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 2.1 local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "", "Nivora server URL for --local=false")
 	return cmd
 }
@@ -321,8 +324,58 @@ func newDeploymentRunCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process Phase 2.0 local runtime")
+	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process Phase 2.1 local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "", "Nivora server URL for --local=false")
+	return cmd
+}
+
+func newDeploymentDryRunCommand() *cobra.Command {
+	cmd := newDeploymentRunCommand()
+	cmd.Use = "dry-run --local <deployment.yaml>"
+	cmd.Short = "Run a non-destructive YAML DeploymentRun dry-run"
+	return cmd
+}
+
+func newDeploymentApplyCommand() *cobra.Command {
+	var local bool
+	var confirm bool
+	cmd := &cobra.Command{
+		Use:   "apply --local <deployment.yaml> --confirm",
+		Short: "Run an explicit local YAML apply through the configured manifest client",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !local {
+				return fmt.Errorf("server-backed deployment apply is not implemented; use --local for Phase 2.1")
+			}
+			if !confirm {
+				return fmt.Errorf("deployment apply requires --confirm")
+			}
+			def, err := deploymentusecase.LoadDefinitionFile(args[0])
+			if err != nil {
+				return err
+			}
+			def.Spec.Options.Apply = true
+			def.Spec.Options.DryRun = false
+			started := time.Now()
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, AllowApply: true})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "DeploymentRun: %s\n", result.Record.Run.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", result.Record.Run.Status)
+			fmt.Fprintf(cmd.OutOrStdout(), "Duration: %s\n", time.Since(started).Round(time.Millisecond))
+			fmt.Fprintf(cmd.OutOrStdout(), "Apply: %s\n", result.Record.Apply.Message)
+			if result.Record.Rollout.Message != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Rollout: %s\n", result.Record.Rollout.Message)
+			}
+			if result.Record.Run.Reason != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "Reason: %s\n", result.Record.Run.Reason)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&local, "local", true, "apply with the in-process Phase 2.1 local runtime")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm explicit local apply")
 	return cmd
 }
 

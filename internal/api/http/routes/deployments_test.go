@@ -52,6 +52,7 @@ func TestDeploymentRoutes(t *testing.T) {
 	for _, path := range []string{
 		"/api/v1/deployments/" + runID,
 		"/api/v1/deployments/" + runID + "/plan",
+		"/api/v1/deployments/" + runID + "/resources",
 		"/api/v1/deployments/" + runID + "/logs",
 		"/api/v1/deployments/" + runID + "/events",
 		"/api/v1/deployments/" + runID + "/timeline",

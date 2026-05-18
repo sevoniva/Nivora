@@ -75,6 +75,43 @@ func TestPipelineRunRoutes(t *testing.T) {
 	}
 }
 
+func TestPipelineRunInvalidRequestIncludesRequestID(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService())
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs", bytes.NewReader([]byte(`not-json`)))
+	req.Header.Set("X-Request-Id", "test-request-id")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"request_id":"test-request-id"`)) {
+		t.Fatalf("missing request id body = %s", rec.Body.String())
+	}
+}
+
+func TestSystemInfoIncludesRuntimeMode(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := New(cfg, version.Current(), slog.New(slog.NewTextHandler(io.Discard, nil)), newTestPipelineService())
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/info", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"runtime_mode":"in_memory"`)) {
+		t.Fatalf("missing runtime mode body = %s", rec.Body.String())
+	}
+}
+
 func TestRunnerRoutes(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {

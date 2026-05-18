@@ -54,6 +54,20 @@ Phase 1.5 hardens this loop without adding Phase 2 integrations:
 
 This is still an early runtime foundation. It is not a distributed scheduler, does not provide durable cross-process PostgreSQL runtime persistence yet, and does not implement Kubernetes, Argo CD, Git provider, artifact registry, or cloud provider integrations.
 
+## Phase 1.6 Runtime Acceptance and Developer Experience
+
+Phase 1.6 makes the runtime easier to verify and extend without adding external integrations:
+
+- runtime acceptance matrix
+- local and API smoke scripts
+- safer example pipeline suite
+- server-backed CLI inspection commands
+- clearer validation errors
+- request IDs in structured API errors
+- developer getting started and troubleshooting docs
+
+The scope remains shell-only and self-contained.
+
 ## Acceptance Criteria
 
 - PipelineRun state transitions are tested.

@@ -15,19 +15,17 @@ func CreatePipelineRun(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var def pipelineusecase.Definition
 		if err := json.NewDecoder(r.Body).Decode(&def); err != nil {
-			RespondJSON(w, http.StatusBadRequest, dto.ErrorResponse{
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{
 				Code:    "invalid_request",
 				Message: "request body must be a pipeline definition",
-				Path:    r.URL.Path,
 			})
 			return
 		}
 		result, err := service.CreateAndRun(r.Context(), pipelineusecase.CreateRunInput{Definition: def})
 		if err != nil {
-			RespondJSON(w, http.StatusBadRequest, dto.ErrorResponse{
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{
 				Code:    "pipeline_run_failed",
 				Message: err.Error(),
-				Path:    r.URL.Path,
 			})
 			return
 		}
@@ -119,18 +117,16 @@ func RegisterRunner(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var runner domainrunner.Runner
 		if err := json.NewDecoder(r.Body).Decode(&runner); err != nil {
-			RespondJSON(w, http.StatusBadRequest, dto.ErrorResponse{
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{
 				Code:    "invalid_request",
 				Message: "request body must be a runner",
-				Path:    r.URL.Path,
 			})
 			return
 		}
 		if runner.ID == "" {
-			RespondJSON(w, http.StatusBadRequest, dto.ErrorResponse{
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{
 				Code:    "invalid_request",
 				Message: "runner id is required",
-				Path:    r.URL.Path,
 			})
 			return
 		}
@@ -187,9 +183,8 @@ func respondPipelineResult(w http.ResponseWriter, r *http.Request, payload any, 
 		status = http.StatusConflict
 		code = "pipeline_run_terminal"
 	}
-	RespondJSON(w, status, dto.ErrorResponse{
+	RespondError(w, r, status, dto.ErrorResponse{
 		Code:    code,
 		Message: err.Error(),
-		Path:    r.URL.Path,
 	})
 }

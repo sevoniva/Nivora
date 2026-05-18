@@ -693,6 +693,13 @@ make test
 make verify
 ```
 
+### Smoke Tests
+
+```bash
+make smoke-local
+make smoke-api
+```
+
 ### Run Server
 
 ```bash
@@ -724,6 +731,9 @@ make run-runner
 ```bash
 go run ./cmd/nivora version
 go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
+go run ./cmd/nivora pipeline get <pipeline-run-id> --server http://localhost:8080
+go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080
+go run ./cmd/nivora pipeline timeline <pipeline-run-id> --server http://localhost:8080
 ```
 
 ## Local Development
@@ -859,12 +869,13 @@ flowchart LR
     P06["Phase 0.6<br/>Public Planning"]
     P1["Phase 1<br/>Minimal Runtime"]
     P15["Phase 1.5<br/>Durable Runtime Foundation"]
+    P16["Phase 1.6<br/>Runtime DX & Acceptance"]
     P2["Phase 2<br/>Release Foundation"]
     P21["Phase 2.1<br/>GitOps"]
     P3["Phase 3<br/>Multi-cloud & DevSecOps"]
     P4["Phase 4<br/>Visualization"]
 
-    P0 --> P05 --> P06 --> P1 --> P15 --> P2 --> P21 --> P3 --> P4
+    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P3 --> P4
 ```
 
 See [ROADMAP.md](ROADMAP.md) and [docs/roadmap/overview.md](docs/roadmap/overview.md) for details.

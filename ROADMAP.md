@@ -34,6 +34,11 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 - Add in-memory runtime repositories, ordered LogChunks, timeline APIs, minimal cancellation, retry, timeout, runner selection, and runner heartbeat.
 - Keep runtime shell-only and avoid Phase 2 deployment integrations.
 
+## Phase 1.6: Runtime Acceptance and Developer Experience
+
+- Add runtime acceptance docs, smoke scripts, safer examples, CLI/API polish, and developer troubleshooting docs.
+- Keep all tests self-contained without Kubernetes, Argo CD, cloud, Git provider, or registry dependencies.
+
 ## Phase 2: GitOps and Production Release
 
 - Add release and deployment workflows.

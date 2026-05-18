@@ -34,6 +34,10 @@ paths:
       responses:
         "200":
           description: System information
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SystemInfo"
   /api/v1/orgs:
     get:
       summary: Organizations placeholder
@@ -307,7 +311,7 @@ components:
       content:
         application/json:
           schema:
-            $ref: "#/components/schemas/Error"
+            $ref: "#/components/schemas/ErrorResponse"
   schemas:
     Version:
       type: object
@@ -320,7 +324,7 @@ components:
           type: string
         date:
           type: string
-    Error:
+    ErrorResponse:
       type: object
       properties:
         code:
@@ -329,13 +333,30 @@ components:
           type: string
         path:
           type: string
+        request_id:
+          type: string
+    Error:
+      $ref: "#/components/schemas/ErrorResponse"
+    SystemInfo:
+      type: object
+      properties:
+        app:
+          type: string
+        environment:
+          type: string
+        event_bus:
+          type: string
+        object_store:
+          type: string
+        runtime_mode:
+          type: string
     PipelineRun:
       type: object
       properties:
         id:
           type: string
           format: uuid
-        pipeline_id:
+        pipelineId:
           type: string
           format: uuid
         status:
@@ -359,47 +380,52 @@ components:
             name:
               type: string
         spec:
-          type: object
-          required: [stages]
-          properties:
-            stages:
-              type: array
-              items:
-                type: object
-                required: [name, jobs]
-                properties:
-                  name:
-                    type: string
-                  jobs:
-                    type: array
-                    items:
-                      type: object
-                      required: [name, executor, steps]
-                      properties:
-                        name:
-                          type: string
-                        executor:
-                          type: string
-                          enum: [shell]
-                        retries:
-                          type: integer
-                          minimum: 0
-                        timeoutSeconds:
-                          type: integer
-                          minimum: 1
-                        steps:
-                          type: array
-                          items:
-                            type: object
-                            required: [run]
-                            properties:
-                              name:
-                                type: string
-                              run:
-                                type: string
-                              timeoutSeconds:
-                                type: integer
-                                minimum: 1
+          $ref: "#/components/schemas/PipelineSpec"
+    PipelineSpec:
+      type: object
+      required: [stages]
+      properties:
+        timeoutSeconds:
+          type: integer
+          minimum: 0
+        stages:
+          type: array
+          items:
+            type: object
+            required: [name, jobs]
+            properties:
+              name:
+                type: string
+              jobs:
+                type: array
+                items:
+                  type: object
+                  required: [name, executor, steps]
+                  properties:
+                    name:
+                      type: string
+                    executor:
+                      type: string
+                      enum: [shell]
+                    retries:
+                      type: integer
+                      minimum: 0
+                    timeoutSeconds:
+                      type: integer
+                      minimum: 0
+                    steps:
+                      type: array
+                      items:
+                        type: object
+                        required: [run]
+                        properties:
+                          name:
+                            type: string
+                          run:
+                            type: string
+                          timeoutSeconds:
+                            type: integer
+                            minimum: 0
     PipelineRunRecord:
       type: object
       properties:
@@ -488,17 +514,7 @@ components:
           format: uuid
         status:
           type: string
-        labels:
-          type: object
-          additionalProperties:
-            type: string
-        executors:
-          type: array
-          items:
-            type: string
-        lastHeartbeatAt:
-          type: string
-          format: date-time
+          enum: [Created, Planning, WaitingApproval, PreChecking, Deploying, Verifying, Succeeded, Failed, RollingBack, RolledBack, Canceled]
     TimelineEntry:
       type: object
       properties:
@@ -513,17 +529,28 @@ components:
           type: string
         message:
           type: string
-          enum: [Created, Planning, WaitingApproval, PreChecking, Deploying, Verifying, Succeeded, Failed, RollingBack, RolledBack, Canceled]
     Runner:
       type: object
       properties:
         id:
           type: string
-          format: uuid
         name:
+          type: string
+        groupId:
           type: string
         status:
           type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        executors:
+          type: array
+          items:
+            type: string
+        lastHeartbeatAt:
+          type: string
+          format: date-time
     Event:
       type: object
       properties:

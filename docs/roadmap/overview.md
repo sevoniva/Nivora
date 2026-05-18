@@ -9,6 +9,7 @@ Nivora develops through explicit phases to avoid phase creep and premature imple
 - [Phase 0.6: Planning and Collaboration Docs](phase-0.6.md)
 - [Phase 1: Minimal Pipeline Execution](phase-1.md)
 - Phase 1.5: Durable Runtime Foundation is tracked in the Phase 1 doc until it needs a separate page.
+- Phase 1.6: Runtime Acceptance and Developer Experience is tracked in the Phase 1 doc until it needs a separate page.
 - [Phase 2: GitOps and Production Release Basics](phase-2.md)
 - [Phase 3: Multi-Cloud and DevSecOps](phase-3.md)
 - [Phase 4: Visualization Frontend](phase-4.md)

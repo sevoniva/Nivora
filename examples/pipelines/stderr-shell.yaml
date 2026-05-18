@@ -1,0 +1,13 @@
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: stderr-shell
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: write-stderr
+          executor: shell
+          steps:
+            - name: emit-stderr
+              run: echo "hello from stderr" >&2

@@ -52,3 +52,91 @@ spec:
 		t.Fatal("expected unsupported executor error")
 	}
 }
+
+func TestParseDefinitionValidationFailures(t *testing.T) {
+	tests := []struct {
+		name string
+		body string
+	}{
+		{
+			name: "missing metadata name",
+			body: `
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata: {}
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: job
+          executor: shell
+          steps:
+            - run: echo nope
+`,
+		},
+		{
+			name: "negative retries",
+			body: `
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: bad
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: job
+          executor: shell
+          retries: -1
+          steps:
+            - run: echo nope
+`,
+		},
+		{
+			name: "duplicate job name",
+			body: `
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: bad
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: job
+          executor: shell
+          steps:
+            - run: echo one
+        - name: job
+          executor: shell
+          steps:
+            - run: echo two
+`,
+		},
+		{
+			name: "negative step timeout",
+			body: `
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: bad
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: job
+          executor: shell
+          steps:
+            - run: echo nope
+              timeoutSeconds: -1
+`,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if _, err := ParseDefinition([]byte(tt.body)); err == nil {
+				t.Fatal("expected validation error")
+			}
+		})
+	}
+}

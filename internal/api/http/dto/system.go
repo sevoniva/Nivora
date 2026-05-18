@@ -5,9 +5,10 @@ type StatusResponse struct {
 }
 
 type ErrorResponse struct {
-	Code    string `json:"code"`
-	Message string `json:"message"`
-	Path    string `json:"path,omitempty"`
+	Code      string `json:"code"`
+	Message   string `json:"message"`
+	Path      string `json:"path,omitempty"`
+	RequestID string `json:"request_id,omitempty"`
 }
 
 type SystemInfoResponse struct {
@@ -15,4 +16,5 @@ type SystemInfoResponse struct {
 	Environment string `json:"environment"`
 	EventBus    string `json:"event_bus"`
 	ObjectStore string `json:"object_store"`
+	RuntimeMode string `json:"runtime_mode"`
 }

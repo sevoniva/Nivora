@@ -1,0 +1,14 @@
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: cancel-shell
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: long-running
+          executor: shell
+          timeoutSeconds: 10
+          steps:
+            - name: sleep
+              run: sleep 5

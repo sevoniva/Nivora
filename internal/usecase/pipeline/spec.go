@@ -69,29 +69,58 @@ func (d Definition) Validate() error {
 	if d.Metadata.Name == "" {
 		return errors.New("pipeline metadata.name is required")
 	}
+	if d.Spec.TimeoutSeconds < 0 {
+		return errors.New("pipeline spec.timeoutSeconds must be zero or greater")
+	}
 	if len(d.Spec.Stages) == 0 {
 		return errors.New("pipeline must define at least one stage")
 	}
+	stageNames := make(map[string]struct{}, len(d.Spec.Stages))
 	for i, stage := range d.Spec.Stages {
 		if stage.Name == "" {
 			return fmt.Errorf("stage %d name is required", i)
 		}
+		if _, ok := stageNames[stage.Name]; ok {
+			return fmt.Errorf("duplicate stage name %q", stage.Name)
+		}
+		stageNames[stage.Name] = struct{}{}
 		if len(stage.Jobs) == 0 {
 			return fmt.Errorf("stage %q must define at least one job", stage.Name)
 		}
+		jobNames := make(map[string]struct{}, len(stage.Jobs))
 		for j, job := range stage.Jobs {
 			if job.Name == "" {
 				return fmt.Errorf("stage %q job %d name is required", stage.Name, j)
 			}
+			if _, ok := jobNames[job.Name]; ok {
+				return fmt.Errorf("duplicate job name %q in stage %q", job.Name, stage.Name)
+			}
+			jobNames[job.Name] = struct{}{}
 			if job.Executor != "shell" {
 				return fmt.Errorf("job %q uses unsupported executor %q", job.Name, job.Executor)
+			}
+			if job.Retries < 0 {
+				return fmt.Errorf("job %q retries must be zero or greater", job.Name)
+			}
+			if job.TimeoutSeconds < 0 {
+				return fmt.Errorf("job %q timeoutSeconds must be zero or greater", job.Name)
 			}
 			if len(job.Steps) == 0 {
 				return fmt.Errorf("job %q must define at least one step", job.Name)
 			}
+			stepNames := make(map[string]struct{}, len(job.Steps))
 			for k, step := range job.Steps {
+				if step.Name != "" {
+					if _, ok := stepNames[step.Name]; ok {
+						return fmt.Errorf("duplicate step name %q in job %q", step.Name, job.Name)
+					}
+					stepNames[step.Name] = struct{}{}
+				}
 				if step.Run == "" {
 					return fmt.Errorf("job %q step %d run command is required", job.Name, k)
+				}
+				if step.TimeoutSeconds < 0 {
+					return fmt.Errorf("job %q step %d timeoutSeconds must be zero or greater", job.Name, k)
 				}
 			}
 		}

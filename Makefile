@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify run-server run-worker run-runner pipeline-run-local dev-up dev-down migrate-up migrate-down
+.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify run-server run-worker run-runner pipeline-run-local smoke-local smoke-api dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -34,7 +34,10 @@ verify-architecture:
 verify-no-secrets:
 	./scripts/verify-no-secrets.sh
 
-verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets
+verify-runtime:
+	./scripts/smoke-pipelinerun-local.sh
+
+verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-runtime
 
 run-server:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora server --config configs/server.yaml
@@ -47,6 +50,12 @@ run-runner:
 
 pipeline-run-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
+
+smoke-local:
+	./scripts/smoke-pipelinerun-local.sh
+
+smoke-api:
+	./scripts/smoke-api.sh
 
 dev-up:
 	./scripts/dev-up.sh

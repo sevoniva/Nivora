@@ -84,6 +84,7 @@ Nivora is not:
 - Phase 0.6: public planning docs, project charter, product vision, architecture blueprint, concept docs, roadmap docs, contribution model, RFC template.
 - Phase 1: minimal PipelineRun execution, runner assignment, shell executor flow, log streaming, status transitions, audit event, minimal persistence.
 - Phase 1.5: runtime foundation hardening, explicit state transitions, in-memory runtime repositories, worker advancement path, runner heartbeat, retry, timeout, cancellation, ordered LogChunks, and timeline APIs.
+- Phase 1.6: runtime acceptance, developer experience, smoke scripts, example polish, CLI/API inspection, and troubleshooting docs.
 - Phase 2: GitOps and production release basics.
 - Phase 3: multi-cloud and DevSecOps.
 - Phase 4: visualization frontend.

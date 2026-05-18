@@ -126,6 +126,8 @@ func canTransitionJobRun(from domainpipeline.JobRunStatus, to domainpipeline.Job
 	case domainpipeline.JobRunRunning:
 		return to == domainpipeline.JobRunSucceeded || to == domainpipeline.JobRunFailed ||
 			to == domainpipeline.JobRunRetrying || to == domainpipeline.JobRunCanceled
+	case domainpipeline.JobRunFailed:
+		return to == domainpipeline.JobRunRetrying
 	case domainpipeline.JobRunRetrying:
 		return to == domainpipeline.JobRunAssigned || to == domainpipeline.JobRunCanceled
 	default:

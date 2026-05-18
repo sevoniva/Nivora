@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -36,5 +37,13 @@ func TestMemoryStoreLogOrdering(t *testing.T) {
 	}
 	if logs[0].Sequence != 1 || logs[1].Sequence != 2 {
 		t.Fatalf("sequences = %d, %d", logs[0].Sequence, logs[1].Sequence)
+	}
+}
+
+func TestMemoryStoreSelectRunnerNoAvailableRunner(t *testing.T) {
+	store := NewMemoryStore()
+	_, err := store.SelectRunner(context.Background(), "shell", nil)
+	if !errors.Is(err, ErrRunnerNotFound) {
+		t.Fatalf("error = %v", err)
 	}
 }

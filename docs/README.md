@@ -89,6 +89,10 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 
 ## Engineering Guardrails
 
+- [Developer Getting Started](dev/getting-started.md)
+- [Local PipelineRun Development](dev/local-pipeline-run.md)
+- [Runtime Acceptance Matrix](dev/runtime-acceptance.md)
+- [Runtime Troubleshooting](dev/troubleshooting.md)
 - [AI Change Policy](engineering/ai-change-policy.md)
 - [Dependency Policy](engineering/dependency-policy.md)
 - [Testing Policy](engineering/testing-policy.md)

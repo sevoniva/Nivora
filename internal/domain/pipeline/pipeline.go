@@ -49,69 +49,69 @@ func (s JobRunStatus) Valid() bool {
 }
 
 type Pipeline struct {
-	ID        string
-	ProjectID string
-	Name      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID        string    `json:"id"`
+	ProjectID string    `json:"projectId,omitempty"`
+	Name      string    `json:"name"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type PipelineVersion struct {
-	ID         string
-	PipelineID string
-	Version    int
-	CreatedAt  time.Time
-	UpdatedAt  time.Time
+	ID         string    `json:"id"`
+	PipelineID string    `json:"pipelineId"`
+	Version    int       `json:"version"`
+	CreatedAt  time.Time `json:"createdAt"`
+	UpdatedAt  time.Time `json:"updatedAt"`
 }
 
 type PipelineRun struct {
-	ID                string
-	PipelineID        string
-	PipelineVersionID string
-	Status            PipelineRunStatus
-	StartedAt         *time.Time
-	FinishedAt        *time.Time
-	FailureReason     string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
+	ID                string            `json:"id"`
+	PipelineID        string            `json:"pipelineId"`
+	PipelineVersionID string            `json:"pipelineVersionId,omitempty"`
+	Status            PipelineRunStatus `json:"status"`
+	StartedAt         *time.Time        `json:"startedAt,omitempty"`
+	FinishedAt        *time.Time        `json:"finishedAt,omitempty"`
+	FailureReason     string            `json:"failureReason,omitempty"`
+	CreatedAt         time.Time         `json:"createdAt"`
+	UpdatedAt         time.Time         `json:"updatedAt"`
 }
 
 type StageRun struct {
-	ID            string
-	PipelineRunID string
-	Name          string
-	Status        JobRunStatus
-	StartedAt     *time.Time
-	FinishedAt    *time.Time
-	FailureReason string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID            string       `json:"id"`
+	PipelineRunID string       `json:"pipelineRunId"`
+	Name          string       `json:"name"`
+	Status        JobRunStatus `json:"status"`
+	StartedAt     *time.Time   `json:"startedAt,omitempty"`
+	FinishedAt    *time.Time   `json:"finishedAt,omitempty"`
+	FailureReason string       `json:"failureReason,omitempty"`
+	CreatedAt     time.Time    `json:"createdAt"`
+	UpdatedAt     time.Time    `json:"updatedAt"`
 }
 
 type JobRun struct {
-	ID            string
-	StageRunID    string
-	Name          string
-	Status        JobRunStatus
-	RunnerID      string
-	Attempt       int
-	MaxRetries    int
-	StartedAt     *time.Time
-	FinishedAt    *time.Time
-	FailureReason string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID            string       `json:"id"`
+	StageRunID    string       `json:"stageRunId"`
+	Name          string       `json:"name"`
+	Status        JobRunStatus `json:"status"`
+	RunnerID      string       `json:"runnerId,omitempty"`
+	Attempt       int          `json:"attempt"`
+	MaxRetries    int          `json:"maxRetries"`
+	StartedAt     *time.Time   `json:"startedAt,omitempty"`
+	FinishedAt    *time.Time   `json:"finishedAt,omitempty"`
+	FailureReason string       `json:"failureReason,omitempty"`
+	CreatedAt     time.Time    `json:"createdAt"`
+	UpdatedAt     time.Time    `json:"updatedAt"`
 }
 
 type StepRun struct {
-	ID            string
-	JobRunID      string
-	Name          string
-	Status        JobRunStatus
-	Attempt       int
-	StartedAt     *time.Time
-	FinishedAt    *time.Time
-	FailureReason string
-	CreatedAt     time.Time
-	UpdatedAt     time.Time
+	ID            string       `json:"id"`
+	JobRunID      string       `json:"jobRunId"`
+	Name          string       `json:"name"`
+	Status        JobRunStatus `json:"status"`
+	Attempt       int          `json:"attempt"`
+	StartedAt     *time.Time   `json:"startedAt,omitempty"`
+	FinishedAt    *time.Time   `json:"finishedAt,omitempty"`
+	FailureReason string       `json:"failureReason,omitempty"`
+	CreatedAt     time.Time    `json:"createdAt"`
+	UpdatedAt     time.Time    `json:"updatedAt"`
 }

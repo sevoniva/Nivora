@@ -16,6 +16,10 @@ func TestNoopProviderStatusAndGuardedSync(t *testing.T) {
 	if status.ApplicationName != "demo" {
 		t.Fatalf("status = %#v", status)
 	}
+	resources, err := provider.GetApplicationResources(context.Background(), "demo")
+	if err != nil || len(resources) != 1 {
+		t.Fatalf("resources=%#v err=%v", resources, err)
+	}
 	result, err := provider.SyncApplication(context.Background(), portargocd.SyncRequest{ApplicationName: "demo"})
 	if err != nil {
 		t.Fatalf("sync skipped: %v", err)
@@ -29,5 +33,13 @@ func TestNoopProviderStatusAndGuardedSync(t *testing.T) {
 	}
 	if !allowed.Requested {
 		t.Fatal("expected guarded noop sync request")
+	}
+	watch, err := (NoopProvider{AllowSync: true}).WatchApplicationStatus(context.Background(), "demo", 1)
+	if err != nil || len(watch) != 2 || watch[1].HealthStatus != "Healthy" {
+		t.Fatalf("watch=%#v err=%v", watch, err)
+	}
+	_, err = (NoopProvider{AllowSync: true}).SyncApplication(context.Background(), portargocd.SyncRequest{ApplicationName: "demo", AllowSync: true, Confirmed: true, Force: true})
+	if err == nil {
+		t.Fatal("expected force sync rejection")
 	}
 }

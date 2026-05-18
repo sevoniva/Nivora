@@ -8,13 +8,15 @@ Many teams already use Argo CD or similar controllers for Kubernetes delivery. N
 
 ## Current Implementation
 
-Phase 2.3 supports GitOps planning only:
+Phase 2.6 supports GitOps planning and guarded Argo CD status/sync modeling:
 
 - parse `argocd` deployment targets
 - build a GitOpsChangePlan
 - optionally update a local working tree
 - model Argo CD application status with a noop provider
-- require explicit confirmation and allow flags for sync requests
+- read modeled Argo CD application resources
+- require `gitops.allowSync=true`, explicit confirmation, and allow flags for sync requests
+- reject force sync
 
 No production Argo CD automation is implemented. No remote Git push or Git provider integration is implemented.
 

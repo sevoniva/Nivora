@@ -21,6 +21,8 @@ Phase 2.3 adds GitOps plan-only DeploymentRuns for `argocd` targets. These runs 
 
 Phase 2.4 adds resource inventory, manifest snapshot, lightweight health evaluation, desired-state diff summary, and non-destructive rollback plan output for Kubernetes YAML DeploymentRuns. Secret values are redacted and rollback remains a plan, not an action.
 
+Phase 2.6 adds Argo CD status read and guarded sync modeling for GitOps DeploymentRuns. Sync remains disabled by default and requires explicit config plus API/CLI confirmation.
+
 The current implementation does not apply manifests to a Kubernetes cluster by default. A `Succeeded` DeploymentRun in the default Phase 2.2 local runtime means the dry-run or confirmed no-op apply path succeeded.
 
 ## Common Confusion

@@ -63,6 +63,12 @@ type GitOps struct {
 	WriteToWorkingTree bool     `json:"writeToWorkingTree" yaml:"writeToWorkingTree"`
 	WorkingTree        string   `json:"workingTree,omitempty" yaml:"workingTree,omitempty"`
 	Sync               bool     `json:"sync" yaml:"sync"`
+	AllowSync          bool     `json:"allowSync" yaml:"allowSync"`
+	Prune              bool     `json:"prune" yaml:"prune"`
+	Force              bool     `json:"force" yaml:"force"`
+	Wait               bool     `json:"wait" yaml:"wait"`
+	TimeoutSeconds     int      `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
+	RequireStatus      bool     `json:"requireStatus" yaml:"requireStatus"`
 	StatusRead         bool     `json:"statusRead" yaml:"statusRead"`
 	Files              []string `json:"files,omitempty" yaml:"files,omitempty"`
 }

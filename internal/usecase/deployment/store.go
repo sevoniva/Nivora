@@ -11,6 +11,7 @@ import (
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	"github.com/sevoniva/nivora/internal/domain/release"
+	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
 	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 )
 
@@ -211,6 +212,11 @@ func cloneRecord(record RunRecord) RunRecord {
 	record.GitOpsPlan.ManifestValueChanges = append([]string(nil), record.GitOpsPlan.ManifestValueChanges...)
 	record.GitOpsPlan.Warnings = append([]string(nil), record.GitOpsPlan.Warnings...)
 	record.GitOpsDiff.Files = append([]portgitops.FileChange(nil), record.GitOpsDiff.Files...)
+	record.ArgoCD.Resources = append([]portargocd.ResourceStatus(nil), record.ArgoCD.Resources...)
+	record.ArgoCD.Warnings = append([]string(nil), record.ArgoCD.Warnings...)
+	record.ArgoCD.Conditions = append([]string(nil), record.ArgoCD.Conditions...)
+	record.ArgoCDResources = append([]portargocd.ResourceStatus(nil), record.ArgoCDResources...)
+	record.ArgoCDWatch = append([]portargocd.ApplicationStatus(nil), record.ArgoCDWatch...)
 	record.Inventory.Desired = append([]ManifestResourceSummary(nil), record.Inventory.Desired...)
 	record.Inventory.Applied = append([]ManifestResourceSummary(nil), record.Inventory.Applied...)
 	record.Inventory.Warnings = append([]string(nil), record.Inventory.Warnings...)

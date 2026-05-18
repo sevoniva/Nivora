@@ -40,6 +40,9 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/deployments/plan", handlers.PlanDeploymentRun(deploymentService))
 		api.Post("/deployments/gitops/plan", handlers.PlanGitOpsDeployment(deploymentService))
 		api.Post("/deployments/gitops", handlers.CreateDeploymentRun(deploymentService))
+		api.Get("/integrations/argocd/applications/{name}/status", handlers.GetArgoCDApplicationStatus(deploymentService))
+		api.Get("/integrations/argocd/applications/{name}/resources", handlers.GetArgoCDApplicationResources(deploymentService))
+		api.Post("/integrations/argocd/applications/{name}/sync", handlers.SyncArgoCDApplication(deploymentService))
 		api.Post("/artifacts/inspect", handlers.InspectArtifact(artifactService))
 		api.Post("/artifacts/resolve", handlers.ResolveArtifact(artifactService))
 		api.Post("/artifact-registries/validate", handlers.ValidateArtifactRegistry())
@@ -52,6 +55,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/deployments/{id}", handlers.GetDeploymentRun(deploymentService))
 		api.Get("/deployments/{id}/plan", handlers.GetDeploymentPlan(deploymentService))
 		api.Get("/deployments/{id}/gitops-plan", handlers.GetDeploymentGitOpsPlan(deploymentService))
+		api.Get("/deployments/{id}/argocd-status", handlers.GetDeploymentArgoCDStatus(deploymentService))
 		api.Get("/deployments/{id}/resources", handlers.GetDeploymentResources(deploymentService))
 		api.Get("/deployments/{id}/health", handlers.GetDeploymentHealth(deploymentService))
 		api.Get("/deployments/{id}/diff", handlers.GetDeploymentRuntimeDiff(deploymentService))
@@ -61,6 +65,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/deployments/{id}/events", handlers.GetDeploymentEvents(deploymentService))
 		api.Get("/deployments/{id}/timeline", handlers.GetDeploymentTimeline(deploymentService))
 		api.Post("/deployments/{id}/cancel", handlers.CancelDeploymentRun(deploymentService))
+		api.Post("/deployments/{id}/sync", handlers.SyncDeploymentArgoCD(deploymentService))
 
 		for _, group := range placeholderGroups() {
 			group := group

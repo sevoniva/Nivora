@@ -12,6 +12,7 @@ import (
 
 	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
+	argocdadapter "github.com/sevoniva/nivora/internal/adapters/executor/argocd"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	"github.com/sevoniva/nivora/internal/infra/config"
@@ -121,7 +122,7 @@ func newTestDeploymentService() *deploymentusecase.Service {
 		yamlapply.NoopManifestClient{},
 		allowPolicy{},
 		memory.New(),
-	)
+	).WithGitOps(nil, argocdadapter.NoopProvider{AllowSync: true})
 }
 
 func newTestArtifactService() *artifactusecase.Service {

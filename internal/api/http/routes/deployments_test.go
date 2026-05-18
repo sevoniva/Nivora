@@ -104,13 +104,25 @@ func TestGitOpsDeploymentRoutes(t *testing.T) {
 	}
 	run := created["run"].(map[string]any)
 	runID := run["id"].(string)
-	for _, path := range []string{"/api/v1/deployments/" + runID + "/gitops-plan", "/api/v1/deployments/" + runID + "/diff", "/api/v1/deployments/" + runID + "/timeline"} {
+	for _, path := range []string{"/api/v1/deployments/" + runID + "/gitops-plan", "/api/v1/deployments/" + runID + "/argocd-status", "/api/v1/deployments/" + runID + "/diff", "/api/v1/deployments/" + runID + "/timeline", "/api/v1/integrations/argocd/applications/demo-springboot/status", "/api/v1/integrations/argocd/applications/demo-springboot/resources"} {
 		req = httptest.NewRequest(http.MethodGet, path, nil)
 		rec = httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("%s status = %d body = %s", path, rec.Code, rec.Body.String())
 		}
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/integrations/argocd/applications/demo-springboot/sync", bytes.NewReader([]byte(`{"applicationName":"demo-springboot","allowSync":false,"confirmed":false}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unguarded sync status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/integrations/argocd/applications/demo-springboot/sync", bytes.NewReader([]byte(`{"applicationName":"demo-springboot","allowSync":true,"confirmed":true}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("guarded sync status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }
 

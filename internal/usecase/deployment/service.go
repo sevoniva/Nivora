@@ -49,9 +49,16 @@ const (
 	EventGitOpsPlanCreated             = "devops.gitops.plan.created"
 	EventGitOpsDiffGenerated           = "devops.gitops.diff.generated"
 	EventGitOpsWorkingTreeUpdated      = "devops.gitops.workingtree.updated"
+	EventArgoCDStatusReadStarted       = "devops.argocd.status.read.started"
+	EventArgoCDStatusReadCompleted     = "devops.argocd.status.read.completed"
+	EventArgoCDStatusReadFailed        = "devops.argocd.status.read.failed"
 	EventArgoCDStatusRead              = "devops.argocd.status.read"
 	EventArgoCDSyncRequested           = "devops.argocd.sync.requested"
 	EventArgoCDSyncSkipped             = "devops.argocd.sync.skipped"
+	EventArgoCDSyncStarted             = "devops.argocd.sync.started"
+	EventArgoCDSyncCompleted           = "devops.argocd.sync.completed"
+	EventArgoCDSyncFailed              = "devops.argocd.sync.failed"
+	EventArgoCDHealthChanged           = "devops.argocd.health.changed"
 )
 
 type KubernetesManifestClient interface {
@@ -96,9 +103,6 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 	}
 	if input.Definition.Spec.Options.Apply && !input.AllowApply {
 		return CreateRunResult{}, fmt.Errorf("deployment apply requires explicit confirmation")
-	}
-	if input.Definition.Spec.Target.Type == "argocd" && input.Definition.Spec.GitOps.Sync && (!input.AllowSync || !input.Confirm) {
-		return CreateRunResult{}, fmt.Errorf("argocd sync requires explicit --allow-sync and --confirm")
 	}
 	record := s.newRecord(input.Definition)
 	if err := s.store.Save(ctx, record); err != nil {
@@ -391,50 +395,119 @@ func (s *Service) processGitOps(ctx context.Context, record RunRecord, actorID s
 		record, _ = s.store.Get(ctx, record.Run.ID)
 	}
 
-	if s.argocd != nil && record.Definition.Spec.GitOps.StatusRead {
+	if s.argocd != nil && (record.Definition.Spec.GitOps.StatusRead || record.Definition.Spec.GitOps.Sync) {
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDStatusReadStarted, "Argo CD status read started", actorID, string(record.Run.Status), "Argo CD application status read started"); err != nil {
+			return RunRecord{}, err
+		}
 		status, err := s.argocd.GetApplicationStatus(ctx, record.Definition.Spec.Target.ApplicationName)
 		if err != nil {
-			return s.fail(ctx, record, actorID, err.Error())
+			record, _ = s.recordRuntimeEvent(ctx, record, EventArgoCDStatusReadFailed, string(record.Run.Status), err.Error())
+			if record.Definition.Spec.GitOps.RequireStatus || record.Definition.Spec.GitOps.Sync {
+				return s.fail(ctx, record, actorID, err.Error())
+			}
+			record.Plan.Warnings = append(record.Plan.Warnings, "Argo CD status read failed: "+err.Error())
+			if err := s.store.Save(ctx, record); err != nil {
+				return RunRecord{}, err
+			}
+		} else {
+			resources, _ := s.argocd.GetApplicationResources(ctx, record.Definition.Spec.Target.ApplicationName)
+			record.ArgoCD = status
+			record.ArgoCDResources = resources
+			record.GitOpsPlan.Status = status
+			record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", status.Message, int64(len(record.Logs)+1)))
+			if err := s.store.Save(ctx, record); err != nil {
+				return RunRecord{}, err
+			}
+			if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDStatusReadCompleted, "Argo CD status read completed", actorID, string(record.Run.Status), status.Message); err != nil {
+				return RunRecord{}, err
+			}
+			if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDStatusRead, "Argo CD status read", actorID, string(record.Run.Status), status.Message); err != nil {
+				return RunRecord{}, err
+			}
+			record, _ = s.store.Get(ctx, record.Run.ID)
 		}
-		record.ArgoCD = status
-		record.GitOpsPlan.Status = status
-		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", status.Message, int64(len(record.Logs)+1)))
-		if err := s.store.Save(ctx, record); err != nil {
-			return RunRecord{}, err
-		}
-		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDStatusRead, "Argo CD status read", actorID, string(record.Run.Status), status.Message); err != nil {
-			return RunRecord{}, err
-		}
-		record, _ = s.store.Get(ctx, record.Run.ID)
 	}
 
 	if record.Definition.Spec.GitOps.Sync {
 		if s.argocd == nil {
 			return s.fail(ctx, record, actorID, "argocd provider is not configured")
 		}
-		result, err := s.argocd.SyncApplication(ctx, portargocd.SyncRequest{
+		if record.Definition.Spec.GitOps.Force {
+			return s.fail(ctx, record, actorID, "argocd force sync is not supported in Phase 2.6")
+		}
+		request := portargocd.SyncRequest{
 			ApplicationName: record.Definition.Spec.Target.ApplicationName,
 			Revision:        record.Definition.Spec.Target.Revision,
-			AllowSync:       allowSync,
+			Prune:           record.Definition.Spec.GitOps.Prune,
+			Force:           record.Definition.Spec.GitOps.Force,
+			Wait:            record.Definition.Spec.GitOps.Wait,
+			TimeoutSeconds:  record.Definition.Spec.GitOps.TimeoutSeconds,
+			AllowSync:       allowSync && record.Definition.Spec.GitOps.AllowSync,
 			Confirmed:       confirm,
-		})
-		if err != nil {
-			return s.fail(ctx, record, actorID, err.Error())
 		}
-		eventType := EventArgoCDSyncSkipped
-		action := "Argo CD sync skipped"
-		if result.Requested {
-			eventType = EventArgoCDSyncRequested
-			action = "Argo CD sync requested"
+		if !request.AllowSync || !request.Confirmed {
+			result := portargocd.SyncResult{ApplicationName: request.ApplicationName, Requested: false, Message: "Argo CD sync skipped; sync requires gitops.allowSync=true plus API/CLI allow-sync and confirmation"}
+			record.ArgoCDSync = result
+			record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", result.Message, int64(len(record.Logs)+1)))
+			if err := s.store.Save(ctx, record); err != nil {
+				return RunRecord{}, err
+			}
+			if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDSyncSkipped, "Argo CD sync skipped", actorID, string(record.Run.Status), result.Message); err != nil {
+				return RunRecord{}, err
+			}
+			record, _ = s.store.Get(ctx, record.Run.ID)
+		} else {
+			if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDSyncRequested, "Argo CD sync requested", actorID, string(record.Run.Status), "Guarded Argo CD sync requested"); err != nil {
+				return RunRecord{}, err
+			}
+			if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDSyncStarted, "Argo CD sync started", actorID, string(record.Run.Status), "Guarded Argo CD sync started"); err != nil {
+				return RunRecord{}, err
+			}
+			record, _ = s.store.Get(ctx, record.Run.ID)
+			result, err := s.argocd.SyncApplication(ctx, portargocd.SyncRequest{
+				ApplicationName: request.ApplicationName,
+				Revision:        request.Revision,
+				Prune:           request.Prune,
+				Force:           request.Force,
+				Wait:            request.Wait,
+				TimeoutSeconds:  request.TimeoutSeconds,
+				AllowSync:       request.AllowSync,
+				Confirmed:       request.Confirmed,
+			})
+			if err != nil {
+				record, _ = s.recordRuntimeEvent(ctx, record, EventArgoCDSyncFailed, string(record.Run.Status), err.Error())
+				return s.fail(ctx, record, actorID, err.Error())
+			}
+			record.ArgoCDSync = result
+			record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", result.Message, int64(len(record.Logs)+1)))
+			if err := s.store.Save(ctx, record); err != nil {
+				return RunRecord{}, err
+			}
+			if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDSyncCompleted, "Argo CD sync completed", actorID, string(record.Run.Status), result.Message); err != nil {
+				return RunRecord{}, err
+			}
+			record, _ = s.store.Get(ctx, record.Run.ID)
+			if record.Definition.Spec.GitOps.Wait {
+				watch, err := s.argocd.WatchApplicationStatus(ctx, request.ApplicationName, request.TimeoutSeconds)
+				if err != nil {
+					record, _ = s.recordRuntimeEvent(ctx, record, EventArgoCDSyncFailed, string(record.Run.Status), err.Error())
+					return s.fail(ctx, record, actorID, err.Error())
+				}
+				record.ArgoCDWatch = watch
+				if len(watch) > 0 {
+					last := watch[len(watch)-1]
+					record.ArgoCD = last
+					record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("Argo CD watch completed: sync=%s health=%s", last.SyncStatus, last.HealthStatus), int64(len(record.Logs)+1)))
+					if err := s.store.Save(ctx, record); err != nil {
+						return RunRecord{}, err
+					}
+					if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDHealthChanged, "Argo CD health changed", actorID, string(record.Run.Status), last.HealthStatus); err != nil {
+						return RunRecord{}, err
+					}
+				}
+			}
+			record, _ = s.store.Get(ctx, record.Run.ID)
 		}
-		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", result.Message, int64(len(record.Logs)+1)))
-		if err := s.store.Save(ctx, record); err != nil {
-			return RunRecord{}, err
-		}
-		if err := s.recordEventAndAudit(ctx, record.Run.ID, eventType, action, actorID, string(record.Run.Status), result.Message); err != nil {
-			return RunRecord{}, err
-		}
-		record, _ = s.store.Get(ctx, record.Run.ID)
 	} else if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDSyncSkipped, "Argo CD sync skipped", actorID, string(record.Run.Status), "sync=false; Argo CD sync was not requested"); err != nil {
 		return RunRecord{}, err
 	}
@@ -505,6 +578,50 @@ func (s *Service) RollbackPlan(ctx context.Context, id string) (RollbackPlan, er
 		return RollbackPlan{}, err
 	}
 	return record.RollbackPlan, nil
+}
+
+func (s *Service) ArgoCDStatus(ctx context.Context, applicationName string) (portargocd.ApplicationStatus, error) {
+	if s.argocd == nil {
+		return portargocd.ApplicationStatus{}, fmt.Errorf("argocd provider is not configured")
+	}
+	return s.argocd.GetApplicationStatus(ctx, applicationName)
+}
+
+func (s *Service) ArgoCDResources(ctx context.Context, applicationName string) ([]portargocd.ResourceStatus, error) {
+	if s.argocd == nil {
+		return nil, fmt.Errorf("argocd provider is not configured")
+	}
+	return s.argocd.GetApplicationResources(ctx, applicationName)
+}
+
+func (s *Service) SyncArgoCDApplication(ctx context.Context, request portargocd.SyncRequest) (portargocd.SyncResult, error) {
+	if s.argocd == nil {
+		return portargocd.SyncResult{}, fmt.Errorf("argocd provider is not configured")
+	}
+	if request.Force {
+		return portargocd.SyncResult{}, fmt.Errorf("argocd force sync is not supported in Phase 2.6")
+	}
+	if !request.AllowSync || !request.Confirmed {
+		return portargocd.SyncResult{}, fmt.Errorf("argocd sync requires allowSync=true and confirmed=true")
+	}
+	return s.argocd.SyncApplication(ctx, request)
+}
+
+func (s *Service) SyncDeployment(ctx context.Context, id string, actorID string, allowSync bool, confirm bool) (RunRecord, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if record.Definition.Spec.Target.Type != "argocd" {
+		return RunRecord{}, fmt.Errorf("deployment %s is not an argocd target", id)
+	}
+	record.Definition.Spec.GitOps.Sync = true
+	record.Definition.Spec.GitOps.AllowSync = record.Definition.Spec.GitOps.AllowSync || allowSync
+	record.Run.Status = domaindeployment.DeploymentRunCreated
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	return s.processGitOps(ctx, record, actorID, allowSync, confirm)
 }
 
 func (s *Service) Timeline(ctx context.Context, id string) ([]TimelineEntry, error) {
@@ -841,6 +958,12 @@ func (s *Service) buildGitOpsPlan(runID string, def Definition, changes []portgi
 	if def.Spec.GitOps.Sync {
 		warnings = append(warnings, "Argo CD sync requested; sync is disabled unless explicitly allowed and confirmed")
 	}
+	if def.Spec.GitOps.Prune {
+		warnings = append(warnings, "Argo CD prune requested; prune is guarded and defaults to false")
+	}
+	if def.Spec.GitOps.Force {
+		warnings = append(warnings, "Argo CD force sync is not supported in Phase 2.6")
+	}
 	return GitOpsChangePlan{
 		DeploymentRunID:       runID,
 		ApplicationName:       def.Spec.Target.ApplicationName,
@@ -868,6 +991,9 @@ func deploymentPlanFromGitOps(plan GitOpsChangePlan, def Definition) DeploymentP
 	}
 	if def.Spec.GitOps.Sync {
 		actions = append(actions, "request Argo CD sync if explicitly allowed")
+	}
+	if def.Spec.GitOps.Wait {
+		actions = append(actions, "watch Argo CD sync and health status")
 	}
 	return DeploymentPlan{
 		DeploymentRunID: plan.DeploymentRunID,

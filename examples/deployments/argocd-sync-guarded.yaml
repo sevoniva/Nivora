@@ -1,0 +1,28 @@
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-argocd-sync-guarded
+spec:
+  application: demo-springboot
+  environment: dev
+  target:
+    type: argocd
+    name: demo-argocd
+    applicationName: demo-springboot
+    repoURL: https://example.com/gitops/demo.git
+    path: apps/demo-springboot/dev
+    revision: main
+  artifacts:
+    - name: demo-springboot
+      type: image
+      reference: registry.example.com/demo/demo-springboot@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  gitops:
+    mode: plan
+    writeToWorkingTree: false
+    statusRead: true
+    sync: true
+    allowSync: true
+    prune: false
+    force: false
+    wait: true
+    timeoutSeconds: 60

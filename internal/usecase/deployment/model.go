@@ -15,30 +15,33 @@ import (
 )
 
 type RunRecord struct {
-	Definition   Definition                        `json:"definition,omitempty"`
-	Release      release.Release                   `json:"release"`
-	Artifacts    []release.ReleaseArtifact         `json:"artifacts,omitempty"`
-	Environment  environment.Environment           `json:"environment"`
-	Target       environment.ReleaseTarget         `json:"target"`
-	Run          domaindeployment.DeploymentRun    `json:"run"`
-	Steps        []domaindeployment.DeploymentStep `json:"steps,omitempty"`
-	Plan         DeploymentPlan                    `json:"plan"`
-	GitOpsPlan   GitOpsChangePlan                  `json:"gitopsPlan,omitempty"`
-	GitOpsDiff   GitOpsDiff                        `json:"gitopsDiff,omitempty"`
-	ArgoCD       portargocd.ApplicationStatus      `json:"argocd,omitempty"`
-	Inventory    ResourceInventory                 `json:"inventory,omitempty"`
-	Health       HealthEvaluation                  `json:"health,omitempty"`
-	Snapshot     ManifestSnapshot                  `json:"manifestSnapshot,omitempty"`
-	Diff         DeploymentDiff                    `json:"diff,omitempty"`
-	RollbackPlan RollbackPlan                      `json:"rollbackPlan,omitempty"`
-	DryRun       KubernetesDryRunResult            `json:"dryRun,omitempty"`
-	Apply        KubernetesApplyResult             `json:"apply,omitempty"`
-	Rollout      RolloutResult                     `json:"rollout,omitempty"`
-	Rollback     *domaindeployment.RollbackRecord  `json:"rollback,omitempty"`
-	Logs         []event.LogChunk                  `json:"logs,omitempty"`
-	Events       []event.Event                     `json:"events,omitempty"`
-	Audits       []audit.AuditLog                  `json:"audits,omitempty"`
-	Policy       policy.Result                     `json:"policy"`
+	Definition      Definition                        `json:"definition,omitempty"`
+	Release         release.Release                   `json:"release"`
+	Artifacts       []release.ReleaseArtifact         `json:"artifacts,omitempty"`
+	Environment     environment.Environment           `json:"environment"`
+	Target          environment.ReleaseTarget         `json:"target"`
+	Run             domaindeployment.DeploymentRun    `json:"run"`
+	Steps           []domaindeployment.DeploymentStep `json:"steps,omitempty"`
+	Plan            DeploymentPlan                    `json:"plan"`
+	GitOpsPlan      GitOpsChangePlan                  `json:"gitopsPlan,omitempty"`
+	GitOpsDiff      GitOpsDiff                        `json:"gitopsDiff,omitempty"`
+	ArgoCD          portargocd.ApplicationStatus      `json:"argocd,omitempty"`
+	ArgoCDResources []portargocd.ResourceStatus       `json:"argocdResources,omitempty"`
+	ArgoCDSync      portargocd.SyncResult             `json:"argocdSync,omitempty"`
+	ArgoCDWatch     []portargocd.ApplicationStatus    `json:"argocdWatch,omitempty"`
+	Inventory       ResourceInventory                 `json:"inventory,omitempty"`
+	Health          HealthEvaluation                  `json:"health,omitempty"`
+	Snapshot        ManifestSnapshot                  `json:"manifestSnapshot,omitempty"`
+	Diff            DeploymentDiff                    `json:"diff,omitempty"`
+	RollbackPlan    RollbackPlan                      `json:"rollbackPlan,omitempty"`
+	DryRun          KubernetesDryRunResult            `json:"dryRun,omitempty"`
+	Apply           KubernetesApplyResult             `json:"apply,omitempty"`
+	Rollout         RolloutResult                     `json:"rollout,omitempty"`
+	Rollback        *domaindeployment.RollbackRecord  `json:"rollback,omitempty"`
+	Logs            []event.LogChunk                  `json:"logs,omitempty"`
+	Events          []event.Event                     `json:"events,omitempty"`
+	Audits          []audit.AuditLog                  `json:"audits,omitempty"`
+	Policy          policy.Result                     `json:"policy"`
 }
 
 type DeploymentPlan struct {

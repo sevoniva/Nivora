@@ -102,6 +102,8 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 - [Artifact and Release Binding](dev/artifact-release-binding.md)
 - [GitOps Planning](dev/gitops-plan.md)
 - [Argo CD Local Validation](dev/argocd-local-validation.md)
+- [Argo CD Status](dev/argocd-status.md)
+- [Argo CD Guarded Sync](dev/argocd-guarded-sync.md)
 - [Kubernetes Resource Inventory](dev/kubernetes-resource-inventory.md)
 - [Kubernetes Health](dev/kubernetes-health.md)
 - [Rollback Plan](dev/rollback-plan.md)

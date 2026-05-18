@@ -299,10 +299,31 @@ func TestServiceGitOpsWorkingTreeUpdate(t *testing.T) {
 func TestServiceGitOpsSyncRequiresConfirmation(t *testing.T) {
 	service, def := newGitOpsTestService(t)
 	def.Spec.GitOps.Sync = true
-	_, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
-	if err == nil {
-		t.Fatal("expected sync confirmation error")
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("sync should be skipped, not fail: %v", err)
 	}
+	if result.Record.ArgoCDSync.Requested {
+		t.Fatalf("sync should be skipped without allow/confirm: %#v", result.Record.ArgoCDSync)
+	}
+	assertHasDeploymentEvent(t, result.Record.Events, EventArgoCDSyncSkipped)
+}
+
+func TestServiceGitOpsGuardedSync(t *testing.T) {
+	service, def := newGitOpsTestService(t)
+	def.Spec.GitOps.Sync = true
+	def.Spec.GitOps.AllowSync = true
+	def.Spec.GitOps.Wait = true
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowSync: true, Confirm: true})
+	if err != nil {
+		t.Fatalf("guarded sync: %v", err)
+	}
+	if !result.Record.ArgoCDSync.Requested || len(result.Record.ArgoCDWatch) == 0 {
+		t.Fatalf("sync/watch = %#v %#v", result.Record.ArgoCDSync, result.Record.ArgoCDWatch)
+	}
+	assertHasDeploymentEvent(t, result.Record.Events, EventArgoCDSyncRequested)
+	assertHasDeploymentEvent(t, result.Record.Events, EventArgoCDSyncCompleted)
+	assertHasDeploymentEvent(t, result.Record.Events, EventArgoCDHealthChanged)
 }
 
 func TestMemoryStoreOrdersLogs(t *testing.T) {
@@ -492,9 +513,23 @@ func (fakeArgoCDProvider) ValidateCredential(ctx context.Context, credential por
 }
 
 func (fakeArgoCDProvider) GetApplicationStatus(ctx context.Context, applicationName string) (portargocd.ApplicationStatus, error) {
-	return portargocd.ApplicationStatus{ApplicationName: applicationName, SyncStatus: "Synced", HealthStatus: "Healthy", Message: "test status"}, nil
+	return portargocd.ApplicationStatus{ApplicationName: applicationName, SyncStatus: "Synced", HealthStatus: "Healthy", Message: "test status", Resources: []portargocd.ResourceStatus{{Kind: "Deployment", Name: applicationName, Health: "Healthy", SyncStatus: "Synced"}}}, nil
+}
+
+func (fakeArgoCDProvider) GetApplicationResources(ctx context.Context, applicationName string) ([]portargocd.ResourceStatus, error) {
+	return []portargocd.ResourceStatus{{Kind: "Deployment", Name: applicationName, Health: "Healthy", SyncStatus: "Synced"}}, nil
+}
+
+func (fakeArgoCDProvider) GetApplicationHistory(ctx context.Context, applicationName string) ([]portargocd.ApplicationStatus, error) {
+	status, _ := fakeArgoCDProvider{}.GetApplicationStatus(ctx, applicationName)
+	return []portargocd.ApplicationStatus{status}, nil
 }
 
 func (fakeArgoCDProvider) SyncApplication(ctx context.Context, request portargocd.SyncRequest) (portargocd.SyncResult, error) {
-	return portargocd.SyncResult{ApplicationName: request.ApplicationName, Requested: request.AllowSync && request.Confirmed, Message: "test sync"}, nil
+	return portargocd.SyncResult{ApplicationName: request.ApplicationName, Requested: request.AllowSync && request.Confirmed, Started: true, Completed: true, SyncStatus: "Synced", HealthStatus: "Healthy", Message: "test sync"}, nil
+}
+
+func (fakeArgoCDProvider) WatchApplicationStatus(ctx context.Context, applicationName string, timeoutSeconds int) ([]portargocd.ApplicationStatus, error) {
+	status, _ := fakeArgoCDProvider{}.GetApplicationStatus(ctx, applicationName)
+	return []portargocd.ApplicationStatus{status}, nil
 }

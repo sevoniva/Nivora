@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 2.5 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning foundations, and Kubernetes resource inventory, health, snapshot, diff, and rollback-plan output.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 2.6 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning and guarded sync foundations, and Kubernetes resource inventory, health, snapshot, diff, and rollback-plan output.
 servers:
   - url: http://localhost:8080
 paths:
@@ -379,6 +379,64 @@ paths:
                 $ref: "#/components/schemas/DeploymentRunRecord"
         "400":
           description: Invalid GitOps deployment definition
+  /api/v1/integrations/argocd/applications/{name}/status:
+    get:
+      summary: Read modeled Argo CD application status
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Argo CD application status
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArgoCDApplicationStatus"
+  /api/v1/integrations/argocd/applications/{name}/resources:
+    get:
+      summary: Read modeled Argo CD application resources
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Argo CD application resources
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ArgoCDResourceStatus"
+  /api/v1/integrations/argocd/applications/{name}/sync:
+    post:
+      summary: Request guarded Argo CD sync
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArgoCDSyncRequest"
+      responses:
+        "200":
+          description: Sync request result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArgoCDSyncResult"
+        "400":
+          description: Sync disabled or invalid sync request
   /api/v1/deployments/{id}:
     get:
       summary: Get a DeploymentRun
@@ -419,6 +477,20 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/GitOpsChangePlan"
+        "404":
+          description: DeploymentRun not found
+  /api/v1/deployments/{id}/argocd-status:
+    get:
+      summary: Get DeploymentRun Argo CD status
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Argo CD status recorded for the DeploymentRun
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArgoCDApplicationStatus"
         "404":
           description: DeploymentRun not found
   /api/v1/deployments/{id}/diff:
@@ -525,6 +597,26 @@ paths:
                   $ref: "#/components/schemas/Event"
         "404":
           description: DeploymentRun not found
+  /api/v1/deployments/{id}/sync:
+    post:
+      summary: Request guarded Argo CD sync for a DeploymentRun
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArgoCDSyncRequest"
+      responses:
+        "200":
+          description: DeploymentRun after sync decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentRunRecord"
+        "400":
+          description: Sync disabled or invalid sync request
   /api/v1/deployments/{id}/timeline:
     get:
       summary: Get ordered DeploymentRun timeline entries
@@ -1518,6 +1610,92 @@ components:
           type: string
         syncStatus:
           type: string
+          enum: [Unknown, Synced, OutOfSync]
+        healthStatus:
+          type: string
+          enum: [Unknown, Healthy, Progressing, Degraded, Suspended, Missing]
+        revision:
+          type: string
+        targetRevision:
+          type: string
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArgoCDResourceStatus"
+        conditions:
+          type: array
+          items:
+            type: string
+        observedAt:
+          type: string
+        rawSummary:
+          type: string
+        message:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+    ArgoCDResourceStatus:
+      type: object
+      properties:
+        group:
+          type: string
+        version:
+          type: string
+        kind:
+          type: string
+        namespace:
+          type: string
+        name:
+          type: string
+        status:
+          type: string
+        health:
+          type: string
+        syncStatus:
+          type: string
+        message:
+          type: string
+    ArgoCDSyncRequest:
+      type: object
+      required: [applicationName, allowSync, confirmed]
+      properties:
+        applicationName:
+          type: string
+        revision:
+          type: string
+        prune:
+          type: boolean
+          default: false
+        dryRun:
+          type: boolean
+        force:
+          type: boolean
+          default: false
+        wait:
+          type: boolean
+        timeoutSeconds:
+          type: integer
+        allowSync:
+          type: boolean
+        confirmed:
+          type: boolean
+        confirmation:
+          type: string
+    ArgoCDSyncResult:
+      type: object
+      properties:
+        applicationName:
+          type: string
+        requested:
+          type: boolean
+        started:
+          type: boolean
+        completed:
+          type: boolean
+        syncStatus:
+          type: string
         healthStatus:
           type: string
         revision:
@@ -1528,15 +1706,6 @@ components:
           type: array
           items:
             type: string
-    ArgoCDSyncStatus:
-      type: object
-      properties:
-        applicationName:
-          type: string
-        requested:
-          type: boolean
-        message:
-          type: string
     ManifestDocument:
       type: object
       properties:

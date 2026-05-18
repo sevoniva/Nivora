@@ -394,6 +394,8 @@ func newDeploymentCommand() *cobra.Command {
 	cmd.AddCommand(newDeploymentLocalInspectCommand("diff", "Get DeploymentRun diff", "/diff", func(record deploymentusecase.RunRecord) any { return record.Diff }))
 	cmd.AddCommand(newDeploymentLocalInspectCommand("snapshot", "Get DeploymentRun manifest snapshot", "/manifest-snapshot", func(record deploymentusecase.RunRecord) any { return record.Snapshot }))
 	cmd.AddCommand(newDeploymentLocalInspectCommand("rollback-plan", "Get DeploymentRun rollback plan", "/rollback-plan", func(record deploymentusecase.RunRecord) any { return record.RollbackPlan }))
+	cmd.AddCommand(newDeploymentInspectCommand("argocd-status", "Get DeploymentRun Argo CD status", "/argocd-status"))
+	cmd.AddCommand(newDeploymentSyncCommand())
 	cmd.AddCommand(newDeploymentInspectCommand("resources", "Get DeploymentRun resources", "/resources"))
 	cmd.AddCommand(newDeploymentInspectCommand("logs", "Get DeploymentRun logs", "/logs"))
 	cmd.AddCommand(newDeploymentInspectCommand("events", "Get DeploymentRun events", "/events"))
@@ -630,11 +632,42 @@ func newDeploymentCancelCommand() *cobra.Command {
 	return cmd
 }
 
+func newDeploymentSyncCommand() *cobra.Command {
+	var serverURL string
+	var confirm bool
+	var allowSync bool
+	cmd := &cobra.Command{
+		Use:   "sync <deployment-run-id> --confirm --allow-sync",
+		Short: "Request guarded Argo CD sync for a DeploymentRun",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !confirm || !allowSync {
+				return fmt.Errorf("deployment sync requires --confirm and --allow-sync")
+			}
+			body, err := json.Marshal(map[string]any{"allowSync": true, "confirmed": true})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+args[0]+"/sync", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm sync request")
+	cmd.Flags().BoolVar(&allowSync, "allow-sync", false, "allow guarded sync request")
+	return cmd
+}
+
 func newGitOpsCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "gitops", Short: "GitOps planning utilities"}
 	cmd.AddCommand(newGitOpsPlanCommand())
 	cmd.AddCommand(newGitOpsDiffCommand())
 	cmd.AddCommand(newGitOpsWriteCommand())
+	cmd.AddCommand(newGitOpsDeployCommand())
 	return cmd
 }
 
@@ -719,9 +752,40 @@ func newGitOpsWriteCommand() *cobra.Command {
 	return cmd
 }
 
+func newGitOpsDeployCommand() *cobra.Command {
+	var allowSync bool
+	var confirm bool
+	cmd := &cobra.Command{
+		Use:   "deploy --local <deployment.yaml>",
+		Short: "Run a local GitOps DeploymentRun with guarded Argo CD sync semantics",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			def, err := deploymentusecase.LoadDefinitionFile(args[0])
+			if err != nil {
+				return err
+			}
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, AllowSync: allowSync, Confirm: confirm})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "DeploymentRun: %s\n", result.Record.Run.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", result.Record.Run.Status)
+			if result.Record.ArgoCDSync.Message != "" {
+				fmt.Fprintf(cmd.OutOrStdout(), "ArgoCDSync: %s\n", result.Record.ArgoCDSync.Message)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Bool("local", true, "use the in-process Phase 2.6 local runtime")
+	cmd.Flags().BoolVar(&allowSync, "allow-sync", false, "allow guarded sync request")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm guarded sync request")
+	return cmd
+}
+
 func newArgoCDCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "argocd", Short: "Argo CD foundation utilities"}
 	cmd.AddCommand(newArgoCDStatusCommand())
+	cmd.AddCommand(newArgoCDResourcesCommand())
 	cmd.AddCommand(newArgoCDSyncCommand())
 	return cmd
 }
@@ -746,7 +810,30 @@ func newArgoCDStatusCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&app, "app", "", "Argo CD application name")
-	cmd.Flags().String("server", "", "optional Argo CD URL for future adapters; ignored by the Phase 2.3 noop provider")
+	cmd.Flags().String("server", "", "optional Argo CD URL for future adapters; ignored by the Phase 2.6 noop provider")
+	return cmd
+}
+
+func newArgoCDResourcesCommand() *cobra.Command {
+	var app string
+	cmd := &cobra.Command{
+		Use:   "resources --app <name>",
+		Short: "Read modeled Argo CD application resources through the local noop provider",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if app == "" {
+				return fmt.Errorf("--app is required")
+			}
+			def := gitOpsStatusDefinition(app)
+			def.Spec.GitOps.StatusRead = true
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), result.Record.ArgoCDResources)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&app, "app", "", "Argo CD application name")
 	return cmd
 }
 
@@ -766,6 +853,8 @@ func newArgoCDSyncCommand() *cobra.Command {
 			}
 			def := gitOpsStatusDefinition(app)
 			def.Spec.GitOps.Sync = true
+			def.Spec.GitOps.AllowSync = true
+			def.Spec.GitOps.Wait = true
 			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, AllowSync: true, Confirm: true})
 			if err != nil {
 				return err

@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 2.5 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 2.6 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
@@ -278,14 +278,49 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.argocd.status.read.started:
+    address: devops.argocd.status.read.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.argocd.status.read.completed:
+    address: devops.argocd.status.read.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.argocd.status.read.failed:
+    address: devops.argocd.status.read.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.argocd.sync.requested:
     address: devops.argocd.sync.requested
-    description: Guarded sync request event; production sync automation is not complete in Phase 2.3.
+    description: Guarded sync request event; production sync automation is not complete in Phase 2.6.
     messages:
       event:
         $ref: "#/components/messages/Event"
   devops.argocd.sync.skipped:
     address: devops.argocd.sync.skipped
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.argocd.sync.started:
+    address: devops.argocd.sync.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.argocd.sync.completed:
+    address: devops.argocd.sync.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.argocd.sync.failed:
+    address: devops.argocd.sync.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.argocd.health.changed:
+    address: devops.argocd.health.changed
     messages:
       event:
         $ref: "#/components/messages/Event"

@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local artifact-inspect-local oci-resolve-local gitops-plan-local gitops-diff-local gitops-write-local argocd-status-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
+.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local artifact-inspect-local oci-resolve-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -77,6 +77,9 @@ oci-resolve-local:
 gitops-plan-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora gitops plan --local examples/deployments/argocd-plan.yaml
 
+gitops-deploy-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora gitops deploy --local examples/deployments/argocd-status-read.yaml
+
 gitops-diff-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora gitops diff --local examples/deployments/argocd-plan.yaml
 
@@ -88,6 +91,9 @@ gitops-write-local:
 
 argocd-status-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora argocd status --app demo-springboot
+
+argocd-resources-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora argocd resources --app demo-springboot
 
 smoke-local:
 	./scripts/smoke-pipelinerun-local.sh

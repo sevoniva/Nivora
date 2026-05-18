@@ -2,7 +2,7 @@
 
 Nivora is an open-source DevOps delivery control plane under the `sevoniva` organization. It is backend-first, written in Go, and currently developed as a modular monolith with separate binaries for `nivora-server`, `nivora-worker`, `nivora-runner`, and the `nivora` CLI.
 
-Nivora is in Phase 0 / Phase 0.5 / Phase 0.6. The repository contains a backend skeleton, architecture guardrails, CI validation, and public planning documentation. It is not production-ready and does not yet implement real CI/CD execution, cloud integrations, Kubernetes deployment, Argo CD integration, vendor integrations, or frontend code.
+Nivora has completed the Phase 0 backend skeleton, Phase 0.5 guardrails, Phase 0.6 public planning docs, and the initial Phase 1 / Phase 1.5 shell-based PipelineRun runtime foundation. It is not production-ready and does not yet implement production Kubernetes deployment, Argo CD integration, cloud integrations, vendor integrations, durable distributed scheduling, or frontend code.
 
 ## What Nivora Is
 
@@ -83,7 +83,7 @@ Nivora is not:
 - Phase 0.5: guardrails, architecture verification, secret checks, CI hardening, AI coding rules, Makefile verification.
 - Phase 0.6: public planning docs, project charter, product vision, architecture blueprint, concept docs, roadmap docs, contribution model, RFC template.
 - Phase 1: minimal PipelineRun execution, runner assignment, shell executor flow, log streaming, status transitions, audit event, minimal persistence.
+- Phase 1.5: runtime foundation hardening, explicit state transitions, in-memory runtime repositories, worker advancement path, runner heartbeat, retry, timeout, cancellation, ordered LogChunks, and timeline APIs.
 - Phase 2: GitOps and production release basics.
 - Phase 3: multi-cloud and DevSecOps.
 - Phase 4: visualization frontend.
-

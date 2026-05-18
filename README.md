@@ -343,6 +343,52 @@ Important delivery actions must be auditable: pipeline started, job assigned, ar
 
 Audit records must not contain secret values.
 
+### No Fake Production Readiness
+
+Nivora should be explicit about what exists today and what is target architecture. Early phases must not claim production readiness, complete integrations, durable scheduling, or security guarantees that have not been implemented and verified.
+
+## End-to-End Delivery Flow
+
+This is the long-term flow Nivora is designed around. Early phases implement only the shell-based PipelineRun subset: definition parsing, queued run creation, local runner execution, logs, events, audit records, retry, timeout, cancellation, and timeline queries.
+
+```mermaid
+flowchart TB
+    START["Git Push / Manual Trigger / API Trigger"]
+    INGEST["Trigger Ingestion"]
+    PLAN["Create PipelineRun"]
+    SNAPSHOT["Execution Snapshot"]
+    POLICY{"Pre-check Policy Gates"}
+    DENIED["Stop and record policy result"]
+    QUEUE["Queue PipelineRun"]
+    WORKER["Worker Picks Run"]
+    RUNTIME["Build Runtime Plan"]
+    SELECT{"Select Runner"}
+    RUNNER["Runner"]
+    EXECUTOR["Executor"]
+    LOGS["Capture Logs"]
+    STATUS["Persist Status Transitions"]
+    EVENTS["Emit Events"]
+    AUDIT["Write Audit Records"]
+    APPROVAL{"Approval Required?"}
+    DEPLOY["Create DeploymentRun"]
+    MODE{"Deployment Mode"}
+    VERIFY["Verify"]
+    ROLLBACK{"Rollback Needed?"}
+    RB["Rollback"]
+    TIMELINE["Unified Timeline"]
+
+    START --> INGEST --> PLAN --> SNAPSHOT --> POLICY
+    POLICY -->|Denied| DENIED --> TIMELINE
+    POLICY -->|Allowed| QUEUE --> WORKER --> RUNTIME --> SELECT
+    SELECT --> RUNNER --> EXECUTOR --> LOGS --> STATUS --> EVENTS --> AUDIT
+    AUDIT --> APPROVAL
+    APPROVAL -->|No| DEPLOY
+    APPROVAL -->|Yes| DEPLOY
+    DEPLOY --> MODE --> VERIFY --> ROLLBACK
+    ROLLBACK -->|Yes| RB --> TIMELINE
+    ROLLBACK -->|No| TIMELINE
+```
+
 ## PipelineRun Runtime Model
 
 This is the first execution foundation Nivora is building. Current implementation is limited to minimal shell-based PipelineRun execution.
@@ -378,6 +424,172 @@ sequenceDiagram
     Worker->>Repo: PipelineRun final status
     Worker->>Event: emit completed or failed
     Worker->>Audit: record lifecycle result
+    User->>API: GET /api/v1/pipeline-runs/{id}/timeline
+    API->>Repo: Query ordered runtime events
+    API-->>User: Timeline
+```
+
+## PipelineRun State Model
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending
+    Pending --> Queued
+    Queued --> Running
+    Running --> Paused
+    Paused --> Running
+    Running --> Succeeded
+    Running --> Failed
+    Running --> Timeout
+    Pending --> Canceled
+    Queued --> Canceled
+    Running --> Canceled
+    Paused --> Canceled
+    Failed --> Retrying
+    Retrying --> Queued
+    Succeeded --> [*]
+    Failed --> [*]
+    Timeout --> [*]
+    Canceled --> [*]
+```
+
+## Runner and Executor Model
+
+```mermaid
+flowchart TB
+    CP["Control Plane"] --> RM["Runner Manager"]
+    RM --> LOCAL["Local Runner"]
+    RM --> HOST["Host Runner"]
+    RM --> K8S["Kubernetes Runner"]
+    RM --> GITOPS["GitOps Runner"]
+    RM --> CLOUD["Cloud Runner"]
+
+    LOCAL --> SHELL["Shell Executor"]
+    HOST --> SSH["SSH Executor"]
+    K8S --> KJOB["Kubernetes Job Executor"]
+    K8S --> HYAML["Helm / YAML Executor"]
+    GITOPS --> ARGO["Argo CD Executor"]
+    CLOUD --> WEBHOOK["Webhook / Cloud Executor"]
+
+    SHELL --> RESULT["Execution Result"]
+    SSH --> RESULT
+    KJOB --> RESULT
+    HYAML --> RESULT
+    ARGO --> RESULT
+    WEBHOOK --> RESULT
+    RESULT --> CP
+```
+
+## Deployment Model
+
+Deployment execution is target architecture. It is not implemented as a full production deployment engine in the current phase.
+
+```mermaid
+flowchart TB
+    APP["Application"]
+    ENV["Environment"]
+    REL["Release"]
+    DR["DeploymentRun"]
+    TARGET{"ReleaseTarget Type"}
+
+    APP --> ENV --> REL --> DR --> TARGET
+
+    TARGET --> HOST["HostTarget"]
+    TARGET --> K8S["KubernetesTarget"]
+    TARGET --> HELM["HelmTarget"]
+    TARGET --> KUSTOMIZE["KustomizeTarget"]
+    TARGET --> ARGO["ArgoCDTarget"]
+    TARGET --> CLOUD["CloudTarget"]
+    TARGET --> WEBHOOK["WebhookTarget"]
+
+    HOST --> SSH["SSH Executor"]
+    K8S --> YAML["YAML Apply Executor"]
+    HELM --> HEX["Helm Executor"]
+    KUSTOMIZE --> KREN["Kustomize Renderer"]
+    ARGO --> AEX["Argo CD Executor"]
+    CLOUD --> CAD["Cloud Adapter"]
+    WEBHOOK --> WEX["Webhook Executor"]
+
+    SSH --> VERIFY["Verify"]
+    YAML --> VERIFY
+    HEX --> VERIFY
+    KREN --> VERIFY
+    AEX --> VERIFY
+    CAD --> VERIFY
+    WEX --> VERIFY
+    VERIFY --> RESULT{"Result"}
+    RESULT -->|Healthy| SUCCESS["Deployment Succeeded"]
+    RESULT -->|Unhealthy| ROLLBACK["Rollback Plan"]
+```
+
+## Integration Model
+
+All external systems should connect through ports and adapters. The adapter names below are target integration directions unless explicitly documented as implemented.
+
+```mermaid
+flowchart LR
+    subgraph CORE["Core Use Cases"]
+        PIPE["Pipeline Usecase"]
+        DEPLOY["Deployment Usecase"]
+        ARTUC["Artifact Usecase"]
+        POLICYUC["Policy Usecase"]
+        RUNUC["Runner Usecase"]
+    end
+
+    subgraph PORTS["Ports"]
+        SCM["SCMProvider"]
+        ART["ArtifactProvider"]
+        CLOUD["CloudProvider"]
+        EXEC["Executor"]
+        WF["WorkflowRuntime"]
+        SECRET["SecretProvider"]
+        POLICY["PolicyEngine"]
+        BUS["EventBus"]
+        OBJ["ObjectStore"]
+    end
+
+    subgraph ADAPTERS["Adapters"]
+        SCMAD["GitHub / GitLab / Gitea"]
+        ARTAD["Harbor / Nexus / OCI / S3"]
+        CLOUDAD["AWS / Aliyun / Tencent"]
+        EXECAD["Shell / SSH / K8s Job / Argo CD"]
+        SECRETAD["Built-in / Vault / K8s Secret"]
+        POLICYAD["Built-in / OPA future"]
+        BUSAD["Memory / NATS future"]
+        OBJAD["Local / MinIO / S3"]
+    end
+
+    CORE --> PORTS
+    SCM --> SCMAD
+    ART --> ARTAD
+    CLOUD --> CLOUDAD
+    EXEC --> EXECAD
+    WF --> BUSAD
+    SECRET --> SECRETAD
+    POLICY --> POLICYAD
+    BUS --> BUSAD
+    OBJ --> OBJAD
+```
+
+## Observability and Audit Model
+
+```mermaid
+flowchart TB
+    RUN["PipelineRun / DeploymentRun"]
+    RUN --> LOGS["Logs"]
+    RUN --> EVENTS["Events"]
+    RUN --> AUDIT["AuditLog"]
+    RUN --> METRICS["Metrics"]
+    RUN --> TRACES["Traces"]
+
+    LOGS --> TL["Unified Timeline"]
+    EVENTS --> TL
+    AUDIT --> TL
+    METRICS --> DASH["Future Dashboards"]
+    TRACES --> DASH
+
+    TL --> API["API / CLI / Future Web UI"]
+    DASH --> API
 ```
 
 ## Core Concepts
@@ -614,6 +826,29 @@ Nivora uses CloudEvents-style event envelopes.
 ```
 
 OpenAPI definitions live under `api/openapi/openapi.yaml`. AsyncAPI definitions live under `api/asyncapi/asyncapi.yaml`.
+
+Core API groups include:
+
+```text
+/api/v1/orgs
+/api/v1/projects
+/api/v1/applications
+/api/v1/environments
+/api/v1/repositories
+/api/v1/artifact-registries
+/api/v1/pipelines
+/api/v1/pipeline-runs
+/api/v1/releases
+/api/v1/deployments
+/api/v1/runners
+/api/v1/approvals
+/api/v1/policies
+/api/v1/audit-logs
+/api/v1/events
+/api/v1/logs
+/api/v1/integrations
+/api/v1/visualization
+```
 
 ## Roadmap
 

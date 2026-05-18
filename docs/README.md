@@ -1,14 +1,24 @@
 # Nivora Documentation
 
-This index helps new contributors understand where to start. Nivora is currently in Phase 0 / Phase 0.5 / Phase 0.6: backend skeleton, guardrails, and public planning documentation. It is not production-ready.
+This index helps new contributors understand where to start. Nivora has completed the backend skeleton, guardrails, public planning docs, and an initial shell-only PipelineRun runtime foundation. It is still early-stage and not production-ready.
 
 ## Start Here
 
 - [Project Charter](../PROJECT_CHARTER.md): what Nivora is, why it exists, and how it develops.
-- [README](../README.md): concise project overview and local commands.
+- [README](../README.md): public project overview, architecture diagrams, runtime model, roadmap, and local commands.
 - [Roadmap](../ROADMAP.md): phase summary.
 - [Contribution Guide](../CONTRIBUTING.md): development setup and contribution rules.
 - [AI Agent Rules](../AGENTS.md): canonical coding instructions for AI agents.
+
+## What To Read First
+
+For a quick path through the project:
+
+1. Read the [README](../README.md) for value, architecture, runtime, and roadmap.
+2. Read the [Project Charter](../PROJECT_CHARTER.md) for project purpose and non-goals.
+3. Read [Architecture Contract](architecture/architecture-contract.md) and [Module Boundaries](architecture/module-boundaries.md) before changing code.
+4. Read [Phase 1](roadmap/phase-1.md) for the current shell-based runtime foundation.
+5. Read the [RFC Process](rfcs/README.md) before proposing architecture-sensitive changes.
 
 ## Product Docs
 

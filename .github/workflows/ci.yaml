@@ -46,5 +46,37 @@ jobs:
         run: make verify-api-specs
       - name: Verify packaging templates
         run: make verify-packaging
+      - name: Verify Helm safety
+        run: make verify-helm-safety
       - name: Verify alpha release docs
         run: make verify-alpha
+
+  postgres-integration:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: nivora
+          POSTGRES_PASSWORD: nivora
+          POSTGRES_DB: nivora
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      GOPROXY: https://proxy.golang.org,direct
+      DATABASE_URL: "postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable"
+      NIVORA_RUN_POSTGRES_INTEGRATION: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+      - name: Run migration up/down integration tests
+        run: go test -p 1 -count=1 -run 'TestPostgresIntegration' ./internal/adapters/repository/postgres ./internal/app/runtime
+      - name: Run targeted Postgres store tests
+        run: go test -p 1 -count=1 -run 'TestPostgres' ./internal/adapters/repository/postgres/...

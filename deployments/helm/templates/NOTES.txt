@@ -28,7 +28,7 @@ Nivora {{ .Chart.AppVersion }} has been installed.
 
 Get the application URL:
 {{- if .Values.ingress.enabled }}
-  http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.hosts[0].host }}
+  http{{ if .Values.ingress.tls }}s{{ end }}://{{ (index .Values.ingress.hosts 0).host }}
 {{- else }}
   kubectl port-forward svc/{{ include "nivora.fullname" . }}-server 8080:8080
 {{- end }}

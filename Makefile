@@ -109,7 +109,17 @@ verify-production-profiles: smoke-helm-production-profile smoke-compose-producti
 verify-alpha:
 	./scripts/verify-alpha-release-docs.sh
 
-verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-examples verify-runtime verify-api verify-cli verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-alpha
+verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-examples verify-runtime verify-api verify-cli verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-helm-safety verify-alpha
+
+verify-postgres:
+	@if [ "$$NIVORA_RUN_POSTGRES_INTEGRATION" != "true" ]; then \
+		echo "Skipping Postgres integration tests; set NIVORA_RUN_POSTGRES_INTEGRATION=true and DATABASE_URL"; \
+	else \
+		GOPROXY=$(GOPROXY) DATABASE_URL="$(DATABASE_URL)" NIVORA_RUN_POSTGRES_INTEGRATION=true $(GO) test -p 1 -count=1 -run 'TestPostgresIntegration' ./internal/adapters/repository/postgres ./internal/app/runtime; \
+	fi
+
+verify-helm-safety:
+	./scripts/verify-helm-safety.sh
 
 run-server:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora server --config configs/server.yaml

@@ -22,15 +22,16 @@ pass() {
   PASS=$((PASS + 1))
 }
 
-# 1. Default values render with dev-only runtimeStore=memory
+# 1. Default values render with dev-only runtimeStore=memory and environment=development
 echo ""
 echo "--- Default values (dev) ---"
 DEFAULT_OUT=$(helm template nivora "$CHART_DIR" 2>/dev/null)
 if echo "$DEFAULT_OUT" | grep -q 'runtime_store: "memory"'; then
-  if echo "$DEFAULT_OUT" | grep -qi "WARNING\|dev-only"; then
-    pass "default chart renders memory runtime store with dev warning"
+  # NOTES.txt is not rendered in helm template; check that environment is development
+  if echo "$DEFAULT_OUT" | grep -q 'environment: "development"'; then
+    pass "default chart renders memory runtime store with development environment"
   else
-    fail "default chart renders memory runtime store WITHOUT dev warning"
+    fail "default chart renders memory runtime store WITHOUT development environment"
   fi
 else
   pass "default chart does not render memory runtime store"
@@ -62,11 +63,12 @@ for flag in allow_local_shell_executor allow_privileged_executor allow_remote_ho
   fi
 done
 
-# 5. No inline secrets
-if echo "$DEFAULT_OUT" | grep -q 'NIVORA_AUTH_TOKEN: ""'; then
-  pass "no inline secret values in default chart"
+# 5. No inline secrets — the template renders env var names, not values.
+# Check that no inline password/token values are rendered in the config.
+if echo "$DEFAULT_OUT" | grep -qiE 'password: "[^"]+"|token: "[^"]{8,}"|secret: "[^"]{8,}"'; then
+  fail "possible inline secret value in default chart"
 else
-  fail "possible inline secret in default chart"
+  pass "no inline secret values in default chart"
 fi
 
 # 6. Chart versions aligned

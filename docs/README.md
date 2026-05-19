@@ -6,6 +6,10 @@ This index helps new contributors understand where to start. Nivora has an alpha
 
 - [Project Charter](../PROJECT_CHARTER.md): what Nivora is, why it exists, and how it develops.
 - [README](../README.md): public project overview, architecture diagrams, runtime model, roadmap, and local commands.
+- [User Guide](user/README.md): pipeline, deployment, release, artifact, approval, and security workflows.
+- [Operator Guide](operator/README.md): install, config, auth, secrets, backup, observability, and troubleshooting.
+- [Developer Guide](developer/README.md): architecture, adapters, plugins, and tests.
+- [Tutorials](tutorials/README.md): first pipeline, first deployment dry-run, first release, GitOps plan, and policy gate.
 - [Roadmap](../ROADMAP.md): phase summary.
 - [Alpha Capability Matrix](ALPHA_CAPABILITY_MATRIX.md): what is implemented, partial, planned, or unsupported in the alpha.
 - [Beta Capability Matrix](BETA_CAPABILITY_MATRIX.md): beta-freeze capability boundaries.
@@ -103,6 +107,14 @@ For a quick path through the project:
 - [v0.5.0-beta Checklist](releases/v0.5.0-beta-checklist.md)
 - [v0.5.0-beta Release Notes Draft](releases/v0.5.0-beta-release-notes-draft.md)
 - [v1.0.0-rc.1 Checklist](releases/v1.0.0-rc.1-checklist.md)
+- [Release Playbook](releases/release-playbook.md)
+
+## Role-Based Guides
+
+- [User Guide](user/README.md)
+- [Operator Guide](operator/README.md)
+- [Developer Guide](developer/README.md)
+- [Tutorials](tutorials/README.md)
 
 ## Operations Docs
 

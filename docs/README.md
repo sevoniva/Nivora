@@ -1,6 +1,6 @@
 # Nivora Documentation
 
-This index helps new contributors understand where to start. Nivora has an alpha foundation and is entering a `v0.5.0-beta` readiness freeze for consistency, API, docs, examples, security, and verification review. It is still early-stage and not production-ready.
+This index helps new contributors understand where to start. Nivora has an alpha foundation, a `v0.5.0-beta` readiness freeze baseline, and a `v1.0.0-rc.1` release-candidate hardening baseline. It is still early-stage and not production-ready.
 
 ## Start Here
 
@@ -102,10 +102,14 @@ For a quick path through the project:
 - [v0.1.0-alpha.1 Checklist](releases/v0.1.0-alpha.1-checklist.md)
 - [v0.5.0-beta Checklist](releases/v0.5.0-beta-checklist.md)
 - [v0.5.0-beta Release Notes Draft](releases/v0.5.0-beta-release-notes-draft.md)
+- [v1.0.0-rc.1 Checklist](releases/v1.0.0-rc.1-checklist.md)
 
 ## Operations Docs
 
 - [Configuration](operations/configuration.md)
+- [Production-Direction Install](operations/production-install.md)
+- [Upgrade Guide](operations/upgrade.md)
+- [Release Automation](operations/release-automation.md)
 - [Docker Compose Install](operations/install-docker-compose.md)
 - [Kubernetes Install](operations/install-kubernetes.md)
 - [Cloud Providers](operations/cloud-providers.md)

@@ -126,6 +126,28 @@ Non-goals:
 - New external integrations.
 - Production or GA readiness claims.
 
+## Phase 9.1 Release Candidate Hardening
+
+Phase 9.1 prepares a `v1.0.0-rc.1` review baseline without opening new feature work.
+
+Scope:
+
+- API breaking-change review and OpenAPI/AsyncAPI consistency.
+- Migration forward/backward review.
+- Docker Compose, Helm, and local binary install validation.
+- Runtime recovery and runner protocol review.
+- Auth, RBAC, secrets, logs, audit, and credential redaction review.
+- Performance smoke review.
+- Production-direction install, upgrade, backup/restore, troubleshooting, and release automation docs.
+- Release-candidate checklist at `docs/releases/v1.0.0-rc.1-checklist.md`.
+
+Non-goals:
+
+- No new major features.
+- No broad rewrites.
+- No production or GA readiness claim until the RC checklist passes.
+- No external service requirement for baseline verification.
+
 ## Phase 4.3 / 7.4 Plugin and Extension System Foundation
 
 Phase 4.3 defined plugin metadata, a capability registry, and an external protocol skeleton. Phase 7.4 stabilizes the plugin API version, compatibility checks, validate-config lifecycle, and adapter templates.

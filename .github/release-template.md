@@ -1,31 +1,36 @@
-# v0.1.0-alpha.1
+# <version>
 
-This is a public alpha release of Nivora. It is intended for architecture review, local demos, contributor onboarding, and early feedback.
+This release is intended for architecture review, local validation, contributor onboarding, and maintainer-controlled release-candidate hardening.
 
-Nivora is not production-ready.
+Nivora must not be described as production-ready unless the matching release checklist has passed and maintainers explicitly approve that claim.
 
 ## Highlights
 
-- Backend control-plane foundation in Go.
-- PipelineRun, DeploymentRun, Release, Artifact, GitOps, policy, credential, auth, approval, cloud inventory, host deployment, visualization, observability, plugin, and packaging foundations.
-- Local verification through `make verify`.
-- Docker Compose, Helm, and Kubernetes manifest examples.
+- <highlight 1>
+- <highlight 2>
+- <highlight 3>
 
 ## Known Limitations
 
-- No production-grade distributed runtime or external queue.
-- No production Kubernetes apply semantics or destructive rollback.
-- No production Argo CD automation.
-- No full cloud, Git provider, registry, scanner, signer, notification, ITSM, Vault, or SSO integrations.
-- Web UI is a minimal foundation.
+- <limitation 1>
+- <limitation 2>
+- <limitation 3>
 
 ## Verification
 
 - `make verify`
-- `make helm-template`
-- `make helm-lint`
-- `make docker-build` when Docker Hub and base image registries are reachable
+- `make helm-template` when Helm is available
+- `make helm-lint` when Helm is available
+- `make docker-build` when base image registries are reachable
 
-## Upgrade Notes
+## Install And Upgrade Notes
 
-This is the first alpha release. APIs and configuration may change before beta.
+- Review `docs/operations/production-install.md`.
+- Review `docs/operations/upgrade.md`.
+- Review `docs/operations/backup-restore.md`.
+- Review the matching checklist in `docs/releases/`.
+
+## Security Notes
+
+- Do not publish secret values, tokens, kubeconfigs, private keys, registry credentials, cloud credentials, or realistic fake credentials.
+- Guarded operations such as apply, sync, remote host deploy, push, prune, and destructive rollback must remain explicit.

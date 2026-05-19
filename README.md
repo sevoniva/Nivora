@@ -13,7 +13,7 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora is early-stage and **not production-ready**. The current focus is the `v0.5.0-beta` readiness freeze: consistency review across backend architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, service-account API tokens, OIDC provider configuration foundations, approval/change-window foundations, multi-cloud inventory foundations, runner/executor model, logs/events/audit, visualization APIs, minimal web UI, plugin registry, packaging, observability, performance/load-test foundations, and open-source contribution docs. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud deployment, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, external notification adapters, ITSM integration, signing, and scanning remain future phases.
+Nivora is early-stage and **not production-ready**. The current focus is the `v1.0.0-rc.1` hardening baseline: API stability review, migration forward/backward review, install validation, runtime recovery review, runner protocol review, security review, performance smoke checks, operational docs, and release automation. The beta foundation covers shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, service-account API tokens, OIDC provider configuration foundations, approval/change-window foundations, multi-cloud inventory foundations, runner/executor model, logs/events/audit, visualization APIs, minimal web UI, plugin registry, packaging, observability, performance/load-test foundations, and open-source contribution docs. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud deployment, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, external notification adapters, ITSM integration, signing, and scanning remain guarded foundations or future phases until maintainers close the RC checklist.
 
 ## Current Status
 
@@ -45,6 +45,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the `v0
 | Packaging and deployment foundation | Phase 4.4 Docker Compose / Helm / Kubernetes manifests |
 | Alpha release hardening | Phase 5.0 foundation for `v0.1.0-alpha.1` |
 | Beta freeze | Phase 9.0 consistency/API/docs/examples/security baseline for `v0.5.0-beta` |
+| Release candidate hardening | Phase 9.1 API/migration/install/security/release baseline for `v1.0.0-rc.1` |
 | Production multi-cloud adapters | Planned |
 | Production DevSecOps integrations | Planned |
 | Complete frontend visualization product | Future phase |
@@ -52,10 +53,10 @@ Nivora is early-stage and **not production-ready**. The current focus is the `v0
 Current focus:
 
 ```text
-v0.5.0-beta readiness freeze
+v1.0.0-rc.1 hardening baseline
 honest capability boundaries
 self-contained demo path
-runtime and packaging verification
+runtime, install, and packaging verification
 logs / events / audit consistency
 ```
 
@@ -68,6 +69,10 @@ Alpha release references:
 - [v0.1.0-alpha.1 Checklist](docs/releases/v0.1.0-alpha.1-checklist.md)
 - [v0.5.0-beta Checklist](docs/releases/v0.5.0-beta-checklist.md)
 - [v0.5.0-beta Release Notes Draft](docs/releases/v0.5.0-beta-release-notes-draft.md)
+- [v1.0.0-rc.1 Checklist](docs/releases/v1.0.0-rc.1-checklist.md)
+- [Production-Direction Install](docs/operations/production-install.md)
+- [Upgrade Guide](docs/operations/upgrade.md)
+- [Release Automation](docs/operations/release-automation.md)
 - [Changelog](CHANGELOG.md)
 
 ## Why Nivora Exists

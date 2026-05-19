@@ -15,6 +15,7 @@ Current migration groups:
 - `000003_persistence_foundation`: alpha runtime tables for PipelineRun snapshots, JobRun claim state, ordered logs, events, audit, runners, outbox, and idempotency keys.
 - `000004_runtime_recovery`: PipelineRun and DeploymentRun lease fields plus outbox retry metadata and recovery indexes.
 - `000005_runner_fleet`: runner token metadata, capabilities, max concurrency, last seen time, and runner fleet indexes.
+- `000006_performance_indexes`: query-shape indexes for list, log, event, audit, runner, lease, and outbox paths.
 
 Run migrations with:
 

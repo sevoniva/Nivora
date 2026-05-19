@@ -4,6 +4,22 @@ All notable changes to Nivora are tracked here.
 
 Nivora is early-stage software. Releases before `1.0.0` may change APIs, configuration, and runtime behavior as the architecture hardens.
 
+## v1.0.0-rc.1 - Draft
+
+This is the release-candidate hardening baseline. It freezes major feature work and focuses on API stability, migration review, install validation, runtime recovery posture, runner protocol review, security review, performance smoke checks, operational docs, and release automation.
+
+### Added
+
+- Release-candidate checklist for `v1.0.0-rc.1`.
+- Production-direction install guide, upgrade guide, and release automation guide.
+- RC review coverage for API breaking-change risk, migration forward/backward validation, Docker Compose, Helm, local binaries, runtime recovery, runner protocol, security posture, and performance smoke.
+
+### RC Notes
+
+- No production or GA readiness claim is made by this draft.
+- `VERSION` remains unchanged until the maintainer cuts the RC.
+- Guarded operations remain explicit and disabled by default.
+
 ## v0.5.0-beta - Draft
 
 This is the beta-freeze readiness baseline. Feature expansion is paused while maintainers review consistency, API behavior, docs, examples, dependencies, config, security posture, migrations, and verification.

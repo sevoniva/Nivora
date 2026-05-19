@@ -16,13 +16,22 @@ var ErrScopeDenied = errors.New("tenant scope denied")
 
 type Service struct {
 	mu     sync.RWMutex
+	store  Store
 	quotas map[string]domaintenant.Quota
 	usage  map[string]domaintenant.UsageSummary
 	now    func() time.Time
 }
 
 func NewService() *Service {
+	return NewServiceWithStore(NewMemoryStore())
+}
+
+func NewServiceWithStore(store Store) *Service {
+	if store == nil {
+		store = NewMemoryStore()
+	}
 	return &Service{
+		store:  store,
 		quotas: make(map[string]domaintenant.Quota),
 		usage:  make(map[string]domaintenant.UsageSummary),
 		now:    time.Now,
@@ -62,6 +71,9 @@ func (s *Service) SetQuota(ctx context.Context, input QuotaUpdateInput) (domaint
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.quotas[scopeKey(scope)] = quota
+	if s.store != nil {
+		_ = s.store.SaveQuota(ctx, quota)
+	}
 	return quota, nil
 }
 
@@ -95,6 +107,9 @@ func (s *Service) RecordUsage(ctx context.Context, update UsageUpdate) (domainte
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.usage[scopeKey(update.Scope)] = usage
+	if s.store != nil {
+		_ = s.store.SaveUsage(ctx, usage)
+	}
 	return usage, nil
 }
 

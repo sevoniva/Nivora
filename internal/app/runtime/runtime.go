@@ -227,6 +227,17 @@ func NewTenancyService() *tenancyusecase.Service {
 	return tenancyusecase.NewService()
 }
 
+func NewTenancyServiceWithConfig(ctx context.Context, cfg config.Config) (*tenancyusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewTenancyService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return tenancyusecase.NewServiceWithStore(postgresrepo.NewTenancyStore(pool)), pool.Close, nil
+}
+
 func NewComplianceService(pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, approvalService *approvalusecase.Service) *complianceusecase.Service {
 	return complianceusecase.NewService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService)
 }

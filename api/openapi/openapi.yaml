@@ -4747,15 +4747,37 @@ components:
           type: string
         healthCheck:
           type: string
+        healthChecks:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostHealthCheck"
+        restartCommand:
+          type: string
         strategy:
           type: string
           enum: [symlink]
         credentialRef:
           type: string
+        batchSize:
+          type: integer
+        pauseOnFailure:
+          type: boolean
         dryRun:
           type: boolean
         allowRemoteHostDeploy:
           type: boolean
+    HostHealthCheck:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [http, tcp, command]
+        target:
+          type: string
+        command:
+          type: string
+        timeoutSeconds:
+          type: integer
     HostDeploymentPlan:
       type: object
       properties:
@@ -4773,8 +4795,18 @@ components:
           type: string
         healthCheck:
           type: string
+        healthChecks:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostHealthCheck"
+        restartCommand:
+          type: string
         strategy:
           type: string
+        batchSize:
+          type: integer
+        pauseOnFailure:
+          type: boolean
         dryRun:
           type: boolean
         apply:
@@ -4802,6 +4834,8 @@ components:
           type: string
         address:
           type: string
+        batchIndex:
+          type: integer
         releaseDir:
           type: string
         currentSymlink:
@@ -4810,6 +4844,8 @@ components:
           type: string
         nextSymlink:
           type: string
+        timeoutSeconds:
+          type: integer
         actions:
           type: array
           items:
@@ -4823,8 +4859,14 @@ components:
           type: string
         address:
           type: string
+        batchIndex:
+          type: integer
         status:
           type: string
+        healthStatus:
+          type: string
+        rollbackReady:
+          type: boolean
         message:
           type: string
         startedAt:

@@ -269,6 +269,7 @@ func cloneRecord(record RunRecord) RunRecord {
 	record.GitOpsRollback.Files = append([]string(nil), record.GitOpsRollback.Files...)
 	record.GitOpsRollback.Warnings = append([]string(nil), record.GitOpsRollback.Warnings...)
 	record.HostPlan.Hosts = append([]HostDeploymentStep(nil), record.HostPlan.Hosts...)
+	record.HostPlan.HealthChecks = append([]HostHealthCheck(nil), record.HostPlan.HealthChecks...)
 	record.HostPlan.Actions = append([]string(nil), record.HostPlan.Actions...)
 	record.HostPlan.Warnings = append([]string(nil), record.HostPlan.Warnings...)
 	record.HostPlan.RollbackPlan.Resources = append([]ManifestResourceSummary(nil), record.HostPlan.RollbackPlan.Resources...)

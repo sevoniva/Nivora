@@ -105,6 +105,7 @@ For a quick path through the project:
 - [Docker Compose Install](operations/install-docker-compose.md)
 - [Kubernetes Install](operations/install-kubernetes.md)
 - [Cloud Providers](operations/cloud-providers.md)
+- [Host Deployment](operations/host-deployment.md)
 - [Observability Operations](operations/observability.md)
 - [OIDC Auth](operations/auth-oidc.md)
 - [RBAC Operations](operations/rbac.md)

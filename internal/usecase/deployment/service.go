@@ -77,6 +77,9 @@ const (
 	EventHostDeploymentHostFailed      = "devops.host.deployment.host.failed"
 	EventHostDeploymentHealthCompleted = "devops.host.deployment.health.completed"
 	EventHostRollbackPlanCreated       = "devops.host.rollback.plan.created"
+	EventHostRollbackStarted           = "devops.host.rollback.started"
+	EventHostRollbackCompleted         = "devops.host.rollback.completed"
+	EventHostRollbackFailed            = "devops.host.rollback.failed"
 )
 
 type KubernetesManifestClient interface {
@@ -361,6 +364,9 @@ func (s *Service) Rollback(ctx context.Context, input RollbackInput) (RunRecord,
 	if err != nil {
 		return RunRecord{}, err
 	}
+	if record.Run.TargetType == "host" {
+		return s.rollbackHost(ctx, record, input)
+	}
 	if record.Run.TargetType != "kubernetes-yaml" {
 		return RunRecord{}, fmt.Errorf("deployment rollback is only supported for kubernetes-yaml targets")
 	}
@@ -415,6 +421,85 @@ func (s *Service) Rollback(ctx context.Context, input RollbackInput) (RunRecord,
 		return RunRecord{}, err
 	}
 	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentRollbackSucceeded, "Deployment rollback succeeded", input.ActorID, string(record.Run.Status), "Guarded manifest restore rollback completed"); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.Get(ctx, record.Run.ID)
+}
+
+func (s *Service) rollbackHost(ctx context.Context, record RunRecord, input RollbackInput) (RunRecord, error) {
+	if len(record.HostPlan.Hosts) == 0 {
+		return RunRecord{}, fmt.Errorf("host rollback requires a host deployment plan")
+	}
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunRollingBack, s.now(), "host rollback requested"); err != nil {
+		return RunRecord{}, err
+	}
+	if record.Rollback != nil {
+		record.Rollback.Status = "running"
+		record.Rollback.Reason = "host symlink rollback requested"
+		record.Rollback.UpdatedAt = s.now()
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventHostRollbackStarted, "Host rollback started", input.ActorID, string(record.Run.Status), "Guarded host symlink rollback started"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	for _, step := range record.HostPlan.Hosts {
+		request := portexecutor.HostDeploymentRequest{
+			DeploymentRunID: record.Run.ID,
+			HostID:          step.HostID,
+			HostName:        step.HostName,
+			Address:         step.Address,
+			Artifact:        record.HostPlan.Artifact,
+			DeployPath:      record.HostPlan.DeployPath,
+			ReleaseDir:      step.ReleaseDir,
+			ServiceName:     record.HostPlan.ServiceName,
+			HealthCheck:     record.HostPlan.HealthCheck,
+			RestartCommand:  record.HostPlan.RestartCommand,
+			Strategy:        record.HostPlan.Strategy,
+			BatchIndex:      step.BatchIndex,
+			DryRun:          record.HostPlan.DryRun,
+			Apply:           record.HostPlan.Apply,
+			Confirmed:       input.Confirm,
+			AllowRemote:     record.Definition.Spec.Host.AllowRemoteHostDeploy,
+			CredentialRef:   hostCredentialRef(record.Definition),
+			TimeoutSeconds:  step.TimeoutSeconds,
+		}
+		result := portexecutor.HostDeploymentResult{HostID: step.HostID, HostName: step.HostName, Status: "Succeeded", Message: "host rollback skipped by plan-only runtime"}
+		if s.host != nil {
+			var err error
+			result, err = s.host.Rollback(ctx, request)
+			if err != nil {
+				record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "stderr", err.Error(), int64(len(record.Logs)+1)))
+				if record.Rollback != nil {
+					record.Rollback.Status = "failed"
+					record.Rollback.Reason = err.Error()
+					record.Rollback.UpdatedAt = s.now()
+				}
+				if saveErr := s.store.Save(ctx, record); saveErr != nil {
+					return RunRecord{}, saveErr
+				}
+				if _, eventErr := s.recordRuntimeEvent(ctx, record, EventHostRollbackFailed, string(domaindeployment.DeploymentRunFailed), err.Error()); eventErr != nil {
+					return RunRecord{}, eventErr
+				}
+				return s.fail(ctx, record, input.ActorID, err.Error())
+			}
+		}
+		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", result.Message, int64(len(record.Logs)+1)))
+	}
+	if record.Rollback != nil {
+		record.Rollback.Status = "succeeded"
+		record.Rollback.Reason = "host symlink rollback completed"
+		record.Rollback.UpdatedAt = s.now()
+	}
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunRolledBack, s.now(), "host symlink rollback completed"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventHostRollbackCompleted, "Host rollback completed", input.ActorID, string(record.Run.Status), "Guarded host symlink rollback completed"); err != nil {
 		return RunRecord{}, err
 	}
 	return s.store.Get(ctx, record.Run.ID)
@@ -726,14 +811,22 @@ func (s *Service) processHost(ctx context.Context, record RunRecord, actorID str
 	}
 	record, _ = s.store.Get(ctx, record.Run.ID)
 
+	currentBatch := 0
+	hostFailures := 0
 	for _, step := range record.HostPlan.Hosts {
+		if step.BatchIndex != currentBatch {
+			currentBatch = step.BatchIndex
+			record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("host batch %d started", currentBatch), int64(len(record.Logs)+1)))
+		}
 		started := s.now()
 		detail := HostDeploymentRunDetail{
-			HostID:    step.HostID,
-			HostName:  step.HostName,
-			Address:   step.Address,
-			Status:    "Running",
-			StartedAt: started,
+			HostID:        step.HostID,
+			HostName:      step.HostName,
+			Address:       step.Address,
+			BatchIndex:    step.BatchIndex,
+			Status:        "Running",
+			RollbackReady: record.HostPlan.Apply,
+			StartedAt:     started,
 		}
 		record.HostDetails = append(record.HostDetails, detail)
 		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("host %s started", step.HostName), int64(len(record.Logs)+1)))
@@ -748,7 +841,9 @@ func (s *Service) processHost(ctx context.Context, record RunRecord, actorID str
 		result, err := s.executeHostStep(ctx, record, step, confirm)
 		finished := s.now()
 		if err != nil {
+			hostFailures++
 			record.HostDetails[len(record.HostDetails)-1].Status = "Failed"
+			record.HostDetails[len(record.HostDetails)-1].HealthStatus = "Degraded"
 			record.HostDetails[len(record.HostDetails)-1].Message = err.Error()
 			record.HostDetails[len(record.HostDetails)-1].FinishedAt = finished
 			record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "stderr", err.Error(), int64(len(record.Logs)+1)))
@@ -756,9 +851,14 @@ func (s *Service) processHost(ctx context.Context, record RunRecord, actorID str
 				return RunRecord{}, saveErr
 			}
 			record, _ = s.recordRuntimeEvent(ctx, record, EventHostDeploymentHostFailed, string(domaindeployment.DeploymentRunFailed), err.Error())
-			return s.fail(ctx, record, actorID, err.Error())
+			if record.HostPlan.PauseOnFailure {
+				return s.fail(ctx, record, actorID, err.Error())
+			}
+			record, _ = s.store.Get(ctx, record.Run.ID)
+			continue
 		}
 		record.HostDetails[len(record.HostDetails)-1].Status = result.Status
+		record.HostDetails[len(record.HostDetails)-1].HealthStatus = "Healthy"
 		record.HostDetails[len(record.HostDetails)-1].Message = result.Message
 		record.HostDetails[len(record.HostDetails)-1].FinishedAt = finished
 		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", result.Message, int64(len(record.Logs)+1)))
@@ -769,6 +869,9 @@ func (s *Service) processHost(ctx context.Context, record RunRecord, actorID str
 			return RunRecord{}, err
 		}
 		record, _ = s.store.Get(ctx, record.Run.ID)
+	}
+	if hostFailures > 0 {
+		return s.fail(ctx, record, actorID, fmt.Sprintf("%d host deployment(s) failed", hostFailures))
 	}
 
 	if record.HostPlan.Apply {
@@ -807,12 +910,26 @@ func (s *Service) executeHostStep(ctx context.Context, record RunRecord, step Ho
 		ReleaseDir:      step.ReleaseDir,
 		ServiceName:     record.HostPlan.ServiceName,
 		HealthCheck:     record.HostPlan.HealthCheck,
+		RestartCommand:  record.HostPlan.RestartCommand,
 		Strategy:        record.HostPlan.Strategy,
+		BatchIndex:      step.BatchIndex,
 		DryRun:          record.HostPlan.DryRun,
 		Apply:           record.HostPlan.Apply,
 		Confirmed:       confirm,
 		AllowRemote:     record.Definition.Spec.Host.AllowRemoteHostDeploy,
 		CredentialRef:   hostCredentialRef(record.Definition),
+		TimeoutSeconds:  step.TimeoutSeconds,
+	}
+	if len(record.HostPlan.HealthChecks) > 0 {
+		check := record.HostPlan.HealthChecks[0]
+		request.HealthCheck = check.Target
+		request.HealthCheckType = check.Type
+		if check.Type == "command" {
+			request.HealthCheck = check.Command
+		}
+		if request.TimeoutSeconds == 0 {
+			request.TimeoutSeconds = check.TimeoutSeconds
+		}
 	}
 	if s.host == nil {
 		return portexecutor.HostDeploymentResult{HostID: step.HostID, HostName: step.HostName, Status: "Succeeded", Message: "host executor not configured; Phase 3.5 plan-only runtime completed"}, nil
@@ -1424,11 +1541,24 @@ func (s *Service) buildHostPlan(runID string, def Definition) (DeploymentPlan, H
 	if strategy == "" {
 		strategy = "symlink"
 	}
-	actions := []string{"validate artifact reference", "validate host targets", "prepare release directory", "plan symlink switch", "plan health check", "create rollback baseline"}
-	if def.Spec.Options.Apply {
-		actions = append(actions, "upload artifact", "execute guarded host deployment")
+	batchSize := def.Spec.Host.BatchSize
+	if batchSize <= 0 {
+		batchSize = 1
 	}
-	warnings := []string{"remote SSH execution is disabled by default in Phase 3.5", "host rollback execution is not implemented in Phase 3.5; rollback plan is non-destructive"}
+	pauseOnFailure := true
+	if strings.EqualFold(def.Spec.Host.Metadata["pauseOnFailure"], "false") {
+		pauseOnFailure = false
+	}
+	healthChecks := normalizeHostHealthChecks(def.Spec.Host)
+	timeoutSeconds := def.Spec.Options.TimeoutSeconds
+	actions := []string{"validate artifact reference", "validate host targets", "prepare versioned release directory", "plan current/previous/next symlink switch", "plan health checks", "create rollback baseline"}
+	if def.Spec.Host.ServiceName != "" || def.Spec.Host.RestartCommand != "" {
+		actions = append(actions, "plan guarded service restart")
+	}
+	if def.Spec.Options.Apply {
+		actions = append(actions, "upload artifact", "switch symlink", "restart service when configured", "run health checks")
+	}
+	warnings := []string{"remote SSH execution is disabled by default unless explicitly confirmed and credentialed", "host rollback is guarded and uses symlink restore without deleting release directories by default"}
 	if !def.Spec.Options.Apply {
 		warnings = append(warnings, "host deployment is plan/dry-run only")
 	}
@@ -1440,14 +1570,17 @@ func (s *Service) buildHostPlan(runID string, def Definition) (DeploymentPlan, H
 			hostID = host.Name
 		}
 		releaseDir := deployPath + "/releases/" + runID
+		batchIndex := len(steps)/batchSize + 1
 		steps = append(steps, HostDeploymentStep{
 			HostID:          hostID,
 			HostName:        host.Name,
 			Address:         host.Address,
+			BatchIndex:      batchIndex,
 			ReleaseDir:      releaseDir,
 			CurrentSymlink:  deployPath + "/current",
 			PreviousSymlink: deployPath + "/previous",
 			NextSymlink:     deployPath + "/next",
+			TimeoutSeconds:  timeoutSeconds,
 			Actions:         append([]string(nil), actions...),
 		})
 		resources = append(resources, ManifestResourceSummary{
@@ -1471,7 +1604,7 @@ func (s *Service) buildHostPlan(runID string, def Definition) (DeploymentPlan, H
 		Resources:         resources,
 		Strategy:          "symlink-restore",
 		Executable:        false,
-		Warnings:          []string{"host rollback is a plan-only baseline in Phase 3.5 and does not delete or mutate remote hosts"},
+		Warnings:          []string{"host rollback is guarded by explicit confirmation and does not delete release directories by default"},
 		CreatedAt:         s.now(),
 	}
 	hostPlan := HostDeploymentPlan{
@@ -1482,7 +1615,11 @@ func (s *Service) buildHostPlan(runID string, def Definition) (DeploymentPlan, H
 		DeployPath:      deployPath,
 		ServiceName:     def.Spec.Host.ServiceName,
 		HealthCheck:     def.Spec.Host.HealthCheck,
+		HealthChecks:    healthChecks,
+		RestartCommand:  def.Spec.Host.RestartCommand,
 		Strategy:        strategy,
+		BatchSize:       batchSize,
+		PauseOnFailure:  pauseOnFailure,
 		DryRun:          !def.Spec.Options.Apply,
 		Apply:           def.Spec.Options.Apply,
 		Hosts:           steps,
@@ -1935,6 +2072,33 @@ func hostCredentialRef(def Definition) string {
 	return def.Spec.Target.CredentialsRef
 }
 
+func normalizeHostHealthChecks(spec HostSpec) []HostHealthCheck {
+	checks := make([]HostHealthCheck, 0, len(spec.HealthChecks)+1)
+	for _, check := range spec.HealthChecks {
+		if check.TimeoutSeconds == 0 {
+			check.TimeoutSeconds = 30
+		}
+		checks = append(checks, check)
+	}
+	if len(checks) == 0 && spec.HealthCheck != "" {
+		checkType := "command"
+		target := spec.HealthCheck
+		if strings.HasPrefix(spec.HealthCheck, "http://") || strings.HasPrefix(spec.HealthCheck, "https://") {
+			checkType = "http"
+		} else if strings.Contains(spec.HealthCheck, ":") && !strings.Contains(spec.HealthCheck, " ") {
+			checkType = "tcp"
+		}
+		check := HostHealthCheck{Type: checkType, TimeoutSeconds: 30}
+		if checkType == "command" {
+			check.Command = target
+		} else {
+			check.Target = target
+		}
+		checks = append(checks, check)
+	}
+	return checks
+}
+
 func stableHostHash(host Host, artifact string, deployPath string) string {
 	sum := sha256.Sum256([]byte(host.ID + "\n" + host.Name + "\n" + host.Address + "\n" + artifact + "\n" + deployPath))
 	return "sha256:" + hex.EncodeToString(sum[:])
@@ -1987,7 +2151,7 @@ func (s *Service) hostRollbackBaseline(runID string, def Definition, plan HostDe
 		TargetName:          def.Spec.Target.Name,
 		ManifestSnapshotRef: "memory://" + runID + "/host-release-plan",
 		ResourceRefs:        refs,
-		Reason:              "host rollback execution is not implemented in Phase 3.5",
+		Reason:              "host rollback uses guarded symlink restore and optional service restart",
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}

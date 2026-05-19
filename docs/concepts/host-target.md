@@ -12,8 +12,8 @@ Many delivery systems still need to deploy JARs, binaries, static packages, or t
 - A `Host` belongs to a HostGroup or inline host list.
 - A `DeploymentRun` with `target.type=host` creates a `HostDeploymentPlan`.
 - A `HostExecutor` performs prepare/upload/execute/health-check operations through an adapter.
-- Rollback is modeled as a plan, not destructive execution, in Phase 3.5.
+- Rollback is guarded and modeled as a symlink restore; it does not delete release directories by default.
 
 ## Common Confusion
 
-Host Target is not cloud host discovery. It is not SSH automation by default. Phase 3.5 only introduces the backend model, safe plan generation, noop execution, and a disabled SSH adapter skeleton.
+Host Target is not cloud host discovery. It is not SSH automation by default. Phase 8.1 supports safe plan generation, noop execution, batch rollout metadata, typed health checks, guarded rollback, and a guarded SSH adapter surface that still requires explicit configuration.

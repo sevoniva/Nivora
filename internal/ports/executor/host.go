@@ -12,12 +12,16 @@ type HostDeploymentRequest struct {
 	ReleaseDir      string
 	ServiceName     string
 	HealthCheck     string
+	HealthCheckType string
+	RestartCommand  string
 	Strategy        string
+	BatchIndex      int
 	DryRun          bool
 	Apply           bool
 	Confirmed       bool
 	AllowRemote     bool
 	CredentialRef   string
+	TimeoutSeconds  int
 }
 
 type HostDeploymentResult struct {
@@ -27,6 +31,7 @@ type HostDeploymentResult struct {
 	Message  string
 	Stdout   string
 	Stderr   string
+	Command  string
 }
 
 type HostExecutor interface {

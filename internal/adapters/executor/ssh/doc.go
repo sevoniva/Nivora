@@ -1,5 +1,7 @@
-// Package ssh contains a guarded SSH executor skeleton for future host deployments.
+// Package ssh contains a guarded SSH executor foundation for host deployments.
 //
-// Phase 3.5 does not execute remote SSH by default. Real SSH behavior must require
-// explicit apply confirmation and CredentialRef-based credentials.
+// Remote SSH is disabled unless a caller provides an explicit runner transport
+// and the deployment request includes apply confirmation, allowRemote, and a
+// CredentialRef. Tests use fake runner transports; the default constructor does
+// not open network connections.
 package ssh

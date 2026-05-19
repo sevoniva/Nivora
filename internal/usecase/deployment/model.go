@@ -101,7 +101,11 @@ type HostDeploymentPlan struct {
 	DeployPath      string               `json:"deployPath"`
 	ServiceName     string               `json:"serviceName,omitempty"`
 	HealthCheck     string               `json:"healthCheck,omitempty"`
+	HealthChecks    []HostHealthCheck    `json:"healthChecks,omitempty"`
+	RestartCommand  string               `json:"restartCommand,omitempty"`
 	Strategy        string               `json:"strategy"`
+	BatchSize       int                  `json:"batchSize"`
+	PauseOnFailure  bool                 `json:"pauseOnFailure"`
 	DryRun          bool                 `json:"dryRun"`
 	Apply           bool                 `json:"apply"`
 	Hosts           []HostDeploymentStep `json:"hosts"`
@@ -114,21 +118,33 @@ type HostDeploymentStep struct {
 	HostID          string   `json:"hostId"`
 	HostName        string   `json:"hostName"`
 	Address         string   `json:"address,omitempty"`
+	BatchIndex      int      `json:"batchIndex"`
 	ReleaseDir      string   `json:"releaseDir"`
 	CurrentSymlink  string   `json:"currentSymlink"`
 	PreviousSymlink string   `json:"previousSymlink"`
 	NextSymlink     string   `json:"nextSymlink"`
+	TimeoutSeconds  int      `json:"timeoutSeconds,omitempty"`
 	Actions         []string `json:"actions"`
 }
 
 type HostDeploymentRunDetail struct {
-	HostID     string    `json:"hostId"`
-	HostName   string    `json:"hostName"`
-	Address    string    `json:"address,omitempty"`
-	Status     string    `json:"status"`
-	Message    string    `json:"message,omitempty"`
-	StartedAt  time.Time `json:"startedAt,omitempty"`
-	FinishedAt time.Time `json:"finishedAt,omitempty"`
+	HostID        string    `json:"hostId"`
+	HostName      string    `json:"hostName"`
+	Address       string    `json:"address,omitempty"`
+	BatchIndex    int       `json:"batchIndex"`
+	Status        string    `json:"status"`
+	HealthStatus  string    `json:"healthStatus,omitempty"`
+	RollbackReady bool      `json:"rollbackReady"`
+	Message       string    `json:"message,omitempty"`
+	StartedAt     time.Time `json:"startedAt,omitempty"`
+	FinishedAt    time.Time `json:"finishedAt,omitempty"`
+}
+
+type HostHealthCheck struct {
+	Type           string `json:"type" yaml:"type"`
+	Target         string `json:"target,omitempty" yaml:"target,omitempty"`
+	Command        string `json:"command,omitempty" yaml:"command,omitempty"`
+	TimeoutSeconds int    `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
 }
 
 type ManifestImage struct {

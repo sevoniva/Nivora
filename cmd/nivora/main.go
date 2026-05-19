@@ -1608,7 +1608,7 @@ func newHostGroupsCommand() *cobra.Command {
 }
 
 func newDeploymentHostCommand() *cobra.Command {
-	cmd := &cobra.Command{Use: "host", Short: "Host deployment foundation utilities"}
+	cmd := &cobra.Command{Use: "host", Short: "Host deployment runtime utilities"}
 	cmd.AddCommand(newDeploymentHostPlanCommand())
 	cmd.AddCommand(newDeploymentHostRunCommand())
 	return cmd
@@ -1653,7 +1653,7 @@ func newDeploymentHostPlanCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().String("file", "", "host deployment definition file")
-	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 3.5 local runtime")
+	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process local host runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
 	return cmd
 }
@@ -1667,7 +1667,7 @@ func newDeploymentHostRunCommand() *cobra.Command {
 		Short: "Run a host DeploymentRun through the safe local/noop runtime",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !local {
-				return fmt.Errorf("server-backed host run is not implemented in the Phase 3.5 CLI; use --local")
+				return fmt.Errorf("server-backed host run is not implemented in the CLI; use --local")
 			}
 			path, err := cmd.Flags().GetString("file")
 			if err != nil {
@@ -1697,7 +1697,7 @@ func newDeploymentHostRunCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().String("file", "", "host deployment definition file")
-	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process Phase 3.5 local runtime")
+	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process local host runtime")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm explicit host apply")
 	cmd.Flags().BoolVar(&allowRemote, "allow-remote-host-deploy", false, "allow guarded remote host deployment when the spec also opts in")
 	return cmd

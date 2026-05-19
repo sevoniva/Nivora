@@ -21,6 +21,12 @@ spec:
     serviceName: demo
     strategy: symlink
     healthCheck: http://localhost:8080/healthz
+    healthChecks:
+      - type: http
+        target: http://localhost:8080/healthz
+        timeoutSeconds: 5
+    batchSize: 1
+    pauseOnFailure: true
     dryRun: true
   options:
     dryRun: true

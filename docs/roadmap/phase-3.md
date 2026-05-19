@@ -31,8 +31,8 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 - CloudAccount, CloudProviderConfig, and CloudInventorySnapshot foundations.
 - AWS, Aliyun, Tencent, and generic cloud inventory adapter skeletons.
 - HostTarget, HostGroup, HostDeploymentPlan, and HostDeploymentRunDetail foundations.
-- HostExecutor port with noop execution and a disabled SSH skeleton.
-- Versioned release directory, symlink switch, health check, and rollback plan modeling for host targets.
+- HostExecutor port with noop execution and a guarded SSH adapter surface.
+- Versioned release directory, symlink switch, typed health checks, batch rollout, and guarded rollback modeling for host targets.
 - Runner protocol foundation with job claim leases, log append, status update, cancellation request, and event outbox records.
 - Minimal database migration shape for future durable PipelineRun, JobRun, runner, log, and event outbox repositories.
 - AWS provider Adapter.

@@ -69,9 +69,9 @@ DeploymentRun remains the target-level execution object. ReleaseExecution does n
 
 ## Phase 3.5 Host Deployment Foundation
 
-Phase 3.5 introduces `host` as a ReleaseTarget type. A host DeploymentRun builds a HostDeploymentPlan with per-host release directories, symlink switch paths, health check metadata, and a non-destructive rollback baseline. The default runtime uses a noop HostExecutor so tests and examples do not mutate local or remote machines.
+Phase 8.1 hardens `host` as a ReleaseTarget type. A host DeploymentRun builds a HostDeploymentPlan with per-host release directories, symlink switch paths, typed health checks, batch rollout metadata, and a guarded symlink rollback baseline. The default runtime uses a noop HostExecutor so tests and examples do not mutate local or remote machines.
 
-Remote SSH execution is not enabled by default. A future real adapter must require explicit apply confirmation, `allowRemoteHostDeploy`, and a CredentialRef or SecretRef-backed credential.
+Remote SSH execution is not enabled by default. The SSH adapter surface requires explicit apply confirmation, `allowRemoteHostDeploy`, a CredentialRef or SecretRef-backed credential, and an explicitly configured transport.
 
 ## Current State
 

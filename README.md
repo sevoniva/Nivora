@@ -885,14 +885,14 @@ The default local apply path uses the safe no-op manifest client. Production Kub
 
 ## Example Host Deployment Dry-Run
 
-Phase 3.5 adds a safe host deployment foundation. It can build a plan for deploying a binary package to versioned release directories, switching symlinks, checking health, and preparing a rollback baseline. The default runtime uses a noop host executor and does not execute remote SSH.
+Phase 8.1 hardens the safe host deployment foundation. It can build a plan for deploying a binary package to versioned release directories, switching symlinks, checking HTTP/TCP/command health, running batches, and preparing guarded symlink rollback. The default runtime uses a noop host executor and does not execute remote SSH.
 
 ```bash
 go run ./cmd/nivora deployment host plan --file examples/deployments/host-dry-run.yaml --local
 go run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
 ```
 
-Remote host deployment remains disabled unless future adapters provide explicit configuration, credential references, confirmation, and allow flags.
+Remote host deployment remains disabled unless an adapter transport is explicitly configured with credential references, confirmation, and allow flags.
 
 ## Example Multi-Target Release
 

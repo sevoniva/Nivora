@@ -52,8 +52,12 @@ type HostSpec struct {
 	DeployPath            string            `json:"deployPath" yaml:"deployPath"`
 	ServiceName           string            `json:"serviceName,omitempty" yaml:"serviceName,omitempty"`
 	HealthCheck           string            `json:"healthCheck,omitempty" yaml:"healthCheck,omitempty"`
+	HealthChecks          []HostHealthCheck `json:"healthChecks,omitempty" yaml:"healthChecks,omitempty"`
+	RestartCommand        string            `json:"restartCommand,omitempty" yaml:"restartCommand,omitempty"`
 	Strategy              string            `json:"strategy,omitempty" yaml:"strategy,omitempty"`
 	CredentialRef         string            `json:"credentialRef,omitempty" yaml:"credentialRef,omitempty"`
+	BatchSize             int               `json:"batchSize,omitempty" yaml:"batchSize,omitempty"`
+	PauseOnFailure        bool              `json:"pauseOnFailure,omitempty" yaml:"pauseOnFailure,omitempty"`
 	DryRun                bool              `json:"dryRun" yaml:"dryRun"`
 	AllowRemoteHostDeploy bool              `json:"allowRemoteHostDeploy,omitempty" yaml:"allowRemoteHostDeploy,omitempty"`
 	Labels                map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
@@ -187,6 +191,26 @@ func (d Definition) Validate() error {
 		}
 		if len(d.Spec.Artifacts) == 0 {
 			return errors.New("deployment artifact is required for host targets")
+		}
+		if d.Spec.Host.BatchSize < 0 {
+			return errors.New("deployment host.batchSize cannot be negative")
+		}
+		for i, check := range d.Spec.Host.HealthChecks {
+			if check.Type == "" {
+				return fmt.Errorf("deployment host.healthChecks[%d].type is required", i)
+			}
+			if check.Type != "http" && check.Type != "tcp" && check.Type != "command" {
+				return fmt.Errorf("deployment host.healthChecks[%d].type %q is not supported", i, check.Type)
+			}
+			if check.TimeoutSeconds < 0 {
+				return fmt.Errorf("deployment host.healthChecks[%d].timeoutSeconds cannot be negative", i)
+			}
+			if check.Type == "command" && check.Command == "" {
+				return fmt.Errorf("deployment host.healthChecks[%d].command is required for command health checks", i)
+			}
+			if check.Type != "command" && check.Target == "" {
+				return fmt.Errorf("deployment host.healthChecks[%d].target is required for %s health checks", i, check.Type)
+			}
 		}
 	}
 	for i, path := range d.Spec.Manifests {

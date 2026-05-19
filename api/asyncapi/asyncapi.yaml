@@ -239,6 +239,21 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.host.rollback.started:
+    address: devops.host.rollback.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.host.rollback.completed:
+    address: devops.host.rollback.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.host.rollback.failed:
+    address: devops.host.rollback.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.deployment.approval.required:
     address: devops.deployment.approval.required
     description: Reserved for future approval phases; not emitted by the Phase 2.1 runtime.

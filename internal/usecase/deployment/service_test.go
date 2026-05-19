@@ -529,6 +529,10 @@ func TestServiceGitOpsGuardedSync(t *testing.T) {
 
 func TestServicePlansHostDeployment(t *testing.T) {
 	service, def := newHostTestService()
+	def.Spec.Host.BatchSize = 1
+	def.Spec.Host.RestartCommand = "systemctl restart demo"
+	def.Spec.Host.HealthChecks = []HostHealthCheck{{Type: "http", Target: "http://localhost:8080/healthz", TimeoutSeconds: 5}}
+	def.Spec.Host.Hosts = append(def.Spec.Host.Hosts, Host{ID: "local-noop-host-2", Name: "local-noop-host-2", Address: "127.0.0.2", EnvironmentID: "dev"})
 	result, err := service.Plan(context.Background(), CreateRunInput{Definition: def})
 	if err != nil {
 		t.Fatalf("plan host: %v", err)
@@ -536,8 +540,14 @@ func TestServicePlansHostDeployment(t *testing.T) {
 	if result.Record.HostPlan.DeployPath != "/opt/nivora/apps/demo" {
 		t.Fatalf("host plan = %#v", result.Record.HostPlan)
 	}
-	if len(result.Record.HostPlan.Hosts) != 1 {
+	if len(result.Record.HostPlan.Hosts) != 2 {
 		t.Fatalf("host count = %d", len(result.Record.HostPlan.Hosts))
+	}
+	if result.Record.HostPlan.Hosts[1].BatchIndex != 2 || result.Record.HostPlan.BatchSize != 1 {
+		t.Fatalf("batch plan = %#v", result.Record.HostPlan)
+	}
+	if len(result.Record.HostPlan.HealthChecks) != 1 || result.Record.HostPlan.RestartCommand == "" {
+		t.Fatalf("health/restart plan = %#v", result.Record.HostPlan)
 	}
 	if result.Record.HostPlan.RollbackPlan.Executable {
 		t.Fatalf("rollback plan should be non-destructive: %#v", result.Record.HostPlan.RollbackPlan)
@@ -584,6 +594,43 @@ func TestServiceRejectsHostRemoteWithoutCredential(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected credential error")
 	}
+}
+
+func TestServiceRunsGuardedHostApplyAndRollbackWithFakeExecutor(t *testing.T) {
+	executor := &recordingHostExecutor{}
+	service, def := newHostTestService()
+	service.WithHostExecutor(executor)
+	def.Spec.Options = Options{Apply: true, DryRun: false, Wait: true, TimeoutSeconds: 20}
+	def.Spec.Host.AllowRemoteHostDeploy = true
+	def.Spec.Host.CredentialRef = "cred-host"
+	def.Spec.Host.RestartCommand = "systemctl restart demo"
+	def.Spec.Host.BatchSize = 1
+	def.Spec.Host.HealthChecks = []HostHealthCheck{{Type: "command", Command: "curl -fsS http://localhost:8080/healthz"}}
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true, Confirm: true, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("guarded host apply: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunSucceeded {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	if executor.uploads != 1 || executor.executes != 1 || executor.healthChecks != 1 {
+		t.Fatalf("executor calls = %#v", executor)
+	}
+	if !result.Record.HostDetails[0].RollbackReady || result.Record.HostDetails[0].HealthStatus != "Healthy" {
+		t.Fatalf("host details = %#v", result.Record.HostDetails)
+	}
+	rolledBack, err := service.Rollback(context.Background(), RollbackInput{DeploymentRunID: result.Record.Run.ID, Confirm: true, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("host rollback: %v", err)
+	}
+	if rolledBack.Run.Status != domaindeployment.DeploymentRunRolledBack {
+		t.Fatalf("rollback status = %s", rolledBack.Run.Status)
+	}
+	if executor.rollbacks != 1 {
+		t.Fatalf("rollback calls = %d", executor.rollbacks)
+	}
+	assertHasDeploymentEvent(t, rolledBack.Events, EventHostRollbackCompleted)
 }
 
 func TestServiceStoresHostGroups(t *testing.T) {
@@ -897,6 +944,48 @@ func testHostResult(request portexecutor.HostDeploymentRequest, message string) 
 }
 
 var _ portexecutor.HostExecutor = testHostExecutor{}
+
+type recordingHostExecutor struct {
+	uploads      int
+	executes     int
+	healthChecks int
+	rollbacks    int
+}
+
+func (e *recordingHostExecutor) Prepare(ctx context.Context, request portexecutor.HostDeploymentRequest) (portexecutor.HostDeploymentResult, error) {
+	return testHostResult(request, "prepared"), nil
+}
+
+func (e *recordingHostExecutor) Upload(ctx context.Context, request portexecutor.HostDeploymentRequest) (portexecutor.HostDeploymentResult, error) {
+	e.uploads++
+	return testHostResult(request, "uploaded"), nil
+}
+
+func (e *recordingHostExecutor) Execute(ctx context.Context, request portexecutor.HostDeploymentRequest) (portexecutor.HostDeploymentResult, error) {
+	e.executes++
+	if request.RestartCommand == "" {
+		return portexecutor.HostDeploymentResult{}, fmt.Errorf("restart command missing")
+	}
+	return testHostResult(request, "executed"), nil
+}
+
+func (e *recordingHostExecutor) HealthCheck(ctx context.Context, request portexecutor.HostDeploymentRequest) (portexecutor.HostDeploymentResult, error) {
+	e.healthChecks++
+	if request.HealthCheckType != "command" {
+		return portexecutor.HostDeploymentResult{}, fmt.Errorf("health check type = %s", request.HealthCheckType)
+	}
+	return testHostResult(request, "health check ok"), nil
+}
+
+func (e *recordingHostExecutor) Rollback(ctx context.Context, request portexecutor.HostDeploymentRequest) (portexecutor.HostDeploymentResult, error) {
+	e.rollbacks++
+	if !request.Confirmed {
+		return portexecutor.HostDeploymentResult{}, fmt.Errorf("rollback requires confirmation")
+	}
+	return testHostResult(request, "host rollback ok"), nil
+}
+
+var _ portexecutor.HostExecutor = (*recordingHostExecutor)(nil)
 
 type fakeArgoCDProvider struct{}
 

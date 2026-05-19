@@ -17,4 +17,10 @@ spec:
     deployPath: /opt/nivora/apps/example-service
     serviceName: example-service
     strategy: symlink
+    healthChecks:
+      - type: command
+        command: /opt/nivora/apps/example-service/current/bin/healthcheck
+        timeoutSeconds: 10
+    batchSize: 1
+    pauseOnFailure: true
     dryRun: true

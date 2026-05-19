@@ -20,7 +20,7 @@ type Store interface {
 	SearchEvidenceBundles(ctx context.Context, subjectType string, subjectID string) ([]domaincompliance.EvidenceBundle, error)
 	SaveRetentionPolicy(ctx context.Context, policy domaincompliance.RetentionPolicy) error
 	GetRetentionPolicy(ctx context.Context, scopeType string, scopeID string) (domaincompliance.RetentionPolicy, error)
-		VerifyAuditChain(ctx context.Context, scopeType, scopeID string) (valid bool, firstBrokenID string, err error)
+	VerifyAuditChain(ctx context.Context, scopeType, scopeID string) (valid bool, firstBrokenID string, err error)
 }
 
 type MemoryStore struct {

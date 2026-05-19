@@ -57,6 +57,7 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 - Phase 3.3 adds ApprovalRequest, ApprovalDecision, ChangeWindow, NotificationProvider, and audit/event foundations for human governance.
 - Phase 3.4 adds CloudAccount metadata, provider configuration, fake inventory adapters, and AWS/Aliyun/Tencent skeletons.
 - Phase 3.5 adds HostTarget/HostGroup models, host deployment planning, noop execution, guarded SSH skeleton, and non-destructive rollback baselines.
+- Phase 3.6 adds durable runtime and runner protocol foundations: job claims, leases, runner log/status APIs, cancel requests, worker outbox publishing, and event outbox schema.
 - Add cloud provider adapters.
 - Add artifact scanning and policy evaluation.
 - Add secret backends and notification providers.

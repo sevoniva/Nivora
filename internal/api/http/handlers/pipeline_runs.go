@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
@@ -164,6 +165,61 @@ func HeartbeatRunner(service *pipelineusecase.Service) http.HandlerFunc {
 	}
 }
 
+func ClaimRunnerJob(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		lease := 30 * time.Second
+		if value := r.URL.Query().Get("leaseSeconds"); value != "" {
+			parsed, err := time.ParseDuration(value + "s")
+			if err != nil {
+				RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "leaseSeconds must be an integer number of seconds"})
+				return
+			}
+			lease = parsed
+		}
+		claim, err := service.ClaimJob(r.Context(), chi.URLParam(r, "id"), lease)
+		respondPipelineResult(w, r, claim, err)
+	}
+}
+
+func AppendJobLogs(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input pipelineusecase.AppendJobLogInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a job log append request"})
+			return
+		}
+		logs, err := service.AppendJobLog(r.Context(), chi.URLParam(r, "id"), input)
+		respondPipelineResult(w, r, logs, err)
+	}
+}
+
+func UpdateJobStatus(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input pipelineusecase.UpdateJobStatusInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a job status update"})
+			return
+		}
+		record, err := service.UpdateJobStatus(r.Context(), chi.URLParam(r, "id"), input)
+		if err != nil {
+			respondPipelineResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, pipelineRunResponse(record))
+	}
+}
+
+func RequestPipelineRunCancel(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, err := service.RequestCancel(r.Context(), chi.URLParam(r, "id"), "")
+		if err != nil {
+			respondPipelineResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, pipelineRunResponse(record))
+	}
+}
+
 func respondPipelineResult(w http.ResponseWriter, r *http.Request, payload any, err error) {
 	if err == nil {
 		RespondJSON(w, http.StatusOK, payload)
@@ -178,6 +234,14 @@ func respondPipelineResult(w http.ResponseWriter, r *http.Request, payload any, 
 	if errors.Is(err, pipelineusecase.ErrRunnerNotFound) {
 		status = http.StatusNotFound
 		code = "runner_not_found"
+	}
+	if errors.Is(err, pipelineusecase.ErrJobNotFound) {
+		status = http.StatusNotFound
+		code = "job_run_not_found"
+	}
+	if errors.Is(err, pipelineusecase.ErrNoClaimableJob) {
+		status = http.StatusConflict
+		code = "no_claimable_job"
 	}
 	if errors.Is(err, pipelineusecase.ErrRunTerminal) {
 		status = http.StatusConflict

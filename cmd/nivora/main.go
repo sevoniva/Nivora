@@ -1697,7 +1697,11 @@ func newRunnerCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&configPath, "config", "configs/runner.yaml", "config file path")
 	cmd.AddCommand(newRunnerListCommand())
+	cmd.AddCommand(newRunnerRegisterCommand())
 	cmd.AddCommand(newRunnerHeartbeatCommand())
+	cmd.AddCommand(newRunnerClaimCommand())
+	cmd.AddCommand(newRunnerAppendLogCommand())
+	cmd.AddCommand(newRunnerUpdateStatusCommand())
 	return cmd
 }
 
@@ -1716,6 +1720,39 @@ func newRunnerListCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newRunnerRegisterCommand() *cobra.Command {
+	var serverURL string
+	var name string
+	cmd := &cobra.Command{
+		Use:   "register --name <runner-id>",
+		Short: "Register a runner on a Nivora server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if name == "" {
+				return fmt.Errorf("--name is required")
+			}
+			body, err := json.Marshal(map[string]any{
+				"id":        name,
+				"name":      name,
+				"status":    "online",
+				"executors": []string{"shell"},
+				"labels":    map[string]string{"runtime": "local"},
+			})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/register", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&name, "name", "local-runner", "runner ID")
 	return cmd
 }
 
@@ -1739,6 +1776,110 @@ func newRunnerHeartbeatCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&name, "name", "local-runner", "runner ID")
+	return cmd
+}
+
+func newRunnerClaimCommand() *cobra.Command {
+	var serverURL string
+	var name string
+	var leaseSeconds int
+	cmd := &cobra.Command{
+		Use:   "claim --name <runner-id>",
+		Short: "Claim one queued job for a runner",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if name == "" {
+				return fmt.Errorf("--name is required")
+			}
+			path := fmt.Sprintf("/api/v1/runners/%s/jobs/claim?leaseSeconds=%d", name, leaseSeconds)
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, path, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&name, "name", "local-runner", "runner ID")
+	cmd.Flags().IntVar(&leaseSeconds, "lease-seconds", 30, "claim lease duration in seconds")
+	return cmd
+}
+
+func newRunnerAppendLogCommand() *cobra.Command {
+	var serverURL string
+	var pipelineRunID string
+	var stageRunID string
+	var stepRunID string
+	var stream string
+	var content string
+	cmd := &cobra.Command{
+		Use:   "logs append <job-run-id> --pipeline-run-id <id> --content <text>",
+		Short: "Append a log chunk for a claimed job",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] != "append" {
+				return fmt.Errorf("expected subcommand append")
+			}
+			if pipelineRunID == "" {
+				return fmt.Errorf("--pipeline-run-id is required")
+			}
+			body, err := json.Marshal(map[string]any{
+				"pipelineRunId": pipelineRunID,
+				"stageRunId":    stageRunID,
+				"stepRunId":     stepRunID,
+				"stream":        stream,
+				"content":       content,
+			})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/jobs/"+args[1]+"/logs", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&pipelineRunID, "pipeline-run-id", "", "PipelineRun ID")
+	cmd.Flags().StringVar(&stageRunID, "stage-run-id", "", "StageRun ID")
+	cmd.Flags().StringVar(&stepRunID, "step-run-id", "", "StepRun ID")
+	cmd.Flags().StringVar(&stream, "stream", "stdout", "log stream")
+	cmd.Flags().StringVar(&content, "content", "", "log content")
+	return cmd
+}
+
+func newRunnerUpdateStatusCommand() *cobra.Command {
+	var serverURL string
+	var status string
+	var reason string
+	cmd := &cobra.Command{
+		Use:   "status update <job-run-id> --status <status>",
+		Short: "Update the status of a claimed job",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if args[0] != "update" {
+				return fmt.Errorf("expected subcommand update")
+			}
+			if status == "" {
+				return fmt.Errorf("--status is required")
+			}
+			body, err := json.Marshal(map[string]any{"status": status, "reason": reason})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/jobs/"+args[1]+"/status", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&status, "status", "", "job status")
+	cmd.Flags().StringVar(&reason, "reason", "", "status reason")
 	return cmd
 }
 

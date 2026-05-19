@@ -27,6 +27,10 @@ func Run(ctx context.Context, configPath string) error {
 	if err != nil {
 		return err
 	}
-	logger.Info("workflow advancement loop completed", "processed_pipeline_runs", len(processed))
+	published, err := service.PublishPendingOutbox(ctx, 100)
+	if err != nil {
+		return err
+	}
+	logger.Info("workflow advancement loop completed", "processed_pipeline_runs", len(processed), "published_outbox_events", published)
 	return nil
 }

@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 3.5 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 3.6 uses a local in-memory EventBus and event outbox foundation with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
@@ -56,6 +56,21 @@ channels:
         $ref: "#/components/messages/Event"
   devops.job.run.retrying:
     address: devops.job.run.retrying
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.job.run.status.updated:
+    address: devops.job.run.status.updated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.job.run.log.appended:
+    address: devops.job.run.log.appended
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.job.run.cancel_requested:
+    address: devops.job.run.cancel_requested
     messages:
       event:
         $ref: "#/components/messages/Event"
@@ -239,6 +254,11 @@ channels:
         $ref: "#/components/messages/Event"
   devops.runner.heartbeat:
     address: devops.runner.heartbeat
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.runner.job.claimed:
+    address: devops.runner.job.claimed
     messages:
       event:
         $ref: "#/components/messages/Event"

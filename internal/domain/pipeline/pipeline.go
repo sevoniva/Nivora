@@ -69,6 +69,7 @@ type PipelineRun struct {
 	PipelineID        string            `json:"pipelineId"`
 	PipelineVersionID string            `json:"pipelineVersionId,omitempty"`
 	Status            PipelineRunStatus `json:"status"`
+	CancelRequested   bool              `json:"cancelRequested,omitempty"`
 	StartedAt         *time.Time        `json:"startedAt,omitempty"`
 	FinishedAt        *time.Time        `json:"finishedAt,omitempty"`
 	FailureReason     string            `json:"failureReason,omitempty"`
@@ -89,18 +90,19 @@ type StageRun struct {
 }
 
 type JobRun struct {
-	ID            string       `json:"id"`
-	StageRunID    string       `json:"stageRunId"`
-	Name          string       `json:"name"`
-	Status        JobRunStatus `json:"status"`
-	RunnerID      string       `json:"runnerId,omitempty"`
-	Attempt       int          `json:"attempt"`
-	MaxRetries    int          `json:"maxRetries"`
-	StartedAt     *time.Time   `json:"startedAt,omitempty"`
-	FinishedAt    *time.Time   `json:"finishedAt,omitempty"`
-	FailureReason string       `json:"failureReason,omitempty"`
-	CreatedAt     time.Time    `json:"createdAt"`
-	UpdatedAt     time.Time    `json:"updatedAt"`
+	ID             string       `json:"id"`
+	StageRunID     string       `json:"stageRunId"`
+	Name           string       `json:"name"`
+	Status         JobRunStatus `json:"status"`
+	RunnerID       string       `json:"runnerId,omitempty"`
+	LeaseExpiresAt *time.Time   `json:"leaseExpiresAt,omitempty"`
+	Attempt        int          `json:"attempt"`
+	MaxRetries     int          `json:"maxRetries"`
+	StartedAt      *time.Time   `json:"startedAt,omitempty"`
+	FinishedAt     *time.Time   `json:"finishedAt,omitempty"`
+	FailureReason  string       `json:"failureReason,omitempty"`
+	CreatedAt      time.Time    `json:"createdAt"`
+	UpdatedAt      time.Time    `json:"updatedAt"`
 }
 
 type StepRun struct {

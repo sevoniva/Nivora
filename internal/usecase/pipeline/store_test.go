@@ -47,3 +47,33 @@ func TestMemoryStoreSelectRunnerNoAvailableRunner(t *testing.T) {
 		t.Fatalf("error = %v", err)
 	}
 }
+
+func TestMemoryStoreClaimJobAndLeaseExpiration(t *testing.T) {
+	store := NewMemoryStore()
+	now := time.Now()
+	past := now.Add(-time.Minute)
+	record := RunRecord{
+		Run: domainpipeline.PipelineRun{ID: "run-claim", Status: domainpipeline.PipelineRunQueued, CreatedAt: now, UpdatedAt: now},
+		Stages: []StageRecord{{
+			Stage: domainpipeline.StageRun{ID: "stage-1", PipelineRunID: "run-claim", Status: domainpipeline.JobRunPending},
+			Jobs: []JobRecord{{
+				Job:   domainpipeline.JobRun{ID: "job-1", StageRunID: "stage-1", Status: domainpipeline.JobRunAssigned, LeaseExpiresAt: &past, Attempt: 1},
+				Steps: []domainpipeline.StepRun{{ID: "step-1", JobRunID: "job-1", Status: domainpipeline.JobRunPending}},
+			}},
+		}},
+	}
+	if err := store.Save(context.Background(), record); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	claim, err := store.ClaimJob(context.Background(), "runner-a", now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("claim expired lease: %v", err)
+	}
+	if claim.JobRunID != "job-1" || claim.RunnerID != "runner-a" {
+		t.Fatalf("claim = %#v", claim)
+	}
+	_, err = store.ClaimJob(context.Background(), "runner-b", now.Add(time.Minute))
+	if !errors.Is(err, ErrNoClaimableJob) {
+		t.Fatalf("expected no claimable job, got %v", err)
+	}
+}

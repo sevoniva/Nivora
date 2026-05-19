@@ -5,6 +5,7 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sevoniva/nivora/internal/domain/event"
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
@@ -161,6 +162,62 @@ func TestRunnerRegistrationHeartbeatAndSelection(t *testing.T) {
 	}
 	if len(runners) < 2 {
 		t.Fatalf("runners = %#v", runners)
+	}
+}
+
+func TestRunnerClaimLogStatusCancelAndOutbox(t *testing.T) {
+	service := newTestService()
+	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})
+	if err != nil {
+		t.Fatalf("create queued: %v", err)
+	}
+	claim, err := service.ClaimJob(context.Background(), "test-runner", time.Minute)
+	if err != nil {
+		t.Fatalf("claim job: %v", err)
+	}
+	if claim.PipelineRunID != created.Record.Run.ID || claim.JobRunID == "" || claim.RunnerID != "test-runner" {
+		t.Fatalf("claim = %#v", claim)
+	}
+	logs, err := service.AppendJobLog(context.Background(), claim.JobRunID, AppendJobLogInput{
+		PipelineRunID: claim.PipelineRunID,
+		StageRunID:    claim.StageRunID,
+		StepRunID:     claim.StepRunIDs[0],
+		Stream:        "stdout",
+		Content:       "hello from runner",
+	})
+	if err != nil {
+		t.Fatalf("append job log: %v", err)
+	}
+	if len(logs) != 1 || logs[0].Sequence != 1 {
+		t.Fatalf("logs = %#v", logs)
+	}
+	updated, err := service.UpdateJobStatus(context.Background(), claim.JobRunID, UpdateJobStatusInput{Status: domainpipeline.JobRunRunning})
+	if err != nil {
+		t.Fatalf("update status running: %v", err)
+	}
+	if updated.Stages[0].Jobs[0].Job.Status != domainpipeline.JobRunRunning {
+		t.Fatalf("job = %#v", updated.Stages[0].Jobs[0].Job)
+	}
+	canceled, err := service.RequestCancel(context.Background(), claim.PipelineRunID, "tester")
+	if err != nil {
+		t.Fatalf("request cancel: %v", err)
+	}
+	if !canceled.Run.CancelRequested {
+		t.Fatalf("cancel requested not set: %#v", canceled.Run)
+	}
+	pending, err := service.PendingOutbox(context.Background(), 100)
+	if err != nil {
+		t.Fatalf("pending outbox: %v", err)
+	}
+	if len(pending) == 0 {
+		t.Fatal("expected pending outbox records")
+	}
+	published, err := service.PublishPendingOutbox(context.Background(), 100)
+	if err != nil {
+		t.Fatalf("publish outbox: %v", err)
+	}
+	if published == 0 {
+		t.Fatal("expected published outbox records")
 	}
 }
 

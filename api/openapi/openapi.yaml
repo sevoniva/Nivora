@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 3.5 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory foundations, and safe host deployment planning/noop execution.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 3.6 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory foundations, safe host deployment planning/noop execution, and durable runner protocol foundations.
 servers:
   - url: http://localhost:8080
 paths:
@@ -1169,6 +1169,75 @@ paths:
                 $ref: "#/components/schemas/Runner"
         "404":
           description: Runner not found
+  /api/v1/runners/{id}/jobs/claim:
+    post:
+      summary: Claim one queued job for a runner
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - name: leaseSeconds
+          in: query
+          schema:
+            type: integer
+            default: 30
+      responses:
+        "200":
+          description: Job claim lease
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobClaim"
+        "409":
+          description: No claimable job exists
+  /api/v1/jobs/{id}/logs:
+    post:
+      summary: Append runner logs for a JobRun
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppendJobLogRequest"
+      responses:
+        "200":
+          description: Logs for the JobRun
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LogChunk"
+  /api/v1/jobs/{id}/status:
+    post:
+      summary: Update JobRun status from a runner
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateJobStatusRequest"
+      responses:
+        "200":
+          description: Updated PipelineRun record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunRecord"
+  /api/v1/pipeline-runs/{id}/cancel-request:
+    post:
+      summary: Mark cancel requested for workers and runners
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: PipelineRun marked cancel requested
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunRecord"
   /api/v1/approvals:
     get:
       summary: List approval requests
@@ -2834,6 +2903,77 @@ components:
           type: integer
         failureReason:
           type: string
+    JobClaim:
+      type: object
+      properties:
+        pipelineRunId:
+          type: string
+        stageRunId:
+          type: string
+        jobRunId:
+          type: string
+        stepRunIds:
+          type: array
+          items:
+            type: string
+        runnerId:
+          type: string
+        executor:
+          type: string
+        commands:
+          type: array
+          items:
+            type: string
+        attempt:
+          type: integer
+        leaseExpiresAt:
+          type: string
+          format: date-time
+        cancelRequested:
+          type: boolean
+        status:
+          type: string
+    AppendJobLogRequest:
+      type: object
+      required: [pipelineRunId, stream, content]
+      properties:
+        pipelineRunId:
+          type: string
+        stageRunId:
+          type: string
+        stepRunId:
+          type: string
+        stream:
+          type: string
+        content:
+          type: string
+    UpdateJobStatusRequest:
+      type: object
+      required: [status]
+      properties:
+        status:
+          type: string
+          enum: [Pending, Assigned, Running, Succeeded, Failed, Skipped, Retrying, Canceled]
+        reason:
+          type: string
+    EventOutboxRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        eventType:
+          type: string
+        subject:
+          type: string
+        status:
+          type: string
+          enum: [pending, published]
+        createdAt:
+          type: string
+          format: date-time
+        publishedAt:
+          type: string
+          format: date-time
     LogChunk:
       type: object
       properties:

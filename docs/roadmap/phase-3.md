@@ -28,6 +28,8 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 - HostTarget, HostGroup, HostDeploymentPlan, and HostDeploymentRunDetail foundations.
 - HostExecutor port with noop execution and a disabled SSH skeleton.
 - Versioned release directory, symlink switch, health check, and rollback plan modeling for host targets.
+- Runner protocol foundation with job claim leases, log append, status update, cancellation request, and event outbox records.
+- Minimal database migration shape for future durable PipelineRun, JobRun, runner, log, and event outbox repositories.
 - AWS provider Adapter.
 - Aliyun provider Adapter.
 - Tencent Cloud provider Adapter.
@@ -52,6 +54,8 @@ Phase 3.4 adds multi-cloud inventory foundations for cloud accounts, regions, cl
 
 Phase 3.5 adds a safe host deployment foundation for VM and bare-metal targets. It supports host planning and noop/local execution only by default; remote SSH execution is guarded and not production-ready.
 
+Phase 3.6 hardens the runtime boundary between server, worker, and runner. It adds a compact HTTP runner protocol, in-memory claim/lease behavior, outbox persistence shape, and worker outbox publishing without adding a heavy workflow engine.
+
 ## Acceptance Criteria
 
 - Cloud SDKs stay inside Adapters.
@@ -64,6 +68,8 @@ Phase 3.5 adds a safe host deployment foundation for VM and bare-metal targets. 
 - Cloud inventory can be queried through fake provider adapters without credentials.
 - Host deployment plans can be generated without remote execution.
 - Remote host deployment remains disabled unless explicit confirmation, credential references, and allow flags are present.
+- Runners can register, heartbeat, claim a job, append logs, update job status, and observe cancel-request state in the local runtime.
+- Event outbox records can be listed and marked published by the worker.
 
 ## Contribution Opportunities
 

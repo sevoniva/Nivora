@@ -137,4 +137,25 @@ func TestRunnerRoutes(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list runners status = %d", rec.Code)
 	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-api/jobs/claim", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("claim without queued job status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/jobs/job-missing/status", bytes.NewReader([]byte(`{"status":"Running"}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("missing job status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/jobs/job-missing/logs", bytes.NewReader([]byte(`{"pipelineRunId":"run-missing","stream":"stdout","content":"hello"}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("missing job log status = %d body = %s", rec.Code, rec.Body.String())
+	}
 }

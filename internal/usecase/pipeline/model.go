@@ -42,6 +42,43 @@ type RunnerRecord struct {
 	Runner domainrunner.Runner `json:"runner"`
 }
 
+type JobClaim struct {
+	PipelineRunID   string                      `json:"pipelineRunId"`
+	StageRunID      string                      `json:"stageRunId"`
+	JobRunID        string                      `json:"jobRunId"`
+	StepRunIDs      []string                    `json:"stepRunIds,omitempty"`
+	RunnerID        string                      `json:"runnerId"`
+	Executor        string                      `json:"executor"`
+	Commands        []string                    `json:"commands,omitempty"`
+	Attempt         int                         `json:"attempt"`
+	LeaseExpiresAt  time.Time                   `json:"leaseExpiresAt"`
+	CancelRequested bool                        `json:"cancelRequested,omitempty"`
+	Status          domainpipeline.JobRunStatus `json:"status"`
+}
+
+type AppendJobLogInput struct {
+	PipelineRunID string `json:"pipelineRunId"`
+	StageRunID    string `json:"stageRunId,omitempty"`
+	StepRunID     string `json:"stepRunId,omitempty"`
+	Stream        string `json:"stream"`
+	Content       string `json:"content"`
+}
+
+type UpdateJobStatusInput struct {
+	Status domainpipeline.JobRunStatus `json:"status"`
+	Reason string                      `json:"reason,omitempty"`
+}
+
+type EventOutboxRecord struct {
+	ID          string      `json:"id"`
+	EventType   string      `json:"eventType"`
+	Subject     string      `json:"subject"`
+	Payload     event.Event `json:"payload"`
+	Status      string      `json:"status"`
+	CreatedAt   time.Time   `json:"createdAt"`
+	PublishedAt *time.Time  `json:"publishedAt,omitempty"`
+}
+
 type CreateRunInput struct {
 	Definition Definition
 	ActorID    string

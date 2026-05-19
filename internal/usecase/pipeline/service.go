@@ -17,19 +17,23 @@ import (
 )
 
 const (
-	EventPipelineRunCreated   = "devops.pipeline.run.created"
-	EventPipelineRunQueued    = "devops.pipeline.run.queued"
-	EventPipelineRunStarted   = "devops.pipeline.run.started"
-	EventPipelineRunCompleted = "devops.pipeline.run.completed"
-	EventPipelineRunFailed    = "devops.pipeline.run.failed"
-	EventPipelineRunCanceled  = "devops.pipeline.run.canceled"
-	EventJobRunAssigned       = "devops.job.run.assigned"
-	EventJobRunStarted        = "devops.job.run.started"
-	EventJobRunCompleted      = "devops.job.run.completed"
-	EventJobRunFailed         = "devops.job.run.failed"
-	EventJobRunRetrying       = "devops.job.run.retrying"
-	EventRunnerRegistered     = "devops.runner.registered"
-	EventRunnerHeartbeat      = "devops.runner.heartbeat"
+	EventPipelineRunCreated    = "devops.pipeline.run.created"
+	EventPipelineRunQueued     = "devops.pipeline.run.queued"
+	EventPipelineRunStarted    = "devops.pipeline.run.started"
+	EventPipelineRunCompleted  = "devops.pipeline.run.completed"
+	EventPipelineRunFailed     = "devops.pipeline.run.failed"
+	EventPipelineRunCanceled   = "devops.pipeline.run.canceled"
+	EventJobRunAssigned        = "devops.job.run.assigned"
+	EventJobRunStarted         = "devops.job.run.started"
+	EventJobRunCompleted       = "devops.job.run.completed"
+	EventJobRunFailed          = "devops.job.run.failed"
+	EventJobRunRetrying        = "devops.job.run.retrying"
+	EventJobRunStatusUpdated   = "devops.job.run.status.updated"
+	EventJobRunLogAppended     = "devops.job.run.log.appended"
+	EventJobRunCancelRequested = "devops.job.run.cancel_requested"
+	EventRunnerRegistered      = "devops.runner.registered"
+	EventRunnerHeartbeat       = "devops.runner.heartbeat"
+	EventRunnerJobClaimed      = "devops.runner.job.claimed"
 
 	defaultStepTimeout = 30 * time.Second
 )
@@ -266,7 +270,10 @@ func (s *Service) RegisterRunner(ctx context.Context, runner domainrunner.Runner
 		return err
 	}
 	evt := s.newEvent(EventRunnerRegistered, runner.ID, runner.Status, "Runner registered")
-	return s.eventBus.Publish(ctx, evt)
+	if err := s.eventBus.Publish(ctx, evt); err != nil {
+		return err
+	}
+	return s.appendOutbox(ctx, evt)
 }
 
 func (s *Service) HeartbeatRunner(ctx context.Context, runnerID string) (domainrunner.Runner, error) {
@@ -278,6 +285,9 @@ func (s *Service) HeartbeatRunner(ctx context.Context, runnerID string) (domainr
 	if err := s.eventBus.Publish(ctx, evt); err != nil {
 		return domainrunner.Runner{}, err
 	}
+	if err := s.appendOutbox(ctx, evt); err != nil {
+		return domainrunner.Runner{}, err
+	}
 	return runner, nil
 }
 
@@ -287,6 +297,115 @@ func (s *Service) ListRunners(ctx context.Context) ([]domainrunner.Runner, error
 
 func (s *Service) GetRunner(ctx context.Context, id string) (domainrunner.Runner, error) {
 	return s.store.GetRunner(ctx, id)
+}
+
+func (s *Service) ClaimJob(ctx context.Context, runnerID string, lease time.Duration) (JobClaim, error) {
+	if lease <= 0 {
+		lease = 30 * time.Second
+	}
+	if _, err := s.store.GetRunner(ctx, runnerID); err != nil {
+		return JobClaim{}, err
+	}
+	claim, err := s.store.ClaimJob(ctx, runnerID, s.now().Add(lease))
+	if err != nil {
+		return JobClaim{}, err
+	}
+	evt := s.newEvent(EventRunnerJobClaimed, claim.JobRunID, string(claim.Status), "JobRun claimed by runner")
+	if err := s.eventBus.Publish(ctx, evt); err != nil {
+		return JobClaim{}, err
+	}
+	if err := s.store.AppendEvent(ctx, claim.PipelineRunID, evt); err != nil {
+		return JobClaim{}, err
+	}
+	if err := s.appendOutbox(ctx, evt); err != nil {
+		return JobClaim{}, err
+	}
+	return claim, nil
+}
+
+func (s *Service) AppendJobLog(ctx context.Context, jobRunID string, input AppendJobLogInput) ([]event.LogChunk, error) {
+	if input.PipelineRunID == "" {
+		return nil, fmt.Errorf("pipelineRunId is required")
+	}
+	if input.Stream == "" {
+		input.Stream = "system"
+	}
+	record, err := s.store.Get(ctx, input.PipelineRunID)
+	if err != nil {
+		return nil, err
+	}
+	if !recordHasJob(record, jobRunID) {
+		return nil, ErrJobNotFound
+	}
+	log := event.LogChunk{
+		ID:            newID("log"),
+		PipelineRunID: input.PipelineRunID,
+		StageRunID:    input.StageRunID,
+		JobRunID:      jobRunID,
+		StepRunID:     input.StepRunID,
+		Stream:        input.Stream,
+		Content:       input.Content,
+		CreatedAt:     s.now(),
+	}
+	if err := s.store.AppendLog(ctx, input.PipelineRunID, log); err != nil {
+		return nil, err
+	}
+	evt := s.newEvent(EventJobRunLogAppended, jobRunID, "log_appended", "JobRun log appended")
+	if err := s.eventBus.Publish(ctx, evt); err != nil {
+		return nil, err
+	}
+	if err := s.store.AppendEvent(ctx, input.PipelineRunID, evt); err != nil {
+		return nil, err
+	}
+	if err := s.appendOutbox(ctx, evt); err != nil {
+		return nil, err
+	}
+	return s.store.LogsByJobRun(ctx, jobRunID)
+}
+
+func (s *Service) UpdateJobStatus(ctx context.Context, jobRunID string, input UpdateJobStatusInput) (RunRecord, error) {
+	if !input.Status.Valid() {
+		return RunRecord{}, fmt.Errorf("invalid job status %q", input.Status)
+	}
+	record, err := s.store.UpdateJobStatus(ctx, jobRunID, input.Status, input.Reason, s.now())
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEvent(ctx, record.Run.ID, EventJobRunStatusUpdated, jobRunID, string(input.Status), "JobRun status updated"); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.Get(ctx, record.Run.ID)
+}
+
+func (s *Service) RequestCancel(ctx context.Context, id string, actorID string) (RunRecord, error) {
+	record, err := s.store.RequestCancel(ctx, id, s.now())
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, id, EventJobRunCancelRequested, "PipelineRun cancel requested", actorID, string(record.Run.Status), "PipelineRun cancel requested"); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.Get(ctx, id)
+}
+
+func (s *Service) PendingOutbox(ctx context.Context, limit int) ([]EventOutboxRecord, error) {
+	return s.store.ListPendingOutbox(ctx, limit)
+}
+
+func (s *Service) PublishPendingOutbox(ctx context.Context, limit int) (int, error) {
+	items, err := s.store.ListPendingOutbox(ctx, limit)
+	if err != nil {
+		return 0, err
+	}
+	for _, item := range items {
+		if err := s.eventBus.Publish(ctx, item.Payload); err != nil {
+			return 0, err
+		}
+		if err := s.store.MarkOutboxPublished(ctx, item.ID, s.now()); err != nil {
+			return 0, err
+		}
+	}
+	return len(items), nil
 }
 
 func (s *Service) newRecord(def Definition) RunRecord {
@@ -497,6 +616,9 @@ func (s *Service) recordRuntimeEvent(ctx context.Context, record *RunRecord, eve
 	if err := s.store.AppendEvent(ctx, record.Run.ID, evt); err != nil {
 		return err
 	}
+	if err := s.appendOutbox(ctx, evt); err != nil {
+		return err
+	}
 	record.Events = append(record.Events, evt)
 	return nil
 }
@@ -506,7 +628,10 @@ func (s *Service) recordEvent(ctx context.Context, runID string, eventType strin
 	if err := s.eventBus.Publish(ctx, evt); err != nil {
 		return err
 	}
-	return s.store.AppendEvent(ctx, runID, evt)
+	if err := s.store.AppendEvent(ctx, runID, evt); err != nil {
+		return err
+	}
+	return s.appendOutbox(ctx, evt)
 }
 
 func (s *Service) newEvent(eventType string, subject string, status string, message string) event.Event {
@@ -523,6 +648,17 @@ func (s *Service) newEvent(eventType string, subject string, status string, mess
 			"message": message,
 		},
 	}
+}
+
+func (s *Service) appendOutbox(ctx context.Context, evt event.Event) error {
+	return s.store.AppendOutbox(ctx, EventOutboxRecord{
+		ID:        newID("outbox"),
+		EventType: evt.Type,
+		Subject:   evt.Subject,
+		Payload:   evt,
+		Status:    "pending",
+		CreatedAt: s.now(),
+	})
 }
 
 func timeoutFor(job Job, step Step) time.Duration {
@@ -545,6 +681,17 @@ func failureReason(err error, exitCode int) string {
 
 func isTimeout(reason string) bool {
 	return reason == context.DeadlineExceeded.Error()
+}
+
+func recordHasJob(record RunRecord, jobRunID string) bool {
+	for _, stage := range record.Stages {
+		for _, job := range stage.Jobs {
+			if job.Job.ID == jobRunID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func newID(prefix string) string {

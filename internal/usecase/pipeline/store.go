@@ -16,6 +16,9 @@ import (
 var (
 	ErrRunNotFound    = errors.New("pipeline run not found")
 	ErrRunnerNotFound = errors.New("runner not found")
+	ErrJobNotFound    = errors.New("job run not found")
+	ErrNoClaimableJob = errors.New("no claimable job found")
+	ErrOutboxNotFound = errors.New("event outbox record not found")
 )
 
 type PipelineRepository interface {
@@ -34,9 +37,21 @@ type LogRepository interface {
 	LogsByJobRun(ctx context.Context, jobRunID string) ([]event.LogChunk, error)
 }
 
+type JobRepository interface {
+	ClaimJob(ctx context.Context, runnerID string, leaseUntil time.Time) (JobClaim, error)
+	UpdateJobStatus(ctx context.Context, jobRunID string, status domainpipeline.JobRunStatus, reason string, at time.Time) (RunRecord, error)
+	RequestCancel(ctx context.Context, pipelineRunID string, at time.Time) (RunRecord, error)
+}
+
 type EventRepository interface {
 	AppendEvent(ctx context.Context, runID string, evt event.Event) error
 	EventsByPipelineRun(ctx context.Context, runID string) ([]event.Event, error)
+}
+
+type EventOutboxRepository interface {
+	AppendOutbox(ctx context.Context, item EventOutboxRecord) error
+	ListPendingOutbox(ctx context.Context, limit int) ([]EventOutboxRecord, error)
+	MarkOutboxPublished(ctx context.Context, id string, at time.Time) error
 }
 
 type AuditRepository interface {
@@ -56,7 +71,9 @@ type Store interface {
 	PipelineRepository
 	PipelineRunRepository
 	LogRepository
+	JobRepository
 	EventRepository
+	EventOutboxRepository
 	AuditRepository
 	RunnerRepository
 }
@@ -65,6 +82,7 @@ type MemoryStore struct {
 	mu      sync.RWMutex
 	runs    map[string]RunRecord
 	runners map[string]domainrunner.Runner
+	outbox  map[string]EventOutboxRecord
 	nextSeq map[string]int64
 }
 
@@ -72,6 +90,7 @@ func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		runs:    make(map[string]RunRecord),
 		runners: make(map[string]domainrunner.Runner),
+		outbox:  make(map[string]EventOutboxRecord),
 		nextSeq: make(map[string]int64),
 	}
 }
@@ -165,6 +184,114 @@ func (s *MemoryStore) AppendLog(ctx context.Context, runID string, log event.Log
 	return nil
 }
 
+func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil time.Time) (JobClaim, error) {
+	select {
+	case <-ctx.Done():
+		return JobClaim{}, ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	now := time.Now()
+	runIDs := make([]string, 0, len(s.runs))
+	for id := range s.runs {
+		runIDs = append(runIDs, id)
+	}
+	sort.Strings(runIDs)
+	for _, runID := range runIDs {
+		record := s.runs[runID]
+		if record.Run.Status != domainpipeline.PipelineRunQueued && record.Run.Status != domainpipeline.PipelineRunRunning {
+			continue
+		}
+		if record.Run.Status == domainpipeline.PipelineRunQueued {
+			record.Run.Status = domainpipeline.PipelineRunRunning
+			record.Run.StartedAt = &now
+			record.Run.UpdatedAt = now
+		}
+		for stageIndex := range record.Stages {
+			stage := &record.Stages[stageIndex].Stage
+			if stage.Status == domainpipeline.JobRunPending {
+				stage.Status = domainpipeline.JobRunRunning
+				stage.StartedAt = &now
+				stage.UpdatedAt = now
+			}
+			for jobIndex := range record.Stages[stageIndex].Jobs {
+				job := &record.Stages[stageIndex].Jobs[jobIndex].Job
+				claimable := job.Status == domainpipeline.JobRunPending || job.Status == domainpipeline.JobRunRetrying
+				leaseExpired := job.Status == domainpipeline.JobRunAssigned && job.LeaseExpiresAt != nil && job.LeaseExpiresAt.Before(now)
+				if !claimable && !leaseExpired {
+					continue
+				}
+				job.Status = domainpipeline.JobRunAssigned
+				job.RunnerID = runnerID
+				job.LeaseExpiresAt = &leaseUntil
+				job.UpdatedAt = now
+				if job.Attempt <= 0 {
+					job.Attempt = 1
+				}
+				claim := buildJobClaim(record, stageIndex, jobIndex, runnerID, leaseUntil)
+				s.runs[runID] = cloneRecord(record)
+				return claim, nil
+			}
+		}
+		s.runs[runID] = cloneRecord(record)
+	}
+	return JobClaim{}, ErrNoClaimableJob
+}
+
+func (s *MemoryStore) UpdateJobStatus(ctx context.Context, jobRunID string, status domainpipeline.JobRunStatus, reason string, at time.Time) (RunRecord, error) {
+	select {
+	case <-ctx.Done():
+		return RunRecord{}, ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for runID, record := range s.runs {
+		for stageIndex := range record.Stages {
+			for jobIndex := range record.Stages[stageIndex].Jobs {
+				job := &record.Stages[stageIndex].Jobs[jobIndex].Job
+				if job.ID != jobRunID {
+					continue
+				}
+				job.Status = status
+				job.FailureReason = reason
+				job.UpdatedAt = at
+				if status == domainpipeline.JobRunRunning && job.StartedAt == nil {
+					job.StartedAt = &at
+				}
+				if isTerminalJobStatus(status) {
+					job.FinishedAt = &at
+					job.LeaseExpiresAt = nil
+				}
+				record.Stages[stageIndex].Stage.UpdatedAt = at
+				record = updatePipelineStatusFromJobs(record, at)
+				s.runs[runID] = cloneRecord(record)
+				return cloneRecord(record), nil
+			}
+		}
+	}
+	return RunRecord{}, ErrJobNotFound
+}
+
+func (s *MemoryStore) RequestCancel(ctx context.Context, pipelineRunID string, at time.Time) (RunRecord, error) {
+	select {
+	case <-ctx.Done():
+		return RunRecord{}, ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.runs[pipelineRunID]
+	if !ok {
+		return RunRecord{}, ErrRunNotFound
+	}
+	record.Run.CancelRequested = true
+	record.Run.UpdatedAt = at
+	s.runs[pipelineRunID] = cloneRecord(record)
+	return cloneRecord(record), nil
+}
+
 func (s *MemoryStore) LogsByPipelineRun(ctx context.Context, runID string) ([]event.LogChunk, error) {
 	record, err := s.Get(ctx, runID)
 	if err != nil {
@@ -203,6 +330,57 @@ func (s *MemoryStore) AppendEvent(ctx context.Context, runID string, evt event.E
 	}
 	record.Events = append(record.Events, evt)
 	s.runs[runID] = record
+	return nil
+}
+
+func (s *MemoryStore) AppendOutbox(ctx context.Context, item EventOutboxRecord) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.outbox[item.ID] = item
+	return nil
+}
+
+func (s *MemoryStore) ListPendingOutbox(ctx context.Context, limit int) ([]EventOutboxRecord, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	items := make([]EventOutboxRecord, 0, len(s.outbox))
+	for _, item := range s.outbox {
+		if item.Status == "pending" {
+			items = append(items, item)
+		}
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].CreatedAt.Before(items[j].CreatedAt) })
+	if limit > 0 && len(items) > limit {
+		items = items[:limit]
+	}
+	return append([]EventOutboxRecord(nil), items...), nil
+}
+
+func (s *MemoryStore) MarkOutboxPublished(ctx context.Context, id string, at time.Time) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.outbox[id]
+	if !ok {
+		return ErrOutboxNotFound
+	}
+	item.Status = "published"
+	item.PublishedAt = &at
+	s.outbox[id] = item
 	return nil
 }
 
@@ -369,6 +547,72 @@ func cloneRunner(runner domainrunner.Runner) domainrunner.Runner {
 	runner.Labels = cloneMap(runner.Labels)
 	runner.Executors = append([]string(nil), runner.Executors...)
 	return runner
+}
+
+func buildJobClaim(record RunRecord, stageIndex int, jobIndex int, runnerID string, leaseUntil time.Time) JobClaim {
+	job := record.Stages[stageIndex].Jobs[jobIndex]
+	stepIDs := make([]string, 0, len(job.Steps))
+	commands := make([]string, 0, len(job.Steps))
+	if stageIndex < len(record.Definition.Spec.Stages) && jobIndex < len(record.Definition.Spec.Stages[stageIndex].Jobs) {
+		for _, step := range record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex].Steps {
+			commands = append(commands, step.Run)
+		}
+	}
+	for _, step := range job.Steps {
+		stepIDs = append(stepIDs, step.ID)
+	}
+	return JobClaim{
+		PipelineRunID:   record.Run.ID,
+		StageRunID:      record.Stages[stageIndex].Stage.ID,
+		JobRunID:        job.Job.ID,
+		StepRunIDs:      stepIDs,
+		RunnerID:        runnerID,
+		Executor:        "shell",
+		Commands:        commands,
+		Attempt:         job.Job.Attempt,
+		LeaseExpiresAt:  leaseUntil,
+		CancelRequested: record.Run.CancelRequested,
+		Status:          job.Job.Status,
+	}
+}
+
+func updatePipelineStatusFromJobs(record RunRecord, at time.Time) RunRecord {
+	allSucceeded := true
+	anyFailed := false
+	for stageIndex := range record.Stages {
+		stageSucceeded := true
+		for jobIndex := range record.Stages[stageIndex].Jobs {
+			status := record.Stages[stageIndex].Jobs[jobIndex].Job.Status
+			if status == domainpipeline.JobRunFailed || status == domainpipeline.JobRunCanceled {
+				anyFailed = true
+				stageSucceeded = false
+				allSucceeded = false
+			}
+			if status != domainpipeline.JobRunSucceeded && status != domainpipeline.JobRunSkipped {
+				stageSucceeded = false
+				allSucceeded = false
+			}
+		}
+		if anyFailed {
+			record.Stages[stageIndex].Stage.Status = domainpipeline.JobRunFailed
+			record.Stages[stageIndex].Stage.FinishedAt = &at
+		} else if stageSucceeded {
+			record.Stages[stageIndex].Stage.Status = domainpipeline.JobRunSucceeded
+			record.Stages[stageIndex].Stage.FinishedAt = &at
+		}
+	}
+	if anyFailed {
+		record.Run.Status = domainpipeline.PipelineRunFailed
+		record.Run.FinishedAt = &at
+		record.Run.UpdatedAt = at
+		return record
+	}
+	if allSucceeded {
+		record.Run.Status = domainpipeline.PipelineRunSucceeded
+		record.Run.FinishedAt = &at
+		record.Run.UpdatedAt = at
+	}
+	return record
 }
 
 func sortLogs(logs []event.LogChunk) []event.LogChunk {

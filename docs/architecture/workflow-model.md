@@ -29,4 +29,14 @@ Phase 1 accepts a minimal Pipeline definition, creates PipelineRun, StageRun, Jo
 
 Phase 1.5 adds a simple queued processing path used by the worker, minimal runner selection and heartbeat records, retry count support, timeout handling, cancellation for non-terminal runs, and timeline queries.
 
-The runtime is intentionally in-memory. Durable PostgreSQL runtime repositories, cross-process worker/server state sharing, and remote runner assignment are future work.
+## Phase 3.6 Durable Runtime Foundation
+
+Phase 3.6 keeps the default runtime in-memory but adds the protocol and state shapes needed for cross-process execution:
+
+- JobRun claim leases to reduce double-claim risk.
+- runner-owned log append and status update APIs.
+- cancel-request state so workers and runners can observe cancellation before hard terminal transition.
+- event outbox records for durable publication in a future database-backed runtime.
+- a worker step that processes queued work and publishes pending outbox events.
+
+PostgreSQL migrations now include the minimal columns and `event_outbox` table shape needed by future durable repositories. The default tests do not require PostgreSQL.

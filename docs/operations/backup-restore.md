@@ -7,7 +7,7 @@ Nivora Phase 8.2 documents backup and restore procedures for production-directio
 | Data | Why it matters | Suggested backup |
 | --- | --- | --- |
 | PostgreSQL | Runtime records, logs, events, audit, runners, outbox, releases, artifacts when persisted. | Native PostgreSQL backups such as `pg_dump`, snapshots, or managed database backup. |
-| Object store | Manifest snapshots, evidence bundle artifacts, future large logs or release assets. | Bucket or filesystem snapshot with versioning where available. |
+| Object store | Manifest snapshots, future large evidence artifacts, future large logs or release assets. | Bucket or filesystem snapshot with versioning where available. |
 | Config files | Server, worker, runner, Helm values, Docker Compose environment. | Git-controlled sanitized config plus secure external secret storage. |
 | Secret metadata | Credential and SecretRef metadata. | Database backup; secret values stay in the configured secret provider. |
 | Secret values | External credentials and tokens. | Back up through the secret provider, not Nivora APIs. |
@@ -33,6 +33,8 @@ After restore:
 3. Check `/readyz`.
 4. Check `/api/v1/system/runtime/recovery`.
 5. Run one reconciliation pass if needed.
+
+Critical runtime audit records for deployments and release executions are stored with their runtime records in PostgreSQL when `database.runtime_store: postgres`. Compliance evidence bundle and retention policy persistence now has a PostgreSQL foundation through `compliance_evidence_bundles` and `compliance_retention_policies`. Tamper-evident hash-chain enforcement is still a future hardening item; schema fields exist for compliance audit records but audit writes are not uniformly hash-chained yet.
 
 ## Object Store
 
@@ -71,6 +73,17 @@ Do not back up raw secret values in config files. Use environment variables, Sec
 9. Reconcile pending outbox/runtime state.
 10. Start runners and verify heartbeat.
 
+## Migration Drill
+
+For a disposable database or staging environment:
+
+```sh
+NIVORA_RUN_POSTGRES_INTEGRATION=true DATABASE_URL="$NIVORA_DATABASE_URL" make test-postgres-integration
+./scripts/smoke-audit-durability.sh
+```
+
+The baseline unit test suite does not require PostgreSQL. Real database migration and recovery checks are opt-in so local CI remains self-contained.
+
 ## Event Outbox Recovery
 
 Pending or failed event outbox records should be preserved during backup. After dependencies recover, run:
@@ -86,3 +99,22 @@ curl -X POST http://localhost:8080/api/v1/system/runtime/reconcile
 ```
 
 This phase provides the foundation; external event transport replay remains future hardening.
+
+## Tested vs Untested
+
+Tested in baseline verification:
+
+- config validation rejects unsafe production defaults
+- evidence bundle and retention policy store behavior
+- production profile static safety checks
+
+Tested only when optional PostgreSQL integration is enabled:
+
+- migration up/down against a real PostgreSQL schema
+- PipelineRun, DeploymentRun, ReleaseExecution, runner claim, outbox, and compliance evidence recovery after reconnect
+
+Not yet production-proven:
+
+- automated restore from a production backup
+- object-store restore with large evidence payloads
+- tamper-evident hash-chain audit writes across every audit source

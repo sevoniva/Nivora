@@ -1,0 +1,60 @@
+# Production-like compose profile for operator validation.
+# It intentionally mounts an external config file so database credentials and
+# auth tokens are injected by the operator instead of committed here.
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: nivora
+      POSTGRES_DB: nivora
+      POSTGRES_PASSWORD: ${NIVORA_POSTGRES_PASSWORD:?set NIVORA_POSTGRES_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nivora -d nivora"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  nivora-server:
+    image: ${NIVORA_IMAGE:-sevoniva/nivora:1.0.0}
+    command: ["server", "--config", "/etc/nivora/production.yaml"]
+    environment:
+      NIVORA_AUTH_TOKEN: ${NIVORA_AUTH_TOKEN:?set NIVORA_AUTH_TOKEN}
+    ports:
+      - "8080:8080"
+    volumes:
+      - ${NIVORA_PRODUCTION_CONFIG:?set NIVORA_PRODUCTION_CONFIG}:/etc/nivora/production.yaml:ro
+      - nivora-objectstore:/var/lib/nivora/objectstore
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  nivora-worker:
+    image: ${NIVORA_IMAGE:-sevoniva/nivora:1.0.0}
+    command: ["worker", "--config", "/etc/nivora/production.yaml"]
+    environment:
+      NIVORA_AUTH_TOKEN: ${NIVORA_AUTH_TOKEN:?set NIVORA_AUTH_TOKEN}
+    volumes:
+      - ${NIVORA_PRODUCTION_CONFIG:?set NIVORA_PRODUCTION_CONFIG}:/etc/nivora/production.yaml:ro
+      - nivora-objectstore:/var/lib/nivora/objectstore
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  nivora-runner:
+    image: ${NIVORA_IMAGE:-sevoniva/nivora:1.0.0}
+    command: ["runner", "--config", "/etc/nivora/production.yaml"]
+    environment:
+      NIVORA_AUTH_TOKEN: ${NIVORA_AUTH_TOKEN:?set NIVORA_AUTH_TOKEN}
+    volumes:
+      - ${NIVORA_PRODUCTION_CONFIG:?set NIVORA_PRODUCTION_CONFIG}:/etc/nivora/production.yaml:ro
+      - nivora-objectstore:/var/lib/nivora/objectstore
+    profiles: ["runner"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+volumes:
+  postgres-data:
+  nivora-objectstore:

@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test test-race test-postgres-integration benchmark load-generate-runs load-generate-logs load-simulate-runners coverage vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-runtime-recovery verify-api verify-cli verify-examples verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-alpha verify run-server run-worker run-runner run-web docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-cli smoke-deployment-dry-run smoke-oci-resolve-local smoke-runtime-recovery-postgres dev-up dev-down migrate-up migrate-down
+.PHONY: build test test-race test-postgres-integration benchmark load-generate-runs load-generate-logs load-simulate-runners coverage vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-runtime-recovery verify-api verify-cli verify-examples verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-production-profiles verify-alpha verify run-server run-worker run-runner run-web docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-cli smoke-deployment-dry-run smoke-oci-resolve-local smoke-runtime-recovery-postgres smoke-helm-production-profile smoke-compose-production-profile smoke-audit-durability dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -104,6 +104,8 @@ verify-packaging:
 		echo "helm not found; skipping Helm template/lint checks"; \
 	fi
 
+verify-production-profiles: smoke-helm-production-profile smoke-compose-production-profile smoke-audit-durability
+
 verify-alpha:
 	./scripts/verify-alpha-release-docs.sh
 
@@ -132,6 +134,15 @@ helm-template:
 
 helm-lint:
 	helm lint deployments/helm
+
+smoke-helm-production-profile:
+	./scripts/smoke-helm-production-profile.sh
+
+smoke-compose-production-profile:
+	./scripts/smoke-compose-production-profile.sh
+
+smoke-audit-durability:
+	./scripts/smoke-audit-durability.sh
 
 kind-install:
 	@test "$$NIVORA_ALLOW_KIND_INSTALL" = "true" || (echo "set NIVORA_ALLOW_KIND_INSTALL=true to install into the current Kubernetes context" >&2; exit 1)

@@ -63,7 +63,11 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer closeRelease()
-	complianceService := NewComplianceService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService)
+	complianceService, closeCompliance, err := appruntime.NewComplianceServiceWithConfig(ctx, cfg, pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService)
+	if err != nil {
+		return err
+	}
+	defer closeCompliance()
 	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService, cloudService, tenancyService, complianceService, pluginRegistry)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.BindAddress,

@@ -3,6 +3,7 @@ package config
 import (
 	"errors"
 	"fmt"
+	"net/url"
 	"os"
 
 	"gopkg.in/yaml.v3"
@@ -173,6 +174,15 @@ func (c Config) Validate() error {
 		if !c.Auth.Enabled {
 			return errors.New("config auth.enabled=false is not allowed in production")
 		}
+		if c.Auth.Mode == "" || c.Auth.Mode == "dev" || c.Auth.Mode == "disabled" {
+			return errors.New("config auth.mode must not be dev or disabled in production")
+		}
+		if c.Auth.Mode == "token" && c.Auth.StaticTokenEnv == "" {
+			return errors.New("config auth.static_token_env is required when auth.mode=token in production")
+		}
+		if hasInlineDatabasePassword(c.Database.URL) {
+			return errors.New("config database.url must not include an inline password in production; inject credentials through a secret or environment-specific config")
+		}
 		if c.Runtime.AllowLocalShellExecutor {
 			return errors.New("config runtime.allow_local_shell_executor=true is not allowed in production")
 		}
@@ -210,4 +220,13 @@ func (c Config) Validate() error {
 		}
 	}
 	return nil
+}
+
+func hasInlineDatabasePassword(raw string) bool {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.User == nil {
+		return false
+	}
+	_, ok := parsed.User.Password()
+	return ok
 }

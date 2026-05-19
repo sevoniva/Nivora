@@ -39,11 +39,11 @@ Nivora is **not production-ready**. Production readiness work is still in progre
 | Host deployment | experimental | host target models, noop host executor, SSH skeleton | Plan/dry-run/noop foundation; remote execution is disabled by default and guarded. |
 | Web console | experimental | `web/` Vite React app, `make verify-web` | Minimal UI foundation consuming backend APIs; not a production UI. |
 | Plugin system | foundation | `internal/usecase/plugin`, `api/proto/plugin.proto`, plugin templates | Manifest/capability registry and protocol skeleton; no unsafe dynamic loading or marketplace. |
-| Packaging | partial | Dockerfile, Docker Compose, Helm, Kubernetes manifests | Templates and local install assets exist; no operator and no validated production installer. |
+| Packaging | partial | Dockerfile, Docker Compose, Helm, Kubernetes manifests, `deployments/helm/values-production.yaml`, `deployments/docker-compose/docker-compose.production.example.yaml`, production profile smoke scripts | Safer production-like profiles exist and avoid unsafe defaults, but no operator and no fully validated production installer. |
 | Observability | partial | request/correlation middleware, `/metrics`, diagnostics endpoints | Lightweight metrics/diagnostics/runbooks; distributed tracing/export dashboards remain future work. |
-| Audit/evidence | foundation | `internal/usecase/compliance`, audit/evidence routes | Evidence bundle/search model exists; durable tamper-evident audit storage is not complete. |
-| Persistence | partial | Postgres PipelineStore, deployment/release runtime stores, migrations under `internal/infra/migration`, `make test-postgres-integration` | PipelineRun/runner/outbox plus DeploymentRun/Release/ReleaseExecution persistence foundations have optional real-PostgreSQL recovery tests; several governance/security stores remain memory-backed. |
-| Backup/restore | documented-only | `docs/operations/backup-restore.md`, HA/DR docs | Procedures are documented but restore drills are not automated or verified. |
+| Audit/evidence | foundation | `internal/usecase/compliance`, audit/evidence routes, `internal/adapters/repository/postgres/compliance_store.go`, `000008_compliance_audit_evidence` migration | Evidence bundle and retention policy persistence exists in Postgres mode; complete hash-chained/tamper-evident audit writes remain future hardening. |
+| Persistence | partial | Postgres PipelineStore, deployment/release runtime stores, compliance evidence store, migrations under `internal/infra/migration`, `make test-postgres-integration` | PipelineRun/runner/outbox plus DeploymentRun/Release/ReleaseExecution and compliance evidence persistence foundations have optional real-PostgreSQL recovery tests; several governance/security stores remain memory-backed. |
+| Backup/restore | documented-only | `docs/operations/backup-restore.md`, HA/DR docs, optional smoke scripts | Procedures and optional smoke checks exist, but full restore drills are not automated or production-verified. |
 
 ## Contract Notes
 

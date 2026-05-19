@@ -50,6 +50,13 @@ func TestEvidenceBundleGeneration(t *testing.T) {
 	if len(bundle.Audits) == 0 || len(bundle.Events) == 0 || len(bundle.LogReferences) == 0 {
 		t.Fatalf("bundle missing evidence: %#v", bundle)
 	}
+	stored, err := service.store.GetEvidenceBundle(context.Background(), bundle.ID)
+	if err != nil {
+		t.Fatalf("stored evidence bundle: %v", err)
+	}
+	if stored.SubjectID != bundle.SubjectID || len(stored.Audits) != len(bundle.Audits) {
+		t.Fatalf("stored evidence mismatch: %#v", stored)
+	}
 	if markdown := service.ExportMarkdown(bundle); !strings.Contains(markdown, "Evidence Bundle") {
 		t.Fatalf("markdown export missing title: %s", markdown)
 	}
@@ -70,6 +77,13 @@ func TestRetentionPolicy(t *testing.T) {
 	}
 	if got.LogDays != 14 || got.AuditDays != 730 {
 		t.Fatalf("retention not persisted: %#v", got)
+	}
+	stored, err := service.store.GetRetentionPolicy(context.Background(), "project", "project-a")
+	if err != nil {
+		t.Fatalf("stored retention policy: %v", err)
+	}
+	if stored.LogDays != 14 || stored.AuditDays != 730 {
+		t.Fatalf("stored retention policy mismatch: %#v", stored)
 	}
 }
 

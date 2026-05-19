@@ -80,7 +80,9 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 	base := Default()
 	base.Env = "production"
 	base.Database.RuntimeStore = "postgres"
+	base.Database.URL = "postgres://nivora@postgres.example.internal:5432/nivora?sslmode=require"
 	base.Auth.Enabled = true
+	base.Auth.Mode = "token"
 	base.Runtime.AllowLocalShellExecutor = false
 
 	tests := []struct {
@@ -88,6 +90,11 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 		mutate func(*Config)
 	}{
 		{"auth disabled", func(c *Config) { c.Auth.Enabled = false }},
+		{"dev auth mode", func(c *Config) { c.Auth.Mode = "dev" }},
+		{"missing token env", func(c *Config) { c.Auth.StaticTokenEnv = "" }},
+		{"inline database password", func(c *Config) {
+			c.Database.URL = "postgres://nivora:secret@postgres.example.internal:5432/nivora?sslmode=require"
+		}},
 		{"local shell", func(c *Config) { c.Runtime.AllowLocalShellExecutor = true }},
 		{"privileged executor", func(c *Config) { c.Runtime.AllowPrivilegedExecutor = true }},
 		{"remote host deploy", func(c *Config) { c.Runtime.AllowRemoteHostDeploy = true }},

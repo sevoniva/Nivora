@@ -23,6 +23,8 @@ The compose file starts:
 - Nivora worker
 - optional Nivora runner profile
 
+`deployments/docker-compose/docker-compose.yaml` is intentionally a development profile. It uses local configs, trust authentication for PostgreSQL, and development-safe defaults. Do not reuse it as a production baseline.
+
 To start the runner profile:
 
 ```sh
@@ -48,6 +50,24 @@ export NIVORA_MINIO_ROOT_PASSWORD='set-a-local-value'
 
 Do not commit real credentials.
 
+## Production-Like Example
+
+`deployments/docker-compose/docker-compose.production.example.yaml` is a safer profile for operator review. It does not embed secrets. It expects:
+
+```sh
+export NIVORA_POSTGRES_PASSWORD='<set outside git>'
+export NIVORA_AUTH_TOKEN='<set outside git>'
+export NIVORA_PRODUCTION_CONFIG=/absolute/path/to/production.yaml
+```
+
+The mounted production config should be based on `configs/production.example.yaml`, use `database.runtime_store: postgres`, keep auth enabled, and keep unsafe runtime flags disabled. Validate the profile without starting services:
+
+```sh
+./scripts/smoke-compose-production-profile.sh
+```
+
+This profile is still not a production-ready deployment; it is a packaging and restore-drill aid.
+
 ## Health Checks
 
 ```sh
@@ -64,6 +84,7 @@ curl http://localhost:8080/api/v1/system/diagnostics
 - MinIO/object data is in the compose object-store volume.
 - Config files live under `configs/`.
 - Secret values should come from environment variables or an external secret provider, not committed compose files.
+- For production-like drills, keep PostgreSQL credentials out of committed YAML and inject them through the operator's environment or secret system.
 
 See [Backup and Restore](backup-restore.md) and [HA and Disaster Recovery](ha-disaster-recovery.md).
 

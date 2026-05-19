@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/sevoniva/nivora/internal/domain/audit"
@@ -28,13 +27,18 @@ type Service struct {
 	releases    *releaseusecase.Service
 	security    *securityusecase.Service
 	approvals   *approvalusecase.Service
+	store       Store
 	now         func() time.Time
-
-	mu        sync.RWMutex
-	retention map[string]domaincompliance.RetentionPolicy
 }
 
 func NewService(pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, artifacts *artifactusecase.Service, releases *releaseusecase.Service, security *securityusecase.Service, approvals *approvalusecase.Service) *Service {
+	return NewServiceWithStore(NewMemoryStore(), pipelines, deployments, artifacts, releases, security, approvals)
+}
+
+func NewServiceWithStore(store Store, pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, artifacts *artifactusecase.Service, releases *releaseusecase.Service, security *securityusecase.Service, approvals *approvalusecase.Service) *Service {
+	if store == nil {
+		store = NewMemoryStore()
+	}
 	return &Service{
 		pipelines:   pipelines,
 		deployments: deployments,
@@ -42,8 +46,8 @@ func NewService(pipelines *pipelineusecase.Service, deployments *deploymentuseca
 		releases:    releases,
 		security:    security,
 		approvals:   approvals,
+		store:       store,
 		now:         time.Now,
-		retention:   make(map[string]domaincompliance.RetentionPolicy),
 	}
 }
 
@@ -142,6 +146,9 @@ func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (doma
 	for i, entry := range bundle.Audits {
 		bundle.Audits[i] = sanitizeAudit(entry)
 	}
+	if err := s.store.SaveEvidenceBundle(ctx, bundle); err != nil {
+		return domaincompliance.EvidenceBundle{}, err
+	}
 	return bundle, nil
 }
 
@@ -170,11 +177,12 @@ func (s *Service) RetentionPolicy(ctx context.Context, scopeType string, scopeID
 	if err := ctx.Err(); err != nil {
 		return domaincompliance.RetentionPolicy{}, err
 	}
-	key := retentionKey(scopeType, scopeID)
-	s.mu.RLock()
-	defer s.mu.RUnlock()
-	if policy, ok := s.retention[key]; ok {
+	policy, err := s.store.GetRetentionPolicy(ctx, scopeType, scopeID)
+	if err == nil {
 		return policy, nil
+	}
+	if err != ErrRetentionPolicyNotFound {
+		return domaincompliance.RetentionPolicy{}, err
 	}
 	return defaultRetention(scopeType, scopeID, s.now()), nil
 }
@@ -189,9 +197,9 @@ func (s *Service) SetRetentionPolicy(ctx context.Context, input RetentionInput) 
 	policy.EventDays = override(policy.EventDays, input.EventDays)
 	policy.EvidenceDays = override(policy.EvidenceDays, input.EvidenceDays)
 	policy.ImmutableAudit = true
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	s.retention[retentionKey(input.ScopeType, input.ScopeID)] = policy
+	if err := s.store.SaveRetentionPolicy(ctx, policy); err != nil {
+		return domaincompliance.RetentionPolicy{}, err
+	}
 	return policy, nil
 }
 

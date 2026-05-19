@@ -24,10 +24,10 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: ["worker", "--config", "/etc/nivora/worker.yaml"]
-          {{- if .Values.secret.create }}
+          {{- if or .Values.secret.create .Values.secret.existingName }}
           envFrom:
             - secretRef:
-                name: {{ include "nivora.fullname" . }}-secret
+                name: {{ default (printf "%s-secret" (include "nivora.fullname" .)) .Values.secret.existingName }}
           {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}

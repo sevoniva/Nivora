@@ -22,6 +22,11 @@ Production-shaped example:
 
 The production example is not a production-ready configuration. It shows field shape and safe defaults without secret values.
 
+Production-like package profiles:
+
+- `deployments/helm/values-production.yaml`
+- `deployments/docker-compose/docker-compose.production.example.yaml`
+
 ## Validate
 
 ```sh
@@ -35,7 +40,7 @@ go run ./cmd/nivora config validate --file configs/production.example.yaml
 - `environment`: local, docker-compose, kubernetes, or another deployment label.
 - `http.bind_address`: bind address for the process.
 - `database.url`: PostgreSQL connection string.
-- `database.runtime_store`: `memory` for local/CI mode or `postgres` for the Phase 5.1 PipelineRun runtime store.
+- `database.runtime_store`: `memory` for local/CI mode or `postgres` for production-like runtime stores. Production mode rejects `memory`.
 - `event_bus.type`: currently `memory` by default.
 - `object_store.type`: currently `local` by default.
 - `object_store.path`: local object-store directory.
@@ -43,6 +48,28 @@ go run ./cmd/nivora config validate --file configs/production.example.yaml
 - `telemetry.enabled`: tracing/metrics integration switch for future external telemetry.
 - `auth`: local dev, token, or OIDC foundation configuration. Token values and OIDC secrets must come from environment variables or secret providers, not committed files.
 - `runner`: runner name, group, and heartbeat interval.
+- `runtime`: unsafe capability flags. Production mode rejects local shell executor, privileged executor, remote host deploy, Kubernetes apply, Argo sync, and insecure registry when enabled globally.
+
+## Production Validation
+
+When `environment` is `production` or `prod`, validation rejects:
+
+- `database.runtime_store: memory`
+- `auth.enabled: false`
+- `auth.mode: dev` or `disabled`
+- token auth without `auth.static_token_env`
+- inline database passwords in `database.url`
+- unsafe runtime flags enabled globally
+
+Use `configs/production.example.yaml` and inject secrets through environment variables or a secret provider. Do not put database passwords, auth tokens, kubeconfigs, registry passwords, SSH keys, or webhook secrets directly in committed config.
+
+Profile smoke checks:
+
+```sh
+./scripts/smoke-helm-production-profile.sh
+./scripts/smoke-compose-production-profile.sh
+./scripts/smoke-audit-durability.sh
+```
 
 ## Secrets
 

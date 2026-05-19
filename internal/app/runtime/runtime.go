@@ -169,6 +169,17 @@ func NewComplianceService(pipelineService *pipelineusecase.Service, deploymentSe
 	return complianceusecase.NewService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService)
 }
 
+func NewComplianceServiceWithConfig(ctx context.Context, cfg config.Config, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, approvalService *approvalusecase.Service) (*complianceusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewComplianceService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return complianceusecase.NewServiceWithStore(postgresrepo.NewComplianceStore(pool), pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService), pool.Close, nil
+}
+
 func NewPluginRegistry() *pluginusecase.Registry {
 	return pluginusecase.NewDefaultRegistry()
 }

@@ -16,6 +16,15 @@ Lint the chart when Helm is available:
 make helm-lint
 ```
 
+Render the production-like profile without installing it:
+
+```sh
+helm template nivora deployments/helm -f deployments/helm/values-production.yaml
+./scripts/smoke-helm-production-profile.sh
+```
+
+`deployments/helm/values-production.yaml` is a safer profile for operator review. It sets `environment: production`, uses `database.runtime_store: postgres`, references an existing Kubernetes Secret for `NIVORA_AUTH_TOKEN`, disables local shell, privileged executor, Kubernetes apply, Argo sync, remote host deploy, and insecure registry defaults, and adds starter resource requests/limits. It is still not a production-ready install by itself.
+
 Install into the current Kubernetes context only when you explicitly allow it:
 
 ```sh
@@ -28,7 +37,7 @@ The chart includes:
 - worker Deployment
 - optional runner Deployment
 - ConfigMap with server, worker, and runner configs
-- Secret template placeholder
+- Secret template placeholder for non-production installs, or an existing Secret reference for production-like values
 - optional Ingress, disabled by default
 - optional migration Job, disabled by default
 
@@ -60,7 +69,16 @@ No real secret values are committed. If auth tokens, database credentials, regis
 
 ## Migrations
 
-The Helm migration Job is disabled by default. Phase 4.4 does not introduce a production migration runner image. Operators should run migrations intentionally using a reviewed image and command.
+The Helm migration Job is disabled by default, including in `values-production.yaml`. Operators should run migrations intentionally using a reviewed image and command before starting production-like server/worker pods. The chart documents the job shape but does not automate a production migration process yet.
+
+## Production Profile Checklist
+
+- Use `deployments/helm/values-production.yaml` as a review starting point.
+- Keep `database.runtime_store: postgres`.
+- Do not render placeholder Secret values; set `secret.existingName`.
+- Keep unsafe runtime flags false unless a specific runbook explains the risk.
+- Run `./scripts/smoke-helm-production-profile.sh` before install.
+- Back up PostgreSQL and object-store data before migration or restore drills.
 
 ## Current Limitations
 
@@ -68,7 +86,7 @@ The Helm migration Job is disabled by default. Phase 4.4 does not introduce a pr
 - No cloud-provider dependency.
 - HA, backup, and restore are documented as operating procedures, not automated by the chart.
 - No production ingress/TLS defaults.
-- Runtime persistence remains early-stage.
+- Runtime persistence is improved for PipelineRun, DeploymentRun, Release, ReleaseExecution, and compliance evidence foundations, but production recovery is still hardening work.
 
 ## HA and Backup Direction
 

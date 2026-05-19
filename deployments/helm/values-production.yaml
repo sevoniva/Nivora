@@ -1,45 +1,49 @@
+# Production-like profile for validation and operator review.
+# Nivora is still a beta-candidate foundation; this file avoids unsafe defaults
+# but does not make the chart production-ready by itself.
+
 image:
   repository: sevoniva/nivora
   tag: "1.0.0"
   pullPolicy: IfNotPresent
 
-nameOverride: ""
-fullnameOverride: ""
-
-podSecurityContext:
-  runAsNonRoot: true
-  runAsUser: 65532
-  runAsGroup: 65532
-  fsGroup: 65532
-
-securityContext:
-  allowPrivilegeEscalation: false
-  readOnlyRootFilesystem: true
-  capabilities:
-    drop: ["ALL"]
-
 server:
-  replicas: 1
-  service:
-    type: ClusterIP
-    port: 8080
-  resources: {}
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 worker:
-  replicas: 1
-  resources: {}
+  replicas: 2
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 runner:
   enabled: true
   replicas: 1
-  name: helm-runner
+  name: production-runner
   group: default
-  resources: {}
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
 
 config:
-  environment: kubernetes
-  runtimeStore: memory
-  databaseURL: "postgres://nivora@postgres:5432/nivora?sslmode=disable"
+  environment: production
+  runtimeStore: postgres
+  databaseURL: "postgres://nivora@postgres.example.internal:5432/nivora?sslmode=require"
   eventBusType: memory
   objectStoreType: local
   objectStorePath: /var/lib/nivora/objectstore
@@ -66,28 +70,17 @@ config:
     allowInsecureRegistry: false
 
 secret:
-  create: true
-  existingName: ""
+  create: false
+  existingName: nivora-production-secret
   stringData: {}
-  # Example only; do not commit real values:
-  # stringData:
-  #   NIVORA_AUTH_TOKEN: "<set-at-install-time>"
 
 persistence:
-  enabled: false
-  size: 1Gi
+  enabled: true
+  size: 10Gi
   storageClassName: ""
 
 ingress:
   enabled: false
-  className: ""
-  annotations: {}
-  hosts:
-    - host: nivora.local
-      paths:
-        - path: /
-          pathType: Prefix
-  tls: []
 
 migration:
   enabled: false

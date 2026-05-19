@@ -1,5 +1,9 @@
 # Nivora Post-Hardening Delta Audit
 
+## Subsequent Hardening Note
+
+As of 2026-05-19, production install and audit durability hardening added `deployments/helm/values-production.yaml`, `deployments/docker-compose/docker-compose.production.example.yaml`, optional production-profile smoke scripts, stricter production config validation, and a PostgreSQL-backed compliance evidence/retention store foundation. This improves the packaging/audit blockers called out below, but Nivora remains **not production-ready** because full restore drills, exhaustive governance/security persistence, and uniform tamper-evident audit writes are still incomplete.
+
 ## 1. Executive Summary
 
 The three recent hardening goals materially improved Nivora's production direction, but they did not make the project production-ready.

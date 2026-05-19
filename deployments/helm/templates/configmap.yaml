@@ -41,6 +41,13 @@ data:
       name: {{ .Values.runner.name | quote }}
       group: {{ .Values.runner.group | quote }}
       heartbeat_interval: "30s"
+    runtime:
+      allow_local_shell_executor: {{ .Values.config.runtime.allowLocalShellExecutor }}
+      allow_privileged_executor: {{ .Values.config.runtime.allowPrivilegedExecutor }}
+      allow_remote_host_deploy: {{ .Values.config.runtime.allowRemoteHostDeploy }}
+      allow_kubernetes_apply: {{ .Values.config.runtime.allowKubernetesApply }}
+      allow_argo_sync: {{ .Values.config.runtime.allowArgoSync }}
+      allow_insecure_registry: {{ .Values.config.runtime.allowInsecureRegistry }}
   worker.yaml: |
     app:
       name: nivora-worker
@@ -77,6 +84,13 @@ data:
       name: {{ .Values.runner.name | quote }}
       group: {{ .Values.runner.group | quote }}
       heartbeat_interval: "30s"
+    runtime:
+      allow_local_shell_executor: {{ .Values.config.runtime.allowLocalShellExecutor }}
+      allow_privileged_executor: {{ .Values.config.runtime.allowPrivilegedExecutor }}
+      allow_remote_host_deploy: {{ .Values.config.runtime.allowRemoteHostDeploy }}
+      allow_kubernetes_apply: {{ .Values.config.runtime.allowKubernetesApply }}
+      allow_argo_sync: {{ .Values.config.runtime.allowArgoSync }}
+      allow_insecure_registry: {{ .Values.config.runtime.allowInsecureRegistry }}
   runner.yaml: |
     app:
       name: nivora-runner
@@ -113,3 +127,10 @@ data:
       name: {{ .Values.runner.name | quote }}
       group: {{ .Values.runner.group | quote }}
       heartbeat_interval: "30s"
+    runtime:
+      allow_local_shell_executor: {{ .Values.config.runtime.allowLocalShellExecutor }}
+      allow_privileged_executor: {{ .Values.config.runtime.allowPrivilegedExecutor }}
+      allow_remote_host_deploy: {{ .Values.config.runtime.allowRemoteHostDeploy }}
+      allow_kubernetes_apply: {{ .Values.config.runtime.allowKubernetesApply }}
+      allow_argo_sync: {{ .Values.config.runtime.allowArgoSync }}
+      allow_insecure_registry: {{ .Values.config.runtime.allowInsecureRegistry }}

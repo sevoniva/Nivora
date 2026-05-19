@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	"github.com/sevoniva/nivora/internal/domain/auth"
 	"github.com/sevoniva/nivora/internal/infra/config"
@@ -54,9 +55,10 @@ func firstNonEmpty(values ...string) string {
 func RequirePermission(service *authusecase.Service, action string, writeError func(http.ResponseWriter, *http.Request, int, dto.ErrorResponse), next http.HandlerFunc) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		subject := Subject(r.Context())
-		decision := service.Evaluate(authusecase.EvaluateInput{Subject: subject, Action: action, Resource: auth.Resource{Type: "http", ID: r.URL.Path}})
+		resource := scopedResource(r)
+		decision := service.Evaluate(authusecase.EvaluateInput{Subject: subject, Action: action, Resource: resource})
 		if !decision.Allowed {
-			service.RecordDenied(r.Context(), subject, action, auth.Resource{Type: "http", ID: r.URL.Path})
+			service.RecordDenied(r.Context(), subject, action, resource)
 			writeError(w, r, http.StatusForbidden, dto.ErrorResponse{Code: "forbidden", Message: decision.Reason})
 			return
 		}
@@ -67,6 +69,42 @@ func RequirePermission(service *authusecase.Service, action string, writeError f
 func Subject(ctx context.Context) auth.Subject {
 	subject, _ := ctx.Value(subjectKey{}).(auth.Subject)
 	return subject
+}
+
+func scopedResource(r *http.Request) auth.Resource {
+	resource := auth.Resource{Type: "http", ID: r.URL.Path}
+	query := r.URL.Query()
+	if scopeType := query.Get("scopeType"); scopeType != "" {
+		resource.ScopeType = scopeType
+		resource.ScopeID = query.Get("scopeId")
+		return resource
+	}
+	if projectID := query.Get("projectId"); projectID != "" {
+		resource.ScopeType = "project"
+		resource.ScopeID = projectID
+		return resource
+	}
+	if environmentID := query.Get("environmentId"); environmentID != "" {
+		resource.ScopeType = "environment"
+		resource.ScopeID = environmentID
+		return resource
+	}
+	if projectID := chi.URLParam(r, "project_id"); projectID != "" {
+		resource.ScopeType = "project"
+		resource.ScopeID = projectID
+		return resource
+	}
+	if projectID := chi.URLParam(r, "id"); strings.HasPrefix(r.URL.Path, "/api/v1/projects/") && projectID != "" {
+		resource.ScopeType = "project"
+		resource.ScopeID = projectID
+		return resource
+	}
+	if environmentID := chi.URLParam(r, "id"); strings.HasPrefix(r.URL.Path, "/api/v1/environments/") && environmentID != "" {
+		resource.ScopeType = "environment"
+		resource.ScopeID = environmentID
+		return resource
+	}
+	return resource
 }
 
 func bearerToken(header string) string {

@@ -35,6 +35,7 @@ import (
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
+	tenancyusecase "github.com/sevoniva/nivora/internal/usecase/tenancy"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
@@ -164,6 +165,29 @@ func TestCredentialRoutesDoNotReturnSecretValue(t *testing.T) {
 	}
 }
 
+func TestTenancyQuotaRoutes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/tenancy/quota?scopeType=project&scopeId=project-a", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("quota status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"maxConcurrentPipelineRuns"`) {
+		t.Fatalf("quota body missing limits: %s", rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/tenancy/usage?scopeType=project&scopeId=project-a", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("usage status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestAuthWhoamiDevMode(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {
@@ -213,6 +237,32 @@ func TestAuthTokenModeRequiresBearerToken(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), os.Getenv("NIVORA_TEST_AUTH_TOKEN")) {
 		t.Fatalf("token-info response leaked token value")
+	}
+}
+
+func TestScopedAPITokenCannotReadAnotherProject(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	authService := authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+	account, err := authService.CreateServiceAccount(context.Background(), authusecase.ServiceAccountInput{Name: "project-a-ci", Role: domainauth.RoleDeveloper, ScopeType: "project", ScopeID: "project-a"}, "admin")
+	if err != nil {
+		t.Fatalf("create service account: %v", err)
+	}
+	token, err := authService.CreateAPIToken(context.Background(), authusecase.APITokenInput{Name: "project-a-token", SubjectID: account.ID}, "admin")
+	if err != nil {
+		t.Fatalf("create api token: %v", err)
+	}
+	router := newTestRouterWithAuth(cfg, authService)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/projects/project-b/members", nil)
+	req.Header.Set("Authorization", "Bearer "+token.Token)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected cross-project denial, got %d body = %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -391,6 +441,7 @@ func newTestRouterWithAuth(cfg config.Config, authService *authusecase.Service) 
 		authService,
 		approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New()),
 		newTestCloudService(),
+		tenancyusecase.NewService(),
 		pluginusecase.NewDefaultRegistry(),
 	)
 }

@@ -108,6 +108,31 @@ func TestValidateSecretProvider(t *testing.T) {
 	}
 }
 
+func TestListCredentialsFiltersByScope(t *testing.T) {
+	service := NewService(NewMemoryStore(), newFakeSecretProvider(), nil)
+	refA, err := service.PutSecret(context.Background(), SecretCreateInput{Name: "a", ScopeType: domaincredential.ScopeProject, ScopeID: "project-a", Value: "a-value"})
+	if err != nil {
+		t.Fatalf("put secret a: %v", err)
+	}
+	refB, err := service.PutSecret(context.Background(), SecretCreateInput{Name: "b", ScopeType: domaincredential.ScopeProject, ScopeID: "project-b", Value: "b-value"})
+	if err != nil {
+		t.Fatalf("put secret b: %v", err)
+	}
+	if _, err := service.CreateCredential(context.Background(), CredentialCreateInput{Name: "a", ScopeType: domaincredential.ScopeProject, ScopeID: "project-a", SecretRef: refA}); err != nil {
+		t.Fatalf("create credential a: %v", err)
+	}
+	if _, err := service.CreateCredential(context.Background(), CredentialCreateInput{Name: "b", ScopeType: domaincredential.ScopeProject, ScopeID: "project-b", SecretRef: refB}); err != nil {
+		t.Fatalf("create credential b: %v", err)
+	}
+	credentials, err := service.ListCredentials(context.Background(), portsecret.Scope{ScopeType: domaincredential.ScopeProject, ScopeID: "project-a"})
+	if err != nil {
+		t.Fatalf("list credentials: %v", err)
+	}
+	if len(credentials) != 1 || credentials[0].ScopeID != "project-a" {
+		t.Fatalf("expected only project-a credential, got %#v", credentials)
+	}
+}
+
 func TestSecretUsagePolicyDeniesUnexpectedUse(t *testing.T) {
 	provider := newFakeSecretProvider()
 	service := NewService(NewMemoryStore(), provider, nil)

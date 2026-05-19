@@ -30,6 +30,30 @@ func TestRBACDeny(t *testing.T) {
 	}
 }
 
+func TestScopedSubjectDeniedAcrossProjects(t *testing.T) {
+	service := NewService(NewMemoryStore(), nil)
+	decision := service.Evaluate(EvaluateInput{
+		Subject:  domainauth.Subject{ID: "sa-1", Roles: []string{domainauth.RoleDeveloper}, ScopeType: "project", ScopeID: "project-a"},
+		Action:   domainauth.PermissionProjectRead,
+		Resource: domainauth.Resource{Type: "credential", ScopeType: "project", ScopeID: "project-b"},
+	})
+	if decision.Allowed {
+		t.Fatalf("expected cross-project scoped subject to be denied")
+	}
+}
+
+func TestScopedSubjectAllowedWithinProject(t *testing.T) {
+	service := NewService(NewMemoryStore(), nil)
+	decision := service.Evaluate(EvaluateInput{
+		Subject:  domainauth.Subject{ID: "sa-1", Roles: []string{domainauth.RoleDeveloper}, ScopeType: "project", ScopeID: "project-a"},
+		Action:   domainauth.PermissionProjectRead,
+		Resource: domainauth.Resource{Type: "credential", ScopeType: "project", ScopeID: "project-a"},
+	})
+	if !decision.Allowed {
+		t.Fatalf("expected matching project scope to be allowed: %#v", decision)
+	}
+}
+
 func TestTokenAuth(t *testing.T) {
 	service := NewService(NewMemoryStore(), nil)
 	subject, err := service.Authenticate(context.Background(), AuthenticateInput{Mode: "token", Token: "test-token", StaticToken: "test-token"})

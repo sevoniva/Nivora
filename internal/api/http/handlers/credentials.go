@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
+	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	portsecret "github.com/sevoniva/nivora/internal/ports/secret"
 	credcase "github.com/sevoniva/nivora/internal/usecase/credential"
 )
@@ -25,7 +26,7 @@ func CreateSecret(service *credcase.Service) http.HandlerFunc {
 
 func ListSecretRefs(service *credcase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		refs, err := service.ListSecretRefs(r.Context(), credcaseScope(r))
+		refs, err := service.ListSecretRefs(r.Context(), credentialScope(r))
 		respondCredentialResult(w, r, refs, err)
 	}
 }
@@ -71,14 +72,14 @@ func CreateCredential(service *credcase.Service) http.HandlerFunc {
 
 func ListCredentials(service *credcase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		credentials, err := service.ListCredentials(r.Context())
+		credentials, err := service.ListCredentials(r.Context(), credentialScope(r))
 		respondCredentialResult(w, r, credentials, err)
 	}
 }
 
 func GetCredential(service *credcase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		cred, err := service.GetCredential(r.Context(), chi.URLParam(r, "id"))
+		cred, err := service.GetCredentialInScope(r.Context(), chi.URLParam(r, "id"), credentialScope(r))
 		respondCredentialResult(w, r, cred, err)
 	}
 }
@@ -97,8 +98,13 @@ func ValidateCredential(service *credcase.Service) http.HandlerFunc {
 	}
 }
 
-func credcaseScope(r *http.Request) portsecret.Scope {
-	return portsecret.Scope{ScopeType: r.URL.Query().Get("scopeType"), ScopeID: r.URL.Query().Get("scopeId")}
+func credentialScope(r *http.Request) portsecret.Scope {
+	scope := portsecret.Scope{ScopeType: r.URL.Query().Get("scopeType"), ScopeID: r.URL.Query().Get("scopeId")}
+	if scope.ScopeType != "" || scope.ScopeID != "" {
+		return scope
+	}
+	subject := apimiddleware.Subject(r.Context())
+	return portsecret.Scope{ScopeType: subject.ScopeType, ScopeID: subject.ScopeID}
 }
 
 func respondCredentialResult(w http.ResponseWriter, r *http.Request, payload any, err error) {

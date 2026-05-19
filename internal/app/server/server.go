@@ -21,6 +21,7 @@ import (
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
+	tenancyusecase "github.com/sevoniva/nivora/internal/usecase/tenancy"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
@@ -46,9 +47,10 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 	authService := NewAuthService()
 	approvalService := NewApprovalService()
 	cloudService := NewCloudService()
+	tenancyService := NewTenancyService()
 	pluginRegistry := NewPluginRegistry()
 	releaseService := NewReleaseOrchestrationServiceWith(artifactService, deploymentService)
-	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService, cloudService, pluginRegistry)
+	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService, cloudService, tenancyService, pluginRegistry)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.BindAddress,
 		Handler:           handler,
@@ -108,6 +110,10 @@ func NewApprovalService() *approvalusecase.Service {
 
 func NewCloudService() *cloudusecase.Service {
 	return appruntime.NewCloudService()
+}
+
+func NewTenancyService() *tenancyusecase.Service {
+	return appruntime.NewTenancyService()
 }
 
 func NewPluginRegistry() *pluginusecase.Registry {

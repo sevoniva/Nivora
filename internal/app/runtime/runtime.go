@@ -33,6 +33,7 @@ import (
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
+	tenancyusecase "github.com/sevoniva/nivora/internal/usecase/tenancy"
 )
 
 func NewPipelineService() *pipelineusecase.Service {
@@ -113,6 +114,10 @@ func NewCloudService() *cloudusecase.Service {
 		domaincloud.ProviderGeneric: cloudfake.New(domaincloud.ProviderGeneric),
 	}
 	return cloudusecase.NewService(cloudusecase.NewMemoryStore(), providers, memory.New())
+}
+
+func NewTenancyService() *tenancyusecase.Service {
+	return tenancyusecase.NewService()
 }
 
 func NewPluginRegistry() *pluginusecase.Registry {

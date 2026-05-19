@@ -1144,6 +1144,15 @@ go run ./cmd/nivora auth token create --subject-id <service-account-id>
 
 Dev auth is not production authentication. Static token mode reads token values from environment variables. OIDC is provider-configured backend foundation work; full browser SSO and provider lifecycle operations remain future work.
 
+Phase 7.2 adds multi-tenancy and quota foundations:
+
+```bash
+go run ./cmd/nivora quota view --scope-type project --scope-id demo
+go run ./cmd/nivora usage summary --scope-type project --scope-id demo
+```
+
+Scoped API tokens can be constrained to org/project/environment-style boundaries, and quota read models expose concurrency, runner, artifact, log storage, and rate-limit foundations. Persistent distributed quota enforcement remains future work.
+
 ## Documentation
 
 | Document | Purpose |

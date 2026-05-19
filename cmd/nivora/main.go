@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strings"
@@ -68,7 +69,50 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newArgoCDCommand())
 	root.AddCommand(newRunnerCommand())
 	root.AddCommand(newRuntimeCommand())
+	root.AddCommand(newQuotaCommand())
+	root.AddCommand(newUsageCommand())
 	return root
+}
+
+func newQuotaCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "quota", Short: "Tenant quota utilities"}
+	cmd.AddCommand(newScopedGetCommand("view", "View quota for a scope", "/api/v1/tenancy/quota"))
+	return cmd
+}
+
+func newUsageCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "usage", Short: "Tenant usage utilities"}
+	cmd.AddCommand(newScopedGetCommand("summary", "View usage summary for a scope", "/api/v1/tenancy/usage"))
+	return cmd
+}
+
+func newScopedGetCommand(name string, short string, path string) *cobra.Command {
+	var serverURL string
+	var scopeType string
+	var scopeID string
+	cmd := &cobra.Command{
+		Use:   name,
+		Short: short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			query := ""
+			if scopeType != "" || scopeID != "" {
+				values := url.Values{}
+				values.Set("scopeType", scopeType)
+				values.Set("scopeId", scopeID)
+				query = "?" + values.Encode()
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path+query, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&scopeType, "scope-type", "global", "tenant scope type")
+	cmd.Flags().StringVar(&scopeID, "scope-id", "", "tenant scope id")
+	return cmd
 }
 
 func newApprovalsCommand() *cobra.Command {

@@ -22,6 +22,7 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 - Token auth mode with token values sourced from environment variables.
 - OIDC provider interface and configuration foundation.
 - Service accounts and hashed API token lifecycle foundation.
+- Multi-tenancy foundations for scoped subjects, tenant quota read models, usage summaries, and runner/credential scope checks.
 - ApprovalRequest and ApprovalDecision foundations.
 - Simple ChangeWindow evaluation.
 - NotificationProvider port with noop/log-style local behavior.
@@ -51,7 +52,7 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 
 Phase 3.0 delivers auditable security scan and policy gate foundations through Ports and Adapters. Phase 3.1 adds the minimal Secret and Credential model needed by future adapters. Phase 3.2 adds local AuthN/AuthZ and RBAC foundations. Phase 7.1 adds external secret provider foundations and rotation metadata without making Vault, Kubernetes, or cloud KMS required for CI. Production Vault/KMS integrations, OIDC/Keycloak production integration, and full security integrations remain future work.
 
-Phase 3.3 adds backend-only human governance foundations: approvals, change windows, notification records, and audit/event trails. Phase 6.3 hardens those foundations with scoped approval policy metadata, pending/approved/rejected/expired/canceled lifecycle behavior, timezone-aware change-window evaluation, and guarded notification adapters. It does not add frontend workflows, ITSM integration, or real external notification delivery by default.
+Phase 3.3 adds backend-only human governance foundations: approvals, change windows, notification records, and audit/event trails. Phase 6.3 hardens those foundations with scoped approval policy metadata, pending/approved/rejected/expired/canceled lifecycle behavior, timezone-aware change-window evaluation, and guarded notification adapters. Phase 7.2 adds the first multi-tenancy and quota foundation for scoped org/project/environment operations. It does not add frontend workflows, ITSM integration, or real external notification delivery by default.
 
 Phase 3.4 adds multi-cloud inventory foundations for cloud accounts, regions, clusters, hosts, registries, and snapshots. It does not add cloud deployment or real provider SDK integration.
 

@@ -129,6 +129,11 @@ func (s *Service) Evaluate(input EvaluateInput) domainauth.Decision {
 	if input.Subject.ID == "" {
 		return domainauth.Decision{Allowed: false, Reason: "subject is not authenticated", Action: input.Action}
 	}
+	if input.Subject.ScopeType != "" && input.Resource.ScopeType != "" {
+		if input.Subject.ScopeType != input.Resource.ScopeType || input.Subject.ScopeID != input.Resource.ScopeID {
+			return domainauth.Decision{Allowed: false, Reason: "subject scope does not match resource scope", Action: input.Action, Roles: input.Subject.Roles}
+		}
+	}
 	for _, roleName := range input.Subject.Roles {
 		role, ok := s.roles[roleName]
 		if !ok {

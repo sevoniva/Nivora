@@ -88,6 +88,59 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SystemDiagnostics"
+  /api/v1/tenancy/quota:
+    get:
+      summary: View tenant quota for a scope
+      parameters:
+        - name: scopeType
+          in: query
+          schema:
+            type: string
+        - name: scopeId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Quota for the requested scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantQuota"
+    post:
+      summary: Update tenant quota for a scope
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TenantQuota"
+      responses:
+        "200":
+          description: Updated quota
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantQuota"
+  /api/v1/tenancy/usage:
+    get:
+      summary: View tenant usage summary for a scope
+      parameters:
+        - name: scopeType
+          in: query
+          schema:
+            type: string
+        - name: scopeId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Usage summary for the requested scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TenantUsageSummary"
   /api/v1/plugins:
     get:
       summary: List plugin manifests
@@ -2963,6 +3016,62 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DiagnosticCheck"
+    TenantScope:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [global, org, project, application, environment]
+        id:
+          type: string
+    TenantQuota:
+      type: object
+      properties:
+        scope:
+          $ref: "#/components/schemas/TenantScope"
+        maxConcurrentPipelineRuns:
+          type: integer
+        maxConcurrentDeploymentRuns:
+          type: integer
+        maxRunners:
+          type: integer
+        maxArtifactsTracked:
+          type: integer
+        maxLogStorageBytes:
+          type: integer
+          format: int64
+        apiTokenRequestsPerMinute:
+          type: integer
+        runnerHeartbeatPerMinute:
+          type: integer
+        jobClaimRequestsPerMinute:
+          type: integer
+        deploymentConcurrency:
+          type: integer
+        pipelineConcurrency:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
+    TenantUsageSummary:
+      type: object
+      properties:
+        scope:
+          $ref: "#/components/schemas/TenantScope"
+        concurrentPipelineRuns:
+          type: integer
+        concurrentDeploymentRuns:
+          type: integer
+        runners:
+          type: integer
+        artifactsTracked:
+          type: integer
+        logStorageBytes:
+          type: integer
+          format: int64
+        updatedAt:
+          type: string
+          format: date-time
     RuntimeRecoverySummary:
       type: object
       properties:

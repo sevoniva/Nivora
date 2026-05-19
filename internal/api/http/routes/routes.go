@@ -19,10 +19,11 @@ import (
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
+	tenancyusecase "github.com/sevoniva/nivora/internal/usecase/tenancy"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, pluginRegistry *pluginusecase.Registry) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, tenancyService *tenancyusecase.Service, pluginRegistry *pluginusecase.Registry) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
@@ -42,6 +43,9 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/system/diagnostics", handlers.SystemDiagnostics(cfg))
 		api.Get("/system/runtime/recovery", handlers.RuntimeRecoveryStatus(pipelineService))
 		api.Post("/system/runtime/reconcile", handlers.ReconcileRuntime(pipelineService))
+		api.Get("/tenancy/quota", handlers.GetQuota(tenancyService))
+		api.Post("/tenancy/quota", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.SetQuota(tenancyService)))
+		api.Get("/tenancy/usage", handlers.GetUsageSummary(tenancyService))
 		api.Get("/plugins", handlers.ListPlugins(pluginRegistry))
 		api.Get("/plugins/{name}", handlers.GetPlugin(pluginRegistry))
 		api.Get("/plugins/{name}/capabilities", handlers.GetPluginCapabilities(pluginRegistry))
@@ -57,11 +61,11 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/auth/tokens/{id}/revoke", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.RevokeAPIToken(authService)))
 		api.Get("/roles", handlers.ListRoles(authService))
 		api.Get("/permissions", handlers.ListPermissions(authService))
-		api.Get("/orgs/{id}/members", handlers.ListOrgMembers(authService))
+		api.Get("/orgs/{id}/members", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListOrgMembers(authService)))
 		api.Post("/orgs/{id}/members", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.AddOrgMember(authService)))
-		api.Get("/projects/{id}/members", handlers.ListProjectMembers(authService))
+		api.Get("/projects/{id}/members", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListProjectMembers(authService)))
 		api.Post("/projects/{id}/members", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.AddProjectMember(authService)))
-		api.Get("/environments/{id}/members", handlers.ListEnvironmentMembers(authService))
+		api.Get("/environments/{id}/members", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.ListEnvironmentMembers(authService)))
 		api.Post("/environments/{id}/members", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.AddEnvironmentMember(authService)))
 		api.Get("/pipeline-runs", handlers.ListPipelineRuns(pipelineService))
 		api.Post("/pipeline-runs", handlers.CreatePipelineRun(pipelineService))

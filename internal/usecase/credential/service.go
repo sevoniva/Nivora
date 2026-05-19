@@ -162,12 +162,44 @@ func (s *Service) CreateCredentialFromDefinition(ctx context.Context, definition
 	return s.CreateCredential(ctx, definition.CreateInput())
 }
 
-func (s *Service) ListCredentials(ctx context.Context) ([]domaincredential.Credential, error) {
-	return s.store.ListCredentials(ctx)
+func (s *Service) ListCredentials(ctx context.Context, scopes ...portsecret.Scope) ([]domaincredential.Credential, error) {
+	credentials, err := s.store.ListCredentials(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(scopes) == 0 || (scopes[0].ScopeType == "" && scopes[0].ScopeID == "") {
+		return credentials, nil
+	}
+	scope := scopes[0]
+	filtered := make([]domaincredential.Credential, 0, len(credentials))
+	for _, cred := range credentials {
+		if scope.ScopeType != "" && cred.ScopeType != scope.ScopeType {
+			continue
+		}
+		if scope.ScopeID != "" && cred.ScopeID != scope.ScopeID {
+			continue
+		}
+		filtered = append(filtered, cred)
+	}
+	return filtered, nil
 }
 
 func (s *Service) GetCredential(ctx context.Context, id string) (domaincredential.Credential, error) {
 	return s.store.GetCredential(ctx, id)
+}
+
+func (s *Service) GetCredentialInScope(ctx context.Context, id string, scope portsecret.Scope) (domaincredential.Credential, error) {
+	cred, err := s.store.GetCredential(ctx, id)
+	if err != nil {
+		return domaincredential.Credential{}, err
+	}
+	if scope.ScopeType != "" && cred.ScopeType != scope.ScopeType {
+		return domaincredential.Credential{}, ErrCredentialNotFound
+	}
+	if scope.ScopeID != "" && cred.ScopeID != scope.ScopeID {
+		return domaincredential.Credential{}, ErrCredentialNotFound
+	}
+	return cred, nil
 }
 
 func (s *Service) DeleteCredential(ctx context.Context, id string) error {

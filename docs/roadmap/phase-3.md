@@ -13,6 +13,9 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 - SignatureCheck and SBOMRef foundations.
 - Optional future Trivy integration design.
 - Optional future Cosign integration design.
+- SecretRef, Credential, SecretUsage, and SecretProvider foundation.
+- Builtin development secret provider.
+- Secret redaction and audit rules.
 - AWS provider Adapter.
 - Aliyun provider Adapter.
 - Tencent Cloud provider Adapter.
@@ -29,7 +32,7 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 
 ## Expected Deliverables
 
-Phase 3.0 delivers auditable security scan and policy gate foundations through Ports and Adapters. Multi-cloud inventory and full security integrations remain future Phase 3 work.
+Phase 3.0 delivers auditable security scan and policy gate foundations through Ports and Adapters. Phase 3.1 adds the minimal Secret and Credential model needed by future adapters. Multi-cloud inventory, Vault/KMS integrations, and full security integrations remain future Phase 3 work.
 
 ## Acceptance Criteria
 

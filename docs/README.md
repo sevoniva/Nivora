@@ -45,6 +45,8 @@ For a quick path through the project:
 - [Artifact](concepts/artifact.md)
 - [GitOps](concepts/gitops.md)
 - [Policy](concepts/policy.md)
+- [Secret](concepts/secret.md)
+- [Credential](concepts/credential.md)
 - [Audit](concepts/audit.md)
 
 ## Architecture Docs
@@ -63,6 +65,7 @@ For a quick path through the project:
 - [Kubernetes Resource Model](architecture/kubernetes-resource-model.md)
 - [Integration Model](architecture/integration-model.md)
 - [Security Model](architecture/security-model.md)
+- [Secret Model](architecture/secret-model.md)
 - [Policy Gates](architecture/policy-gates.md)
 - [Observability Model](architecture/observability-model.md)
 - [Data Model](architecture/data-model.md)
@@ -116,6 +119,7 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 - [Runtime Troubleshooting](dev/troubleshooting.md)
 - [Security Scans](dev/security-scans.md)
 - [Policy Gates](dev/policy-gates.md)
+- [Secret Management](dev/secret-management.md)
 - [AI Change Policy](engineering/ai-change-policy.md)
 - [Dependency Policy](engineering/dependency-policy.md)
 - [Testing Policy](engineering/testing-policy.md)

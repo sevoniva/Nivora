@@ -1056,6 +1056,15 @@ go run ./cmd/nivora policy evaluate --subject registry.example.com/demo/app:late
 
 These commands use noop/fake-friendly scanner foundations and built-in policy gates. Trivy, Cosign, SBOM generation, OPA, Kyverno, Gatekeeper, and production security automation remain future work.
 
+Phase 3.1 adds SecretRef and Credential metadata:
+
+```bash
+go run ./cmd/nivora secret put --name local-registry-token --value-env NIVORA_TOKEN
+go run ./cmd/nivora credential create --file examples/credentials/registry-credential.yaml --local
+```
+
+Secret values are accepted only at creation boundaries and are not returned by normal APIs. The builtin provider is development-only; Vault, Kubernetes Secret, and cloud KMS adapters remain future work.
+
 ## Documentation
 
 | Document | Purpose |

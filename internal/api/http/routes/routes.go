@@ -9,6 +9,7 @@ import (
 	"github.com/sevoniva/nivora/internal/api/http/handlers"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
@@ -16,7 +17,7 @@ import (
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -52,6 +53,14 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/security/scans/{id}", handlers.GetSecurityScan(securityService))
 		api.Get("/security/scans/{id}/findings", handlers.GetSecurityFindings(securityService))
 		api.Post("/policies/evaluate", handlers.EvaluatePolicy(securityService))
+		api.Post("/secrets", handlers.CreateSecret(credentialService))
+		api.Get("/secrets/refs", handlers.ListSecretRefs(credentialService))
+		api.Delete("/secrets/{id}", handlers.DeleteSecret(credentialService))
+		api.Post("/credentials", handlers.CreateCredential(credentialService))
+		api.Get("/credentials", handlers.ListCredentials(credentialService))
+		api.Get("/credentials/{id}", handlers.GetCredential(credentialService))
+		api.Delete("/credentials/{id}", handlers.DeleteCredential(credentialService))
+		api.Post("/credentials/{id}/validate", handlers.ValidateCredential(credentialService))
 		api.Get("/releases", handlers.ListReleases(artifactService))
 		api.Post("/releases", handlers.CreateRelease(artifactService))
 		api.Post("/releases/{id}/plan", handlers.PlanRelease(releaseService))

@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 3.0 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning and guarded sync foundations, Kubernetes resource inventory, health, snapshot, diff, rollback-plan output, sequential ReleasePlan / ReleaseExecution orchestration across targets, and early DevSecOps scan / policy gate foundations.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 3.1 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning and guarded sync foundations, Kubernetes resource inventory, health, snapshot, diff, rollback-plan output, sequential ReleasePlan / ReleaseExecution orchestration across targets, early DevSecOps scan / policy gate foundations, and SecretRef / Credential metadata APIs.
 servers:
   - url: http://localhost:8080
 paths:
@@ -200,12 +200,102 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PolicyResult"
+        "400":
+          description: Invalid policy evaluation request
+  /api/v1/secrets:
+    post:
+      summary: Store a secret value and return SecretRef metadata only
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SecretCreateRequest"
+      responses:
+        "200":
+          description: SecretRef metadata. The secret value is never returned.
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/ArtifactResolution"
-        "400":
-          description: Invalid artifact reference
+                $ref: "#/components/schemas/SecretRef"
+  /api/v1/secrets/refs:
+    get:
+      summary: List SecretRef metadata
+      responses:
+        "200":
+          description: Secret references without values
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SecretRef"
+  /api/v1/secrets/{id}:
+    delete:
+      summary: Delete a secret by id
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Secret deleted
+  /api/v1/credentials:
+    get:
+      summary: List credential metadata
+      responses:
+        "200":
+          description: Credential metadata records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Credential"
+    post:
+      summary: Create credential metadata bound to a SecretRef
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CredentialCreateRequest"
+      responses:
+        "200":
+          description: Credential metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Credential"
+  /api/v1/credentials/{id}:
+    get:
+      summary: Get credential metadata
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Credential metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Credential"
+    delete:
+      summary: Delete credential metadata
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Credential deleted
+  /api/v1/credentials/{id}/validate:
+    post:
+      summary: Validate that credential SecretRef can be resolved internally
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Credential validation result without secret value
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CredentialValidationResult"
   /api/v1/pipelines:
     get:
       summary: Pipelines placeholder
@@ -982,6 +1072,131 @@ components:
           type: string
     Error:
       $ref: "#/components/schemas/ErrorResponse"
+    SecretRef:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        provider:
+          type: string
+        key:
+          type: string
+        version:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    SecretCreateRequest:
+      type: object
+      required: [name, value]
+      properties:
+        name:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        provider:
+          type: string
+        key:
+          type: string
+        value:
+          type: string
+          description: Accepted only on create. Never returned by normal APIs.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    SecretMetadata:
+      $ref: "#/components/schemas/SecretRef"
+    SecretUsage:
+      type: object
+      properties:
+        id:
+          type: string
+        secretRef:
+          $ref: "#/components/schemas/SecretRef"
+        usedBy:
+          type: string
+        purpose:
+          type: string
+        subjectType:
+          type: string
+        subjectId:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    Credential:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        secretRef:
+          $ref: "#/components/schemas/SecretRef"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CredentialCreateRequest:
+      type: object
+      required: [name, secretRef]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        secretRef:
+          $ref: "#/components/schemas/SecretRef"
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    CredentialValidationResult:
+      type: object
+      properties:
+        credentialId:
+          type: string
+        valid:
+          type: boolean
+        message:
+          type: string
+        validatedAt:
+          type: string
+          format: date-time
     SystemInfo:
       type: object
       properties:

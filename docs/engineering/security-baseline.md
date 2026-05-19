@@ -14,6 +14,10 @@ Secret values must not be:
 
 Credential records should store metadata separately from secret material.
 
+Phase 3.1 adds `SecretRef`, `Credential`, and `SecretUsage` records. Normal APIs return references and metadata only. Trusted internal use cases may resolve values through the `SecretProvider` port and should audit the purpose of access without storing the value.
+
+The builtin provider is an early development provider. Production-grade Vault, Kubernetes Secret, cloud KMS, and external secret manager integrations remain future work.
+
 ## Logs
 
 Logs must redact:

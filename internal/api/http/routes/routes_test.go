@@ -15,11 +15,13 @@ import (
 	argocdadapter "github.com/sevoniva/nivora/internal/adapters/executor/argocd"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
+	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	portsecurity "github.com/sevoniva/nivora/internal/ports/security"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
@@ -100,6 +102,34 @@ func TestArtifactRoutes(t *testing.T) {
 	}
 }
 
+func TestCredentialRoutesDoNotReturnSecretValue(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/secrets", strings.NewReader(`{"name":"registry-token","key":"examples/registry/token","value":"sample-value-for-test-only"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create secret status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "sample-value-for-test-only") {
+		t.Fatalf("secret create response leaked secret value")
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/secrets/refs", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list secret refs status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "sample-value-for-test-only") {
+		t.Fatalf("secret refs response leaked secret value")
+	}
+}
+
 func newTestPipelineService() *pipelineusecase.Service {
 	return pipelineusecase.NewService(
 		pipelineusecase.NewMemoryStore(),
@@ -120,6 +150,7 @@ func newTestRouter(cfg config.Config) http.Handler {
 		artifactService,
 		newTestReleaseOrchestrationService(artifactService, deploymentService),
 		securityusecase.NewService(securityusecase.NewMemoryStore(), fakeSecurityScanner{}, nil, memory.New()),
+		credentialusecase.NewService(credentialusecase.NewMemoryStore(), builtinsecret.New(), memory.New()),
 	)
 }
 

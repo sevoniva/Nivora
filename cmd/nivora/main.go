@@ -21,6 +21,7 @@ import (
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
@@ -51,11 +52,179 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newReleaseCommand())
 	root.AddCommand(newSecurityCommand())
 	root.AddCommand(newPolicyCommand())
+	root.AddCommand(newSecretCommand())
+	root.AddCommand(newCredentialCommand())
 	root.AddCommand(newDeploymentCommand())
 	root.AddCommand(newGitOpsCommand())
 	root.AddCommand(newArgoCDCommand())
 	root.AddCommand(newRunnerCommand())
 	return root
+}
+
+func newSecretCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "secret", Short: "Secret reference utilities"}
+	cmd.AddCommand(newSecretPutCommand())
+	cmd.AddCommand(newSecretListCommand())
+	cmd.AddCommand(newSecretDeleteCommand())
+	return cmd
+}
+
+func newSecretPutCommand() *cobra.Command {
+	var valueEnv string
+	var scopeType string
+	var scopeID string
+	var key string
+	var serverURL string
+	var local bool
+	cmd := &cobra.Command{
+		Use:   "put --name <name> --value-env <ENV_NAME>",
+		Short: "Store a secret value and return only its SecretRef",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			name, _ := cmd.Flags().GetString("name")
+			if name == "" {
+				return fmt.Errorf("--name is required")
+			}
+			if valueEnv == "" {
+				return fmt.Errorf("--value-env is required; inline secret values are intentionally unsupported")
+			}
+			value, ok := os.LookupEnv(valueEnv)
+			if !ok {
+				return fmt.Errorf("environment variable %s is not set", valueEnv)
+			}
+			input := credentialusecase.SecretCreateInput{Name: name, ScopeType: scopeType, ScopeID: scopeID, Key: key, Value: value}
+			if local {
+				ref, err := server.NewCredentialService().PutSecret(cmd.Context(), input)
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), ref)
+				return nil
+			}
+			body, err := json.Marshal(input)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/secrets", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().String("name", "", "secret name")
+	cmd.Flags().StringVar(&valueEnv, "value-env", "", "environment variable containing the secret value")
+	cmd.Flags().StringVar(&scopeType, "scope-type", "global", "secret scope type")
+	cmd.Flags().StringVar(&scopeID, "scope-id", "", "secret scope id")
+	cmd.Flags().StringVar(&key, "key", "", "provider key for the secret")
+	cmd.Flags().BoolVar(&local, "local", false, "use an in-process dev provider")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newSecretListCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List SecretRefs from a Nivora server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/secrets/refs", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newSecretDeleteCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "delete <secret-id>",
+		Short: "Delete a secret by id on a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodDelete, serverURL, "/api/v1/secrets/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newCredentialCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "credential", Short: "Credential metadata utilities"}
+	cmd.AddCommand(newCredentialCreateCommand())
+	cmd.AddCommand(newCredentialValidateCommand())
+	return cmd
+}
+
+func newCredentialCreateCommand() *cobra.Command {
+	var file string
+	var local bool
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "create --file <credential.yaml>",
+		Short: "Create credential metadata bound to a SecretRef",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if file == "" {
+				return fmt.Errorf("--file is required")
+			}
+			def, err := credentialusecase.LoadDefinitionFile(file)
+			if err != nil {
+				return err
+			}
+			input := def.CreateInput()
+			if local {
+				cred, err := server.NewCredentialService().CreateCredential(cmd.Context(), input)
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), cred)
+				return nil
+			}
+			body, err := json.Marshal(input)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/credentials", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&file, "file", "", "credential definition file")
+	cmd.Flags().BoolVar(&local, "local", false, "create in an in-process dev store")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newCredentialValidateCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "validate <credential-id>",
+		Short: "Validate that a credential SecretRef can be resolved",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/credentials/"+args[0]+"/validate", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
 }
 
 func newSecurityCommand() *cobra.Command {

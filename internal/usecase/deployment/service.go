@@ -46,6 +46,9 @@ const (
 	EventDeploymentHealthStarted       = "devops.deployment.health.started"
 	EventDeploymentHealthCompleted     = "devops.deployment.health.completed"
 	EventDeploymentRollbackPlanCreated = "devops.deployment.rollback.plan.created"
+	EventDeploymentRollbackStarted     = "devops.deployment.rollback.started"
+	EventDeploymentRollbackSucceeded   = "devops.deployment.rollback.succeeded"
+	EventDeploymentRollbackFailed      = "devops.deployment.rollback.failed"
 	EventDeploymentDiffGenerated       = "devops.deployment.diff.generated"
 	EventDeploymentResourceObserved    = "devops.deployment.resource.observed"
 	EventDeploymentResourceDegraded    = "devops.deployment.resource.degraded"
@@ -75,6 +78,7 @@ type KubernetesManifestClient interface {
 	ServerDryRun(ctx context.Context, request ManifestRequest) (KubernetesDryRunResult, error)
 	Apply(ctx context.Context, request ManifestRequest) (KubernetesApplyResult, error)
 	WatchRollout(ctx context.Context, request ManifestRequest) (RolloutResult, error)
+	Rollback(ctx context.Context, request ManifestRequest) (KubernetesRollbackResult, error)
 }
 
 type ManifestClient = KubernetesManifestClient
@@ -135,7 +139,7 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 	if err := input.Definition.Validate(); err != nil {
 		return CreateRunResult{}, err
 	}
-	if input.Definition.Spec.Options.Apply && !input.AllowApply {
+	if input.Definition.Spec.Options.Apply && (!input.AllowApply || !input.Confirm) {
 		return CreateRunResult{}, fmt.Errorf("deployment apply requires explicit confirmation")
 	}
 	if input.Definition.Spec.Target.Type == "host" && input.Definition.Spec.Options.Apply {
@@ -203,6 +207,73 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 	record = s.attachResourceObservability(record, input.Definition, documents)
 	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("rendered %d manifest document(s)", len(documents)), int64(len(record.Logs)+1)))
 	return CreateRunResult{Record: record}, nil
+}
+
+func (s *Service) Rollback(ctx context.Context, input RollbackInput) (RunRecord, error) {
+	if !input.Confirm {
+		return RunRecord{}, fmt.Errorf("deployment rollback requires explicit confirmation")
+	}
+	record, err := s.store.Get(ctx, input.DeploymentRunID)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if record.Run.TargetType != "kubernetes-yaml" {
+		return RunRecord{}, fmt.Errorf("deployment rollback is only supported for kubernetes-yaml targets")
+	}
+	if len(record.RollbackPlan.Resources) == 0 {
+		return RunRecord{}, fmt.Errorf("deployment rollback requires a rollback plan with resources")
+	}
+	def := normalizeDefinition(record.Definition)
+	documents, err := s.renderer.Render(ctx, def.Spec.Manifests, def.Spec.Target.Namespace)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunRollingBack, s.now(), "rollback requested"); err != nil {
+		return RunRecord{}, err
+	}
+	if record.Rollback != nil {
+		record.Rollback.Status = "running"
+		record.Rollback.Reason = "manifest restore rollback requested"
+		record.Rollback.UpdatedAt = s.now()
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentRollbackStarted, "Deployment rollback started", input.ActorID, string(record.Run.Status), "Guarded manifest restore rollback started"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	request := ManifestRequest{Plan: record.Plan, Documents: documents, TimeoutSeconds: record.Plan.TimeoutSeconds}
+	result, err := s.client.Rollback(ctx, request)
+	if err != nil {
+		record, _ = s.recordRuntimeEvent(ctx, record, EventDeploymentRollbackFailed, string(domaindeployment.DeploymentRunFailed), err.Error())
+		if record.Rollback != nil {
+			record.Rollback.Status = "failed"
+			record.Rollback.Reason = err.Error()
+			record.Rollback.UpdatedAt = s.now()
+		}
+		return s.fail(ctx, record, input.ActorID, err.Error())
+	}
+	if record.Rollback != nil {
+		record.Rollback.Status = "succeeded"
+		record.Rollback.Reason = result.Message
+		record.Rollback.UpdatedAt = s.now()
+	}
+	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", result.Message, int64(len(record.Logs)+1)))
+	record.Inventory.Applied = append([]ManifestResourceSummary(nil), result.Resources...)
+	if len(record.Inventory.Applied) == 0 {
+		record.Inventory.Applied = append([]ManifestResourceSummary(nil), record.Plan.Resources...)
+	}
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunRolledBack, s.now(), "manifest restore rollback completed"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentRollbackSucceeded, "Deployment rollback succeeded", input.ActorID, string(record.Run.Status), "Guarded manifest restore rollback completed"); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.Get(ctx, record.Run.ID)
 }
 
 func (s *Service) process(ctx context.Context, record RunRecord, actorID string) (RunRecord, error) {
@@ -1102,7 +1173,10 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 	}
 	warnings = append(warnings, verifyManifestImages(def.Spec.Artifacts, artifactDetails, manifestImages)...)
 	if def.Spec.Options.Apply {
-		warnings = append(warnings, "apply requested; Phase 2.4 apply requires explicit confirmation and uses the configured manifest client")
+		warnings = append(warnings, "apply requested; Phase 6.0 apply requires explicit confirmation and uses the configured manifest client")
+		if def.Spec.Target.Context == "" && def.Spec.Target.ClusterName == "" && def.Spec.Target.ClusterURL == "" {
+			warnings = append(warnings, "apply target should specify an explicit context, clusterName, or clusterURL before using a real Kubernetes adapter")
+		}
 	}
 	actions := []string{"render manifests", "validate manifests", "policy pre-check", "server-side dry-run"}
 	if def.Spec.Options.Apply {
@@ -1247,8 +1321,8 @@ func (s *Service) attachResourceObservability(record RunRecord, def Definition, 
 		TargetName:        def.Spec.Target.Name,
 		Resources:         append([]ManifestResourceSummary(nil), record.Plan.Resources...),
 		Strategy:          "manifest-restore",
-		Executable:        false,
-		Warnings:          []string{"rollback execution is not implemented in Phase 2.4; this plan is non-destructive"},
+		Executable:        def.Spec.Options.Apply,
+		Warnings:          []string{"rollback execution requires explicit confirmation and restores manifests without prune/delete by default"},
 		CreatedAt:         now,
 	}
 	record.Health = evaluateResourceHealth(record.Run.ID, record.Plan.Resources, now)
@@ -1615,12 +1689,12 @@ func (s *Service) rollbackBaseline(runID string, def Definition, resources []Man
 		ID:                  newID("rollback"),
 		DeploymentRunID:     runID,
 		Strategy:            "manifest-snapshot",
-		Status:              "placeholder",
+		Status:              "planned",
 		TargetType:          def.Spec.Target.Type,
 		TargetName:          def.Spec.Target.Name,
 		ManifestSnapshotRef: "memory://" + runID + "/previous-manifests",
 		ResourceRefs:        refs,
-		Reason:              "rollback execution is not implemented in Phase 2.4",
+		Reason:              "manifest restore rollback requires explicit confirmation",
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}

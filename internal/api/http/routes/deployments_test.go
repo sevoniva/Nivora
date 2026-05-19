@@ -72,6 +72,73 @@ func TestDeploymentRoutes(t *testing.T) {
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("cancel terminal status = %d body = %s", rec.Code, rec.Body.String())
 	}
+
+	applyBody, err := json.Marshal(map[string]any{"definition": deploymentRequest(t), "confirm": false})
+	if err != nil {
+		t.Fatalf("marshal apply request: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/deployments/apply", bytes.NewReader(applyBody))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unconfirmed apply status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	applyBody, err = json.Marshal(map[string]any{"definition": deploymentRequest(t), "confirm": true})
+	if err != nil {
+		t.Fatalf("marshal apply request: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/deployments/apply", bytes.NewReader(applyBody))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("confirmed apply status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"apply"`)) {
+		t.Fatalf("apply response = %s", rec.Body.String())
+	}
+}
+
+func TestDeploymentRollbackRouteRequiresConfirmation(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	def := deploymentRequest(t)
+	def["spec"].(map[string]any)["options"] = map[string]any{"dryRun": false, "apply": true}
+	body, err := json.Marshal(map[string]any{"definition": def, "confirm": true})
+	if err != nil {
+		t.Fatalf("marshal apply request: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments/apply", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("apply status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var created map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode apply response: %v", err)
+	}
+	runID := created["run"].(map[string]any)["id"].(string)
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/deployments/"+runID+"/rollback", bytes.NewReader([]byte(`{"confirm":false}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unconfirmed rollback status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/deployments/"+runID+"/rollback", bytes.NewReader([]byte(`{"confirm":true}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("confirmed rollback status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"status":"RolledBack"`)) {
+		t.Fatalf("rollback response = %s", rec.Body.String())
+	}
 }
 
 func TestGitOpsDeploymentRoutes(t *testing.T) {
@@ -261,6 +328,15 @@ func hostDeploymentRequestBody(t *testing.T) []byte {
 
 func deploymentRequestBody(t *testing.T) []byte {
 	t.Helper()
+	body, err := json.Marshal(deploymentRequest(t))
+	if err != nil {
+		t.Fatalf("marshal request: %v", err)
+	}
+	return body
+}
+
+func deploymentRequest(t *testing.T) map[string]any {
+	t.Helper()
 	dir := t.TempDir()
 	manifest := filepath.Join(dir, "deployment.yaml")
 	if err := os.WriteFile(manifest, []byte(`
@@ -271,7 +347,7 @@ metadata:
 `), 0o600); err != nil {
 		t.Fatalf("write manifest: %v", err)
 	}
-	body, err := json.Marshal(map[string]any{
+	return map[string]any{
 		"apiVersion": "nivora.io/v1alpha1",
 		"kind":       "Deployment",
 		"metadata": map[string]any{
@@ -296,9 +372,5 @@ metadata:
 				"apply":  false,
 			},
 		},
-	})
-	if err != nil {
-		t.Fatalf("marshal request: %v", err)
 	}
-	return body
 }

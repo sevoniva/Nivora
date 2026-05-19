@@ -814,6 +814,25 @@ paths:
                 $ref: "#/components/schemas/DeploymentRunRecord"
         "400":
           description: Invalid deployment definition or manifest
+  /api/v1/deployments/apply:
+    post:
+      summary: Create and run an explicitly confirmed Kubernetes YAML apply
+      description: Apply is never the default. The request must include confirm=true; configured adapters may still reject unsafe targets.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeploymentApplyRequest"
+      responses:
+        "201":
+          description: DeploymentRun created and apply path executed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentRunRecord"
+        "400":
+          description: Apply was not confirmed or the request was invalid
   /api/v1/deployments/plan:
     post:
       summary: Render and plan a YAML DeploymentRun without persisting it
@@ -1143,6 +1162,29 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RollbackPlan"
+        "404":
+          description: DeploymentRun not found
+  /api/v1/deployments/{id}/rollback:
+    post:
+      summary: Run a guarded manifest-restore rollback
+      description: Rollback requires confirm=true and restores manifests through the configured manifest client. It does not prune or delete by default.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeploymentRollbackRequest"
+      responses:
+        "200":
+          description: DeploymentRun after guarded rollback
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentRunRecord"
+        "400":
+          description: Rollback was not confirmed or cannot be executed
         "404":
           description: DeploymentRun not found
   /api/v1/deployments/{id}/events:
@@ -3617,6 +3659,22 @@ components:
               type: string
         spec:
           $ref: "#/components/schemas/DeploymentSpec"
+    DeploymentApplyRequest:
+      type: object
+      required: [definition, confirm]
+      properties:
+        definition:
+          $ref: "#/components/schemas/DeploymentDefinition"
+        confirm:
+          type: boolean
+          description: Must be true to execute apply.
+    DeploymentRollbackRequest:
+      type: object
+      required: [confirm]
+      properties:
+        confirm:
+          type: boolean
+          description: Must be true to execute guarded manifest restore.
     DeploymentSpec:
       type: object
       required: [application, environment, target]
@@ -4379,6 +4437,25 @@ components:
         stderr:
           type: string
     KubernetesApplyResult:
+      type: object
+      properties:
+        mode:
+          type: string
+        message:
+          type: string
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ManifestResourceSummary"
+        warnings:
+          type: array
+          items:
+            type: string
+        stdout:
+          type: string
+        stderr:
+          type: string
+    KubernetesRollbackResult:
       type: object
       properties:
         mode:

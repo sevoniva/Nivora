@@ -57,6 +57,22 @@ func (NoopManifestClient) WatchRollout(ctx context.Context, request deploymentus
 	}, nil
 }
 
+func (NoopManifestClient) Rollback(ctx context.Context, request deploymentusecase.ManifestRequest) (deploymentusecase.KubernetesRollbackResult, error) {
+	select {
+	case <-ctx.Done():
+		return deploymentusecase.KubernetesRollbackResult{}, ctx.Err()
+	default:
+	}
+	if err := validateRequest(request); err != nil {
+		return deploymentusecase.KubernetesRollbackResult{}, err
+	}
+	return deploymentusecase.KubernetesRollbackResult{
+		Mode:      "noop",
+		Message:   "rollback manifest restore simulated by local no-op client",
+		Resources: request.Plan.Resources,
+	}, nil
+}
+
 func validateRequest(request deploymentusecase.ManifestRequest) error {
 	if request.Plan.DeploymentRunID == "" {
 		return fmt.Errorf("deploymentRunId is required")

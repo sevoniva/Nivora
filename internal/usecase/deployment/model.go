@@ -285,6 +285,15 @@ type KubernetesApplyResult struct {
 	Stderr    string                    `json:"stderr,omitempty"`
 }
 
+type KubernetesRollbackResult struct {
+	Mode      string                    `json:"mode,omitempty"`
+	Message   string                    `json:"message,omitempty"`
+	Resources []ManifestResourceSummary `json:"resources,omitempty"`
+	Warnings  []string                  `json:"warnings,omitempty"`
+	Stdout    string                    `json:"stdout,omitempty"`
+	Stderr    string                    `json:"stderr,omitempty"`
+}
+
 type RolloutResult struct {
 	Mode      string                    `json:"mode,omitempty"`
 	Message   string                    `json:"message,omitempty"`
@@ -309,6 +318,12 @@ type CreateRunInput struct {
 	AllowApply    bool
 	AllowSync     bool
 	Confirm       bool
+}
+
+type RollbackInput struct {
+	DeploymentRunID string
+	ActorID         string
+	Confirm         bool
 }
 
 type CreateRunResult struct {

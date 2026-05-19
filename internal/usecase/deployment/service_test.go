@@ -197,13 +197,17 @@ func TestServiceRejectsApplyWithoutExplicitConfirmation(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected apply confirmation error")
 	}
+	_, err = service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true})
+	if err == nil {
+		t.Fatal("expected apply confirm error")
+	}
 }
 
 func TestServiceApplySuccessWithRollout(t *testing.T) {
 	service, def := newTestServiceWithClient(t, true, testManifestClient{})
 	def.Spec.Options = Options{Apply: true, DryRun: false, Wait: true, TimeoutSeconds: 30}
 
-	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true})
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true, Confirm: true})
 	if err != nil {
 		t.Fatalf("apply run: %v", err)
 	}
@@ -232,7 +236,7 @@ func TestServiceApplyFailure(t *testing.T) {
 	service, def := newTestServiceWithClient(t, true, testManifestClient{applyErr: errors.New("apply failed")})
 	def.Spec.Options = Options{Apply: true, DryRun: false}
 
-	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true})
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true, Confirm: true})
 	if err != nil {
 		t.Fatalf("apply failure should persist failed run: %v", err)
 	}
@@ -246,7 +250,7 @@ func TestServiceRolloutFailure(t *testing.T) {
 	service, def := newTestServiceWithClient(t, true, testManifestClient{rolloutErr: errors.New("rollout timeout")})
 	def.Spec.Options = Options{Apply: true, DryRun: false, Wait: true}
 
-	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true})
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true, Confirm: true})
 	if err != nil {
 		t.Fatalf("rollout failure should persist failed run: %v", err)
 	}
@@ -254,6 +258,41 @@ func TestServiceRolloutFailure(t *testing.T) {
 		t.Fatalf("status = %s", result.Record.Run.Status)
 	}
 	assertHasDeploymentEvent(t, result.Record.Events, EventDeploymentVerifyFailed)
+}
+
+func TestServiceRollbackRequiresConfirmation(t *testing.T) {
+	service, def := newTestServiceWithClient(t, true, testManifestClient{})
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("dry-run: %v", err)
+	}
+
+	_, err = service.Rollback(context.Background(), RollbackInput{DeploymentRunID: result.Record.Run.ID})
+	if err == nil {
+		t.Fatal("expected rollback confirmation error")
+	}
+}
+
+func TestServiceRollbackManifestRestore(t *testing.T) {
+	service, def := newTestServiceWithClient(t, true, testManifestClient{})
+	def.Spec.Options = Options{Apply: true, DryRun: false}
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true, Confirm: true})
+	if err != nil {
+		t.Fatalf("apply: %v", err)
+	}
+
+	rolledBack, err := service.Rollback(context.Background(), RollbackInput{DeploymentRunID: result.Record.Run.ID, Confirm: true, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	if rolledBack.Run.Status != domaindeployment.DeploymentRunRolledBack {
+		t.Fatalf("status = %s", rolledBack.Run.Status)
+	}
+	if rolledBack.Rollback == nil || rolledBack.Rollback.Status != "succeeded" {
+		t.Fatalf("rollback = %#v", rolledBack.Rollback)
+	}
+	assertHasDeploymentEvent(t, rolledBack.Events, EventDeploymentRollbackStarted)
+	assertHasDeploymentEvent(t, rolledBack.Events, EventDeploymentRollbackSucceeded)
 }
 
 func TestServiceCancelCreatedRun(t *testing.T) {
@@ -606,9 +645,10 @@ func (p testPolicy) Evaluate(ctx context.Context, request policy.Request) (polic
 }
 
 type testManifestClient struct {
-	dryRunErr  error
-	applyErr   error
-	rolloutErr error
+	dryRunErr   error
+	applyErr    error
+	rolloutErr  error
+	rollbackErr error
 }
 
 func (c testManifestClient) ServerDryRun(ctx context.Context, request ManifestRequest) (KubernetesDryRunResult, error) {
@@ -630,6 +670,13 @@ func (c testManifestClient) WatchRollout(ctx context.Context, request ManifestRe
 		return RolloutResult{}, c.rolloutErr
 	}
 	return RolloutResult{Mode: "test", Message: "rollout ok", Resources: request.Plan.Resources}, nil
+}
+
+func (c testManifestClient) Rollback(ctx context.Context, request ManifestRequest) (KubernetesRollbackResult, error) {
+	if c.rollbackErr != nil {
+		return KubernetesRollbackResult{}, c.rollbackErr
+	}
+	return KubernetesRollbackResult{Mode: "test", Message: "rollback ok", Resources: request.Plan.Resources}, nil
 }
 
 type testEventBus struct{}

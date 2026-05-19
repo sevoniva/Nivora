@@ -247,13 +247,19 @@ channels:
         $ref: "#/components/messages/Event"
   devops.deployment.rollback.started:
     address: devops.deployment.rollback.started
-    description: Reserved for future rollback phases; not emitted by the Phase 2.1 runtime.
+    description: Emitted when a guarded manifest-restore rollback begins.
     messages:
       event:
         $ref: "#/components/messages/Event"
   devops.deployment.rollback.succeeded:
     address: devops.deployment.rollback.succeeded
-    description: Reserved for future rollback phases; not emitted by the Phase 2.1 runtime.
+    description: Emitted when a guarded manifest-restore rollback completes.
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.deployment.rollback.failed:
+    address: devops.deployment.rollback.failed
+    description: Emitted when a guarded manifest-restore rollback fails.
     messages:
       event:
         $ref: "#/components/messages/Event"

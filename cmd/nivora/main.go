@@ -1132,6 +1132,7 @@ func newDeploymentCommand() *cobra.Command {
 	cmd.AddCommand(newDeploymentRunCommand())
 	cmd.AddCommand(newDeploymentDryRunCommand())
 	cmd.AddCommand(newDeploymentApplyCommand())
+	cmd.AddCommand(newDeploymentRollbackCommand())
 	cmd.AddCommand(newDeploymentHostCommand())
 	cmd.AddCommand(newDeploymentGetCommand())
 	cmd.AddCommand(newDeploymentLocalInspectCommand("health", "Get DeploymentRun health", "/health", func(record deploymentusecase.RunRecord) any { return record.Health }))
@@ -1395,14 +1396,12 @@ func newDeploymentDryRunCommand() *cobra.Command {
 func newDeploymentApplyCommand() *cobra.Command {
 	var local bool
 	var confirm bool
+	var serverURL string
 	cmd := &cobra.Command{
 		Use:   "apply --local <deployment.yaml> --confirm",
 		Short: "Run an explicit local YAML apply through the configured manifest client",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !local {
-				return fmt.Errorf("server-backed deployment apply is not implemented; use --local for Phase 2.2")
-			}
 			if !confirm {
 				return fmt.Errorf("deployment apply requires --confirm")
 			}
@@ -1412,8 +1411,20 @@ func newDeploymentApplyCommand() *cobra.Command {
 			}
 			def.Spec.Options.Apply = true
 			def.Spec.Options.DryRun = false
+			if !local {
+				body, err := json.Marshal(map[string]any{"definition": def, "confirm": true})
+				if err != nil {
+					return err
+				}
+				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/apply", body)
+				if err != nil {
+					return err
+				}
+				printDeploymentRunSummary(cmd.OutOrStdout(), payload)
+				return nil
+			}
 			started := time.Now()
-			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, AllowApply: true})
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, AllowApply: true, Confirm: true})
 			if err != nil {
 				return err
 			}
@@ -1432,6 +1443,35 @@ func newDeploymentApplyCommand() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&local, "local", true, "apply with the in-process Phase 2.2 local runtime")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm explicit local apply")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	return cmd
+}
+
+func newDeploymentRollbackCommand() *cobra.Command {
+	var confirm bool
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "rollback <deployment-run-id> --confirm",
+		Short: "Run a guarded manifest-restore rollback for a DeploymentRun",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !confirm {
+				return fmt.Errorf("deployment rollback requires --confirm")
+			}
+			body, err := json.Marshal(map[string]any{"confirm": true})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+args[0]+"/rollback", body)
+			if err != nil {
+				return err
+			}
+			printDeploymentRunSummary(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm guarded rollback")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	return cmd
 }
 

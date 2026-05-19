@@ -57,7 +57,7 @@ Release and DeploymentRun workflows that can model GitOps and non-GitOps deploym
 
 - GitOps remains one deployment mode.
 - YAML deployment dry-run can run without a Kubernetes cluster.
-- Apply is explicit and never default.
+- Apply is explicit and never default. Phase 6.0 adds a guarded apply/rollback hardening path for Kubernetes YAML without enabling destructive defaults.
 - ReleaseArtifacts are explicit and auditable.
 - Deployment plans surface mutable artifact warnings.
 - Digest-required releases fail when a digest cannot be provided or resolved.
@@ -66,7 +66,7 @@ Release and DeploymentRun workflows that can model GitOps and non-GitOps deploym
 - ReleaseExecution aggregates target DeploymentRun status.
 - Sequential multi-target release execution works without external services.
 - Secret values are never stored in resource inventory or snapshots.
-- Rollback plans are non-destructive by default.
+- Rollback plans are non-destructive by default. Guarded manifest-restore rollback requires explicit confirmation and does not prune/delete resources by default.
 - DeploymentRun audit is complete enough for rollback analysis.
 - Approvals and environment locks are explicit.
 

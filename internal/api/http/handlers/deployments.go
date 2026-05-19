@@ -47,6 +47,44 @@ func CreateDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 	}
 }
 
+type deploymentApplyRequest struct {
+	Definition deploymentusecase.Definition `json:"definition"`
+	Confirm    bool                         `json:"confirm"`
+}
+
+func ApplyDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req deploymentApplyRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{
+				Code:    "invalid_request",
+				Message: "request body must include definition and confirm",
+			})
+			return
+		}
+		if !req.Confirm {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{
+				Code:    "deployment_apply_unconfirmed",
+				Message: "deployment apply requires confirm=true",
+			})
+			return
+		}
+		req.Definition.Spec.Options.Apply = true
+		req.Definition.Spec.Options.DryRun = false
+		result, err := service.CreateAndRun(r.Context(), deploymentusecase.CreateRunInput{
+			Definition:    req.Definition,
+			AllowApply:    true,
+			Confirm:       true,
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+		})
+		if err != nil {
+			respondDeploymentResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, result.Record)
+	}
+}
+
 func PlanDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var def deploymentusecase.Definition
@@ -289,6 +327,29 @@ func GetDeploymentRollbackPlan(service *deploymentusecase.Service) http.HandlerF
 	return func(w http.ResponseWriter, r *http.Request) {
 		plan, err := service.RollbackPlan(r.Context(), chi.URLParam(r, "id"))
 		respondDeploymentResult(w, r, plan, err)
+	}
+}
+
+type deploymentRollbackRequest struct {
+	Confirm bool `json:"confirm"`
+}
+
+func RollbackDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req deploymentRollbackRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must include confirm"})
+			return
+		}
+		if !req.Confirm {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "deployment_rollback_unconfirmed", Message: "deployment rollback requires confirm=true"})
+			return
+		}
+		record, err := service.Rollback(r.Context(), deploymentusecase.RollbackInput{
+			DeploymentRunID: chi.URLParam(r, "id"),
+			Confirm:         req.Confirm,
+		})
+		respondDeploymentResult(w, r, record, err)
 	}
 }
 

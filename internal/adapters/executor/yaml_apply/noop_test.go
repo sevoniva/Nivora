@@ -29,6 +29,9 @@ func TestNoopManifestClientDryRunApplyAndRollout(t *testing.T) {
 	if result, err := client.WatchRollout(context.Background(), request); err != nil || result.Message == "" {
 		t.Fatalf("rollout result=%#v err=%v", result, err)
 	}
+	if result, err := client.Rollback(context.Background(), request); err != nil || result.Message == "" {
+		t.Fatalf("rollback result=%#v err=%v", result, err)
+	}
 }
 
 func TestNoopManifestClientRejectsEmptyRequest(t *testing.T) {

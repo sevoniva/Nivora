@@ -9,9 +9,9 @@ Phase 2.1 extends the YAML deployment foundation into a controlled Kubernetes YA
 - DeploymentPlan records target type, namespace, dry-run/apply flags, wait flag, timeout, actions, warnings, and desired resources.
 - Server-side dry-run is represented through the `KubernetesManifestClient` port.
 - The default local runtime uses a no-op manifest client, so tests and local smoke checks do not require Kubernetes.
-- Apply is explicit and never default.
+- Apply is explicit and never default. Phase 6.0 requires confirmation for apply and keeps real Kubernetes execution behind the manifest client adapter boundary.
 - Rollout verification is modeled through the same port and is no-op by default.
-- Rollback is a baseline record only; rollback execution is future work.
+- Rollback has a guarded manifest-restore foundation in Phase 6.0. It requires confirmation and does not prune/delete resources by default.
 
 ## What Is Not Implemented
 

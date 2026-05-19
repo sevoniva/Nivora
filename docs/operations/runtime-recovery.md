@@ -23,10 +23,11 @@ The worker also runs reconciliation as its runtime advancement step.
 ## Operational Notes
 
 - The default local runtime remains in-memory.
-- PostgreSQL-backed PipelineRun recovery is available when `database.runtime_store: postgres` is configured.
+- PostgreSQL-backed runtime recovery is available when `database.runtime_store: postgres` is configured.
+- Optional PostgreSQL integration tests now verify restart-style repository recovery for PipelineRun, DeploymentRun, ReleasePlan, ReleaseExecution, runner claim leases, and event outbox records. See `docs/dev/runtime-recovery-tests.md`.
 - Cancellation is reconciled for queued/running PipelineRuns; executor-level interruption remains limited by the current runner/executor implementation.
 - Timeout reconciliation is based on stale update time and lease state.
 - Runner offline detection is part of reconciliation and uses heartbeat age.
-- DeploymentRun and ReleaseExecution have lease fields but their complete recovery loops are future work.
+- DeploymentRun and ReleaseExecution persistence survives repository/service restart in PostgreSQL mode; complete multi-process worker orchestration remains future hardening.
 
 Nivora is still early-stage and not production-ready.

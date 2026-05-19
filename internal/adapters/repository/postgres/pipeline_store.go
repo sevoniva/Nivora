@@ -677,28 +677,38 @@ func (s *PipelineStore) claimJobAt(ctx context.Context, runnerID string, leaseUn
 		if err != nil {
 			return err
 		}
-		defer rows.Close()
+		var claimedRecord pipelineusecase.RunRecord
+		found := false
 		for rows.Next() {
 			var raw []byte
 			if err := rows.Scan(&raw); err != nil {
+				rows.Close()
 				return err
 			}
 			record, err := decodeRunRecord(raw)
 			if err != nil {
+				rows.Close()
 				return err
 			}
 			next, ok := claimRecordJob(&record, runner, leaseUntil, now)
 			if !ok {
 				continue
 			}
-			if err := s.saveRecord(ctx, tx, record); err != nil {
-				return err
-			}
+			claimedRecord = record
 			claim = next
-			return nil
+			found = true
+			break
 		}
 		if err := rows.Err(); err != nil {
+			rows.Close()
 			return err
+		}
+		rows.Close()
+		if found {
+			if err := s.saveRecord(ctx, tx, claimedRecord); err != nil {
+				return err
+			}
+			return nil
 		}
 		return pipelineusecase.ErrNoClaimableJob
 	})

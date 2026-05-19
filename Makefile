@@ -2,13 +2,20 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test test-race benchmark load-generate-runs load-generate-logs load-simulate-runners coverage vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-api verify-cli verify-examples verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-alpha verify run-server run-worker run-runner run-web docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-cli smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
+.PHONY: build test test-race test-postgres-integration benchmark load-generate-runs load-generate-logs load-simulate-runners coverage vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-runtime-recovery verify-api verify-cli verify-examples verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-alpha verify run-server run-worker run-runner run-web docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-cli smoke-deployment-dry-run smoke-oci-resolve-local smoke-runtime-recovery-postgres dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
 
 test:
 	GOPROXY=$(GOPROXY) $(GO) test ./...
+
+test-postgres-integration:
+	@if [ "$$NIVORA_RUN_POSTGRES_INTEGRATION" != "true" ]; then \
+		echo "Skipping PostgreSQL recovery integration tests; set NIVORA_RUN_POSTGRES_INTEGRATION=true and DATABASE_URL to run them."; \
+	else \
+		GOPROXY=$(GOPROXY) DATABASE_URL="$(DATABASE_URL)" NIVORA_RUN_POSTGRES_INTEGRATION=true $(GO) test -p 1 -run 'TestPostgresIntegration' ./internal/adapters/repository/postgres ./internal/app/runtime; \
+	fi
 
 test-race:
 	GOPROXY=$(GOPROXY) $(GO) test -race ./internal/usecase/... ./internal/api/http/...
@@ -55,6 +62,8 @@ verify-no-secrets:
 
 verify-runtime:
 	./scripts/smoke-pipelinerun-local.sh
+
+verify-runtime-recovery: test-postgres-integration
 
 verify-api:
 	./scripts/smoke-api.sh
@@ -207,6 +216,9 @@ smoke-deployment-dry-run:
 
 smoke-oci-resolve-local:
 	./scripts/smoke-oci-resolve-local.sh
+
+smoke-runtime-recovery-postgres:
+	./scripts/smoke-runtime-recovery-postgres.sh
 
 dev-up:
 	./scripts/dev-up.sh

@@ -1,0 +1,12 @@
+apiVersion: nivora.io/v1alpha1
+kind: CloudAccount
+metadata:
+  name: aliyun-dev
+spec:
+  provider: aliyun
+  credentialRef: credential-ref-placeholder
+  config:
+    provider: aliyun
+    accountId: aliyun-account-placeholder
+    defaultRegion: cn-hangzhou
+    credentialRef: credential-ref-placeholder

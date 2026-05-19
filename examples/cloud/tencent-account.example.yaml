@@ -1,0 +1,12 @@
+apiVersion: nivora.io/v1alpha1
+kind: CloudAccount
+metadata:
+  name: tencent-dev
+spec:
+  provider: tencent
+  credentialRef: credential-ref-placeholder
+  config:
+    provider: tencent
+    accountId: tencent-account-placeholder
+    defaultRegion: ap-guangzhou
+    credentialRef: credential-ref-placeholder

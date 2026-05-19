@@ -12,6 +12,7 @@ import (
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
+	cloudusecase "github.com/sevoniva/nivora/internal/usecase/cloud"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -20,7 +21,7 @@ import (
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -79,6 +80,16 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/change-windows/evaluate", handlers.EvaluateChangeWindow(approvalService))
 		api.Get("/notifications", handlers.ListNotifications(approvalService))
 		api.Post("/notifications/test", handlers.TestNotification(approvalService))
+		api.Get("/cloud/providers", handlers.ListCloudProviders(cloudService))
+		api.Post("/cloud/accounts", handlers.CreateCloudAccount(cloudService))
+		api.Get("/cloud/accounts", handlers.ListCloudAccounts(cloudService))
+		api.Get("/cloud/accounts/{id}", handlers.GetCloudAccount(cloudService))
+		api.Post("/cloud/accounts/{id}/validate", handlers.ValidateCloudAccount(cloudService))
+		api.Get("/cloud/accounts/{id}/regions", handlers.ListCloudRegions(cloudService))
+		api.Get("/cloud/accounts/{id}/clusters", handlers.ListCloudClusters(cloudService))
+		api.Get("/cloud/accounts/{id}/hosts", handlers.ListCloudHosts(cloudService))
+		api.Get("/cloud/accounts/{id}/registries", handlers.ListCloudRegistries(cloudService))
+		api.Get("/cloud/accounts/{id}/inventory", handlers.GetCloudInventory(cloudService))
 		api.Post("/secrets", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.CreateSecret(credentialService)))
 		api.Get("/secrets/refs", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.ListSecretRefs(credentialService)))
 		api.Delete("/secrets/{id}", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.DeleteSecret(credentialService)))

@@ -1,2 +1,4 @@
-// Package tencent will contain a Tencent Cloud adapter. It is intentionally empty in Phase 0.
+// Package tencent contains a Tencent Cloud inventory adapter skeleton.
+//
+// Phase 3.4 intentionally avoids Tencent Cloud SDK dependencies and cloud mutation.
 package tencent

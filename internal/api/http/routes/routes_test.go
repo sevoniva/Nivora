@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
+	"github.com/sevoniva/nivora/internal/adapters/cloud/aws"
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	argocdadapter "github.com/sevoniva/nivora/internal/adapters/executor/argocd"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
@@ -20,11 +21,13 @@ import (
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	portcloud "github.com/sevoniva/nivora/internal/ports/cloud"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	portsecurity "github.com/sevoniva/nivora/internal/ports/security"
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
+	cloudusecase "github.com/sevoniva/nivora/internal/usecase/cloud"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -243,7 +246,37 @@ func newTestRouter(cfg config.Config) http.Handler {
 		credentialusecase.NewService(credentialusecase.NewMemoryStore(), builtinsecret.New(), memory.New()),
 		authusecase.NewService(authusecase.NewMemoryStore(), memory.New()),
 		approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New()),
+		newTestCloudService(),
 	)
+}
+
+func TestCloudRoutes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/cloud/accounts", strings.NewReader(`{"name":"dev-aws","provider":"aws","credentialRef":"cred-placeholder"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create account status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode account: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/cloud/accounts/"+created.ID+"/inventory", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("inventory status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "clusters") || strings.Contains(rec.Body.String(), "secret") {
+		t.Fatalf("inventory body = %s", rec.Body.String())
+	}
 }
 
 func newTestDeploymentService() *deploymentusecase.Service {
@@ -268,6 +301,10 @@ func newTestReleaseOrchestrationService(artifactService *artifactusecase.Service
 		allowPolicy{},
 		memory.New(),
 	)
+}
+
+func newTestCloudService() *cloudusecase.Service {
+	return cloudusecase.NewService(cloudusecase.NewMemoryStore(), map[string]portcloud.CloudProvider{"aws": aws.New()}, memory.New())
 }
 
 type allowPolicy struct{}

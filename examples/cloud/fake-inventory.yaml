@@ -1,0 +1,31 @@
+apiVersion: nivora.io/v1alpha1
+kind: CloudInventorySnapshot
+metadata:
+  name: fake-cloud-inventory
+spec:
+  accountId: cloudacct-placeholder
+  provider: generic
+  regions:
+    - id: generic-region-1
+      name: generic-region-1
+      provider: generic
+  clusters:
+    - id: generic-cluster-1
+      name: generic-dev-cluster
+      provider: generic
+      region: generic-region-1
+      type: kubernetes
+      status: unknown
+  hosts:
+    - id: generic-host-1
+      name: generic-example-host
+      provider: generic
+      region: generic-region-1
+      type: vm
+      status: unknown
+  registries:
+    - id: generic-registry-1
+      name: generic-example-registry
+      provider: generic
+      region: generic-region-1
+      type: oci

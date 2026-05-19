@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 3.3 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 3.4 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
@@ -516,6 +516,26 @@ channels:
         $ref: "#/components/messages/Event"
   devops.notification.failed:
     address: devops.notification.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.cloud.account.created:
+    address: devops.cloud.account.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.cloud.credential.validated:
+    address: devops.cloud.credential.validated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.cloud.inventory.scanned:
+    address: devops.cloud.inventory.scanned
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.cloud.inventory.failed:
+    address: devops.cloud.inventory.failed
     messages:
       event:
         $ref: "#/components/messages/Event"

@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 3.3 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, and approval/change-window/notification foundations.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 3.4 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, and multi-cloud inventory foundations.
 servers:
   - url: http://localhost:8080
 paths:
@@ -1266,6 +1266,137 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Notification"
+  /api/v1/cloud/providers:
+    get:
+      summary: List supported cloud provider types
+      responses:
+        "200":
+          description: Provider names
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: string
+  /api/v1/cloud/accounts:
+    get:
+      summary: List cloud accounts
+      responses:
+        "200":
+          description: Cloud accounts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CloudAccount"
+    post:
+      summary: Create a cloud account metadata record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CloudAccountCreateRequest"
+      responses:
+        "200":
+          description: Cloud account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudAccount"
+  /api/v1/cloud/accounts/{id}:
+    get:
+      summary: Get a cloud account
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Cloud account
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudAccount"
+  /api/v1/cloud/accounts/{id}/validate:
+    post:
+      summary: Validate a cloud account credential reference
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Validation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudCredentialValidation"
+  /api/v1/cloud/accounts/{id}/regions:
+    get:
+      summary: List cloud regions
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Cloud regions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CloudRegion"
+  /api/v1/cloud/accounts/{id}/clusters:
+    get:
+      summary: List cloud clusters
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Cloud clusters
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CloudCluster"
+  /api/v1/cloud/accounts/{id}/hosts:
+    get:
+      summary: List cloud hosts
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Cloud hosts
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CloudHost"
+  /api/v1/cloud/accounts/{id}/registries:
+    get:
+      summary: List cloud registries
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Cloud registries
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CloudRegistry"
+  /api/v1/cloud/accounts/{id}/inventory:
+    get:
+      summary: Get a cloud inventory snapshot
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Cloud inventory snapshot
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CloudInventorySnapshot"
   /api/v1/policies:
     get:
       summary: Policies placeholder
@@ -1503,6 +1634,167 @@ components:
         createdAt:
           type: string
           format: date-time
+    CloudAccountCreateRequest:
+      type: object
+      required: [name, provider]
+      properties:
+        name:
+          type: string
+        provider:
+          type: string
+          enum: [aws, aliyun, tencent, generic]
+        config:
+          $ref: "#/components/schemas/CloudProviderConfig"
+        credentialRef:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    CloudAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+          enum: [aws, aliyun, tencent, generic]
+        config:
+          $ref: "#/components/schemas/CloudProviderConfig"
+        credentialRef:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    CloudProviderConfig:
+      type: object
+      properties:
+        provider:
+          type: string
+        accountId:
+          type: string
+        defaultRegion:
+          type: string
+        endpoint:
+          type: string
+        credentialRef:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+    CloudCredentialValidation:
+      type: object
+      properties:
+        accountId:
+          type: string
+        provider:
+          type: string
+        valid:
+          type: boolean
+        message:
+          type: string
+    CloudRegion:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+    CloudCluster:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+        region:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+    CloudHost:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+        region:
+          type: string
+        type:
+          type: string
+        status:
+          type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+    CloudRegistry:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        provider:
+          type: string
+        region:
+          type: string
+        type:
+          type: string
+        endpoint:
+          type: string
+    CloudInventorySnapshot:
+      type: object
+      properties:
+        id:
+          type: string
+        accountId:
+          type: string
+        provider:
+          type: string
+        regions:
+          type: array
+          items:
+            $ref: "#/components/schemas/CloudRegion"
+        clusters:
+          type: array
+          items:
+            $ref: "#/components/schemas/CloudCluster"
+        hosts:
+          type: array
+          items:
+            $ref: "#/components/schemas/CloudHost"
+        registries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CloudRegistry"
+        scannedAt:
+          type: string
+          format: date-time
+        warnings:
+          type: array
+          items:
+            type: string
+        generatedBy:
+          type: string
     User:
       type: object
       properties:

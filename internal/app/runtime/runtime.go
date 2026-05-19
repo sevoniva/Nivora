@@ -4,6 +4,10 @@ import (
 	"context"
 
 	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
+	"github.com/sevoniva/nivora/internal/adapters/cloud/aliyun"
+	"github.com/sevoniva/nivora/internal/adapters/cloud/aws"
+	cloudfake "github.com/sevoniva/nivora/internal/adapters/cloud/fake"
+	"github.com/sevoniva/nivora/internal/adapters/cloud/tencent"
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	argocdadapter "github.com/sevoniva/nivora/internal/adapters/executor/argocd"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
@@ -12,10 +16,13 @@ import (
 	noopnotification "github.com/sevoniva/nivora/internal/adapters/notification/noop"
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
 	securitynoop "github.com/sevoniva/nivora/internal/adapters/security/noop"
+	domaincloud "github.com/sevoniva/nivora/internal/domain/cloud"
+	portcloud "github.com/sevoniva/nivora/internal/ports/cloud"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
+	cloudusecase "github.com/sevoniva/nivora/internal/usecase/cloud"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -78,6 +85,16 @@ func NewAuthService() *authusecase.Service {
 
 func NewApprovalService() *approvalusecase.Service {
 	return approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New())
+}
+
+func NewCloudService() *cloudusecase.Service {
+	providers := map[string]portcloud.CloudProvider{
+		domaincloud.ProviderAWS:     aws.New(),
+		domaincloud.ProviderAliyun:  aliyun.New(),
+		domaincloud.ProviderTencent: tencent.New(),
+		domaincloud.ProviderGeneric: cloudfake.New(domaincloud.ProviderGeneric),
+	}
+	return cloudusecase.NewService(cloudusecase.NewMemoryStore(), providers, memory.New())
 }
 
 type allowAllPolicyEngine struct{}

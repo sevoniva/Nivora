@@ -52,6 +52,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newApprovalsCommand())
 	root.AddCommand(newChangeWindowCommand())
 	root.AddCommand(newNotificationCommand())
+	root.AddCommand(newCloudCommand())
 	root.AddCommand(newPipelineCommand())
 	root.AddCommand(newArtifactCommand())
 	root.AddCommand(newReleaseCommand())
@@ -179,6 +180,85 @@ func newNotificationTestCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&channel, "channel", "noop", "notification channel")
+	return cmd
+}
+
+func newCloudCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "cloud", Short: "Cloud inventory utilities"}
+	cmd.AddCommand(newCloudGetCommand("providers", "List configured cloud provider types", "/api/v1/cloud/providers"))
+	cmd.AddCommand(newCloudAccountCommand())
+	cmd.AddCommand(newCloudAccountInspectCommand("inventory", "Get a cloud inventory snapshot", "/inventory"))
+	cmd.AddCommand(newCloudAccountInspectCommand("clusters", "List cloud clusters", "/clusters"))
+	cmd.AddCommand(newCloudAccountInspectCommand("hosts", "List cloud hosts", "/hosts"))
+	cmd.AddCommand(newCloudAccountInspectCommand("registries", "List cloud registries", "/registries"))
+	return cmd
+}
+
+func newCloudAccountCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "account", Short: "Cloud account utilities"}
+	cmd.AddCommand(newCloudAccountValidateCommand())
+	return cmd
+}
+
+func newCloudGetCommand(name string, short string, path string) *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   name,
+		Short: short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newCloudAccountValidateCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "validate <id>",
+		Short: "Validate a cloud account credential reference",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/cloud/accounts/"+args[0]+"/validate", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newCloudAccountInspectCommand(name string, short string, suffix string) *cobra.Command {
+	var serverURL string
+	var region string
+	cmd := &cobra.Command{
+		Use:   name + " <account-id>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := "/api/v1/cloud/accounts/" + args[0] + suffix
+			if region != "" {
+				path += "?region=" + region
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&region, "region", "", "optional cloud region filter")
 	return cmd
 }
 

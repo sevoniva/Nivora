@@ -1,0 +1,12 @@
+apiVersion: nivora.io/v1alpha1
+kind: CloudAccount
+metadata:
+  name: aws-dev
+spec:
+  provider: aws
+  credentialRef: credential-ref-placeholder
+  config:
+    provider: aws
+    accountId: aws-account-placeholder
+    defaultRegion: us-east-1
+    credentialRef: credential-ref-placeholder

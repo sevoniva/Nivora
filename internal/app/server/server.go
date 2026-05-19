@@ -14,6 +14,7 @@ import (
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
+	cloudusecase "github.com/sevoniva/nivora/internal/usecase/cloud"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -39,8 +40,9 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 	credentialService := NewCredentialService()
 	authService := NewAuthService()
 	approvalService := NewApprovalService()
+	cloudService := NewCloudService()
 	releaseService := NewReleaseOrchestrationServiceWith(artifactService, deploymentService)
-	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService)
+	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService, cloudService)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.BindAddress,
 		Handler:           handler,
@@ -96,4 +98,8 @@ func NewAuthService() *authusecase.Service {
 
 func NewApprovalService() *approvalusecase.Service {
 	return appruntime.NewApprovalService()
+}
+
+func NewCloudService() *cloudusecase.Service {
+	return appruntime.NewCloudService()
 }

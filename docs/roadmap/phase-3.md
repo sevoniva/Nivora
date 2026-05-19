@@ -23,6 +23,8 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 - Simple ChangeWindow evaluation.
 - NotificationProvider port with noop/log-style local behavior.
 - Release and deployment gates can enter WaitingApproval.
+- CloudAccount, CloudProviderConfig, and CloudInventorySnapshot foundations.
+- AWS, Aliyun, Tencent, and generic cloud inventory adapter skeletons.
 - AWS provider Adapter.
 - Aliyun provider Adapter.
 - Tencent Cloud provider Adapter.
@@ -43,6 +45,8 @@ Phase 3.0 delivers auditable security scan and policy gate foundations through P
 
 Phase 3.3 adds backend-only human governance foundations: approvals, change windows, notification records, and audit/event trails. It does not add frontend workflows, ITSM integration, or real external notification delivery.
 
+Phase 3.4 adds multi-cloud inventory foundations for cloud accounts, regions, clusters, hosts, registries, and snapshots. It does not add cloud deployment or real provider SDK integration.
+
 ## Acceptance Criteria
 
 - Cloud SDKs stay inside Adapters.
@@ -52,6 +56,7 @@ Phase 3.3 adds backend-only human governance foundations: approvals, change wind
 - Secret and credential handling follows the security model.
 - Approval decisions and change-window evaluations are auditable.
 - Notification delivery remains adapter-driven and external sends are not required in tests.
+- Cloud inventory can be queried through fake provider adapters without credentials.
 
 ## Contribution Opportunities
 
@@ -60,3 +65,4 @@ Phase 3.3 adds backend-only human governance foundations: approvals, change wind
 - Policy engine design.
 - Secret provider tests.
 - Approval and change-window policy tests.
+- Cloud provider adapter RFCs and inventory model tests.

@@ -1,6 +1,10 @@
 package cloud
 
-import "context"
+import (
+	"context"
+
+	domaincloud "github.com/sevoniva/nivora/internal/domain/cloud"
+)
 
 type CredentialRef struct {
 	ID        string
@@ -26,9 +30,10 @@ type Registry struct {
 }
 
 type CloudProvider interface {
-	ValidateCredential(ctx context.Context, credential CredentialRef) error
-	ListRegions(ctx context.Context) ([]string, error)
-	ListClusters(ctx context.Context, region string) ([]Cluster, error)
-	ListHosts(ctx context.Context, region string) ([]Host, error)
-	ListRegistries(ctx context.Context, region string) ([]Registry, error)
+	ValidateCredential(ctx context.Context, account domaincloud.CloudAccount) error
+	ListRegions(ctx context.Context, account domaincloud.CloudAccount) ([]domaincloud.CloudRegion, error)
+	ListClusters(ctx context.Context, account domaincloud.CloudAccount, region string) ([]domaincloud.CloudCluster, error)
+	ListHosts(ctx context.Context, account domaincloud.CloudAccount, region string) ([]domaincloud.CloudHost, error)
+	ListRegistries(ctx context.Context, account domaincloud.CloudAccount, region string) ([]domaincloud.CloudRegistry, error)
+	GetInventorySnapshot(ctx context.Context, account domaincloud.CloudAccount) (domaincloud.CloudInventorySnapshot, error)
 }

@@ -308,15 +308,19 @@ func (s *PipelineStore) RegisterRunner(ctx context.Context, runner domainrunner.
 	if err != nil {
 		return err
 	}
-	_, err = s.pool.Exec(ctx, `INSERT INTO runtime_runners (id, name, group_id, status, labels, executors, last_heartbeat_at, created_at, updated_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
-		ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, group_id = EXCLUDED.group_id, status = EXCLUDED.status, labels = EXCLUDED.labels, executors = EXCLUDED.executors, last_heartbeat_at = EXCLUDED.last_heartbeat_at, updated_at = EXCLUDED.updated_at, version = runtime_runners.version + 1`,
-		runner.ID, runner.Name, runner.GroupID, runner.Status, labels, executors, runner.LastHeartbeatAt, runner.CreatedAt, runner.UpdatedAt)
+	capabilities, err := json.Marshal(runner.Capabilities)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx, `INSERT INTO runtime_runners (id, name, group_id, status, labels, executors, capabilities, max_concurrency, token_id, token_hash, token_created_at, token_rotated_at, token_revoked_at, last_heartbeat_at, last_seen_at, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17)
+		ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, group_id = EXCLUDED.group_id, status = EXCLUDED.status, labels = EXCLUDED.labels, executors = EXCLUDED.executors, capabilities = EXCLUDED.capabilities, max_concurrency = EXCLUDED.max_concurrency, token_id = EXCLUDED.token_id, token_hash = EXCLUDED.token_hash, token_created_at = EXCLUDED.token_created_at, token_rotated_at = EXCLUDED.token_rotated_at, token_revoked_at = EXCLUDED.token_revoked_at, last_heartbeat_at = EXCLUDED.last_heartbeat_at, last_seen_at = EXCLUDED.last_seen_at, updated_at = EXCLUDED.updated_at, version = runtime_runners.version + 1`,
+		runner.ID, runner.Name, runner.GroupID, runner.Status, labels, executors, capabilities, runner.MaxConcurrency, runner.TokenID, runner.TokenHash, runner.TokenCreatedAt, runner.TokenRotatedAt, runner.TokenRevokedAt, runner.LastHeartbeatAt, runner.LastSeenAt, runner.CreatedAt, runner.UpdatedAt)
 	return err
 }
 
 func (s *PipelineStore) Heartbeat(ctx context.Context, runnerID string, at time.Time) (domainrunner.Runner, error) {
-	tag, err := s.pool.Exec(ctx, `UPDATE runtime_runners SET status = 'online', last_heartbeat_at = $2, updated_at = $2, version = version + 1 WHERE id = $1`, runnerID, at)
+	tag, err := s.pool.Exec(ctx, `UPDATE runtime_runners SET status = 'online', last_heartbeat_at = $2, last_seen_at = $2, updated_at = $2, version = version + 1 WHERE id = $1`, runnerID, at)
 	if err != nil {
 		return domainrunner.Runner{}, err
 	}
@@ -327,7 +331,7 @@ func (s *PipelineStore) Heartbeat(ctx context.Context, runnerID string, at time.
 }
 
 func (s *PipelineStore) GetRunner(ctx context.Context, id string) (domainrunner.Runner, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, group_id, status, labels, executors, last_heartbeat_at, created_at, updated_at FROM runtime_runners WHERE id = $1`, id)
+	rows, err := s.pool.Query(ctx, `SELECT id, name, group_id, status, labels, executors, capabilities, max_concurrency, token_id, token_hash, token_created_at, token_rotated_at, token_revoked_at, last_heartbeat_at, last_seen_at, created_at, updated_at FROM runtime_runners WHERE id = $1`, id)
 	if err != nil {
 		return domainrunner.Runner{}, err
 	}
@@ -343,7 +347,7 @@ func (s *PipelineStore) GetRunner(ctx context.Context, id string) (domainrunner.
 }
 
 func (s *PipelineStore) ListRunners(ctx context.Context) ([]domainrunner.Runner, error) {
-	rows, err := s.pool.Query(ctx, `SELECT id, name, group_id, status, labels, executors, last_heartbeat_at, created_at, updated_at FROM runtime_runners ORDER BY id`)
+	rows, err := s.pool.Query(ctx, `SELECT id, name, group_id, status, labels, executors, capabilities, max_concurrency, token_id, token_hash, token_created_at, token_rotated_at, token_revoked_at, last_heartbeat_at, last_seen_at, created_at, updated_at FROM runtime_runners ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
@@ -357,12 +361,62 @@ func (s *PipelineStore) SelectRunner(ctx context.Context, executor string, label
 		return domainrunner.Runner{}, err
 	}
 	for _, runner := range runners {
-		if runner.Status != "online" || !contains(runner.Executors, executor) || !labelsMatch(runner.Labels, labels) {
+		if runner.Status != "online" || (!contains(runner.Executors, executor) && !contains(runner.Capabilities, executor)) || !labelsMatch(runner.Labels, labels) {
 			continue
 		}
+		active, err := s.CountActiveJobs(ctx, runner.ID)
+		if err != nil {
+			return domainrunner.Runner{}, err
+		}
+		if runner.MaxConcurrency > 0 && active >= runner.MaxConcurrency {
+			continue
+		}
+		runner.ActiveJobs = active
 		return runner, nil
 	}
 	return domainrunner.Runner{}, pipelineusecase.ErrRunnerNotFound
+}
+
+func (s *PipelineStore) RotateRunnerToken(ctx context.Context, runnerID string, tokenID string, tokenHash string, at time.Time) (domainrunner.Runner, error) {
+	tag, err := s.pool.Exec(ctx, `UPDATE runtime_runners
+		SET token_id = $2, token_hash = $3, token_rotated_at = CASE WHEN token_created_at IS NULL THEN NULL ELSE $4 END, token_created_at = COALESCE(token_created_at, $4), token_revoked_at = NULL, updated_at = $4, version = version + 1
+		WHERE id = $1`, runnerID, tokenID, tokenHash, at)
+	if err != nil {
+		return domainrunner.Runner{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return domainrunner.Runner{}, pipelineusecase.ErrRunnerNotFound
+	}
+	return s.GetRunner(ctx, runnerID)
+}
+
+func (s *PipelineStore) RevokeRunnerToken(ctx context.Context, runnerID string, at time.Time) (domainrunner.Runner, error) {
+	tag, err := s.pool.Exec(ctx, `UPDATE runtime_runners SET token_hash = '', token_revoked_at = $2, updated_at = $2, version = version + 1 WHERE id = $1`, runnerID, at)
+	if err != nil {
+		return domainrunner.Runner{}, err
+	}
+	if tag.RowsAffected() == 0 {
+		return domainrunner.Runner{}, pipelineusecase.ErrRunnerNotFound
+	}
+	return s.GetRunner(ctx, runnerID)
+}
+
+func (s *PipelineStore) CountActiveJobs(ctx context.Context, runnerID string) (int, error) {
+	var count int
+	err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM runtime_job_runs WHERE runner_id = $1 AND status IN ($2, $3)`, runnerID, string(domainpipeline.JobRunAssigned), string(domainpipeline.JobRunRunning)).Scan(&count)
+	return count, err
+}
+
+func (s *PipelineStore) MarkOfflineRunners(ctx context.Context, cutoff time.Time, at time.Time) ([]domainrunner.Runner, error) {
+	rows, err := s.pool.Query(ctx, `UPDATE runtime_runners
+		SET status = 'offline', updated_at = $2, version = version + 1
+		WHERE status = 'online' AND (last_heartbeat_at IS NULL OR last_heartbeat_at < $1)
+		RETURNING id, name, group_id, status, labels, executors, capabilities, max_concurrency, token_id, token_hash, token_created_at, token_rotated_at, token_revoked_at, last_heartbeat_at, last_seen_at, created_at, updated_at`, cutoff, at)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanRunners(rows)
 }
 
 func (s *PipelineStore) RecordIdempotencyKey(ctx context.Context, scope string, key string, result IdempotencyResult) (IdempotencyResult, bool, error) {
@@ -605,6 +659,20 @@ func (s *PipelineStore) insertAudit(ctx context.Context, tx pgx.Tx, runID string
 func (s *PipelineStore) claimJobAt(ctx context.Context, runnerID string, leaseUntil time.Time, now time.Time) (pipelineusecase.JobClaim, error) {
 	var claim pipelineusecase.JobClaim
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
+		runner, err := s.GetRunner(ctx, runnerID)
+		if err != nil {
+			return err
+		}
+		if runner.Status != "online" {
+			return pipelineusecase.ErrRunnerNotFound
+		}
+		active, err := s.CountActiveJobs(ctx, runnerID)
+		if err != nil {
+			return err
+		}
+		if runner.MaxConcurrency > 0 && active >= runner.MaxConcurrency {
+			return pipelineusecase.ErrRunnerConcurrencyLimit
+		}
 		rows, err := tx.Query(ctx, `SELECT record FROM runtime_pipeline_runs WHERE status IN ($1, $2) ORDER BY created_at, id FOR UPDATE SKIP LOCKED`, string(domainpipeline.PipelineRunQueued), string(domainpipeline.PipelineRunRunning))
 		if err != nil {
 			return err
@@ -619,7 +687,7 @@ func (s *PipelineStore) claimJobAt(ctx context.Context, runnerID string, leaseUn
 			if err != nil {
 				return err
 			}
-			next, ok := claimRecordJob(&record, runnerID, leaseUntil, now)
+			next, ok := claimRecordJob(&record, runner, leaseUntil, now)
 			if !ok {
 				continue
 			}
@@ -679,13 +747,17 @@ func scanRunners(rows pgx.Rows) ([]domainrunner.Runner, error) {
 		var runner domainrunner.Runner
 		var labelsRaw []byte
 		var executorsRaw []byte
-		if err := rows.Scan(&runner.ID, &runner.Name, &runner.GroupID, &runner.Status, &labelsRaw, &executorsRaw, &runner.LastHeartbeatAt, &runner.CreatedAt, &runner.UpdatedAt); err != nil {
+		var capabilitiesRaw []byte
+		if err := rows.Scan(&runner.ID, &runner.Name, &runner.GroupID, &runner.Status, &labelsRaw, &executorsRaw, &capabilitiesRaw, &runner.MaxConcurrency, &runner.TokenID, &runner.TokenHash, &runner.TokenCreatedAt, &runner.TokenRotatedAt, &runner.TokenRevokedAt, &runner.LastHeartbeatAt, &runner.LastSeenAt, &runner.CreatedAt, &runner.UpdatedAt); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(labelsRaw, &runner.Labels); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(executorsRaw, &runner.Executors); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(capabilitiesRaw, &runner.Capabilities); err != nil {
 			return nil, err
 		}
 		runners = append(runners, runner)
@@ -721,7 +793,7 @@ func updateRecordJobStatus(record *pipelineusecase.RunRecord, jobRunID string, s
 	return false
 }
 
-func claimRecordJob(record *pipelineusecase.RunRecord, runnerID string, leaseUntil time.Time, now time.Time) (pipelineusecase.JobClaim, bool) {
+func claimRecordJob(record *pipelineusecase.RunRecord, runner domainrunner.Runner, leaseUntil time.Time, now time.Time) (pipelineusecase.JobClaim, bool) {
 	if record.Run.Status == domainpipeline.PipelineRunQueued {
 		record.Run.Status = domainpipeline.PipelineRunRunning
 		record.Run.StartedAt = &now
@@ -730,13 +802,23 @@ func claimRecordJob(record *pipelineusecase.RunRecord, runnerID string, leaseUnt
 	for stageIndex := range record.Stages {
 		for jobIndex := range record.Stages[stageIndex].Jobs {
 			job := &record.Stages[stageIndex].Jobs[jobIndex].Job
+			executor := "shell"
+			if stageIndex < len(record.Definition.Spec.Stages) && jobIndex < len(record.Definition.Spec.Stages[stageIndex].Jobs) {
+				executor = record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex].Executor
+				if executor == "" {
+					executor = "shell"
+				}
+			}
+			if !contains(runner.Executors, executor) && !contains(runner.Capabilities, executor) {
+				continue
+			}
 			claimable := job.Status == domainpipeline.JobRunPending || job.Status == domainpipeline.JobRunRetrying
 			leaseExpired := job.Status == domainpipeline.JobRunAssigned && job.LeaseExpiresAt != nil && job.LeaseExpiresAt.Before(now)
 			if !claimable && !leaseExpired {
 				continue
 			}
 			job.Status = domainpipeline.JobRunAssigned
-			job.RunnerID = runnerID
+			job.RunnerID = runner.ID
 			job.LeaseExpiresAt = &leaseUntil
 			job.UpdatedAt = now
 			if job.Attempt <= 0 {
@@ -748,7 +830,7 @@ func claimRecordJob(record *pipelineusecase.RunRecord, runnerID string, leaseUnt
 				StageRunID:      record.Stages[stageIndex].Stage.ID,
 				JobRunID:        job.ID,
 				StepRunIDs:      stepIDs,
-				RunnerID:        runnerID,
+				RunnerID:        runner.ID,
 				Executor:        executor,
 				Commands:        commands,
 				Attempt:         job.Attempt,

@@ -11,7 +11,8 @@ The worker performs a reconciliation pass:
 3. mark runs past the timeout window as `Timeout`;
 4. return recoverable stale runs and expired JobRun claims to `Queued`;
 5. acquire leases for queued PipelineRuns and execute them;
-6. publish pending event outbox records and schedule retry metadata for failures.
+6. mark stale online runners offline after missed heartbeat;
+7. publish pending event outbox records and schedule retry metadata for failures.
 
 ## Lease Fields
 

@@ -8,6 +8,7 @@ import (
 
 	"github.com/sevoniva/nivora/internal/domain/event"
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
+	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
 )
 
 func TestMemoryStoreLogOrdering(t *testing.T) {
@@ -65,12 +66,18 @@ func TestMemoryStoreClaimJobAndLeaseExpiration(t *testing.T) {
 	if err := store.Save(context.Background(), record); err != nil {
 		t.Fatalf("save: %v", err)
 	}
+	if err := store.RegisterRunner(context.Background(), domainrunner.Runner{ID: "runner-a", Name: "runner-a", Status: "online", Executors: []string{"shell"}, MaxConcurrency: 1}); err != nil {
+		t.Fatalf("register runner-a: %v", err)
+	}
 	claim, err := store.ClaimJob(context.Background(), "runner-a", now.Add(time.Minute))
 	if err != nil {
 		t.Fatalf("claim expired lease: %v", err)
 	}
 	if claim.JobRunID != "job-1" || claim.RunnerID != "runner-a" {
 		t.Fatalf("claim = %#v", claim)
+	}
+	if err := store.RegisterRunner(context.Background(), domainrunner.Runner{ID: "runner-b", Name: "runner-b", Status: "online", Executors: []string{"shell"}, MaxConcurrency: 1}); err != nil {
+		t.Fatalf("register runner-b: %v", err)
 	}
 	_, err = store.ClaimJob(context.Background(), "runner-b", now.Add(time.Minute))
 	if !errors.Is(err, ErrNoClaimableJob) {

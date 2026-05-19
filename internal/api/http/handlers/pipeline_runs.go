@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -145,16 +146,30 @@ func RegisterRunner(service *pipelineusecase.Service) http.HandlerFunc {
 			})
 			return
 		}
-		if err := service.RegisterRunner(r.Context(), runner); err != nil {
-			respondPipelineResult(w, r, nil, err)
-			return
-		}
-		saved, err := service.GetRunner(r.Context(), runner.ID)
+		result, err := service.RegisterRunnerWithToken(r.Context(), runner)
 		if err != nil {
 			respondPipelineResult(w, r, nil, err)
 			return
 		}
-		RespondJSON(w, http.StatusCreated, saved)
+		RespondJSON(w, http.StatusCreated, result)
+	}
+}
+
+func RotateRunnerToken(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := service.RotateRunnerToken(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondPipelineResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, result)
+	}
+}
+
+func RevokeRunnerToken(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		runner, err := service.RevokeRunnerToken(r.Context(), chi.URLParam(r, "id"))
+		respondPipelineResult(w, r, runner, err)
 	}
 }
 
@@ -174,7 +189,12 @@ func GetRunner(service *pipelineusecase.Service) http.HandlerFunc {
 
 func HeartbeatRunner(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		runner, err := service.HeartbeatRunner(r.Context(), chi.URLParam(r, "id"))
+		id := chi.URLParam(r, "id")
+		if err := service.ValidateRunnerToken(r.Context(), id, runnerToken(r)); err != nil {
+			respondPipelineResult(w, r, nil, err)
+			return
+		}
+		runner, err := service.HeartbeatRunner(r.Context(), id)
 		if err == nil {
 			telemetry.DefaultMetrics().IncRunnerHeartbeat()
 		}
@@ -184,6 +204,11 @@ func HeartbeatRunner(service *pipelineusecase.Service) http.HandlerFunc {
 
 func ClaimRunnerJob(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		id := chi.URLParam(r, "id")
+		if err := service.ValidateRunnerToken(r.Context(), id, runnerToken(r)); err != nil {
+			respondPipelineResult(w, r, nil, err)
+			return
+		}
 		lease := 30 * time.Second
 		if value := r.URL.Query().Get("leaseSeconds"); value != "" {
 			parsed, err := time.ParseDuration(value + "s")
@@ -193,36 +218,86 @@ func ClaimRunnerJob(service *pipelineusecase.Service) http.HandlerFunc {
 			}
 			lease = parsed
 		}
-		claim, err := service.ClaimJob(r.Context(), chi.URLParam(r, "id"), lease)
+		claim, err := service.ClaimJob(r.Context(), id, lease)
 		respondPipelineResult(w, r, claim, err)
 	}
 }
 
 func AppendJobLogs(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		runnerID := ""
+		jobID := chi.URLParam(r, "job_id")
+		if jobID != "" {
+			runnerID = chi.URLParam(r, "id")
+		} else {
+			jobID = chi.URLParam(r, "id")
+		}
+		if runnerID != "" {
+			if err := service.ValidateRunnerToken(r.Context(), runnerID, runnerToken(r)); err != nil {
+				respondPipelineResult(w, r, nil, err)
+				return
+			}
+			if err := service.ValidateRunnerJob(r.Context(), runnerID, jobID); err != nil {
+				respondPipelineResult(w, r, nil, err)
+				return
+			}
+		}
 		var input pipelineusecase.AppendJobLogInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a job log append request"})
 			return
 		}
-		logs, err := service.AppendJobLog(r.Context(), chi.URLParam(r, "id"), input)
+		logs, err := service.AppendJobLog(r.Context(), jobID, input)
 		respondPipelineResult(w, r, logs, err)
 	}
 }
 
 func UpdateJobStatus(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		runnerID := ""
+		jobID := chi.URLParam(r, "job_id")
+		if jobID != "" {
+			runnerID = chi.URLParam(r, "id")
+		} else {
+			jobID = chi.URLParam(r, "id")
+		}
+		if runnerID != "" {
+			if err := service.ValidateRunnerToken(r.Context(), runnerID, runnerToken(r)); err != nil {
+				respondPipelineResult(w, r, nil, err)
+				return
+			}
+			if err := service.ValidateRunnerJob(r.Context(), runnerID, jobID); err != nil {
+				respondPipelineResult(w, r, nil, err)
+				return
+			}
+		}
 		var input pipelineusecase.UpdateJobStatusInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a job status update"})
 			return
 		}
-		record, err := service.UpdateJobStatus(r.Context(), chi.URLParam(r, "id"), input)
+		record, err := service.UpdateJobStatus(r.Context(), jobID, input)
 		if err != nil {
 			respondPipelineResult(w, r, nil, err)
 			return
 		}
 		RespondJSON(w, http.StatusOK, pipelineRunResponse(record))
+	}
+}
+
+func MarkOfflineRunners(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		timeout := time.Minute
+		if value := r.URL.Query().Get("timeoutSeconds"); value != "" {
+			parsed, err := time.ParseDuration(value + "s")
+			if err != nil {
+				RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "timeoutSeconds must be an integer number of seconds"})
+				return
+			}
+			timeout = parsed
+		}
+		runners, err := service.MarkOfflineRunners(r.Context(), timeout)
+		respondPipelineResult(w, r, runners, err)
 	}
 }
 
@@ -260,6 +335,14 @@ func respondPipelineResult(w http.ResponseWriter, r *http.Request, payload any, 
 		status = http.StatusConflict
 		code = "no_claimable_job"
 	}
+	if errors.Is(err, pipelineusecase.ErrRunnerUnauthorized) || errors.Is(err, pipelineusecase.ErrRunnerTokenRevoked) {
+		status = http.StatusUnauthorized
+		code = "runner_unauthorized"
+	}
+	if errors.Is(err, pipelineusecase.ErrRunnerConcurrencyLimit) {
+		status = http.StatusConflict
+		code = "runner_concurrency_limit"
+	}
 	if errors.Is(err, pipelineusecase.ErrRunTerminal) {
 		status = http.StatusConflict
 		code = "pipeline_run_terminal"
@@ -268,4 +351,16 @@ func respondPipelineResult(w http.ResponseWriter, r *http.Request, payload any, 
 		Code:    code,
 		Message: err.Error(),
 	})
+}
+
+func runnerToken(r *http.Request) string {
+	if token := r.Header.Get("X-Nivora-Runner-Token"); token != "" {
+		return token
+	}
+	header := r.Header.Get("Authorization")
+	const prefix = "Bearer "
+	if len(header) > len(prefix) && strings.EqualFold(header[:len(prefix)], prefix) {
+		return header[len(prefix):]
+	}
+	return ""
 }

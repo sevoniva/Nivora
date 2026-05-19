@@ -267,6 +267,16 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.runner.token.rotated:
+    address: devops.runner.token.rotated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.runner.token.revoked:
+    address: devops.runner.token.revoked
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.runner.job.claimed:
     address: devops.runner.job.claimed
     messages:
@@ -274,7 +284,6 @@ channels:
         $ref: "#/components/messages/Event"
   devops.runner.offline:
     address: devops.runner.offline
-    description: Reserved for future runner health handling; not emitted by the Phase 2.1 runtime.
     messages:
       event:
         $ref: "#/components/messages/Event"

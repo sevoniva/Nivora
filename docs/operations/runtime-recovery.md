@@ -26,6 +26,7 @@ The worker also runs reconciliation as its runtime advancement step.
 - PostgreSQL-backed PipelineRun recovery is available when `database.runtime_store: postgres` is configured.
 - Cancellation is reconciled for queued/running PipelineRuns; executor-level interruption remains limited by the current runner/executor implementation.
 - Timeout reconciliation is based on stale update time and lease state.
+- Runner offline detection is part of reconciliation and uses heartbeat age.
 - DeploymentRun and ReleaseExecution have lease fields but their complete recovery loops are future work.
 
 Nivora is still early-stage and not production-ready.

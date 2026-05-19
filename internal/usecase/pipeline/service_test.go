@@ -141,14 +141,40 @@ func TestProcessQueuedAndTimeline(t *testing.T) {
 
 func TestRunnerRegistrationHeartbeatAndSelection(t *testing.T) {
 	service := newTestService()
-	if err := service.RegisterRunner(context.Background(), domainrunner.Runner{
+	result, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
 		ID:        "runner-a",
 		Name:      "runner-a",
 		Status:    "online",
 		Labels:    map[string]string{"tier": "dev"},
 		Executors: []string{"shell"},
-	}); err != nil {
+	})
+	if err != nil {
 		t.Fatalf("register runner: %v", err)
+	}
+	if result.Token.Token == "" || result.Runner.TokenHash != hashRunnerToken(result.Token.Token) {
+		t.Fatalf("token result = %#v runner = %#v", result.Token, result.Runner)
+	}
+	if err := service.ValidateRunnerToken(context.Background(), "runner-a", "wrong"); !errors.Is(err, ErrRunnerUnauthorized) {
+		t.Fatalf("wrong token error = %v", err)
+	}
+	if err := service.ValidateRunnerToken(context.Background(), "runner-a", result.Token.Token); err != nil {
+		t.Fatalf("validate token: %v", err)
+	}
+	rotated, err := service.RotateRunnerToken(context.Background(), "runner-a")
+	if err != nil {
+		t.Fatalf("rotate token: %v", err)
+	}
+	if rotated.Token.Token == result.Token.Token {
+		t.Fatal("expected rotated token to change")
+	}
+	if err := service.ValidateRunnerToken(context.Background(), "runner-a", result.Token.Token); !errors.Is(err, ErrRunnerUnauthorized) {
+		t.Fatalf("old token error = %v", err)
+	}
+	if _, err := service.RevokeRunnerToken(context.Background(), "runner-a"); err != nil {
+		t.Fatalf("revoke token: %v", err)
+	}
+	if err := service.ValidateRunnerToken(context.Background(), "runner-a", rotated.Token.Token); !errors.Is(err, ErrRunnerTokenRevoked) {
+		t.Fatalf("revoked token error = %v", err)
 	}
 	runner, err := service.HeartbeatRunner(context.Background(), "runner-a")
 	if err != nil {
@@ -163,6 +189,49 @@ func TestRunnerRegistrationHeartbeatAndSelection(t *testing.T) {
 	}
 	if len(runners) < 2 {
 		t.Fatalf("runners = %#v", runners)
+	}
+	stale := runner
+	past := time.Now().Add(-2 * time.Minute)
+	stale.LastHeartbeatAt = &past
+	stale.Status = "online"
+	if err := service.store.RegisterRunner(context.Background(), stale); err != nil {
+		t.Fatalf("save stale runner: %v", err)
+	}
+	offline, err := service.MarkOfflineRunners(context.Background(), time.Minute)
+	if err != nil {
+		t.Fatalf("mark offline: %v", err)
+	}
+	if len(offline) != 1 || offline[0].ID != "runner-a" {
+		t.Fatalf("offline = %#v", offline)
+	}
+}
+
+func TestRunnerClaimRespectsConcurrency(t *testing.T) {
+	service := newTestService()
+	result, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:             "runner-limited",
+		Name:           "runner-limited",
+		Status:         "online",
+		Executors:      []string{"shell"},
+		MaxConcurrency: 1,
+	})
+	if err != nil {
+		t.Fatalf("register runner: %v", err)
+	}
+	if err := service.ValidateRunnerToken(context.Background(), result.Runner.ID, result.Token.Token); err != nil {
+		t.Fatalf("validate token: %v", err)
+	}
+	if _, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "one"`)}); err != nil {
+		t.Fatalf("create queued one: %v", err)
+	}
+	if _, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "two"`)}); err != nil {
+		t.Fatalf("create queued two: %v", err)
+	}
+	if _, err := service.ClaimJob(context.Background(), "runner-limited", time.Minute); err != nil {
+		t.Fatalf("claim first: %v", err)
+	}
+	if _, err := service.ClaimJob(context.Background(), "runner-limited", time.Minute); !errors.Is(err, ErrRunnerConcurrencyLimit) {
+		t.Fatalf("second claim error = %v", err)
 	}
 }
 

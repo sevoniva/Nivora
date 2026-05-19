@@ -8,6 +8,7 @@ import (
 	"time"
 
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
+	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
@@ -35,7 +36,7 @@ func TestClaimRecordJobUpdatesLeaseAndReturnsPlan(t *testing.T) {
 		}},
 	}
 
-	claim, ok := claimRecordJob(&record, "runner-1", leaseUntil, now)
+	claim, ok := claimRecordJob(&record, domainrunner.Runner{ID: "runner-1", Status: "online", Executors: []string{"shell"}}, leaseUntil, now)
 	if !ok {
 		t.Fatal("expected claimable job")
 	}

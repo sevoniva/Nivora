@@ -1765,6 +1765,8 @@ func newRunnerCommand() *cobra.Command {
 	cmd.Flags().StringVar(&configPath, "config", "configs/runner.yaml", "config file path")
 	cmd.AddCommand(newRunnerListCommand())
 	cmd.AddCommand(newRunnerRegisterCommand())
+	cmd.AddCommand(newRunnerStatusCommand())
+	cmd.AddCommand(newRunnerTokenCommand())
 	cmd.AddCommand(newRunnerHeartbeatCommand())
 	cmd.AddCommand(newRunnerClaimCommand())
 	cmd.AddCommand(newRunnerAppendLogCommand())
@@ -1823,9 +1825,74 @@ func newRunnerRegisterCommand() *cobra.Command {
 	return cmd
 }
 
+func newRunnerStatusCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "status <runner-id>",
+		Short: "Get runner status from a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/runners/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newRunnerTokenCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "token", Short: "Runner token utilities"}
+	cmd.AddCommand(newRunnerTokenRotateCommand())
+	cmd.AddCommand(newRunnerTokenRevokeCommand())
+	return cmd
+}
+
+func newRunnerTokenRotateCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "rotate <runner-id>",
+		Short: "Rotate a runner token; the raw token is returned only once",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/"+args[0]+"/token/rotate", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newRunnerTokenRevokeCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "revoke <runner-id>",
+		Short: "Revoke a runner token",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/"+args[0]+"/token/revoke", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
 func newRunnerHeartbeatCommand() *cobra.Command {
 	var serverURL string
 	var name string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "heartbeat --name <runner-id>",
 		Short: "Record a runner heartbeat on a Nivora server",
@@ -1833,7 +1900,11 @@ func newRunnerHeartbeatCommand() *cobra.Command {
 			if name == "" {
 				return fmt.Errorf("--name is required")
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/"+name+"/heartbeat", nil)
+			token, err := runnerTokenFromEnv(tokenEnv)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/"+name+"/heartbeat", nil, token)
 			if err != nil {
 				return err
 			}
@@ -1843,6 +1914,7 @@ func newRunnerHeartbeatCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&name, "name", "local-runner", "runner ID")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_RUNNER_TOKEN", "environment variable containing the runner token")
 	return cmd
 }
 
@@ -1850,6 +1922,7 @@ func newRunnerClaimCommand() *cobra.Command {
 	var serverURL string
 	var name string
 	var leaseSeconds int
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "claim --name <runner-id>",
 		Short: "Claim one queued job for a runner",
@@ -1857,8 +1930,12 @@ func newRunnerClaimCommand() *cobra.Command {
 			if name == "" {
 				return fmt.Errorf("--name is required")
 			}
+			token, err := runnerTokenFromEnv(tokenEnv)
+			if err != nil {
+				return err
+			}
 			path := fmt.Sprintf("/api/v1/runners/%s/jobs/claim?leaseSeconds=%d", name, leaseSeconds)
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, path, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, path, nil, token)
 			if err != nil {
 				return err
 			}
@@ -1869,6 +1946,7 @@ func newRunnerClaimCommand() *cobra.Command {
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&name, "name", "local-runner", "runner ID")
 	cmd.Flags().IntVar(&leaseSeconds, "lease-seconds", 30, "claim lease duration in seconds")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_RUNNER_TOKEN", "environment variable containing the runner token")
 	return cmd
 }
 
@@ -1879,6 +1957,8 @@ func newRunnerAppendLogCommand() *cobra.Command {
 	var stepRunID string
 	var stream string
 	var content string
+	var runnerID string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "logs append <job-run-id> --pipeline-run-id <id> --content <text>",
 		Short: "Append a log chunk for a claimed job",
@@ -1890,6 +1970,13 @@ func newRunnerAppendLogCommand() *cobra.Command {
 			if pipelineRunID == "" {
 				return fmt.Errorf("--pipeline-run-id is required")
 			}
+			if runnerID == "" {
+				return fmt.Errorf("--runner-id is required")
+			}
+			token, err := runnerTokenFromEnv(tokenEnv)
+			if err != nil {
+				return err
+			}
 			body, err := json.Marshal(map[string]any{
 				"pipelineRunId": pipelineRunID,
 				"stageRunId":    stageRunID,
@@ -1900,7 +1987,7 @@ func newRunnerAppendLogCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/jobs/"+args[1]+"/logs", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/"+runnerID+"/jobs/"+args[1]+"/logs", body, token)
 			if err != nil {
 				return err
 			}
@@ -1909,11 +1996,13 @@ func newRunnerAppendLogCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&runnerID, "runner-id", "local-runner", "runner ID")
 	cmd.Flags().StringVar(&pipelineRunID, "pipeline-run-id", "", "PipelineRun ID")
 	cmd.Flags().StringVar(&stageRunID, "stage-run-id", "", "StageRun ID")
 	cmd.Flags().StringVar(&stepRunID, "step-run-id", "", "StepRun ID")
 	cmd.Flags().StringVar(&stream, "stream", "stdout", "log stream")
 	cmd.Flags().StringVar(&content, "content", "", "log content")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_RUNNER_TOKEN", "environment variable containing the runner token")
 	return cmd
 }
 
@@ -1921,6 +2010,8 @@ func newRunnerUpdateStatusCommand() *cobra.Command {
 	var serverURL string
 	var status string
 	var reason string
+	var runnerID string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "status update <job-run-id> --status <status>",
 		Short: "Update the status of a claimed job",
@@ -1932,11 +2023,18 @@ func newRunnerUpdateStatusCommand() *cobra.Command {
 			if status == "" {
 				return fmt.Errorf("--status is required")
 			}
+			if runnerID == "" {
+				return fmt.Errorf("--runner-id is required")
+			}
+			token, err := runnerTokenFromEnv(tokenEnv)
+			if err != nil {
+				return err
+			}
 			body, err := json.Marshal(map[string]any{"status": status, "reason": reason})
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/jobs/"+args[1]+"/status", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/"+runnerID+"/jobs/"+args[1]+"/status", body, token)
 			if err != nil {
 				return err
 			}
@@ -1945,9 +2043,22 @@ func newRunnerUpdateStatusCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&runnerID, "runner-id", "local-runner", "runner ID")
 	cmd.Flags().StringVar(&status, "status", "", "job status")
 	cmd.Flags().StringVar(&reason, "reason", "", "status reason")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_RUNNER_TOKEN", "environment variable containing the runner token")
 	return cmd
+}
+
+func runnerTokenFromEnv(name string) (string, error) {
+	if name == "" {
+		return "", fmt.Errorf("runner token env var name is required")
+	}
+	token := os.Getenv(name)
+	if token == "" {
+		return "", fmt.Errorf("%s is not set", name)
+	}
+	return token, nil
 }
 
 func newRuntimeCommand() *cobra.Command {

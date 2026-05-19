@@ -14,11 +14,14 @@ import (
 )
 
 var (
-	ErrRunNotFound    = errors.New("pipeline run not found")
-	ErrRunnerNotFound = errors.New("runner not found")
-	ErrJobNotFound    = errors.New("job run not found")
-	ErrNoClaimableJob = errors.New("no claimable job found")
-	ErrOutboxNotFound = errors.New("event outbox record not found")
+	ErrRunNotFound            = errors.New("pipeline run not found")
+	ErrRunnerNotFound         = errors.New("runner not found")
+	ErrRunnerUnauthorized     = errors.New("runner token is invalid")
+	ErrRunnerTokenRevoked     = errors.New("runner token is revoked")
+	ErrRunnerConcurrencyLimit = errors.New("runner concurrency limit reached")
+	ErrJobNotFound            = errors.New("job run not found")
+	ErrNoClaimableJob         = errors.New("no claimable job found")
+	ErrOutboxNotFound         = errors.New("event outbox record not found")
 )
 
 type PipelineRepository interface {
@@ -70,6 +73,10 @@ type RunnerRepository interface {
 	GetRunner(ctx context.Context, id string) (domainrunner.Runner, error)
 	ListRunners(ctx context.Context) ([]domainrunner.Runner, error)
 	SelectRunner(ctx context.Context, executor string, labels map[string]string) (domainrunner.Runner, error)
+	RotateRunnerToken(ctx context.Context, runnerID string, tokenID string, tokenHash string, at time.Time) (domainrunner.Runner, error)
+	RevokeRunnerToken(ctx context.Context, runnerID string, at time.Time) (domainrunner.Runner, error)
+	CountActiveJobs(ctx context.Context, runnerID string) (int, error)
+	MarkOfflineRunners(ctx context.Context, cutoff time.Time, at time.Time) ([]domainrunner.Runner, error)
 }
 
 type Store interface {
@@ -198,6 +205,17 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	now := time.Now()
+	runner, ok := s.runners[runnerID]
+	if !ok {
+		return JobClaim{}, ErrRunnerNotFound
+	}
+	if runner.Status != "online" {
+		return JobClaim{}, ErrRunnerNotFound
+	}
+	active := activeJobsInRecords(s.runs, runnerID)
+	if runner.MaxConcurrency > 0 && active >= runner.MaxConcurrency {
+		return JobClaim{}, ErrRunnerConcurrencyLimit
+	}
 	runIDs := make([]string, 0, len(s.runs))
 	for id := range s.runs {
 		runIDs = append(runIDs, id)
@@ -222,6 +240,16 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 			}
 			for jobIndex := range record.Stages[stageIndex].Jobs {
 				job := &record.Stages[stageIndex].Jobs[jobIndex].Job
+				executor := "shell"
+				if stageIndex < len(record.Definition.Spec.Stages) && jobIndex < len(record.Definition.Spec.Stages[stageIndex].Jobs) {
+					executor = record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex].Executor
+					if executor == "" {
+						executor = "shell"
+					}
+				}
+				if !contains(runner.Executors, executor) && !contains(runner.Capabilities, executor) {
+					continue
+				}
 				claimable := job.Status == domainpipeline.JobRunPending || job.Status == domainpipeline.JobRunRetrying
 				leaseExpired := job.Status == domainpipeline.JobRunAssigned && job.LeaseExpiresAt != nil && job.LeaseExpiresAt.Before(now)
 				if !claimable && !leaseExpired {
@@ -574,6 +602,7 @@ func (s *MemoryStore) Heartbeat(ctx context.Context, runnerID string, at time.Ti
 	}
 	runner.Status = "online"
 	runner.LastHeartbeatAt = &at
+	runner.LastSeenAt = &at
 	runner.UpdatedAt = at
 	s.runners[runnerID] = runner
 	return cloneRunner(runner), nil
@@ -604,6 +633,7 @@ func (s *MemoryStore) ListRunners(ctx context.Context) ([]domainrunner.Runner, e
 	defer s.mu.RUnlock()
 	runners := make([]domainrunner.Runner, 0, len(s.runners))
 	for _, runner := range s.runners {
+		runner.ActiveJobs = activeJobsInRecords(s.runs, runner.ID)
 		runners = append(runners, cloneRunner(runner))
 	}
 	sort.Slice(runners, func(i, j int) bool {
@@ -621,15 +651,99 @@ func (s *MemoryStore) SelectRunner(ctx context.Context, executor string, labels 
 		if runner.Status != "online" {
 			continue
 		}
-		if !contains(runner.Executors, executor) {
+		if !contains(runner.Executors, executor) && !contains(runner.Capabilities, executor) {
 			continue
 		}
 		if !labelsMatch(runner.Labels, labels) {
 			continue
 		}
+		active, err := s.CountActiveJobs(ctx, runner.ID)
+		if err != nil {
+			return domainrunner.Runner{}, err
+		}
+		if runner.MaxConcurrency > 0 && active >= runner.MaxConcurrency {
+			continue
+		}
+		runner.ActiveJobs = active
 		return runner, nil
 	}
 	return domainrunner.Runner{}, ErrRunnerNotFound
+}
+
+func (s *MemoryStore) RotateRunnerToken(ctx context.Context, runnerID string, tokenID string, tokenHash string, at time.Time) (domainrunner.Runner, error) {
+	select {
+	case <-ctx.Done():
+		return domainrunner.Runner{}, ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	runner, ok := s.runners[runnerID]
+	if !ok {
+		return domainrunner.Runner{}, ErrRunnerNotFound
+	}
+	runner.TokenID = tokenID
+	runner.TokenHash = tokenHash
+	runner.TokenRevokedAt = nil
+	if runner.TokenCreatedAt == nil {
+		runner.TokenCreatedAt = &at
+	} else {
+		runner.TokenRotatedAt = &at
+	}
+	runner.UpdatedAt = at
+	s.runners[runnerID] = runner
+	return cloneRunner(runner), nil
+}
+
+func (s *MemoryStore) RevokeRunnerToken(ctx context.Context, runnerID string, at time.Time) (domainrunner.Runner, error) {
+	select {
+	case <-ctx.Done():
+		return domainrunner.Runner{}, ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	runner, ok := s.runners[runnerID]
+	if !ok {
+		return domainrunner.Runner{}, ErrRunnerNotFound
+	}
+	runner.TokenHash = ""
+	runner.TokenRevokedAt = &at
+	runner.UpdatedAt = at
+	s.runners[runnerID] = runner
+	return cloneRunner(runner), nil
+}
+
+func (s *MemoryStore) CountActiveJobs(ctx context.Context, runnerID string) (int, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return activeJobsInRecords(s.runs, runnerID), nil
+}
+
+func (s *MemoryStore) MarkOfflineRunners(ctx context.Context, cutoff time.Time, at time.Time) ([]domainrunner.Runner, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var offline []domainrunner.Runner
+	for id, runner := range s.runners {
+		if runner.Status != "online" || runner.LastHeartbeatAt == nil || !runner.LastHeartbeatAt.Before(cutoff) {
+			continue
+		}
+		runner.Status = "offline"
+		runner.UpdatedAt = at
+		s.runners[id] = runner
+		offline = append(offline, cloneRunner(runner))
+	}
+	return offline, nil
 }
 
 func cloneRecord(record RunRecord) RunRecord {
@@ -662,7 +776,22 @@ func cloneSpecStages(stages []Stage) []Stage {
 func cloneRunner(runner domainrunner.Runner) domainrunner.Runner {
 	runner.Labels = cloneMap(runner.Labels)
 	runner.Executors = append([]string(nil), runner.Executors...)
+	runner.Capabilities = append([]string(nil), runner.Capabilities...)
 	return runner
+}
+
+func activeJobsInRecords(records map[string]RunRecord, runnerID string) int {
+	active := 0
+	for _, record := range records {
+		for _, stage := range record.Stages {
+			for _, job := range stage.Jobs {
+				if job.Job.RunnerID == runnerID && (job.Job.Status == domainpipeline.JobRunAssigned || job.Job.Status == domainpipeline.JobRunRunning) {
+					active++
+				}
+			}
+		}
+	}
+	return active
 }
 
 func buildJobClaim(record RunRecord, stageIndex int, jobIndex int, runnerID string, leaseUntil time.Time) JobClaim {

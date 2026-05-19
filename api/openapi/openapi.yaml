@@ -1227,7 +1227,7 @@ paths:
                   $ref: "#/components/schemas/Runner"
   /api/v1/runners/register:
     post:
-      summary: Register a minimal runner record
+      summary: Register a runner and return its one-time token
       requestBody:
         required: true
         content:
@@ -1236,11 +1236,11 @@ paths:
               $ref: "#/components/schemas/Runner"
       responses:
         "201":
-          description: Runner registered
+          description: Runner registered; raw token is returned only in this response
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/Runner"
+                $ref: "#/components/schemas/RegisterRunnerResponse"
   /api/v1/runners/{id}:
     get:
       summary: Get a runner
@@ -1257,7 +1257,7 @@ paths:
           description: Runner not found
   /api/v1/runners/{id}/heartbeat:
     post:
-      summary: Record a runner heartbeat
+      summary: Record a runner heartbeat with runner token authentication
       parameters:
         - $ref: "#/components/parameters/ID"
       responses:
@@ -1269,9 +1269,39 @@ paths:
                 $ref: "#/components/schemas/Runner"
         "404":
           description: Runner not found
+        "401":
+          description: Runner token missing or invalid
+  /api/v1/runners/{id}/token/rotate:
+    post:
+      summary: Rotate a runner token and return the new token once
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Runner token rotated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RegisterRunnerResponse"
+        "404":
+          description: Runner not found
+  /api/v1/runners/{id}/token/revoke:
+    post:
+      summary: Revoke a runner token
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Runner token revoked
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Runner"
+        "404":
+          description: Runner not found
   /api/v1/runners/{id}/jobs/claim:
     post:
-      summary: Claim one queued job for a runner
+      summary: Claim one queued job for an authenticated runner
       parameters:
         - $ref: "#/components/parameters/ID"
         - name: leaseSeconds
@@ -1288,9 +1318,75 @@ paths:
                 $ref: "#/components/schemas/JobClaim"
         "409":
           description: No claimable job exists
+        "401":
+          description: Runner token missing or invalid
+  /api/v1/runners/{id}/jobs/{job_id}/logs:
+    post:
+      summary: Append logs for a job owned by an authenticated runner
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/AppendJobLogRequest"
+      responses:
+        "200":
+          description: Logs for the JobRun
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/LogChunk"
+        "401":
+          description: Runner token missing, invalid, or not authorized for the job
+  /api/v1/runners/{id}/jobs/{job_id}/status:
+    post:
+      summary: Update job status for a job owned by an authenticated runner
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateJobStatusRequest"
+      responses:
+        "200":
+          description: Updated PipelineRun record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunRecord"
+        "401":
+          description: Runner token missing, invalid, or not authorized for the job
+  /api/v1/runners/offline-detect:
+    post:
+      summary: Mark stale online runners offline
+      responses:
+        "200":
+          description: Runners marked offline
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Runner"
   /api/v1/jobs/{id}/logs:
     post:
-      summary: Append runner logs for a JobRun
+      summary: Append runner logs for a JobRun through an admin compatibility endpoint
       parameters:
         - $ref: "#/components/parameters/ID"
       requestBody:
@@ -4535,9 +4631,49 @@ components:
           type: array
           items:
             type: string
+        capabilities:
+          type: array
+          items:
+            type: string
+        maxConcurrency:
+          type: integer
+        activeJobs:
+          type: integer
+        tokenId:
+          type: string
+        tokenCreatedAt:
+          type: string
+          format: date-time
+        tokenRotatedAt:
+          type: string
+          format: date-time
+        tokenRevokedAt:
+          type: string
+          format: date-time
         lastHeartbeatAt:
           type: string
           format: date-time
+        lastSeenAt:
+          type: string
+          format: date-time
+    RunnerToken:
+      type: object
+      properties:
+        tokenId:
+          type: string
+        token:
+          type: string
+          description: Returned only at registration or rotation time.
+        issuedAt:
+          type: string
+          format: date-time
+    RegisterRunnerResponse:
+      type: object
+      properties:
+        runner:
+          $ref: "#/components/schemas/Runner"
+        token:
+          $ref: "#/components/schemas/RunnerToken"
     Event:
       type: object
       properties:

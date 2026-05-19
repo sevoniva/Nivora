@@ -3,6 +3,8 @@ package pipeline
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -32,6 +34,9 @@ const (
 	EventJobRunLogAppended     = "devops.job.run.log.appended"
 	EventJobRunCancelRequested = "devops.job.run.cancel_requested"
 	EventRunnerRegistered      = "devops.runner.registered"
+	EventRunnerTokenRotated    = "devops.runner.token.rotated"
+	EventRunnerTokenRevoked    = "devops.runner.token.revoked"
+	EventRunnerOffline         = "devops.runner.offline"
 	EventRunnerHeartbeat       = "devops.runner.heartbeat"
 	EventRunnerJobClaimed      = "devops.runner.job.claimed"
 	EventPipelineRunRecovered  = "devops.pipeline.run.recovered"
@@ -256,6 +261,11 @@ func (s *Service) Timeline(ctx context.Context, id string) ([]TimelineEntry, err
 }
 
 func (s *Service) RegisterRunner(ctx context.Context, runner domainrunner.Runner) error {
+	_, err := s.RegisterRunnerWithToken(ctx, runner)
+	return err
+}
+
+func (s *Service) RegisterRunnerWithToken(ctx context.Context, runner domainrunner.Runner) (RegisterRunnerResult, error) {
 	now := s.now()
 	if runner.ID == "" {
 		runner.ID = newID("runner")
@@ -269,6 +279,12 @@ func (s *Service) RegisterRunner(ctx context.Context, runner domainrunner.Runner
 	if len(runner.Executors) == 0 {
 		runner.Executors = []string{"shell"}
 	}
+	if len(runner.Capabilities) == 0 {
+		runner.Capabilities = append([]string(nil), runner.Executors...)
+	}
+	if runner.MaxConcurrency <= 0 {
+		runner.MaxConcurrency = 1
+	}
 	if runner.CreatedAt.IsZero() {
 		runner.CreatedAt = now
 	}
@@ -276,14 +292,24 @@ func (s *Service) RegisterRunner(ctx context.Context, runner domainrunner.Runner
 	if runner.LastHeartbeatAt == nil {
 		runner.LastHeartbeatAt = &now
 	}
+	if runner.LastSeenAt == nil {
+		runner.LastSeenAt = &now
+	}
+	token := newRunnerToken(now)
+	runner.TokenID = token.TokenID
+	runner.TokenHash = hashRunnerToken(token.Token)
+	runner.TokenCreatedAt = &now
 	if err := s.store.RegisterRunner(ctx, runner); err != nil {
-		return err
+		return RegisterRunnerResult{}, err
 	}
 	evt := s.newEvent(EventRunnerRegistered, runner.ID, runner.Status, "Runner registered")
 	if err := s.eventBus.Publish(ctx, evt); err != nil {
-		return err
+		return RegisterRunnerResult{}, err
 	}
-	return s.appendOutbox(ctx, evt)
+	if err := s.appendOutbox(ctx, evt); err != nil {
+		return RegisterRunnerResult{}, err
+	}
+	return RegisterRunnerResult{Runner: runner, Token: token}, nil
 }
 
 func (s *Service) HeartbeatRunner(ctx context.Context, runnerID string) (domainrunner.Runner, error) {
@@ -299,6 +325,94 @@ func (s *Service) HeartbeatRunner(ctx context.Context, runnerID string) (domainr
 		return domainrunner.Runner{}, err
 	}
 	return runner, nil
+}
+
+func (s *Service) RotateRunnerToken(ctx context.Context, runnerID string) (RegisterRunnerResult, error) {
+	now := s.now()
+	token := newRunnerToken(now)
+	runner, err := s.store.RotateRunnerToken(ctx, runnerID, token.TokenID, hashRunnerToken(token.Token), now)
+	if err != nil {
+		return RegisterRunnerResult{}, err
+	}
+	evt := s.newEvent(EventRunnerTokenRotated, runner.ID, runner.Status, "Runner token rotated")
+	if err := s.eventBus.Publish(ctx, evt); err != nil {
+		return RegisterRunnerResult{}, err
+	}
+	if err := s.appendOutbox(ctx, evt); err != nil {
+		return RegisterRunnerResult{}, err
+	}
+	return RegisterRunnerResult{Runner: runner, Token: token}, nil
+}
+
+func (s *Service) RevokeRunnerToken(ctx context.Context, runnerID string) (domainrunner.Runner, error) {
+	runner, err := s.store.RevokeRunnerToken(ctx, runnerID, s.now())
+	if err != nil {
+		return domainrunner.Runner{}, err
+	}
+	evt := s.newEvent(EventRunnerTokenRevoked, runner.ID, runner.Status, "Runner token revoked")
+	if err := s.eventBus.Publish(ctx, evt); err != nil {
+		return domainrunner.Runner{}, err
+	}
+	if err := s.appendOutbox(ctx, evt); err != nil {
+		return domainrunner.Runner{}, err
+	}
+	return runner, nil
+}
+
+func (s *Service) ValidateRunnerToken(ctx context.Context, runnerID string, token string) error {
+	if token == "" {
+		return ErrRunnerUnauthorized
+	}
+	runner, err := s.store.GetRunner(ctx, runnerID)
+	if err != nil {
+		return err
+	}
+	if runner.TokenRevokedAt != nil || runner.TokenHash == "" {
+		return ErrRunnerTokenRevoked
+	}
+	got := hashRunnerToken(token)
+	if subtle.ConstantTimeCompare([]byte(got), []byte(runner.TokenHash)) != 1 {
+		return ErrRunnerUnauthorized
+	}
+	return nil
+}
+
+func (s *Service) ValidateRunnerJob(ctx context.Context, runnerID string, jobRunID string) error {
+	records, err := s.store.List(ctx)
+	if err != nil {
+		return err
+	}
+	for _, record := range records {
+		for _, stage := range record.Stages {
+			for _, job := range stage.Jobs {
+				if job.Job.ID == jobRunID && job.Job.RunnerID == runnerID {
+					return nil
+				}
+			}
+		}
+	}
+	return ErrRunnerUnauthorized
+}
+
+func (s *Service) MarkOfflineRunners(ctx context.Context, timeout time.Duration) ([]domainrunner.Runner, error) {
+	if timeout <= 0 {
+		timeout = time.Minute
+	}
+	now := s.now()
+	runners, err := s.store.MarkOfflineRunners(ctx, now.Add(-timeout), now)
+	if err != nil {
+		return nil, err
+	}
+	for _, runner := range runners {
+		evt := s.newEvent(EventRunnerOffline, runner.ID, runner.Status, "Runner marked offline")
+		if err := s.eventBus.Publish(ctx, evt); err != nil {
+			return runners, err
+		}
+		if err := s.appendOutbox(ctx, evt); err != nil {
+			return runners, err
+		}
+	}
+	return runners, nil
 }
 
 func (s *Service) ListRunners(ctx context.Context) ([]domainrunner.Runner, error) {
@@ -478,6 +592,13 @@ func (s *Service) ReconcileRuntime(ctx context.Context, options RuntimeRecoveryO
 	options = defaultRecoveryOptions(options)
 	now := s.now()
 	summary := RuntimeRecoverySummary{WorkerID: options.WorkerID, CheckedAt: now}
+
+	offline, err := s.MarkOfflineRunners(ctx, time.Minute)
+	if err != nil {
+		summary.Warnings = append(summary.Warnings, err.Error())
+	} else {
+		summary.OfflineRunners = len(offline)
+	}
 
 	all, err := s.store.List(ctx)
 	if err != nil {
@@ -966,4 +1087,21 @@ func newID(prefix string) string {
 		return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 	}
 	return prefix + "-" + hex.EncodeToString(b[:])
+}
+
+func newRunnerToken(now time.Time) RunnerToken {
+	return RunnerToken{TokenID: newID("rtok"), Token: "nvr_runner_" + randomHex(24), IssuedAt: now}
+}
+
+func hashRunnerToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return hex.EncodeToString(sum[:])
+}
+
+func randomHex(size int) string {
+	buf := make([]byte, size)
+	if _, err := rand.Read(buf); err != nil {
+		return fmt.Sprintf("%d", time.Now().UnixNano())
+	}
+	return hex.EncodeToString(buf)
 }

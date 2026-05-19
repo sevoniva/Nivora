@@ -14,6 +14,7 @@ Current migration groups:
 - `000002_runtime_protocol`: event outbox and runner protocol fields on the initial skeleton.
 - `000003_persistence_foundation`: alpha runtime tables for PipelineRun snapshots, JobRun claim state, ordered logs, events, audit, runners, outbox, and idempotency keys.
 - `000004_runtime_recovery`: PipelineRun and DeploymentRun lease fields plus outbox retry metadata and recovery indexes.
+- `000005_runner_fleet`: runner token metadata, capabilities, max concurrency, last seen time, and runner fleet indexes.
 
 Run migrations with:
 
@@ -58,6 +59,8 @@ The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to ma
 - `runtime_pipeline_runs.owner_id`, `lease_expires_at`, `attempt`, and `heartbeat_at` support worker restart recovery.
 - `runtime_event_outbox.retry_count`, `next_attempt_at`, and `last_error` support retriable event publication.
 - `runtime_job_runs.lease_expires_at` supports recovery of assigned jobs whose runners stop heartbeating.
+- `runtime_runners.token_hash` stores runner token hashes only; raw tokens are returned once by registration or rotation.
+- `runtime_runners.max_concurrency` and `capabilities` support safer job claim decisions.
 - `runtime_pipeline_runs.version`, `runtime_job_runs.version`, and `runtime_runners.version` provide optimistic-locking-friendly fields for later hardening.
 - Log chunks are ordered by `(pipeline_run_id, sequence)`.
 - Secret values must never be stored in runtime logs, events, audit records, or idempotency request hashes.

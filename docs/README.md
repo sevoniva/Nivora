@@ -106,6 +106,7 @@ For a quick path through the project:
 - [Observability Operations](operations/observability.md)
 - [Database Operations](operations/database.md)
 - [Runtime Recovery Operations](operations/runtime-recovery.md)
+- [Runner Fleet Operations](operations/runner-fleet.md)
 - [Troubleshooting](operations/troubleshooting.md)
 
 ## Community and Governance

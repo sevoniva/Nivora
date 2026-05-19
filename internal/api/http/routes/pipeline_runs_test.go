@@ -196,8 +196,27 @@ func TestRunnerRoutes(t *testing.T) {
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("register status = %d body = %s", rec.Code, rec.Body.String())
 	}
+	var registered map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &registered); err != nil {
+		t.Fatalf("decode register response: %v", err)
+	}
+	token, ok := registered["token"].(map[string]any)["token"].(string)
+	if !ok || token == "" {
+		t.Fatalf("missing one-time token body = %s", rec.Body.String())
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("tokenHash")) {
+		t.Fatalf("token hash leaked body = %s", rec.Body.String())
+	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-api/heartbeat", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("heartbeat without token status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-api/heartbeat", nil)
+	req.Header.Set("X-Nivora-Runner-Token", token)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
@@ -212,10 +231,28 @@ func TestRunnerRoutes(t *testing.T) {
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-api/jobs/claim", nil)
+	req.Header.Set("X-Nivora-Runner-Token", token)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("claim without queued job status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-api/token/rotate", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rotate status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("tokenHash")) {
+		t.Fatalf("token hash leaked after rotate body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/offline-detect?timeoutSeconds=0", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("offline detect status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/jobs/job-missing/status", bytes.NewReader([]byte(`{"status":"Running"}`)))

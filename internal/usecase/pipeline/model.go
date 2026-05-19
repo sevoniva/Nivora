@@ -42,6 +42,17 @@ type RunnerRecord struct {
 	Runner domainrunner.Runner `json:"runner"`
 }
 
+type RunnerToken struct {
+	TokenID  string    `json:"tokenId"`
+	Token    string    `json:"token"`
+	IssuedAt time.Time `json:"issuedAt"`
+}
+
+type RegisterRunnerResult struct {
+	Runner domainrunner.Runner `json:"runner"`
+	Token  RunnerToken         `json:"token"`
+}
+
 type JobClaim struct {
 	PipelineRunID   string                      `json:"pipelineRunId"`
 	StageRunID      string                      `json:"stageRunId"`
@@ -100,6 +111,7 @@ type RuntimeRecoverySummary struct {
 	ExpiredJobClaims            int       `json:"expiredJobClaims"`
 	CancelRequestedPipelineRuns int       `json:"cancelRequestedPipelineRuns"`
 	TimedOutPipelineRuns        int       `json:"timedOutPipelineRuns"`
+	OfflineRunners              int       `json:"offlineRunners"`
 	PublishedOutboxEvents       int       `json:"publishedOutboxEvents"`
 	FailedOutboxEvents          int       `json:"failedOutboxEvents"`
 	CheckedAt                   time.Time `json:"checkedAt"`

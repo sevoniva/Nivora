@@ -372,6 +372,30 @@ func TestServiceGitOpsWorkingTreeUpdate(t *testing.T) {
 	}
 }
 
+func TestServiceGitOpsDigestSubstitutionRequiresExplicitTargetFlag(t *testing.T) {
+	service, def := newGitOpsTestService(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "apps/demo-springboot/dev/deployment.yaml")
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(file, []byte("containers:\n  - name: app\n    image: old.example/demo:old\n"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	def.Spec.Artifacts[0].Reference = "registry.example.com/demo/demo-springboot:1.0.0"
+	def.Spec.Artifacts[0].Digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+	def.Spec.Artifacts[0].Target.Substitute = true
+	def.Spec.GitOps.WriteToWorkingTree = true
+	def.Spec.GitOps.WorkingTree = dir
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("run gitops digest substitute: %v", err)
+	}
+	if len(result.Record.GitOpsDiff.Files) != 1 || !strings.Contains(result.Record.GitOpsDiff.Files[0].After, "@sha256:aaaaaaaa") {
+		t.Fatalf("diff = %#v", result.Record.GitOpsDiff)
+	}
+}
+
 func TestServiceGitOpsCommitAndPushGuard(t *testing.T) {
 	service, def := newGitOpsTestService(t)
 	dir := t.TempDir()

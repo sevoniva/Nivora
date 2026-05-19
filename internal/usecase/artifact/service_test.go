@@ -90,6 +90,9 @@ func TestCreateReleaseResolvesDigestWhenRequested(t *testing.T) {
 	if record.Bindings[0].Digest != "sha256:resolved" || record.Bindings[0].DigestReference == "" {
 		t.Fatalf("binding = %#v", record.Bindings[0])
 	}
+	if record.Bindings[0].MediaType == "" || record.Bindings[0].SizeBytes == 0 || record.Bindings[0].ManifestSchema == "" {
+		t.Fatalf("binding metadata = %#v", record.Bindings[0])
+	}
 	if len(record.Resolutions) != 1 || !record.Resolutions[0].Resolved {
 		t.Fatalf("resolutions = %#v", record.Resolutions)
 	}
@@ -113,6 +116,28 @@ func TestCreateReleaseRequireDigestFailsWhenResolutionUnavailable(t *testing.T) 
 	}})
 	if err == nil {
 		t.Fatal("expected requireDigest failure")
+	}
+}
+
+func TestCreateReleaseBlocksMutableWhenConfigured(t *testing.T) {
+	service := NewService(NewMemoryStore(), fakeArtifactProvider{}, fakeEventBus{})
+	blockMutable := true
+	_, err := service.CreateRelease(context.Background(), CreateReleaseInput{Definition: ReleaseDefinition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Release",
+		Metadata:   ReleaseMetadata{Name: "demo"},
+		Spec: ReleaseSpec{
+			Version: "1.0.0",
+			Artifacts: []ReleaseArtifactSpec{{
+				Name:         "demo-app",
+				Type:         "image",
+				Reference:    "nginx:latest",
+				BlockMutable: &blockMutable,
+			}},
+		},
+	}})
+	if err == nil {
+		t.Fatal("expected blockMutable failure")
 	}
 }
 
@@ -147,6 +172,9 @@ func (fakeArtifactProvider) ResolveDigest(ctx context.Context, name string, refe
 		Reference:                inspection.Reference,
 		Digest:                   digest,
 		DigestQualifiedReference: domainartifact.DigestQualifiedReference(inspection.Reference, digest),
+		MediaType:                "application/vnd.oci.image.manifest.v1+json",
+		SizeBytes:                123,
+		ManifestSchema:           "schemaVersion:2",
 		Resolved:                 digest != "",
 		Warnings:                 inspection.Warnings,
 	}, nil

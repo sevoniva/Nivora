@@ -105,6 +105,7 @@ For a quick path through the project:
 - [Kubernetes Install](operations/install-kubernetes.md)
 - [Observability Operations](operations/observability.md)
 - [Database Operations](operations/database.md)
+- [Artifact Registries](operations/artifact-registries.md)
 - [Runtime Recovery Operations](operations/runtime-recovery.md)
 - [Runner Fleet Operations](operations/runner-fleet.md)
 - [Kubernetes Deployment Operations](operations/kubernetes-deployment.md)

@@ -116,6 +116,10 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 		if item.RequireDigest != nil {
 			requireDigest = *item.RequireDigest
 		}
+		blockMutable := input.Definition.Spec.BlockMutable
+		if item.BlockMutable != nil {
+			blockMutable = *item.BlockMutable
+		}
 		resolution := domainartifact.Resolution{
 			Reference: inspection.Reference,
 			Digest:    inspection.Reference.Digest,
@@ -154,6 +158,9 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 		if requireDigest && !resolution.Resolved {
 			return ReleaseRecord{}, fmt.Errorf("artifact %q requires a digest but no digest was resolved", item.Reference)
 		}
+		if blockMutable && isMutableArtifact(inspection) && !resolution.Resolved {
+			return ReleaseRecord{}, fmt.Errorf("artifact %q is mutable and blockMutable=true", item.Reference)
+		}
 		if resolution.Resolved {
 			pendingEvents = append(pendingEvents, struct {
 				eventType string
@@ -162,17 +169,19 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 		}
 		artifactID := newID("artifact")
 		artifact := domainartifact.Artifact{
-			ID:         artifactID,
-			Type:       inspection.Reference.Type,
-			Name:       item.Name,
-			Version:    inspection.Reference.Version,
-			Reference:  inspection.Reference.Normalized,
-			Digest:     resolution.Digest,
-			Registry:   inspection.Reference.Registry,
-			Repository: inspection.Reference.Repository,
-			MediaType:  resolution.MediaType,
-			Metadata:   item.Metadata,
-			CreatedAt:  now,
+			ID:             artifactID,
+			Type:           inspection.Reference.Type,
+			Name:           item.Name,
+			Version:        inspection.Reference.Version,
+			Reference:      inspection.Reference.Normalized,
+			Digest:         resolution.Digest,
+			Registry:       inspection.Reference.Registry,
+			Repository:     inspection.Reference.Repository,
+			MediaType:      resolution.MediaType,
+			SizeBytes:      resolution.SizeBytes,
+			ManifestSchema: resolution.ManifestSchema,
+			Metadata:       item.Metadata,
+			CreatedAt:      now,
 		}
 		bound := release.ReleaseArtifact{
 			ID:              newID("relart"),
@@ -185,6 +194,9 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 			Reference:       inspection.Reference.Normalized,
 			Digest:          resolution.Digest,
 			DigestReference: resolution.DigestQualifiedReference,
+			MediaType:       resolution.MediaType,
+			SizeBytes:       resolution.SizeBytes,
+			ManifestSchema:  resolution.ManifestSchema,
 			Metadata:        item.Metadata,
 			CreatedAt:       now,
 			UpdatedAt:       now,
@@ -226,6 +238,15 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 		})
 	}
 	return s.store.GetRelease(ctx, rel.ID)
+}
+
+func isMutableArtifact(inspection domainartifact.Inspection) bool {
+	for _, warning := range inspection.Warnings {
+		if warning.Code == "mutable_latest_tag" || warning.Code == "tag_without_digest" || warning.Code == "missing_version_or_digest" {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) GetRelease(ctx context.Context, id string) (ReleaseRecord, error) {

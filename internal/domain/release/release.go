@@ -27,6 +27,9 @@ type ReleaseArtifact struct {
 	Reference       string            `json:"reference"`
 	Digest          string            `json:"digest,omitempty"`
 	DigestReference string            `json:"digestReference,omitempty"`
+	MediaType       string            `json:"mediaType,omitempty"`
+	SizeBytes       int64             `json:"sizeBytes,omitempty"`
+	ManifestSchema  string            `json:"manifestSchema,omitempty"`
 	Metadata        map[string]string `json:"metadata,omitempty"`
 	CreatedAt       time.Time         `json:"createdAt"`
 	UpdatedAt       time.Time         `json:"updatedAt"`

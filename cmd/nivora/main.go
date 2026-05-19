@@ -659,16 +659,22 @@ func newArtifactResolveCommand() *cobra.Command {
 	var artifactType string
 	var registryEndpoint string
 	var insecure bool
+	var usernameEnv string
+	var passwordEnv string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "resolve <reference>",
 		Short: "Resolve artifact digest through generic OCI registry APIs when configured",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			service := server.NewArtifactService()
-			if registryEndpoint != "" || insecure {
+			username := envValue(usernameEnv)
+			password := envValue(passwordEnv)
+			token := envValue(tokenEnv)
+			if registryEndpoint != "" || insecure || username != "" || password != "" || token != "" {
 				service = artifactusecase.NewService(
 					artifactusecase.NewMemoryStore(),
-					ociartifact.New(ociartifact.WithConfig(ociartifact.Config{Endpoint: registryEndpoint, Insecure: insecure})),
+					ociartifact.New(ociartifact.WithConfig(ociartifact.Config{Endpoint: registryEndpoint, Insecure: insecure, Username: username, Password: password, Token: token})),
 					memory.New(),
 				)
 			}
@@ -683,6 +689,9 @@ func newArtifactResolveCommand() *cobra.Command {
 	cmd.Flags().StringVar(&artifactType, "type", "image", "artifact type")
 	cmd.Flags().StringVar(&registryEndpoint, "registry", "", "optional OCI registry endpoint override")
 	cmd.Flags().BoolVar(&insecure, "insecure", false, "allow HTTP OCI registry endpoint for local development")
+	cmd.Flags().StringVar(&usernameEnv, "username-env", "", "environment variable containing registry username")
+	cmd.Flags().StringVar(&passwordEnv, "password-env", "", "environment variable containing registry password")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "", "environment variable containing registry bearer token")
 	return cmd
 }
 
@@ -2378,4 +2387,11 @@ func printJSON(w io.Writer, payload any) {
 		return
 	}
 	fmt.Fprintf(w, "%s\n", encoded)
+}
+
+func envValue(name string) string {
+	if strings.TrimSpace(name) == "" {
+		return ""
+	}
+	return os.Getenv(name)
 }

@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
+	domaincredential "github.com/sevoniva/nivora/internal/domain/credential"
+	"github.com/sevoniva/nivora/internal/ports/artifact"
+	portsecret "github.com/sevoniva/nivora/internal/ports/secret"
 )
 
 func TestResolveDigestFromRegistryHEAD(t *testing.T) {
@@ -62,8 +65,39 @@ func TestResolveDigestFallsBackToGET(t *testing.T) {
 	if err != nil {
 		t.Fatalf("resolve: %v", err)
 	}
+	if resolution.Digest != digest || resolution.SizeBytes == 0 || resolution.ManifestSchema != "schemaVersion:2" {
+		t.Fatalf("resolution = %#v", resolution)
+	}
+}
+
+func TestResolveDigestUsesSecretProviderCredential(t *testing.T) {
+	const digest = "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		user, pass, ok := r.BasicAuth()
+		if !ok || user != "registry-user" || pass != "registry-pass" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.Header().Set("Docker-Content-Digest", digest)
+		w.Header().Set("Content-Type", "application/vnd.oci.image.manifest.v1+json")
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
+
+	provider := New(
+		WithConfig(Config{
+			Endpoint:      server.URL,
+			Insecure:      true,
+			CredentialRef: CredentialRefForTest(),
+		}),
+		WithSecretProvider(fakeSecretProvider{value: []byte(`{"username":"registry-user","password":"registry-pass"}`)}),
+	)
+	resolution, err := provider.ResolveDigest(context.Background(), "app", "registry.example.com/team/app:1.0.0")
+	if err != nil {
+		t.Fatalf("resolve with secret provider: %v", err)
+	}
 	if resolution.Digest != digest {
-		t.Fatalf("digest = %q", resolution.Digest)
+		t.Fatalf("resolution = %#v", resolution)
 	}
 }
 
@@ -115,4 +149,39 @@ func TestInspectReferenceUsesDomainParser(t *testing.T) {
 	if inspection.Reference.Registry != "localhost:30500" {
 		t.Fatalf("inspection = %#v", inspection)
 	}
+}
+
+func CredentialRefForTest() artifact.CredentialRef {
+	return artifact.CredentialRef{ID: "secret-registry", SecretKey: "registry"}
+}
+
+type fakeSecretProvider struct {
+	value []byte
+}
+
+func (f fakeSecretProvider) PutSecret(ctx context.Context, request portsecret.PutRequest) (domaincredential.SecretRef, error) {
+	return request.Ref, ctx.Err()
+}
+
+func (f fakeSecretProvider) GetSecret(ctx context.Context, ref domaincredential.SecretRef) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return append([]byte(nil), f.value...), nil
+}
+
+func (f fakeSecretProvider) DeleteSecret(ctx context.Context, ref domaincredential.SecretRef) error {
+	return ctx.Err()
+}
+
+func (f fakeSecretProvider) RotateSecret(ctx context.Context, ref domaincredential.SecretRef, newValue []byte) (domaincredential.SecretRef, error) {
+	return ref, ctx.Err()
+}
+
+func (f fakeSecretProvider) ListSecretRefs(ctx context.Context, scope portsecret.Scope) ([]domaincredential.SecretRef, error) {
+	return nil, ctx.Err()
+}
+
+func (f fakeSecretProvider) RecordUsage(ctx context.Context, usage domaincredential.SecretUsage) error {
+	return ctx.Err()
 }

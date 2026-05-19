@@ -69,7 +69,7 @@ func NewDeploymentService() *deploymentusecase.Service {
 }
 
 func NewArtifactService() *artifactusecase.Service {
-	return artifactusecase.NewService(artifactusecase.NewMemoryStore(), ociartifact.New(), memory.New())
+	return artifactusecase.NewService(artifactusecase.NewMemoryStore(), ociartifact.New(ociartifact.WithSecretProvider(builtinsecret.New())), memory.New())
 }
 
 func NewReleaseOrchestrationService() *releaseorchestration.Service {

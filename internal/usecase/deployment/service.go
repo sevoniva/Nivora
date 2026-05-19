@@ -1625,7 +1625,7 @@ func (s *Service) applyGitOpsWorkingTree(ctx context.Context, plan GitOpsChangeP
 			if artifact.Target.ImageName == "" {
 				continue
 			}
-			after = replaceContainerImage(after, artifact.Target.ImageName, artifact.Reference)
+			after = replaceContainerImage(after, artifact.Target.ImageName, deploymentArtifactReference(artifact))
 		}
 		diff, err := s.gitops.Diff(ctx, def.Spec.GitOps.WorkingTree, file, before, after)
 		if err != nil {
@@ -1680,6 +1680,13 @@ func changedGitOpsFiles(diff GitOpsDiff) []string {
 		}
 	}
 	return files
+}
+
+func deploymentArtifactReference(artifact Artifact) string {
+	if artifact.Target.Substitute && artifact.Digest != "" && !containsDigest(artifact.Reference) {
+		return artifact.Reference + "@" + artifact.Digest
+	}
+	return artifact.Reference
 }
 
 func replaceContainerImage(content string, containerName string, reference string) string {

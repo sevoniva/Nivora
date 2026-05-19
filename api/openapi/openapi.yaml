@@ -2264,6 +2264,8 @@ components:
           $ref: "#/components/schemas/CloudProviderConfig"
         credentialRef:
           type: string
+        capabilities:
+          type: object
         metadata:
           type: object
           additionalProperties:
@@ -2868,6 +2870,11 @@ components:
           type: string
         mediaType:
           type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        manifestSchema:
+          type: string
         resolved:
           type: boolean
         resolvedAt:
@@ -2937,6 +2944,8 @@ components:
         sizeBytes:
           type: integer
           format: int64
+        manifestSchema:
+          type: string
         metadata:
           type: object
           additionalProperties:
@@ -2987,6 +2996,13 @@ components:
           type: string
         digestReference:
           type: string
+        mediaType:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        manifestSchema:
+          type: string
         metadata:
           type: object
           additionalProperties:
@@ -3024,6 +3040,8 @@ components:
               type: boolean
             requireDigest:
               type: boolean
+            blockMutable:
+              type: boolean
             artifacts:
               type: array
               items:
@@ -3043,6 +3061,8 @@ components:
                   resolveDigest:
                     type: boolean
                   requireDigest:
+                    type: boolean
+                  blockMutable:
                     type: boolean
                   metadata:
                     type: object

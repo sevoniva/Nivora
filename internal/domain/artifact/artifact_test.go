@@ -63,7 +63,7 @@ func TestImmutabilityWarnings(t *testing.T) {
 	if len(latest.Warnings) == 0 {
 		t.Fatal("expected latest warning")
 	}
-	digest, err := InspectReference("nginx@sha256:abcdef", ArtifactTypeImage)
+	digest, err := InspectReference("nginx@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", ArtifactTypeImage)
 	if err != nil {
 		t.Fatalf("inspect digest: %v", err)
 	}
@@ -76,5 +76,15 @@ func TestImmutabilityWarnings(t *testing.T) {
 	}
 	if len(missing.Warnings) == 0 {
 		t.Fatal("expected missing tag/digest warning")
+	}
+}
+
+func TestShortDigestProducesNonCanonicalWarning(t *testing.T) {
+	inspection, err := InspectReference("nginx@sha256:abcdef", ArtifactTypeImage)
+	if err != nil {
+		t.Fatalf("inspect: %v", err)
+	}
+	if len(inspection.Warnings) != 1 || inspection.Warnings[0].Code != "non_canonical_digest" {
+		t.Fatalf("warnings = %#v", inspection.Warnings)
 	}
 }

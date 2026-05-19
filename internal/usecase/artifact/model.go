@@ -26,6 +26,7 @@ type ReleaseSpec struct {
 	Commit              string                `json:"commit,omitempty" yaml:"commit,omitempty"`
 	ResolveDigest       bool                  `json:"resolveDigest,omitempty" yaml:"resolveDigest,omitempty"`
 	RequireDigest       bool                  `json:"requireDigest,omitempty" yaml:"requireDigest,omitempty"`
+	BlockMutable        bool                  `json:"blockMutable,omitempty" yaml:"blockMutable,omitempty"`
 	Artifacts           []ReleaseArtifactSpec `json:"artifacts" yaml:"artifacts"`
 }
 
@@ -37,6 +38,7 @@ type ReleaseArtifactSpec struct {
 	Reference     string            `json:"reference" yaml:"reference"`
 	ResolveDigest *bool             `json:"resolveDigest,omitempty" yaml:"resolveDigest,omitempty"`
 	RequireDigest *bool             `json:"requireDigest,omitempty" yaml:"requireDigest,omitempty"`
+	BlockMutable  *bool             `json:"blockMutable,omitempty" yaml:"blockMutable,omitempty"`
 	Metadata      map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 

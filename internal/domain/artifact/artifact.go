@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"path"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -35,18 +36,19 @@ type ArtifactRegistry struct {
 }
 
 type Artifact struct {
-	ID         string            `json:"id"`
-	Type       ArtifactType      `json:"type"`
-	Name       string            `json:"name"`
-	Version    string            `json:"version,omitempty"`
-	Reference  string            `json:"reference"`
-	Digest     string            `json:"digest,omitempty"`
-	Registry   string            `json:"registry,omitempty"`
-	Repository string            `json:"repository,omitempty"`
-	MediaType  string            `json:"mediaType,omitempty"`
-	SizeBytes  int64             `json:"sizeBytes,omitempty"`
-	Metadata   map[string]string `json:"metadata,omitempty"`
-	CreatedAt  time.Time         `json:"createdAt"`
+	ID             string            `json:"id"`
+	Type           ArtifactType      `json:"type"`
+	Name           string            `json:"name"`
+	Version        string            `json:"version,omitempty"`
+	Reference      string            `json:"reference"`
+	Digest         string            `json:"digest,omitempty"`
+	Registry       string            `json:"registry,omitempty"`
+	Repository     string            `json:"repository,omitempty"`
+	MediaType      string            `json:"mediaType,omitempty"`
+	SizeBytes      int64             `json:"sizeBytes,omitempty"`
+	ManifestSchema string            `json:"manifestSchema,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty"`
+	CreatedAt      time.Time         `json:"createdAt"`
 }
 
 type Reference struct {
@@ -80,6 +82,8 @@ type Resolution struct {
 	Digest                   string    `json:"digest,omitempty"`
 	DigestQualifiedReference string    `json:"digestQualifiedReference,omitempty"`
 	MediaType                string    `json:"mediaType,omitempty"`
+	SizeBytes                int64     `json:"sizeBytes,omitempty"`
+	ManifestSchema           string    `json:"manifestSchema,omitempty"`
 	Resolved                 bool      `json:"resolved"`
 	ResolvedAt               time.Time `json:"resolvedAt,omitempty"`
 	Warnings                 []Warning `json:"warnings,omitempty"`
@@ -112,6 +116,9 @@ func ParseReference(reference string, artifactType ArtifactType) (Reference, err
 func ImmutabilityWarnings(reference Reference) []Warning {
 	var warnings []Warning
 	if reference.Digest != "" {
+		if !IsCanonicalSHA256Digest(reference.Digest) {
+			warnings = append(warnings, Warning{Code: "non_canonical_digest", Message: "digest is sha256-like but not a canonical 64-character hex digest; examples may use placeholders"})
+		}
 		return warnings
 	}
 	if reference.Tag == "latest" {
@@ -124,6 +131,12 @@ func ImmutabilityWarnings(reference Reference) []Warning {
 		warnings = append(warnings, Warning{Code: "tag_without_digest", Message: "tag references can move; prefer sha256 digest binding for releases"})
 	}
 	return warnings
+}
+
+var canonicalSHA256Digest = regexp.MustCompile(`^sha256:[a-fA-F0-9]{64}$`)
+
+func IsCanonicalSHA256Digest(digest string) bool {
+	return canonicalSHA256Digest.MatchString(digest)
 }
 
 func parseOCIReference(reference string, artifactType ArtifactType) (Reference, error) {

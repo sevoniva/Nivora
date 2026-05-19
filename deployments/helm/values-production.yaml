@@ -4,7 +4,7 @@
 
 image:
   repository: sevoniva/nivora
-  tag: "1.0.0"
+  tag: "0.9.0-beta-candidate"
   pullPolicy: IfNotPresent
 
 server:
@@ -86,7 +86,7 @@ migration:
   enabled: false
   image:
     repository: sevoniva/nivora-migrations
-    tag: "1.0.0"
+    tag: "0.9.0-beta-candidate"
     pullPolicy: IfNotPresent
   command: []
   args: []

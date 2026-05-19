@@ -1,0 +1,34 @@
+{{- if eq .Values.config.runtimeStore "memory" }}
+⚠️  WARNING: This Helm release uses runtimeStore=memory.
+
+    All runtime state (pipeline runs, deployments, releases, auth, credentials,
+    approvals, security scans, cloud accounts) will be LOST when pods restart.
+
+    This configuration is for DEVELOPMENT ONLY. It is NOT safe for production.
+
+    For production-like deployments, use:
+      helm install nivora ./deployments/helm -f ./deployments/helm/values-production.yaml
+
+    Or set these minimum safe values:
+      --set config.environment=production
+      --set config.runtimeStore=postgres
+      --set config.auth.enabled=true
+{{- end }}
+
+{{- if eq .Values.config.environment "production" }}
+✅ Production profile active. Ensure:
+   - config.runtimeStore is set to "postgres"
+   - A PostgreSQL instance is available at config.databaseURL
+   - config.auth.enabled is true
+   - All config.runtime.allow* flags are false (executor safety)
+   - Secret NIVORA_AUTH_TOKEN is configured
+{{- end }}
+
+Nivora {{ .Chart.AppVersion }} has been installed.
+
+Get the application URL:
+{{- if .Values.ingress.enabled }}
+  http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.hosts[0].host }}
+{{- else }}
+  kubectl port-forward svc/{{ include "nivora.fullname" . }}-server 8080:8080
+{{- end }}

@@ -1,6 +1,6 @@
 image:
   repository: sevoniva/nivora
-  tag: "1.0.0"
+  tag: "0.9.0-beta-candidate"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -37,7 +37,7 @@ runner:
   resources: {}
 
 config:
-  environment: kubernetes
+  environment: development
   runtimeStore: memory
   databaseURL: "postgres://nivora@postgres:5432/nivora?sslmode=disable"
   eventBusType: memory
@@ -93,7 +93,7 @@ migration:
   enabled: false
   image:
     repository: sevoniva/nivora-migrations
-    tag: "1.0.0"
+    tag: "0.9.0-beta-candidate"
     pullPolicy: IfNotPresent
   command: []
   args: []

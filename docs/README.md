@@ -1,6 +1,6 @@
 # Nivora Documentation
 
-This index helps new contributors understand where to start. Nivora is preparing the `v0.1.0-alpha.1` public alpha with backend, runtime, deployment, release, security, governance, visualization, operations, plugin, and packaging foundations. It is still early-stage and not production-ready.
+This index helps new contributors understand where to start. Nivora has an alpha foundation and is entering a `v0.5.0-beta` readiness freeze for consistency, API, docs, examples, security, and verification review. It is still early-stage and not production-ready.
 
 ## Start Here
 
@@ -8,6 +8,8 @@ This index helps new contributors understand where to start. Nivora is preparing
 - [README](../README.md): public project overview, architecture diagrams, runtime model, roadmap, and local commands.
 - [Roadmap](../ROADMAP.md): phase summary.
 - [Alpha Capability Matrix](ALPHA_CAPABILITY_MATRIX.md): what is implemented, partial, planned, or unsupported in the alpha.
+- [Beta Capability Matrix](BETA_CAPABILITY_MATRIX.md): beta-freeze capability boundaries.
+- [API Inventory](API_INVENTORY.md): implemented, partial, and placeholder HTTP API groups.
 - [Alpha Demo Guide](demo/alpha-demo.md): self-contained demo path that does not require external services.
 - [Contribution Guide](../CONTRIBUTING.md): development setup and contribution rules.
 - [AI Agent Rules](../AGENTS.md): canonical coding instructions for AI agents.
@@ -98,6 +100,8 @@ For a quick path through the project:
 - [Phase 3](roadmap/phase-3.md)
 - [Phase 4](roadmap/phase-4.md)
 - [v0.1.0-alpha.1 Checklist](releases/v0.1.0-alpha.1-checklist.md)
+- [v0.5.0-beta Checklist](releases/v0.5.0-beta-checklist.md)
+- [v0.5.0-beta Release Notes Draft](releases/v0.5.0-beta-release-notes-draft.md)
 
 ## Operations Docs
 

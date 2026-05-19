@@ -108,6 +108,24 @@ Non-goals:
 - Requiring Kubernetes, cloud services, registries, or external credentials for baseline tests.
 - Production readiness claims.
 
+## Phase 9.0 Beta Freeze
+
+Phase 9.0 freezes feature expansion and prepares the repository for serious beta review.
+
+Scope:
+
+- Beta capability matrix and API inventory.
+- OpenAPI and AsyncAPI consistency checks.
+- Documentation, examples, dependency, config, security, and migration audit.
+- Beta checklist and release notes draft.
+- Full verification through the existing local quality gates.
+
+Non-goals:
+
+- New major features.
+- New external integrations.
+- Production or GA readiness claims.
+
 ## Phase 4.3 / 7.4 Plugin and Extension System Foundation
 
 Phase 4.3 defined plugin metadata, a capability registry, and an external protocol skeleton. Phase 7.4 stabilizes the plugin API version, compatibility checks, validate-config lifecycle, and adapter templates.

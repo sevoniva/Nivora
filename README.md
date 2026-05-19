@@ -13,7 +13,7 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora is early-stage and **not production-ready**. The current focus is the `v0.1.0-alpha.1` foundation: backend architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, service-account API tokens, OIDC provider configuration foundations, approval/change-window foundations, multi-cloud inventory foundations, runner/executor model, logs/events/audit, visualization APIs, minimal web UI, plugin registry, packaging, and open-source contribution foundation. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud deployment, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, external notification adapters, ITSM integration, signing, and scanning remain future phases.
+Nivora is early-stage and **not production-ready**. The current focus is the `v0.5.0-beta` readiness freeze: consistency review across backend architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, service-account API tokens, OIDC provider configuration foundations, approval/change-window foundations, multi-cloud inventory foundations, runner/executor model, logs/events/audit, visualization APIs, minimal web UI, plugin registry, packaging, observability, performance/load-test foundations, and open-source contribution docs. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud deployment, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, external notification adapters, ITSM integration, signing, and scanning remain future phases.
 
 ## Current Status
 
@@ -43,7 +43,8 @@ Nivora is early-stage and **not production-ready**. The current focus is the `v0
 | Observability and operations | Phase 8.4 request/correlation IDs, diagnostics, metrics, SLO docs, alerts, runbooks, benchmarks, load scripts, and API pagination/limits |
 | Plugin and extension registry | Phase 4.3 manifest / capability registry foundation |
 | Packaging and deployment foundation | Phase 4.4 Docker Compose / Helm / Kubernetes manifests |
-| Alpha release hardening | Phase 5.0 in progress for `v0.1.0-alpha.1` |
+| Alpha release hardening | Phase 5.0 foundation for `v0.1.0-alpha.1` |
+| Beta freeze | Phase 9.0 consistency/API/docs/examples/security baseline for `v0.5.0-beta` |
 | Production multi-cloud adapters | Planned |
 | Production DevSecOps integrations | Planned |
 | Complete frontend visualization product | Future phase |
@@ -51,7 +52,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the `v0
 Current focus:
 
 ```text
-v0.1.0-alpha.1 readiness
+v0.5.0-beta readiness freeze
 honest capability boundaries
 self-contained demo path
 runtime and packaging verification
@@ -61,8 +62,12 @@ logs / events / audit consistency
 Alpha release references:
 
 - [Alpha Capability Matrix](docs/ALPHA_CAPABILITY_MATRIX.md)
+- [Beta Capability Matrix](docs/BETA_CAPABILITY_MATRIX.md)
+- [API Inventory](docs/API_INVENTORY.md)
 - [Alpha Demo Guide](docs/demo/alpha-demo.md)
 - [v0.1.0-alpha.1 Checklist](docs/releases/v0.1.0-alpha.1-checklist.md)
+- [v0.5.0-beta Checklist](docs/releases/v0.5.0-beta-checklist.md)
+- [v0.5.0-beta Release Notes Draft](docs/releases/v0.5.0-beta-release-notes-draft.md)
 - [Changelog](CHANGELOG.md)
 
 ## Why Nivora Exists

@@ -4,6 +4,23 @@ All notable changes to Nivora are tracked here.
 
 Nivora is early-stage software. Releases before `1.0.0` may change APIs, configuration, and runtime behavior as the architecture hardens.
 
+## v0.5.0-beta - Draft
+
+This is the beta-freeze readiness baseline. Feature expansion is paused while maintainers review consistency, API behavior, docs, examples, dependencies, config, security posture, migrations, and verification.
+
+### Added
+
+- Beta capability matrix and API inventory.
+- Beta release checklist and release notes draft.
+- Performance benchmarks, local load scripts, API pagination/limits, and performance index review.
+- Production-direction observability docs, SLO suggestions, alert suggestions, and runbooks.
+
+### Freeze Notes
+
+- No production-readiness or GA claim is made.
+- OpenAPI and AsyncAPI remain required for API/event changes.
+- Baseline verification remains self-contained and must not require Kubernetes, cloud services, registries, Argo CD, Vault, or external scanners.
+
 ## v0.1.0-alpha.1 - Unreleased
 
 This is the first public alpha foundation release. It is intended for contributors and platform engineers evaluating the architecture, not for production operation.

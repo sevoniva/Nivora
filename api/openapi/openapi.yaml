@@ -247,6 +247,28 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/PluginManifest"
+  /api/v1/plugins/validate:
+    post:
+      summary: Validate plugin manifest compatibility
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PluginManifest"
+      responses:
+        "200":
+          description: Plugin manifest is compatible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PluginValidationResult"
+        "400":
+          description: Plugin manifest is invalid or incompatible
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PluginValidationResult"
   /api/v1/plugins/{name}:
     get:
       summary: Get a plugin manifest
@@ -3328,6 +3350,9 @@ components:
     PluginManifest:
       type: object
       properties:
+        apiVersion:
+          type: string
+          example: nivora.io/plugin/v1alpha1
         name:
           type: string
         type:
@@ -3344,6 +3369,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/PluginCapability"
+        compatibility:
+          $ref: "#/components/schemas/PluginCompatibility"
+        lifecycle:
+          $ref: "#/components/schemas/PluginLifecycle"
         status:
           type: string
           enum: [builtin, configured, unavailable, external]
@@ -3360,6 +3389,48 @@ components:
     PluginType:
       type: string
       enum: [scm, artifact, cloud, executor, secret, notification, policy, scanner, gitops]
+    PluginCompatibility:
+      type: object
+      properties:
+        pluginApiVersion:
+          type: string
+          example: v1alpha1
+        nivoraMinVersion:
+          type: string
+          example: 0.1.0-alpha.1
+        nivoraMaxVersion:
+          type: string
+        protocols:
+          type: array
+          items:
+            type: string
+            enum: [builtin, http, grpc]
+    PluginLifecycle:
+      type: object
+      properties:
+        health:
+          type: boolean
+        capabilities:
+          type: boolean
+        validateConfig:
+          type: boolean
+        execute:
+          type: boolean
+    PluginValidationResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        plugin:
+          type: string
+        errors:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
     PluginCapability:
       type: object
       properties:

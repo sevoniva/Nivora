@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"testing"
+
+	domainplugin "github.com/sevoniva/nivora/internal/domain/plugin"
 )
 
 func TestDefaultRegistryListsBuiltInPlugins(t *testing.T) {
@@ -19,7 +21,7 @@ func TestDefaultRegistryListsBuiltInPlugins(t *testing.T) {
 	for _, item := range plugins {
 		if item.Name == "executor-shell" {
 			found = true
-			if item.Protocol != "builtin" || len(item.Capabilities) == 0 {
+			if item.APIVersion != domainplugin.ManifestAPIVersion || item.Protocol != "builtin" || item.Compatibility.PluginAPIVersion != domainplugin.PluginAPIVersion || len(item.Capabilities) == 0 {
 				t.Fatalf("unexpected shell plugin: %#v", item)
 			}
 		}
@@ -45,5 +47,75 @@ func TestRegistryGetMissingPlugin(t *testing.T) {
 	_, err := registry.Get(context.Background(), "missing")
 	if !errors.Is(err, ErrPluginNotFound) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestValidateManifestAcceptsCompatibleExternalPlugin(t *testing.T) {
+	registry := NewDefaultRegistry()
+	result, err := registry.Validate(context.Background(), domainplugin.Manifest{
+		APIVersion: domainplugin.ManifestAPIVersion,
+		Name:       "example-scanner",
+		Type:       domainplugin.TypeScanner,
+		Version:    "0.1.0",
+		Protocol:   string(domainplugin.ProtocolHTTP),
+		Endpoint:   "https://plugins.example.invalid/scanner",
+		Capabilities: []domainplugin.Capability{{
+			Name:        "security.scan",
+			Description: "example scanner capability",
+		}},
+		Compatibility: domainplugin.Compatibility{
+			PluginAPIVersion: domainplugin.PluginAPIVersion,
+			NivoraMinVersion: "0.1.0-alpha.1",
+			Protocols:        []string{string(domainplugin.ProtocolHTTP)},
+		},
+		Lifecycle: domainplugin.Lifecycle{Health: true, Capabilities: true, ValidateConfig: true, Execute: true},
+	})
+	if err != nil {
+		t.Fatalf("validate: %v", err)
+	}
+	if !result.Valid || len(result.Errors) != 0 {
+		t.Fatalf("result = %#v", result)
+	}
+}
+
+func TestValidateManifestRejectsIncompatiblePluginAPI(t *testing.T) {
+	result := ValidateManifest(domainplugin.Manifest{
+		APIVersion: domainplugin.ManifestAPIVersion,
+		Name:       "future",
+		Type:       domainplugin.TypeArtifact,
+		Version:    "1.0.0",
+		Protocol:   string(domainplugin.ProtocolGRPC),
+		Endpoint:   "dns:///future",
+		Capabilities: []domainplugin.Capability{{
+			Name: "artifact.inspect",
+		}},
+		Compatibility: domainplugin.Compatibility{PluginAPIVersion: "v9"},
+	})
+	if result.Valid {
+		t.Fatalf("expected incompatible manifest to be invalid: %#v", result)
+	}
+	if len(result.Errors) == 0 {
+		t.Fatalf("expected validation errors: %#v", result)
+	}
+}
+
+func TestValidateManifestRejectsFutureNivoraMinimum(t *testing.T) {
+	result := ValidateManifest(domainplugin.Manifest{
+		APIVersion: domainplugin.ManifestAPIVersion,
+		Name:       "future",
+		Type:       domainplugin.TypeExecutor,
+		Version:    "1.0.0",
+		Protocol:   string(domainplugin.ProtocolHTTP),
+		Endpoint:   "https://plugins.example.invalid/future",
+		Capabilities: []domainplugin.Capability{{
+			Name: "executor.future",
+		}},
+		Compatibility: domainplugin.Compatibility{
+			PluginAPIVersion: domainplugin.PluginAPIVersion,
+			NivoraMinVersion: "99.0.0",
+		},
+	})
+	if result.Valid {
+		t.Fatalf("expected future minimum to be invalid: %#v", result)
 	}
 }

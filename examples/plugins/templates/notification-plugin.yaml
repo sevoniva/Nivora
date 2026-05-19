@@ -1,0 +1,22 @@
+apiVersion: nivora.io/plugin/v1alpha1
+name: example-notification-plugin
+type: notification
+version: 0.1.0
+protocol: http
+endpoint: https://plugins.example.invalid/notification
+capabilities:
+  - name: notification.send
+    description: Send a notification through a configured external channel.
+compatibility:
+  pluginApiVersion: v1alpha1
+  nivoraMinVersion: 0.1.0-alpha.1
+  protocols:
+    - http
+lifecycle:
+  health: true
+  capabilities: true
+  validateConfig: true
+  execute: true
+status: external
+metadata:
+  template: "true"

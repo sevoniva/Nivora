@@ -2,7 +2,7 @@
 
 Adapters are Nivora's primary extension mechanism. They implement Ports while keeping vendor SDKs, network clients, credentials, and protocol details out of domain and usecase packages.
 
-Phase 4.3 adds a plugin metadata registry, but it does not replace the Ports and Adapters model.
+Phase 7.4 stabilizes a plugin metadata registry, but it does not replace the Ports and Adapters model.
 
 ## Before Adding an Adapter
 
@@ -30,13 +30,16 @@ Good capability names:
 
 ## External Plugins
 
-External plugins are future work. The Phase 4.3 protocol skeleton is intentionally small:
+External plugins are future work. The Phase 7.4 protocol skeleton is intentionally small:
 
 - health
 - capabilities
+- validate config
 - execute request placeholder
 
 Do not add dynamic loading, marketplace installation, or remote execution behavior without an RFC.
+
+For manifest authoring, see `docs/dev/plugin-authoring.md`.
 
 ## Secrets
 

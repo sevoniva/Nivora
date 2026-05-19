@@ -12,7 +12,7 @@ Small local Adapters can live in the repository. Large vendor-specific or securi
 
 ## Plugin Direction
 
-Phase 4.3 adds a plugin metadata and capability registry foundation. It lists built-in adapter capabilities and defines an external protocol skeleton, but it does not dynamically load code or install external plugins.
+Phase 4.3 added a plugin metadata and capability registry foundation. Phase 7.4 adds plugin API versioning, compatibility checks, validate-config lifecycle metadata, and adapter templates. Nivora still does not dynamically load code or install external plugins.
 
 Future plugin execution, marketplace behavior, or external adapter runtime changes still require an RFC.
 

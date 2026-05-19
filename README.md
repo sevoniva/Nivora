@@ -792,6 +792,7 @@ go run ./cmd/nivora release plan --file examples/releases/multi-target-release.y
 go run ./cmd/nivora release deploy --file examples/releases/sequential-release.yaml --local
 go run ./cmd/nivora plugins list --local
 go run ./cmd/nivora plugins inspect artifact-oci --local
+go run ./cmd/nivora plugins validate --local --file examples/plugins/templates/scanner-plugin.yaml
 ```
 
 ## Local Development

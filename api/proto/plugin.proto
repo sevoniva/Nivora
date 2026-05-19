@@ -4,7 +4,7 @@ package nivora.plugin.v1alpha1;
 
 option go_package = "github.com/sevoniva/nivora/api/proto/plugin;pluginv1alpha1";
 
-// PluginService is a Phase 4.3 protocol skeleton.
+// PluginService is a Phase 7.4 protocol skeleton.
 //
 // Nivora does not dynamically load Go plugins. Future external adapters may
 // expose a separate process that implements this protocol or an equivalent
@@ -12,6 +12,7 @@ option go_package = "github.com/sevoniva/nivora/api/proto/plugin;pluginv1alpha1"
 service PluginService {
   rpc Health(PluginHealthRequest) returns (PluginHealthResponse);
   rpc Capabilities(PluginCapabilitiesRequest) returns (PluginCapabilitiesResponse);
+  rpc ValidateConfig(PluginValidateConfigRequest) returns (PluginValidateConfigResponse);
   rpc Execute(PluginExecuteRequest) returns (PluginExecuteResponse);
 }
 
@@ -29,14 +30,17 @@ message PluginCapabilitiesResponse {
 }
 
 message PluginManifest {
-  string name = 1;
-  string type = 2;
-  string version = 3;
-  string protocol = 4;
-  string endpoint = 5;
-  repeated PluginCapability capabilities = 6;
-  string status = 7;
-  map<string, string> metadata = 8;
+  string api_version = 1;
+  string name = 2;
+  string type = 3;
+  string version = 4;
+  string protocol = 5;
+  string endpoint = 6;
+  repeated PluginCapability capabilities = 7;
+  string status = 8;
+  map<string, string> metadata = 9;
+  PluginCompatibility compatibility = 10;
+  PluginLifecycle lifecycle = 11;
 }
 
 message PluginCapability {
@@ -45,6 +49,32 @@ message PluginCapability {
   repeated string inputs = 3;
   repeated string outputs = 4;
   map<string, string> metadata = 5;
+}
+
+message PluginCompatibility {
+  string plugin_api_version = 1;
+  string nivora_min_version = 2;
+  string nivora_max_version = 3;
+  repeated string protocols = 4;
+}
+
+message PluginLifecycle {
+  bool health = 1;
+  bool capabilities = 2;
+  bool validate_config = 3;
+  bool execute = 4;
+}
+
+message PluginValidateConfigRequest {
+  string request_id = 1;
+  string correlation_id = 2;
+  bytes config = 3;
+}
+
+message PluginValidateConfigResponse {
+  bool valid = 1;
+  repeated string errors = 2;
+  repeated string warnings = 3;
 }
 
 message PluginExecuteRequest {

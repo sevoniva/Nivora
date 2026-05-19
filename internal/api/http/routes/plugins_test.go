@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"bytes"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -55,6 +56,26 @@ func TestPluginRoutes(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "artifact.resolve_digest") {
 		t.Fatalf("capabilities body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/plugins/validate", bytes.NewBufferString(`{
+		"apiVersion":"nivora.io/plugin/v1alpha1",
+		"name":"example-scanner",
+		"type":"scanner",
+		"version":"0.1.0",
+		"protocol":"http",
+		"endpoint":"https://plugins.example.invalid/scanner",
+		"capabilities":[{"name":"security.scan"}],
+		"compatibility":{"pluginApiVersion":"v1alpha1","nivoraMinVersion":"0.1.0-alpha.1"}
+	}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("validate status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"valid":true`) {
+		t.Fatalf("validate body = %s", rec.Body.String())
 	}
 }
 

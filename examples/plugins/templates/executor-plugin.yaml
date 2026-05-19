@@ -1,0 +1,22 @@
+apiVersion: nivora.io/plugin/v1alpha1
+name: example-executor-plugin
+type: executor
+version: 0.1.0
+protocol: grpc
+endpoint: dns:///example-executor-plugin
+capabilities:
+  - name: executor.custom
+    description: Execute a guarded custom operation through the external plugin protocol.
+compatibility:
+  pluginApiVersion: v1alpha1
+  nivoraMinVersion: 0.1.0-alpha.1
+  protocols:
+    - grpc
+lifecycle:
+  health: true
+  capabilities: true
+  validateConfig: true
+  execute: true
+status: external
+metadata:
+  template: "true"

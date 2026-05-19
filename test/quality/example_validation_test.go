@@ -9,9 +9,11 @@ import (
 	"strings"
 	"testing"
 
+	domainplugin "github.com/sevoniva/nivora/internal/domain/plugin"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseusecase "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	"gopkg.in/yaml.v3"
 )
@@ -71,6 +73,23 @@ func TestSupportedExamplesValidateWithRuntimeParsers(t *testing.T) {
 			}
 		default:
 			t.Fatalf("%s has unsupported kind %q", path, kind)
+		}
+	}
+}
+
+func TestPluginTemplatesValidate(t *testing.T) {
+	for _, path := range globExamples(t, "examples/plugins/templates/*.yaml") {
+		body, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatalf("read %s: %v", path, err)
+		}
+		var manifest domainplugin.Manifest
+		if err := yaml.Unmarshal(body, &manifest); err != nil {
+			t.Fatalf("parse plugin template %s: %v", path, err)
+		}
+		result := pluginusecase.ValidateManifest(manifest)
+		if !result.Valid {
+			t.Fatalf("plugin template %s is invalid: %#v", path, result)
 		}
 	}
 }
@@ -154,6 +173,7 @@ func exampleYAMLFiles(t *testing.T) []string {
 		"examples/yaml/*.yaml",
 		"examples/argocd/*.yaml",
 		"examples/gitops/apps/*/*/*.yaml",
+		"examples/plugins/templates/*.yaml",
 	}
 	var files []string
 	for _, pattern := range patterns {

@@ -20,6 +20,7 @@ import (
 	"github.com/sevoniva/nivora/internal/app/server"
 	"github.com/sevoniva/nivora/internal/app/worker"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
+	domainplugin "github.com/sevoniva/nivora/internal/domain/plugin"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
@@ -30,6 +31,7 @@ import (
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"github.com/sevoniva/nivora/internal/version"
 	"github.com/spf13/cobra"
+	"gopkg.in/yaml.v3"
 )
 
 func main() {
@@ -397,6 +399,7 @@ func newPluginsCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "plugins", Short: "Plugin and adapter registry utilities"}
 	cmd.AddCommand(newPluginsListCommand())
 	cmd.AddCommand(newPluginsInspectCommand())
+	cmd.AddCommand(newPluginsValidateCommand())
 	return cmd
 }
 
@@ -454,6 +457,56 @@ func newPluginsInspectCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().BoolVar(&local, "local", false, "use the local built-in registry without contacting a server")
+	return cmd
+}
+
+func newPluginsValidateCommand() *cobra.Command {
+	var serverURL string
+	var file string
+	var local bool
+	cmd := &cobra.Command{
+		Use:   "validate --file <plugin.yaml>",
+		Short: "Validate a plugin manifest for API and version compatibility",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if file == "" {
+				return fmt.Errorf("--file is required")
+			}
+			body, err := os.ReadFile(file)
+			if err != nil {
+				return err
+			}
+			var manifest domainplugin.Manifest
+			if err := yaml.Unmarshal(body, &manifest); err != nil {
+				if jsonErr := json.Unmarshal(body, &manifest); jsonErr != nil {
+					return err
+				}
+			}
+			if local {
+				result, err := pluginusecase.NewDefaultRegistry().Validate(cmd.Context(), manifest)
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), result)
+				if !result.Valid {
+					return fmt.Errorf("plugin manifest is not compatible")
+				}
+				return nil
+			}
+			payload, err := json.Marshal(manifest)
+			if err != nil {
+				return err
+			}
+			result, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/plugins/validate", payload)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), result)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&file, "file", "", "plugin manifest file")
+	cmd.Flags().BoolVar(&local, "local", false, "validate with the local built-in compatibility rules")
 	return cmd
 }
 

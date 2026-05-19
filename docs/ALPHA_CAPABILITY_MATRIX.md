@@ -22,7 +22,7 @@ Nivora is in public alpha. This matrix separates implemented foundations from pa
 | Host Deployment | Partial | HostTarget/HostGroup model, host plan, noop/local execution, guarded SSH skeleton | Default remote SSH execution, service managers, remote rollback execution |
 | Visualization | Partial | Backend visualization APIs and minimal Vite/React web foundation | Complete product UI, charts, auth-integrated dashboards |
 | Packaging | Implemented foundation | Multi-binary Dockerfile, Docker Compose, Helm chart, raw Kubernetes examples, config docs | Operator, production HA chart, managed cloud install paths |
-| Plugin System | Implemented foundation | Plugin manifest model, built-in capability registry, external protocol skeleton | Marketplace, unsafe dynamic loading, external plugin process manager |
+| Plugin System | Implemented foundation | Plugin manifest model, built-in capability registry, plugin API version, compatibility checks, adapter templates, external protocol skeleton | Marketplace, unsafe dynamic loading, external plugin process manager |
 
 ## Release Readiness Interpretation
 

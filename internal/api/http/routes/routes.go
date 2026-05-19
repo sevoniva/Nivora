@@ -54,6 +54,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/plugins", handlers.ListPlugins(pluginRegistry))
 		api.Get("/plugins/{name}", handlers.GetPlugin(pluginRegistry))
 		api.Get("/plugins/{name}/capabilities", handlers.GetPluginCapabilities(pluginRegistry))
+		api.Post("/plugins/validate", handlers.ValidatePlugin(pluginRegistry))
 		api.Get("/auth/whoami", handlers.WhoAmI())
 		api.Get("/auth/permissions", handlers.AuthPermissions(authService))
 		api.Get("/auth/token-info", handlers.AuthTokenInfo())

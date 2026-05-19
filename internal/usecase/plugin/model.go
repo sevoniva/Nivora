@@ -11,3 +11,10 @@ type CapabilityMatch struct {
 	Plugin     domainplugin.Manifest   `json:"plugin"`
 	Capability domainplugin.Capability `json:"capability"`
 }
+
+type ValidationResult struct {
+	Valid    bool     `json:"valid"`
+	Plugin   string   `json:"plugin,omitempty"`
+	Errors   []string `json:"errors,omitempty"`
+	Warnings []string `json:"warnings,omitempty"`
+}

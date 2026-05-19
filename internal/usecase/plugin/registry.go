@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -11,6 +12,8 @@ import (
 )
 
 var ErrPluginNotFound = errors.New("plugin not found")
+
+const NivoraPluginHostVersion = "0.1.0-alpha.1"
 
 func NewRegistry(plugins []domainplugin.Manifest) *Registry {
 	registry := &Registry{plugins: map[string]domainplugin.Manifest{}}
@@ -103,6 +106,60 @@ func (r *Registry) Capabilities(ctx context.Context, name string) ([]domainplugi
 	return append([]domainplugin.Capability(nil), manifest.Capabilities...), nil
 }
 
+func (r *Registry) Validate(ctx context.Context, manifest domainplugin.Manifest) (ValidationResult, error) {
+	if err := ctx.Err(); err != nil {
+		return ValidationResult{}, err
+	}
+	return ValidateManifest(manifest), nil
+}
+
+func ValidateManifest(manifest domainplugin.Manifest) ValidationResult {
+	result := ValidationResult{Valid: true, Plugin: manifest.Name}
+	if manifest.APIVersion == "" {
+		result.Warnings = append(result.Warnings, "apiVersion is recommended and defaults to "+domainplugin.ManifestAPIVersion)
+	} else if manifest.APIVersion != domainplugin.ManifestAPIVersion {
+		result.Errors = append(result.Errors, "unsupported apiVersion "+manifest.APIVersion)
+	}
+	if manifest.Name == "" {
+		result.Errors = append(result.Errors, "name is required")
+	}
+	if !validType(manifest.Type) {
+		result.Errors = append(result.Errors, "unsupported plugin type "+string(manifest.Type))
+	}
+	if manifest.Version == "" {
+		result.Errors = append(result.Errors, "version is required")
+	}
+	if !validProtocol(manifest.Protocol) {
+		result.Errors = append(result.Errors, "unsupported protocol "+manifest.Protocol)
+	}
+	if (manifest.Protocol == string(domainplugin.ProtocolHTTP) || manifest.Protocol == string(domainplugin.ProtocolGRPC)) && manifest.Endpoint == "" {
+		result.Errors = append(result.Errors, "external plugin endpoint is required for "+manifest.Protocol+" protocol")
+	}
+	if manifest.Compatibility.PluginAPIVersion == "" {
+		result.Warnings = append(result.Warnings, "compatibility.pluginApiVersion is recommended and defaults to "+domainplugin.PluginAPIVersion)
+	} else if manifest.Compatibility.PluginAPIVersion != domainplugin.PluginAPIVersion {
+		result.Errors = append(result.Errors, "unsupported plugin API version "+manifest.Compatibility.PluginAPIVersion)
+	}
+	if manifest.Compatibility.NivoraMinVersion != "" && versionAfter(manifest.Compatibility.NivoraMinVersion, NivoraPluginHostVersion) {
+		result.Errors = append(result.Errors, "plugin requires Nivora >= "+manifest.Compatibility.NivoraMinVersion)
+	}
+	if manifest.Compatibility.NivoraMaxVersion != "" && versionAfter(NivoraPluginHostVersion, manifest.Compatibility.NivoraMaxVersion) {
+		result.Errors = append(result.Errors, "plugin supports Nivora <= "+manifest.Compatibility.NivoraMaxVersion)
+	}
+	if len(manifest.Capabilities) == 0 {
+		result.Errors = append(result.Errors, "at least one capability is required")
+	}
+	for i, capability := range manifest.Capabilities {
+		if capability.Name == "" {
+			result.Errors = append(result.Errors, "capabilities["+itoa(i)+"].name is required")
+		}
+	}
+	if len(result.Errors) > 0 {
+		result.Valid = false
+	}
+	return result
+}
+
 func (r *Registry) MatchCapability(ctx context.Context, capabilityName string) ([]CapabilityMatch, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err
@@ -121,14 +178,26 @@ func (r *Registry) MatchCapability(ctx context.Context, capabilityName string) (
 
 func builtin(name string, pluginType domainplugin.Type, capabilities []domainplugin.Capability, now time.Time) domainplugin.Manifest {
 	return domainplugin.Manifest{
+		APIVersion:   domainplugin.ManifestAPIVersion,
 		Name:         name,
 		Type:         pluginType,
-		Version:      "0.1.0-alpha.1",
-		Protocol:     "builtin",
+		Version:      NivoraPluginHostVersion,
+		Protocol:     string(domainplugin.ProtocolBuiltIn),
 		Capabilities: capabilities,
-		Status:       domainplugin.StatusBuiltIn,
+		Compatibility: domainplugin.Compatibility{
+			PluginAPIVersion: domainplugin.PluginAPIVersion,
+			NivoraMinVersion: "0.1.0-alpha.1",
+			Protocols:        []string{string(domainplugin.ProtocolBuiltIn)},
+		},
+		Lifecycle: domainplugin.Lifecycle{
+			Health:         true,
+			Capabilities:   true,
+			ValidateConfig: true,
+			Execute:        false,
+		},
+		Status: domainplugin.StatusBuiltIn,
 		Metadata: map[string]string{
-			"phase": "4.3",
+			"phase": "7.4",
 			"safe":  "true",
 		},
 		CreatedAt: now,
@@ -140,8 +209,94 @@ func capability(name string, description string) domainplugin.Capability {
 	return domainplugin.Capability{Name: name, Description: description}
 }
 
+func validType(pluginType domainplugin.Type) bool {
+	switch pluginType {
+	case domainplugin.TypeSCM, domainplugin.TypeArtifact, domainplugin.TypeCloud, domainplugin.TypeExecutor, domainplugin.TypeSecret, domainplugin.TypeNotification, domainplugin.TypePolicy, domainplugin.TypeScanner, domainplugin.TypeGitOps:
+		return true
+	default:
+		return false
+	}
+}
+
+func validProtocol(protocol string) bool {
+	switch protocol {
+	case string(domainplugin.ProtocolBuiltIn), string(domainplugin.ProtocolHTTP), string(domainplugin.ProtocolGRPC):
+		return true
+	default:
+		return false
+	}
+}
+
+func versionAfter(left string, right string) bool {
+	leftParts := versionParts(left)
+	rightParts := versionParts(right)
+	for i := 0; i < len(leftParts) || i < len(rightParts); i++ {
+		var leftValue, rightValue int
+		if i < len(leftParts) {
+			leftValue = leftParts[i]
+		}
+		if i < len(rightParts) {
+			rightValue = rightParts[i]
+		}
+		if leftValue != rightValue {
+			return leftValue > rightValue
+		}
+	}
+	return false
+}
+
+func versionParts(version string) []int {
+	version = strings.TrimPrefix(version, "v")
+	fields := strings.FieldsFunc(version, func(r rune) bool {
+		return r < '0' || r > '9'
+	})
+	parts := make([]int, 0, len(fields))
+	for _, field := range fields {
+		if field == "" {
+			continue
+		}
+		value, err := strconv.Atoi(field)
+		if err != nil {
+			continue
+		}
+		parts = append(parts, value)
+	}
+	return parts
+}
+
+func itoa(value int) string {
+	const digits = "0123456789"
+	if value == 0 {
+		return "0"
+	}
+	var out [20]byte
+	i := len(out)
+	for value > 0 {
+		i--
+		out[i] = digits[value%10]
+		value /= 10
+	}
+	return string(out[i:])
+}
+
 func cloneManifest(manifest domainplugin.Manifest) domainplugin.Manifest {
 	manifest.Capabilities = append([]domainplugin.Capability(nil), manifest.Capabilities...)
+	for i, capability := range manifest.Capabilities {
+		if capability.Inputs != nil {
+			manifest.Capabilities[i].Inputs = append([]string(nil), capability.Inputs...)
+		}
+		if capability.Outputs != nil {
+			manifest.Capabilities[i].Outputs = append([]string(nil), capability.Outputs...)
+		}
+		if capability.Metadata != nil {
+			metadata := make(map[string]string, len(capability.Metadata))
+			for key, value := range capability.Metadata {
+				metadata[key] = value
+			}
+			manifest.Capabilities[i].Metadata = metadata
+		}
+	}
+	manifest.Compatibility.Protocols = append([]string(nil), manifest.Compatibility.Protocols...)
 	if manifest.Metadata != nil {
 		metadata := make(map[string]string, len(manifest.Metadata))
 		for key, value := range manifest.Metadata {

@@ -132,6 +132,7 @@ For a quick path through the project:
 - [RFC Process](rfcs/README.md)
 - [RFC Template](rfcs/0000-template.md)
 - [Plugin RFC Template](rfcs/plugin-template.md)
+- [Plugin API RFC](rfcs/plugin-api.md)
 - [ADR Directory](adr/)
 
 Use RFCs for large proposals before implementation. Use ADRs to record accepted architecture decisions.
@@ -174,6 +175,7 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 - [Web UI](dev/web-ui.md)
 - [Web Console](dev/web-console.md)
 - [Writing Adapters](dev/writing-adapters.md)
+- [Plugin Authoring](dev/plugin-authoring.md)
 - [AI Change Policy](engineering/ai-change-policy.md)
 - [Dependency Policy](engineering/dependency-policy.md)
 - [Testing Policy](engineering/testing-policy.md)

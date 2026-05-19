@@ -12,7 +12,8 @@ import (
 
 func ListCloudProviders(service *cloudusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		RespondJSON(w, http.StatusOK, service.Providers())
+		result, err := service.Providers(r.Context())
+		respondCloudResult(w, r, result, err)
 	}
 }
 

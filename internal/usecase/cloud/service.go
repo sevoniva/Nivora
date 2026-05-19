@@ -6,6 +6,8 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	"github.com/sevoniva/nivora/internal/domain/audit"
@@ -26,8 +28,37 @@ func NewService(store Store, providers map[string]cloud.CloudProvider, bus event
 	return &Service{store: store, providers: providers, eventBus: bus, now: time.Now}
 }
 
-func (s *Service) Providers() []string {
-	return []string{domaincloud.ProviderAWS, domaincloud.ProviderAliyun, domaincloud.ProviderTencent, domaincloud.ProviderGeneric}
+func (s *Service) Providers(ctx context.Context) ([]domaincloud.CloudProviderInfo, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	names := []string{domaincloud.ProviderAWS, domaincloud.ProviderAliyun, domaincloud.ProviderTencent, domaincloud.ProviderGeneric}
+	seen := map[string]bool{}
+	items := make([]domaincloud.CloudProviderInfo, 0, len(names))
+	for _, name := range names {
+		provider, ok := s.providers[name]
+		if !ok {
+			continue
+		}
+		info, err := provider.Info(ctx)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, info)
+		seen[name] = true
+	}
+	for name, provider := range s.providers {
+		if seen[name] {
+			continue
+		}
+		info, err := provider.Info(ctx)
+		if err != nil {
+			return nil, err
+		}
+		items = append(items, info)
+	}
+	sort.Slice(items, func(i, j int) bool { return items[i].Name < items[j].Name })
+	return items, nil
 }
 
 func (s *Service) CreateAccount(ctx context.Context, input CreateAccountInput) (domaincloud.CloudAccount, error) {
@@ -36,6 +67,16 @@ func (s *Service) CreateAccount(ctx context.Context, input CreateAccountInput) (
 	}
 	if input.Provider == "" {
 		return domaincloud.CloudAccount{}, errors.New("cloud provider is required")
+	}
+	provider, ok := s.providers[input.Provider]
+	if !ok {
+		provider = s.providers[domaincloud.ProviderGeneric]
+	}
+	if provider == nil {
+		return domaincloud.CloudAccount{}, fmt.Errorf("cloud provider %q is not configured", input.Provider)
+	}
+	if err := provider.ValidateConfig(ctx, input.Config); err != nil {
+		return domaincloud.CloudAccount{}, redactCloudError(err)
 	}
 	now := s.now()
 	account := domaincloud.CloudAccount{
@@ -74,11 +115,16 @@ func (s *Service) ValidateAccount(ctx context.Context, id string) (ValidationRes
 	if err != nil {
 		return ValidationResult{}, err
 	}
+	info, infoErr := provider.Info(ctx)
 	if err := provider.ValidateCredential(ctx, account); err != nil {
-		return ValidationResult{AccountID: account.ID, Provider: account.Provider, Valid: false, Message: err.Error()}, err
+		return ValidationResult{AccountID: account.ID, Provider: account.Provider, Valid: false, Message: redactCloudError(err).Error()}, redactCloudError(err)
 	}
 	_ = s.record(ctx, EventCloudCredentialValidated, "Cloud credential validated", account.ID, map[string]any{"provider": account.Provider})
-	return ValidationResult{AccountID: account.ID, Provider: account.Provider, Valid: true, Message: "credential validation placeholder succeeded"}, nil
+	result := ValidationResult{AccountID: account.ID, Provider: account.Provider, Valid: true, Message: "credential validation succeeded without exposing secret values"}
+	if infoErr == nil {
+		result.Warnings = append(result.Warnings, info.Warnings...)
+	}
+	return result, nil
 }
 
 func (s *Service) Regions(ctx context.Context, id string) ([]domaincloud.CloudRegion, error) {
@@ -157,6 +203,20 @@ func (s *Service) record(ctx context.Context, eventType string, action string, s
 		_ = s.eventBus.Publish(ctx, evt)
 	}
 	return nil
+}
+
+func redactCloudError(err error) error {
+	if err == nil {
+		return nil
+	}
+	message := err.Error()
+	for _, marker := range []string{"token", "password", "secret", "access_key", "accesskey", "authorization", "credential"} {
+		if strings.Contains(strings.ToLower(message), marker) {
+			message = strings.ReplaceAll(message, marker, "[REDACTED]")
+			message = strings.ReplaceAll(message, strings.ToUpper(marker), "[REDACTED]")
+		}
+	}
+	return errors.New(message)
 }
 
 func newID(prefix string) string {

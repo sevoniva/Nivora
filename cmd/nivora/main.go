@@ -335,10 +335,19 @@ func newCloudAccountCommand() *cobra.Command {
 
 func newCloudGetCommand(name string, short string, path string) *cobra.Command {
 	var serverURL string
+	var local bool
 	cmd := &cobra.Command{
 		Use:   name,
 		Short: short,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if local && path == "/api/v1/cloud/providers" {
+				providers, err := server.NewCloudService().Providers(cmd.Context())
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), providers)
+				return nil
+			}
 			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
 			if err != nil {
 				return err
@@ -348,6 +357,7 @@ func newCloudGetCommand(name string, short string, path string) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().BoolVar(&local, "local", false, "use local provider metadata without contacting a server")
 	return cmd
 }
 
@@ -356,7 +366,7 @@ func newCloudAccountValidateCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "validate <id>",
 		Short: "Validate a cloud account credential reference",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/cloud/accounts/"+args[0]+"/validate", nil)
 			if err != nil {

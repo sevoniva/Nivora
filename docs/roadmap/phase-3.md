@@ -55,7 +55,7 @@ Phase 3.0 delivers auditable security scan and policy gate foundations through P
 
 Phase 3.3 adds backend-only human governance foundations: approvals, change windows, notification records, and audit/event trails. Phase 6.3 hardens those foundations with scoped approval policy metadata, pending/approved/rejected/expired/canceled lifecycle behavior, timezone-aware change-window evaluation, and guarded notification adapters. Phase 7.2 adds the first multi-tenancy and quota foundation for scoped org/project/environment operations. Phase 7.3 adds compliance-oriented audit search, evidence bundles, and retention metadata. It does not add frontend workflows, ITSM integration, or real external notification delivery by default.
 
-Phase 3.4 adds multi-cloud inventory foundations for cloud accounts, regions, clusters, hosts, registries, and snapshots. It does not add cloud deployment or real provider SDK integration.
+Phase 3.4 adds multi-cloud inventory foundations for cloud accounts, regions, clusters, hosts, registries, and snapshots. Phase 8.0 hardens provider capability metadata, config validation, credential-ref handling, inventory snapshots, and target binding metadata. It does not add cloud deployment or require real provider SDK integration in CI.
 
 Phase 3.5 adds a safe host deployment foundation for VM and bare-metal targets. It supports host planning and noop/local execution only by default; remote SSH execution is guarded and not production-ready.
 

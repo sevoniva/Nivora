@@ -2008,16 +2008,16 @@ paths:
                 $ref: "#/components/schemas/Notification"
   /api/v1/cloud/providers:
     get:
-      summary: List supported cloud provider types
+      summary: List supported cloud provider metadata and capabilities
       responses:
         "200":
-          description: Provider names
+          description: Provider metadata
           content:
             application/json:
               schema:
                 type: array
                 items:
-                  type: string
+                  $ref: "#/components/schemas/CloudProviderInfo"
   /api/v1/cloud/accounts:
     get:
       summary: List cloud accounts
@@ -2648,10 +2648,51 @@ components:
           type: string
         credentialRef:
           type: string
+        regions:
+          type: array
+          items:
+            type: string
         metadata:
           type: object
           additionalProperties:
             type: string
+    CloudProviderInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          enum: [aws, aliyun, tencent, generic]
+        displayName:
+          type: string
+        status:
+          type: string
+        capabilities:
+          $ref: "#/components/schemas/CloudProviderCapabilities"
+        sdk:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+    CloudProviderCapabilities:
+      type: object
+      properties:
+        credentialValidation:
+          type: boolean
+        regions:
+          type: boolean
+        clusters:
+          type: boolean
+        hosts:
+          type: boolean
+        registries:
+          type: boolean
+        inventorySnapshot:
+          type: boolean
+        targetBinding:
+          type: boolean
+        realCloudApi:
+          type: boolean
     CloudCredentialValidation:
       type: object
       properties:
@@ -2663,6 +2704,10 @@ components:
           type: boolean
         message:
           type: string
+        warnings:
+          type: array
+          items:
+            type: string
     CloudRegion:
       type: object
       properties:
@@ -2746,6 +2791,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/CloudRegistry"
+        bindings:
+          type: array
+          items:
+            $ref: "#/components/schemas/CloudTargetBinding"
         scannedAt:
           type: string
           format: date-time
@@ -2755,6 +2804,36 @@ components:
             type: string
         generatedBy:
           type: string
+    CloudTargetBinding:
+      type: object
+      properties:
+        id:
+          type: string
+        accountId:
+          type: string
+        provider:
+          type: string
+        environmentId:
+          type: string
+        targetId:
+          type: string
+        targetType:
+          type: string
+        region:
+          type: string
+        clusterId:
+          type: string
+        hostId:
+          type: string
+        registryId:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
     User:
       type: object
       properties:

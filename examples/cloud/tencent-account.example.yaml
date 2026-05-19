@@ -9,4 +9,6 @@ spec:
     provider: tencent
     accountId: tencent-account-placeholder
     defaultRegion: ap-guangzhou
+    regions:
+      - ap-guangzhou
     credentialRef: credential-ref-placeholder

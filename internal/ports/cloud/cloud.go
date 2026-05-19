@@ -30,6 +30,8 @@ type Registry struct {
 }
 
 type CloudProvider interface {
+	Info(ctx context.Context) (domaincloud.CloudProviderInfo, error)
+	ValidateConfig(ctx context.Context, config domaincloud.CloudProviderConfig) error
 	ValidateCredential(ctx context.Context, account domaincloud.CloudAccount) error
 	ListRegions(ctx context.Context, account domaincloud.CloudAccount) ([]domaincloud.CloudRegion, error)
 	ListClusters(ctx context.Context, account domaincloud.CloudAccount, region string) ([]domaincloud.CloudCluster, error)

@@ -790,6 +790,7 @@ go run ./cmd/nivora deployment host plan --file examples/deployments/host-dry-ru
 go run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
 go run ./cmd/nivora release plan --file examples/releases/multi-target-release.yaml --local
 go run ./cmd/nivora release deploy --file examples/releases/sequential-release.yaml --local
+go run ./cmd/nivora cloud providers --local
 go run ./cmd/nivora plugins list --local
 go run ./cmd/nivora plugins inspect artifact-oci --local
 go run ./cmd/nivora plugins validate --local --file examples/plugins/templates/scanner-plugin.yaml

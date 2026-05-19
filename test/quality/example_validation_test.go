@@ -94,6 +94,41 @@ func TestPluginTemplatesValidate(t *testing.T) {
 	}
 }
 
+func TestCloudSDKImportsStayInAdapters(t *testing.T) {
+	root := repoRoot(t)
+	blocked := []string{
+		"github.com/aws/",
+		"github.com/aliyun",
+		"github.com/tencentcloud",
+	}
+	err := filepath.WalkDir(filepath.Join(root, "internal"), func(path string, entry os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		if entry.IsDir() || !strings.HasSuffix(path, ".go") {
+			return nil
+		}
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		body, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		content := string(body)
+		for _, marker := range blocked {
+			if strings.Contains(content, marker) && !strings.HasPrefix(rel, "internal/adapters/cloud/") {
+				t.Fatalf("cloud SDK import marker %q found outside cloud adapters in %s", marker, rel)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk internal: %v", err)
+	}
+}
+
 func TestExamplesDoNotContainHighRiskSecretLiterals(t *testing.T) {
 	for _, path := range exampleYAMLFiles(t) {
 		body, err := os.ReadFile(path)

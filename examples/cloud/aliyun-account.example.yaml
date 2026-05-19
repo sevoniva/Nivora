@@ -9,4 +9,6 @@ spec:
     provider: aliyun
     accountId: aliyun-account-placeholder
     defaultRegion: cn-hangzhou
+    regions:
+      - cn-hangzhou
     credentialRef: credential-ref-placeholder

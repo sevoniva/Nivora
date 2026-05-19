@@ -22,10 +22,11 @@ type CreateAccountInput struct {
 }
 
 type ValidationResult struct {
-	AccountID string `json:"accountId"`
-	Provider  string `json:"provider"`
-	Valid     bool   `json:"valid"`
-	Message   string `json:"message,omitempty"`
+	AccountID string   `json:"accountId"`
+	Provider  string   `json:"provider"`
+	Valid     bool     `json:"valid"`
+	Message   string   `json:"message,omitempty"`
+	Warnings  []string `json:"warnings,omitempty"`
 }
 
 type Record struct {

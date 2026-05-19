@@ -28,6 +28,9 @@ func TestFakeCloudInventory(t *testing.T) {
 	if len(snapshot.Regions) == 0 || len(snapshot.Clusters) == 0 || len(snapshot.Hosts) == 0 || len(snapshot.Registries) == 0 {
 		t.Fatalf("snapshot = %#v", snapshot)
 	}
+	if len(snapshot.Bindings) == 0 {
+		t.Fatalf("expected target binding metadata in snapshot: %#v", snapshot)
+	}
 }
 
 func TestListCloudResources(t *testing.T) {
@@ -53,6 +56,42 @@ func TestListCloudResources(t *testing.T) {
 	}
 }
 
+func TestCloudProviderInfoAndConfigValidation(t *testing.T) {
+	service := newTestService()
+	providers, err := service.Providers(context.Background())
+	if err != nil {
+		t.Fatalf("providers: %v", err)
+	}
+	if len(providers) == 0 {
+		t.Fatal("expected providers")
+	}
+	for _, provider := range providers {
+		if !provider.Capabilities.InventorySnapshot || provider.Capabilities.RealCloudAPI {
+			t.Fatalf("unexpected provider capabilities: %#v", provider)
+		}
+	}
+	if _, err := service.CreateAccount(context.Background(), CreateAccountInput{Name: "wrong", Provider: domaincloud.ProviderAWS, Config: domaincloud.CloudProviderConfig{Provider: domaincloud.ProviderTencent}}); err == nil {
+		t.Fatal("expected mismatched provider config to fail")
+	}
+}
+
+func TestCloudCredentialErrorRedaction(t *testing.T) {
+	service := NewService(NewMemoryStore(), map[string]cloud.CloudProvider{
+		domaincloud.ProviderAWS: redactionProvider{},
+	}, nil)
+	account, err := service.CreateAccount(context.Background(), CreateAccountInput{Name: "redaction", Provider: domaincloud.ProviderAWS, CredentialRef: "cred-ref"})
+	if err != nil {
+		t.Fatalf("create account: %v", err)
+	}
+	_, err = service.ValidateAccount(context.Background(), account.ID)
+	if err == nil {
+		t.Fatal("expected validation error")
+	}
+	if got := err.Error(); got == "token secret access_key password" {
+		t.Fatalf("error leaked secret markers: %q", got)
+	}
+}
+
 func newTestService() *Service {
 	providers := map[string]cloud.CloudProvider{
 		domaincloud.ProviderAWS:     testProvider{provider: domaincloud.ProviderAWS},
@@ -68,6 +107,31 @@ type testProvider struct {
 }
 
 func (p testProvider) ValidateCredential(ctx context.Context, account domaincloud.CloudAccount) error {
+	return nil
+}
+
+func (p testProvider) Info(ctx context.Context) (domaincloud.CloudProviderInfo, error) {
+	return domaincloud.CloudProviderInfo{
+		Name:        p.provider,
+		DisplayName: p.provider,
+		Status:      "test",
+		Capabilities: domaincloud.CloudProviderCapabilities{
+			CredentialValidation: true,
+			Regions:              true,
+			Clusters:             true,
+			Hosts:                true,
+			Registries:           true,
+			InventorySnapshot:    true,
+			TargetBinding:        true,
+			RealCloudAPI:         false,
+		},
+	}, nil
+}
+
+func (p testProvider) ValidateConfig(ctx context.Context, config domaincloud.CloudProviderConfig) error {
+	if config.Provider != "" && config.Provider != p.provider {
+		return assertErr("provider mismatch")
+	}
 	return nil
 }
 
@@ -92,5 +156,40 @@ func (p testProvider) GetInventorySnapshot(ctx context.Context, account domaincl
 	clusters, _ := p.ListClusters(ctx, account, "")
 	hosts, _ := p.ListHosts(ctx, account, "")
 	registries, _ := p.ListRegistries(ctx, account, "")
-	return domaincloud.CloudInventorySnapshot{ID: "snapshot-1", AccountID: account.ID, Provider: p.provider, Regions: regions, Clusters: clusters, Hosts: hosts, Registries: registries}, nil
+	return domaincloud.CloudInventorySnapshot{
+		ID:         "snapshot-1",
+		AccountID:  account.ID,
+		Provider:   p.provider,
+		Regions:    regions,
+		Clusters:   clusters,
+		Hosts:      hosts,
+		Registries: registries,
+		Bindings: []domaincloud.CloudTargetBinding{{
+			ID:        "binding-1",
+			AccountID: account.ID,
+			Provider:  p.provider,
+			Region:    "region-1",
+			ClusterID: "cluster-1",
+		}},
+	}, nil
 }
+
+type redactionProvider struct {
+	testProvider
+}
+
+func (redactionProvider) Info(ctx context.Context) (domaincloud.CloudProviderInfo, error) {
+	return testProvider{provider: domaincloud.ProviderAWS}.Info(ctx)
+}
+
+func (redactionProvider) ValidateConfig(ctx context.Context, config domaincloud.CloudProviderConfig) error {
+	return nil
+}
+
+func (redactionProvider) ValidateCredential(ctx context.Context, account domaincloud.CloudAccount) error {
+	return assertErr("token secret access_key password")
+}
+
+type assertErr string
+
+func (e assertErr) Error() string { return string(e) }

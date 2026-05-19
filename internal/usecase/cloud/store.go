@@ -79,6 +79,11 @@ func (s *MemoryStore) ListAccounts(ctx context.Context) ([]domaincloud.CloudAcco
 }
 
 func (s *MemoryStore) SaveSnapshot(ctx context.Context, snapshot domaincloud.CloudInventorySnapshot) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.snapshots[snapshot.AccountID] = snapshot
@@ -86,12 +91,22 @@ func (s *MemoryStore) SaveSnapshot(ctx context.Context, snapshot domaincloud.Clo
 }
 
 func (s *MemoryStore) GetSnapshot(ctx context.Context, accountID string) (domaincloud.CloudInventorySnapshot, error) {
+	select {
+	case <-ctx.Done():
+		return domaincloud.CloudInventorySnapshot{}, ctx.Err()
+	default:
+	}
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.snapshots[accountID], nil
 }
 
 func (s *MemoryStore) AppendEvent(ctx context.Context, evt event.Event) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.events = append(s.events, evt)
@@ -99,6 +114,11 @@ func (s *MemoryStore) AppendEvent(ctx context.Context, evt event.Event) error {
 }
 
 func (s *MemoryStore) AppendAudit(ctx context.Context, entry audit.AuditLog) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.audits = append(s.audits, entry)

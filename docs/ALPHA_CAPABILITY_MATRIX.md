@@ -18,7 +18,7 @@ Nivora is in public alpha. This matrix separates implemented foundations from pa
 | Multi-tenancy/Quotas | Partial | Scoped subjects, credential scope filtering, runner group scope checks, quota and usage read models | Persistent distributed quota counters, billing, full tenant provisioning, production rate limiting |
 | Compliance Audit/Evidence | Partial | Structured AuditLog fields, audit search, evidence bundle JSON/Markdown export, retention policy metadata | Immutable external audit store, retention enforcement jobs, compliance attestations |
 | Approval | Partial | ApprovalRequest/Decision, change window, notification provider foundations | ITSM integration, external notification delivery guarantees, UI approvals |
-| Cloud Inventory | Partial | CloudAccount model, CloudProvider port, fake AWS/Aliyun/Tencent inventory, skeleton adapters | Real cloud inventory APIs, cloud deployment, cloud security scanning |
+| Cloud Inventory | Partial | CloudAccount model, CloudProvider port, provider capabilities/config validation, fake AWS/Aliyun/Tencent inventory, inventory snapshots, target binding metadata | Real cloud API inventory, cloud deployment, cloud security scanning |
 | Host Deployment | Partial | HostTarget/HostGroup model, host plan, noop/local execution, guarded SSH skeleton | Default remote SSH execution, service managers, remote rollback execution |
 | Visualization | Partial | Backend visualization APIs and minimal Vite/React web foundation | Complete product UI, charts, auth-integrated dashboards |
 | Packaging | Implemented foundation | Multi-binary Dockerfile, Docker Compose, Helm chart, raw Kubernetes examples, config docs | Operator, production HA chart, managed cloud install paths |

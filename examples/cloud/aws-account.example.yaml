@@ -9,4 +9,7 @@ spec:
     provider: aws
     accountId: aws-account-placeholder
     defaultRegion: us-east-1
+    regions:
+      - us-east-1
+      - us-west-2
     credentialRef: credential-ref-placeholder

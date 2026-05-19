@@ -1,6 +1,6 @@
 # Cloud Inventory
 
-Phase 3.4 adds local cloud inventory APIs and CLI commands backed by fake provider adapters.
+Phase 8.0 supports local cloud inventory APIs and CLI commands backed by deterministic provider foundations. Real credentials are optional only and are not required for CI.
 
 ## API
 
@@ -29,4 +29,4 @@ Cloud credentials should be represented by `CredentialRef` or `SecretRef`. Do no
 
 ## Limits
 
-AWS, Aliyun, and Tencent adapters are skeletons backed by deterministic inventory behavior. Real provider SDK integration, pagination, filtering, tagging, permission discovery, and cloud deployments are future work.
+AWS, Aliyun, and Tencent adapters expose provider capability metadata, config validation, inventory snapshots, and target binding metadata. Real provider SDK integration, pagination, filtering, tagging, permission discovery, and cloud deployments are future work.

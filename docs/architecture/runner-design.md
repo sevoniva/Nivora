@@ -37,3 +37,7 @@ POST /api/v1/pipeline-runs/{id}/cancel-request
 `claim` returns a compact job lease with PipelineRun ID, StageRun ID, JobRun ID, StepRun IDs, executor name, commands, attempt, lease expiration, and cancel-request state.
 
 Runner-owned mutation endpoints require a runner token through `Authorization: Bearer <token>` or `X-Nivora-Runner-Token`. Registration and token rotation are admin/RBAC operations. Privileged execution, autoscaling, container isolation, Kubernetes jobs, and remote host execution are not implemented by this runner protocol.
+
+## Sandbox Limitations
+
+The current runner protocol is not a production sandbox boundary. A runner should be treated as a trusted execution host for the project/environment it serves. Do not run untrusted pipelines on shared privileged runners. Before GA use, maintainers should define runner placement rules, workspace isolation, resource limits, secret-masking behavior, and incident response steps for compromised runner hosts.

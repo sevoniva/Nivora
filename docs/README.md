@@ -134,6 +134,12 @@ For a quick path through the project:
 - [Change Management](operations/change-management.md)
 - [Troubleshooting](operations/troubleshooting.md)
 
+## Security Review
+
+- [Threat Model](security/threat-model.md)
+- [Security Review Checklist](security/security-review-checklist.md)
+- [Security Baseline](engineering/security-baseline.md)
+
 ## Community and Governance
 
 - [Governance](community/governance.md)

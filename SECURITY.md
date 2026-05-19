@@ -4,6 +4,11 @@
 
 Nivora is preparing a public alpha and is not production-ready. If you find a security issue, please open a private disclosure channel with the maintainers once the project publishes one. Until then, avoid posting exploit details publicly.
 
+Security review docs:
+
+- [Threat Model](docs/security/threat-model.md)
+- [Security Review Checklist](docs/security/security-review-checklist.md)
+
 ## Secret Handling Principles
 
 - Do not commit real secrets.
@@ -18,3 +23,7 @@ Logs must not include tokens, passwords, private keys, or full credential payloa
 ## Authentication and Authorization
 
 Phase 3.2 includes local development auth and RBAC foundations. Dev auth and static token auth are not production SSO. Token values must come from environment variables or a future secret provider, never from committed config files. OIDC and Keycloak integration remain future work.
+
+## Secure Defaults
+
+Production-shaped configuration must keep auth enabled, insecure registries explicit, Kubernetes apply guarded, Argo CD sync guarded, host remote deployment guarded, and secret values redacted from logs, audit records, events, diagnostics, release notes, and examples.

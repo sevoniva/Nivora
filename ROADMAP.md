@@ -51,10 +51,12 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 
 ## Phase 3: Multi-Cloud and DevSecOps
 
+- Phase 3.0 adds SecurityScan, SecurityFinding, noop/fake scanner adapters, and built-in policy gate foundations.
 - Add cloud provider adapters.
 - Add artifact scanning and policy evaluation.
 - Add secret backends and notification providers.
 - Harden authn, authz, audit, and telemetry.
+- Keep Trivy, Cosign, SBOM generation, cloud scanning, and production security automation optional and future until RFC-backed.
 
 ## Phase 4: Visualization Frontend
 

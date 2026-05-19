@@ -19,6 +19,7 @@ import (
 	"github.com/sevoniva/nivora/internal/ports/eventbus"
 	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
 const (
@@ -77,6 +78,7 @@ type Service struct {
 	eventBus eventbus.EventBus
 	gitops   portgitops.WorkingTree
 	argocd   portargocd.Provider
+	security *securityusecase.Service
 	now      func() time.Time
 }
 
@@ -94,6 +96,11 @@ func NewService(store Store, renderer ManifestRenderer, client ManifestClient, p
 func (s *Service) WithGitOps(workingTree portgitops.WorkingTree, provider portargocd.Provider) *Service {
 	s.gitops = workingTree
 	s.argocd = provider
+	return s
+}
+
+func (s *Service) WithSecurity(securityService *securityusecase.Service) *Service {
+	s.security = securityService
 	return s
 }
 
@@ -168,6 +175,26 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 	}
 	record.Plan = s.buildPlan(record.Run.ID, record.Definition, documents)
 	record = s.attachResourceObservability(record, record.Definition, documents)
+	if s.security != nil {
+		securityRecord, err := s.security.Scan(ctx, securityusecase.ScanInput{
+			SubjectType: "deployment_plan",
+			SubjectID:   record.Run.ID,
+			Reference:   strings.Join(record.Plan.Artifacts, ","),
+			Policy:      securityusecase.DefaultPolicyConfig(),
+			ActorID:     actorID,
+		})
+		if err != nil {
+			return s.fail(ctx, record, actorID, err.Error())
+		}
+		record.Security = securityRecord
+		if securityRecord.Policy.Decision == "deny" {
+			record.Plan.Warnings = append(record.Plan.Warnings, securityRecord.Policy.Reason)
+			return s.fail(ctx, record, actorID, securityRecord.Policy.Reason)
+		}
+		if securityRecord.Policy.Decision == "warn" || securityRecord.Policy.Decision == "require_approval" {
+			record.Plan.Warnings = append(record.Plan.Warnings, securityRecord.Policy.Reason)
+		}
+	}
 	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("rendered %d manifest document(s)", len(documents)), int64(len(record.Logs)+1)))
 	if err := s.store.Save(ctx, record); err != nil {
 		return RunRecord{}, err

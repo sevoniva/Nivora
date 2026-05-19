@@ -234,6 +234,17 @@ func GetDeploymentTimeline(service *deploymentusecase.Service) http.HandlerFunc 
 	}
 }
 
+func GetDeploymentSecurity(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondDeploymentResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record.Security)
+	}
+}
+
 func CancelDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		record, err := service.Cancel(r.Context(), chi.URLParam(r, "id"), "")

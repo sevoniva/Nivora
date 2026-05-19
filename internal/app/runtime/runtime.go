@@ -9,11 +9,13 @@ import (
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	localgitops "github.com/sevoniva/nivora/internal/adapters/gitops/local"
+	securitynoop "github.com/sevoniva/nivora/internal/adapters/security/noop"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
 func NewPipelineService() *pipelineusecase.Service {
@@ -32,7 +34,7 @@ func NewDeploymentService() *deploymentusecase.Service {
 		yamlapply.NoopManifestClient{},
 		allowAllPolicyEngine{},
 		bus,
-	).WithGitOps(localgitops.New(), argocdadapter.NoopProvider{AllowSync: true})
+	).WithGitOps(localgitops.New(), argocdadapter.NoopProvider{AllowSync: true}).WithSecurity(NewSecurityService())
 }
 
 func NewArtifactService() *artifactusecase.Service {
@@ -51,7 +53,12 @@ func NewReleaseOrchestrationServiceWith(artifactService *artifactusecase.Service
 		deploymentService,
 		allowAllPolicyEngine{},
 		bus,
-	)
+	).WithSecurity(NewSecurityService())
+}
+
+func NewSecurityService() *securityusecase.Service {
+	bus := memory.New()
+	return securityusecase.NewService(securityusecase.NewMemoryStore(), securitynoop.New(), securitynoop.SignatureVerifier{}, bus)
 }
 
 type allowAllPolicyEngine struct{}

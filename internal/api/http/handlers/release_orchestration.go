@@ -86,6 +86,17 @@ func CancelReleaseExecution(service *releaseorchestration.Service) http.HandlerF
 	}
 }
 
+func GetReleaseSecurity(service *releaseorchestration.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, err := service.GetPlan(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondReleaseOrchestrationResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record.Security)
+	}
+}
+
 func respondReleaseOrchestrationResult(w http.ResponseWriter, r *http.Request, payload any, err error) {
 	if err == nil {
 		RespondJSON(w, http.StatusOK, payload)

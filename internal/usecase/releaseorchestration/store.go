@@ -224,6 +224,8 @@ func clonePlan(record PlanRecord) PlanRecord {
 	record.Plan.Warnings = append([]string(nil), record.Plan.Warnings...)
 	record.Events = append([]event.Event(nil), record.Events...)
 	record.Audits = append([]audit.AuditLog(nil), record.Audits...)
+	record.Security.Events = append([]event.Event(nil), record.Security.Events...)
+	record.Security.Audits = append([]audit.AuditLog(nil), record.Security.Audits...)
 	return record
 }
 
@@ -234,5 +236,7 @@ func cloneExecution(record ExecutionRecord) ExecutionRecord {
 	record.Deployments = append([]deploymentusecase.RunRecord(nil), record.Deployments...)
 	record.Events = append([]event.Event(nil), record.Events...)
 	record.Audits = append([]audit.AuditLog(nil), record.Audits...)
+	record.Security.Events = append([]event.Event(nil), record.Security.Events...)
+	record.Security.Audits = append([]audit.AuditLog(nil), record.Security.Audits...)
 	return record
 }

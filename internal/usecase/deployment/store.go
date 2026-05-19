@@ -11,6 +11,7 @@ import (
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	"github.com/sevoniva/nivora/internal/domain/release"
+	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
 	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 )
@@ -244,6 +245,11 @@ func cloneRecord(record RunRecord) RunRecord {
 	record.Logs = append([]event.LogChunk(nil), record.Logs...)
 	record.Events = append([]event.Event(nil), record.Events...)
 	record.Audits = append([]audit.AuditLog(nil), record.Audits...)
+	record.Security.Scan.Findings = append([]domainsecurity.SecurityFinding(nil), record.Security.Scan.Findings...)
+	record.Security.Policy.Findings = append([]domainsecurity.SecurityFinding(nil), record.Security.Policy.Findings...)
+	record.Security.Events = append([]event.Event(nil), record.Security.Events...)
+	record.Security.Audits = append([]audit.AuditLog(nil), record.Security.Audits...)
+	record.Security.Warnings = append([]string(nil), record.Security.Warnings...)
 	record.Definition.Spec.Artifacts = append([]Artifact(nil), record.Definition.Spec.Artifacts...)
 	record.Definition.Spec.Manifests = append([]string(nil), record.Definition.Spec.Manifests...)
 	return record

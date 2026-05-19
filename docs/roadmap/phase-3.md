@@ -2,17 +2,20 @@
 
 ## Objective
 
-Expand delivery targets and security controls.
+Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps foundations rather than production-grade integrations.
 
 ## Scope
 
+- SecurityScan and SecurityFinding models.
+- SecurityScanner port.
+- Noop and fake scanner adapters.
+- Built-in policy gate decisions.
+- SignatureCheck and SBOMRef foundations.
+- Optional future Trivy integration design.
+- Optional future Cosign integration design.
 - AWS provider Adapter.
 - Aliyun provider Adapter.
 - Tencent Cloud provider Adapter.
-- Trivy integration.
-- Cosign integration.
-- SBOM support.
-- Policy gates.
 - OIDC.
 - Advanced secret handling.
 
@@ -21,15 +24,19 @@ Expand delivery targets and security controls.
 - Provider-specific architecture in the domain.
 - Unreviewed privileged execution.
 - Opaque security automation without audit.
+- Requiring Trivy, Cosign, external registries, or cloud access in CI.
+- Production-grade security platform claims.
 
 ## Expected Deliverables
 
-Multi-cloud inventory and security checks integrated through Ports and Adapters.
+Phase 3.0 delivers auditable security scan and policy gate foundations through Ports and Adapters. Multi-cloud inventory and full security integrations remain future Phase 3 work.
 
 ## Acceptance Criteria
 
 - Cloud SDKs stay inside Adapters.
 - Security findings can be linked to Artifacts, Releases, or DeploymentRuns.
+- Noop/fake scanners allow deterministic tests without external tools.
+- Policy gate decisions can allow, warn, deny, or require approval.
 - Secret and credential handling follows the security model.
 
 ## Contribution Opportunities
@@ -38,4 +45,3 @@ Multi-cloud inventory and security checks integrated through Ports and Adapters.
 - Scanner Adapter design.
 - Policy engine design.
 - Secret provider tests.
-

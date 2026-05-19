@@ -1,0 +1,9 @@
+subjectType: artifact
+subjectId: demo-warning
+reference: registry.example.com/demo/app:1.0.0
+findings:
+  - severity: High
+    category: vulnerability
+    target: registry.example.com/demo/app:1.0.0
+    title: Example high vulnerability
+    description: Safe example warning finding for policy gate tests.

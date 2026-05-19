@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 2.7 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning and guarded sync foundations, Kubernetes resource inventory, health, snapshot, diff, and rollback-plan output, and sequential ReleasePlan / ReleaseExecution orchestration across targets.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 3.0 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning and guarded sync foundations, Kubernetes resource inventory, health, snapshot, diff, rollback-plan output, sequential ReleasePlan / ReleaseExecution orchestration across targets, and early DevSecOps scan / policy gate foundations.
 servers:
   - url: http://localhost:8080
 paths:
@@ -118,6 +118,88 @@ paths:
       responses:
         "200":
           description: Artifact resolution result
+  /api/v1/security/scans:
+    post:
+      summary: Create a security scan using the configured scanner foundation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SecurityScanRequest"
+      responses:
+        "201":
+          description: Security scan created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityScanRecord"
+  /api/v1/security/scans/{id}:
+    get:
+      summary: Get a security scan
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Security scan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityScanRecord"
+  /api/v1/security/scans/{id}/findings:
+    get:
+      summary: Get security scan findings
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Security findings
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SecurityFinding"
+  /api/v1/releases/{id}/security:
+    get:
+      summary: Get release security gate output from latest ReleasePlan
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Release security output
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityScanRecord"
+  /api/v1/deployments/{id}/security:
+    get:
+      summary: Get DeploymentRun security gate output
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: DeploymentRun security output
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityScanRecord"
+  /api/v1/policies/evaluate:
+    post:
+      summary: Evaluate built-in policy gate rules
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyEvaluationRequest"
+      responses:
+        "200":
+          description: Policy result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyResult"
           content:
             application/json:
               schema:
@@ -1362,6 +1444,155 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AuditLog"
+    SecurityScanRequest:
+      type: object
+      properties:
+        subjectType:
+          type: string
+          enum: [artifact, manifest, deployment_plan, release]
+        subjectId:
+          type: string
+        reference:
+          type: string
+        content:
+          type: string
+        policy:
+          $ref: "#/components/schemas/PolicyConfig"
+    SecurityScanRecord:
+      type: object
+      properties:
+        scan:
+          $ref: "#/components/schemas/SecurityScan"
+        policy:
+          $ref: "#/components/schemas/PolicyResult"
+        signature:
+          $ref: "#/components/schemas/SignatureCheck"
+        sbom:
+          $ref: "#/components/schemas/SBOMRef"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        audits:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+    SecurityScan:
+      type: object
+      properties:
+        id:
+          type: string
+        subjectType:
+          type: string
+        subjectId:
+          type: string
+        scanner:
+          type: string
+        status:
+          type: string
+          enum: [Pending, Running, Succeeded, Failed, Canceled]
+        summary:
+          $ref: "#/components/schemas/SecurityScanSummary"
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/SecurityFinding"
+    SecurityScanSummary:
+      type: object
+      properties:
+        total:
+          type: integer
+        low:
+          type: integer
+        medium:
+          type: integer
+        high:
+          type: integer
+        critical:
+          type: integer
+    SecurityFinding:
+      type: object
+      properties:
+        id:
+          type: string
+        severity:
+          type: string
+          enum: [Unknown, Low, Medium, High, Critical]
+        category:
+          type: string
+          enum: [vulnerability, secret, misconfiguration, license, signature, sbom, policy]
+        target:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        packageName:
+          type: string
+        installedVersion:
+          type: string
+        fixedVersion:
+          type: string
+        reference:
+          type: string
+    PolicyConfig:
+      type: object
+      properties:
+        criticalDenyThreshold:
+          type: integer
+        highWarnThreshold:
+          type: integer
+        requireDigest:
+          type: boolean
+        approvalOnCritical:
+          type: boolean
+    PolicyEvaluationRequest:
+      type: object
+      properties:
+        subjectType:
+          type: string
+        subjectId:
+          type: string
+        reference:
+          type: string
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/SecurityFinding"
+        policy:
+          $ref: "#/components/schemas/PolicyConfig"
+    GateDecision:
+      type: string
+      enum: [allow, deny, warn, require_approval]
+    SignatureCheck:
+      type: object
+      properties:
+        subject:
+          type: string
+        verifier:
+          type: string
+        status:
+          type: string
+        result:
+          $ref: "#/components/schemas/GateDecision"
+        warnings:
+          type: array
+          items:
+            type: string
+    SBOMRef:
+      type: object
+      properties:
+        artifactId:
+          type: string
+        format:
+          type: string
+          enum: [spdx, cyclonedx, unknown]
+        storageRef:
+          type: string
+        digest:
+          type: string
+        generatedBy:
+          type: string
     PipelineRun:
       type: object
       properties:
@@ -2244,6 +2475,25 @@ components:
     PolicyResult:
       type: object
       properties:
+        id:
+          type: string
+        policyId:
+          type: string
+        subjectType:
+          type: string
+        subjectId:
+          type: string
+        decision:
+          $ref: "#/components/schemas/GateDecision"
+        reason:
+          type: string
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/SecurityFinding"
+        evaluatedAt:
+          type: string
+          format: date-time
         allowed:
           type: boolean
         reasons:

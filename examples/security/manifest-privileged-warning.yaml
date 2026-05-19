@@ -1,0 +1,19 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: privileged-warning-example
+spec:
+  selector:
+    matchLabels:
+      app: privileged-warning-example
+  template:
+    metadata:
+      labels:
+        app: privileged-warning-example
+    spec:
+      containers:
+        - name: app
+          image: example.invalid/sevoniva/example-service:latest
+          imagePullPolicy: Always
+          securityContext:
+            privileged: true

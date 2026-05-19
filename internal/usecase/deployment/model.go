@@ -12,6 +12,7 @@ import (
 	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
 	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
 type RunRecord struct {
@@ -42,6 +43,7 @@ type RunRecord struct {
 	Events          []event.Event                     `json:"events,omitempty"`
 	Audits          []audit.AuditLog                  `json:"audits,omitempty"`
 	Policy          policy.Result                     `json:"policy"`
+	Security        securityusecase.ScanRecord        `json:"security,omitempty"`
 }
 
 type DeploymentPlan struct {

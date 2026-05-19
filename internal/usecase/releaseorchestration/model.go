@@ -9,6 +9,7 @@ import (
 	"github.com/sevoniva/nivora/internal/domain/release"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
 type ExecutionStatus string
@@ -116,11 +117,12 @@ type TargetExecution struct {
 }
 
 type PlanRecord struct {
-	Definition Definition       `json:"definition,omitempty"`
-	Release    release.Release  `json:"release"`
-	Plan       ReleasePlan      `json:"plan"`
-	Events     []event.Event    `json:"events,omitempty"`
-	Audits     []audit.AuditLog `json:"audits,omitempty"`
+	Definition Definition                 `json:"definition,omitempty"`
+	Release    release.Release            `json:"release"`
+	Plan       ReleasePlan                `json:"plan"`
+	Events     []event.Event              `json:"events,omitempty"`
+	Audits     []audit.AuditLog           `json:"audits,omitempty"`
+	Security   securityusecase.ScanRecord `json:"security,omitempty"`
 }
 
 type ExecutionRecord struct {
@@ -131,6 +133,7 @@ type ExecutionRecord struct {
 	Deployments []deploymentusecase.RunRecord `json:"deployments,omitempty"`
 	Events      []event.Event                 `json:"events,omitempty"`
 	Audits      []audit.AuditLog              `json:"audits,omitempty"`
+	Security    securityusecase.ScanRecord    `json:"security,omitempty"`
 }
 
 type TimelineEntry struct {

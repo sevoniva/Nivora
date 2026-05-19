@@ -1,0 +1,12 @@
+subjectType: artifact
+subjectId: demo-critical
+reference: registry.example.com/demo/app:1.0.0
+findings:
+  - severity: Critical
+    category: vulnerability
+    target: registry.example.com/demo/app:1.0.0
+    title: Example critical vulnerability
+    description: Safe example finding for policy gate tests.
+    packageName: example-package
+    installedVersion: 1.0.0
+    fixedVersion: 1.0.1

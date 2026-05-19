@@ -1,0 +1,4 @@
+criticalDenyThreshold: 1
+highWarnThreshold: 1
+requireDigest: false
+approvalOnCritical: false

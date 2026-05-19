@@ -24,6 +24,7 @@ import (
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"github.com/sevoniva/nivora/internal/version"
 	"github.com/spf13/cobra"
 )
@@ -48,11 +49,89 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newPipelineCommand())
 	root.AddCommand(newArtifactCommand())
 	root.AddCommand(newReleaseCommand())
+	root.AddCommand(newSecurityCommand())
+	root.AddCommand(newPolicyCommand())
 	root.AddCommand(newDeploymentCommand())
 	root.AddCommand(newGitOpsCommand())
 	root.AddCommand(newArgoCDCommand())
 	root.AddCommand(newRunnerCommand())
 	return root
+}
+
+func newSecurityCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "security", Short: "Security scan utilities"}
+	scan := &cobra.Command{Use: "scan", Short: "Run local security scans"}
+	scan.AddCommand(newSecurityScanArtifactCommand())
+	scan.AddCommand(newSecurityScanManifestCommand())
+	cmd.AddCommand(scan)
+	return cmd
+}
+
+func newSecurityScanArtifactCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "artifact <reference> --local",
+		Short: "Run a local artifact security scan through the noop scanner",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			record, err := server.NewSecurityService().Scan(cmd.Context(), securityusecase.ScanInput{SubjectType: "artifact", SubjectID: args[0], Reference: args[0]})
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), record)
+			return nil
+		},
+	}
+	cmd.Flags().Bool("local", true, "use the in-process Phase 3.0 noop scanner")
+	return cmd
+}
+
+func newSecurityScanManifestCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "manifest <manifest.yaml> --local",
+		Short: "Run a local manifest security scan through the noop scanner and built-in manifest checks",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			body, err := os.ReadFile(args[0])
+			if err != nil {
+				return err
+			}
+			record, err := server.NewSecurityService().Scan(cmd.Context(), securityusecase.ScanInput{SubjectType: "manifest", SubjectID: args[0], Content: string(body)})
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), record)
+			return nil
+		},
+	}
+	cmd.Flags().Bool("local", true, "use the in-process Phase 3.0 noop scanner")
+	return cmd
+}
+
+func newPolicyCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "policy", Short: "Policy gate utilities"}
+	evaluate := &cobra.Command{
+		Use:   "evaluate --subject <reference>",
+		Short: "Evaluate built-in policy gates locally",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			subject, _ := cmd.Flags().GetString("subject")
+			requireDigest, _ := cmd.Flags().GetBool("require-digest")
+			if subject == "" {
+				return fmt.Errorf("--subject is required")
+			}
+			result := server.NewSecurityService().Evaluate(securityusecase.EvaluateInput{
+				SubjectType: "artifact",
+				SubjectID:   subject,
+				Reference:   subject,
+				Policy:      securityusecase.PolicyConfig{CriticalDenyThreshold: 1, HighWarnThreshold: 1, RequireDigest: requireDigest},
+			})
+			printJSON(cmd.OutOrStdout(), result)
+			return nil
+		},
+	}
+	evaluate.Flags().String("subject", "", "artifact reference or subject")
+	evaluate.Flags().Bool("require-digest", false, "deny mutable artifact references without sha256 digest")
+	cmd.AddCommand(evaluate)
+	return cmd
 }
 
 func newArtifactCommand() *cobra.Command {
@@ -119,6 +198,7 @@ func newReleaseCommand() *cobra.Command {
 	cmd.AddCommand(newReleaseArtifactsCommand())
 	cmd.AddCommand(newReleasePlanCommand())
 	cmd.AddCommand(newReleaseDeployCommand())
+	cmd.AddCommand(newReleaseSecurityCommand())
 	cmd.AddCommand(newReleaseExecutionCommand())
 	return cmd
 }
@@ -196,6 +276,25 @@ func newReleaseArtifactsCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+args[0]+"/artifacts", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newReleaseSecurityCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "security <release-id>",
+		Short: "Get release security gate output from a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+args[0]+"/security", nil)
 			if err != nil {
 				return err
 			}
@@ -549,6 +648,7 @@ func newDeploymentCommand() *cobra.Command {
 	cmd.AddCommand(newDeploymentInspectCommand("logs", "Get DeploymentRun logs", "/logs"))
 	cmd.AddCommand(newDeploymentInspectCommand("events", "Get DeploymentRun events", "/events"))
 	cmd.AddCommand(newDeploymentInspectCommand("timeline", "Get DeploymentRun timeline", "/timeline"))
+	cmd.AddCommand(newDeploymentInspectCommand("security", "Get DeploymentRun security gate output", "/security"))
 	cmd.AddCommand(newDeploymentCancelCommand())
 	return cmd
 }

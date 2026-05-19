@@ -12,10 +12,11 @@ import (
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -47,12 +48,17 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/artifacts/inspect", handlers.InspectArtifact(artifactService))
 		api.Post("/artifacts/resolve", handlers.ResolveArtifact(artifactService))
 		api.Post("/artifact-registries/validate", handlers.ValidateArtifactRegistry())
+		api.Post("/security/scans", handlers.CreateSecurityScan(securityService))
+		api.Get("/security/scans/{id}", handlers.GetSecurityScan(securityService))
+		api.Get("/security/scans/{id}/findings", handlers.GetSecurityFindings(securityService))
+		api.Post("/policies/evaluate", handlers.EvaluatePolicy(securityService))
 		api.Get("/releases", handlers.ListReleases(artifactService))
 		api.Post("/releases", handlers.CreateRelease(artifactService))
 		api.Post("/releases/{id}/plan", handlers.PlanRelease(releaseService))
 		api.Post("/releases/{id}/deploy", handlers.DeployRelease(releaseService))
 		api.Get("/releases/{id}/plan", handlers.GetReleasePlan(releaseService))
 		api.Get("/releases/{id}/executions", handlers.ListReleaseExecutions(releaseService))
+		api.Get("/releases/{id}/security", handlers.GetReleaseSecurity(releaseService))
 		api.Get("/releases/{id}", handlers.GetRelease(artifactService))
 		api.Get("/releases/{id}/artifacts", handlers.GetReleaseArtifacts(artifactService))
 		api.Get("/releases/executions/{execution_id}", handlers.GetReleaseExecution(releaseService))
@@ -73,6 +79,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/deployments/{id}/logs", handlers.GetDeploymentLogs(deploymentService))
 		api.Get("/deployments/{id}/events", handlers.GetDeploymentEvents(deploymentService))
 		api.Get("/deployments/{id}/timeline", handlers.GetDeploymentTimeline(deploymentService))
+		api.Get("/deployments/{id}/security", handlers.GetDeploymentSecurity(deploymentService))
 		api.Post("/deployments/{id}/cancel", handlers.CancelDeploymentRun(deploymentService))
 		api.Post("/deployments/{id}/sync", handlers.SyncDeploymentArgoCD(deploymentService))
 

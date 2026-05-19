@@ -15,12 +15,15 @@ import (
 	argocdadapter "github.com/sevoniva/nivora/internal/adapters/executor/argocd"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
+	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	portsecurity "github.com/sevoniva/nivora/internal/ports/security"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
@@ -116,6 +119,7 @@ func newTestRouter(cfg config.Config) http.Handler {
 		deploymentService,
 		artifactService,
 		newTestReleaseOrchestrationService(artifactService, deploymentService),
+		securityusecase.NewService(securityusecase.NewMemoryStore(), fakeSecurityScanner{}, nil, memory.New()),
 	)
 }
 
@@ -147,4 +151,22 @@ type allowPolicy struct{}
 
 func (allowPolicy) Evaluate(ctx context.Context, request policy.Request) (policy.Result, error) {
 	return policy.Result{Allowed: true}, nil
+}
+
+type fakeSecurityScanner struct{}
+
+func (fakeSecurityScanner) ScanArtifact(ctx context.Context, request portsecurity.ScanRequest) (portsecurity.ScanResult, error) {
+	return portsecurity.ScanResult{Scanner: "fake", Findings: nil}, nil
+}
+
+func (fakeSecurityScanner) ScanManifest(ctx context.Context, request portsecurity.ScanRequest) (portsecurity.ScanResult, error) {
+	return portsecurity.ScanResult{Scanner: "fake", Findings: nil}, nil
+}
+
+func (fakeSecurityScanner) ScanDeploymentPlan(ctx context.Context, request portsecurity.ScanRequest) (portsecurity.ScanResult, error) {
+	return portsecurity.ScanResult{Scanner: "fake", Findings: []domainsecurity.SecurityFinding{}}, nil
+}
+
+func (fakeSecurityScanner) GetCapabilities(ctx context.Context) ([]portsecurity.Capability, error) {
+	return nil, nil
 }

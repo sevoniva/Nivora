@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 2.7 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 3.0 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
@@ -371,6 +371,66 @@ channels:
         $ref: "#/components/messages/Event"
   devops.release.execution.canceled:
     address: devops.release.execution.canceled
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.security.scan.requested:
+    address: devops.security.scan.requested
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.security.scan.started:
+    address: devops.security.scan.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.security.scan.completed:
+    address: devops.security.scan.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.security.scan.failed:
+    address: devops.security.scan.failed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.policy.evaluation.started:
+    address: devops.policy.evaluation.started
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.policy.evaluation.completed:
+    address: devops.policy.evaluation.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.policy.gate.allowed:
+    address: devops.policy.gate.allowed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.policy.gate.denied:
+    address: devops.policy.gate.denied
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.policy.gate.warning:
+    address: devops.policy.gate.warning
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.policy.gate.approval_required:
+    address: devops.policy.gate.approval_required
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.signature.verification.completed:
+    address: devops.signature.verification.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.sbom.recorded:
+    address: devops.sbom.recorded
     messages:
       event:
         $ref: "#/components/messages/Event"

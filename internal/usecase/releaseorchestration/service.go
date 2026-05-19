@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sevoniva/nivora/internal/domain/audit"
@@ -15,6 +16,7 @@ import (
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
 const (
@@ -46,8 +48,14 @@ type Service struct {
 	artifacts   ArtifactService
 	deployments DeploymentService
 	policy      policy.Engine
+	security    *securityusecase.Service
 	eventBus    eventbus.EventBus
 	now         func() time.Time
+}
+
+func (s *Service) WithSecurity(securityService *securityusecase.Service) *Service {
+	s.security = securityService
+	return s
 }
 
 func NewService(store Store, artifacts ArtifactService, deployments DeploymentService, policyEngine policy.Engine, bus eventbus.EventBus) *Service {
@@ -74,6 +82,22 @@ func (s *Service) Plan(ctx context.Context, input PlanInput) (PlanRecord, error)
 		return PlanRecord{}, err
 	}
 	record := PlanRecord{Definition: input.Definition, Release: releaseRecord.Release, Plan: plan}
+	if s.security != nil {
+		securityRecord, err := s.security.Scan(ctx, securityusecase.ScanInput{
+			SubjectType: "release",
+			SubjectID:   releaseRecord.Release.ID,
+			Reference:   strings.Join(plan.ArtifactSummary, ","),
+			Policy:      securityusecase.DefaultPolicyConfig(),
+			ActorID:     input.ActorID,
+		})
+		if err != nil {
+			return PlanRecord{}, err
+		}
+		record.Security = securityRecord
+		if securityRecord.Policy.Decision == "deny" {
+			record.Plan.Warnings = append(record.Plan.Warnings, securityRecord.Policy.Reason)
+		}
+	}
 	if err := s.store.SavePlan(ctx, record); err != nil {
 		return PlanRecord{}, err
 	}
@@ -84,6 +108,30 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 	planRecord, err := s.Plan(ctx, PlanInput{Definition: input.Definition, ActorID: input.ActorID})
 	if err != nil {
 		return ExecutionRecord{}, err
+	}
+	if planRecord.Security.Policy.Decision == "deny" {
+		now := s.now()
+		record := ExecutionRecord{
+			Definition: input.Definition,
+			Release:    planRecord.Release,
+			Plan:       planRecord.Plan,
+			Security:   planRecord.Security,
+			Execution: ReleaseExecution{
+				ID:              newID("rexec"),
+				ReleaseID:       planRecord.Plan.ReleaseID,
+				EnvironmentID:   planRecord.Plan.EnvironmentID,
+				EnvironmentName: planRecord.Plan.EnvironmentName,
+				Status:          ExecutionFailed,
+				Reason:          planRecord.Security.Policy.Reason,
+				CreatedAt:       now,
+				UpdatedAt:       now,
+				FinishedAt:      &now,
+			},
+		}
+		if err := s.store.SaveExecution(ctx, record); err != nil {
+			return ExecutionRecord{}, err
+		}
+		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionFailed, "Release execution failed", input.ActorID, planRecord.Security.Policy.Reason)
 	}
 	now := s.now()
 	exec := ReleaseExecution{
@@ -101,6 +149,7 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 		Release:    planRecord.Release,
 		Plan:       planRecord.Plan,
 		Execution:  exec,
+		Security:   planRecord.Security,
 	}
 	if err := s.store.SaveExecution(ctx, record); err != nil {
 		return ExecutionRecord{}, err

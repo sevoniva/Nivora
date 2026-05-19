@@ -15,6 +15,7 @@ import (
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
@@ -31,8 +32,9 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 	pipelineService := NewPipelineService()
 	deploymentService := NewDeploymentService()
 	artifactService := NewArtifactService()
+	securityService := NewSecurityService()
 	releaseService := NewReleaseOrchestrationServiceWith(artifactService, deploymentService)
-	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService)
+	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.BindAddress,
 		Handler:           handler,
@@ -72,4 +74,8 @@ func NewReleaseOrchestrationService() *releaseorchestration.Service {
 
 func NewReleaseOrchestrationServiceWith(artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) *releaseorchestration.Service {
 	return appruntime.NewReleaseOrchestrationServiceWith(artifactService, deploymentService)
+}
+
+func NewSecurityService() *securityusecase.Service {
+	return appruntime.NewSecurityService()
 }

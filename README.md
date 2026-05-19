@@ -31,6 +31,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | OCI / Harbor-compatible digest resolution | Phase 2.5 foundation |
 | Argo CD status / guarded sync | Phase 2.6 foundation |
 | Multi-target release orchestration | Phase 2.7 foundation |
+| DevSecOps policy gates | Phase 3.0 foundation |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
 | Frontend visualization | Future phase |
@@ -939,10 +940,11 @@ flowchart LR
     P25["Phase 2.5<br/>OCI Digest Resolution"]
     P26["Phase 2.6<br/>Argo CD Guarded Sync"]
     P27["Phase 2.7<br/>Release Orchestration"]
-    P3["Phase 3<br/>Multi-cloud & DevSecOps"]
+    P30["Phase 3.0<br/>DevSecOps Foundation"]
+    P3["Future Phase 3<br/>Multi-cloud & DevSecOps"]
     P4["Phase 4<br/>Visualization"]
 
-    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P3 --> P4
+    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P30 --> P3 --> P4
 ```
 
 See [ROADMAP.md](ROADMAP.md) and [docs/roadmap/overview.md](docs/roadmap/overview.md) for details.
@@ -1043,6 +1045,16 @@ Nivora must not commit or expose secrets.
 Do not commit tokens, passwords, private keys, kubeconfigs, cloud credentials, registry credentials, or realistic-looking fake credentials. Secret values must not be logged, returned by normal APIs, stored in audit records, embedded in examples, or embedded in tests.
 
 See [SECURITY.md](SECURITY.md) and [docs/engineering/security-baseline.md](docs/engineering/security-baseline.md).
+
+Phase 3.0 adds local DevSecOps foundations:
+
+```bash
+go run ./cmd/nivora security scan artifact registry.example.com/demo/app:latest --local
+go run ./cmd/nivora security scan manifest examples/security/manifest-privileged-warning.yaml --local
+go run ./cmd/nivora policy evaluate --subject registry.example.com/demo/app:latest
+```
+
+These commands use noop/fake-friendly scanner foundations and built-in policy gates. Trivy, Cosign, SBOM generation, OPA, Kyverno, Gatekeeper, and production security automation remain future work.
 
 ## Documentation
 

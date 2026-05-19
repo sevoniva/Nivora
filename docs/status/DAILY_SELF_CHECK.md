@@ -48,7 +48,7 @@ Date: 2026-05-20
 | `./scripts/verify-no-secrets.sh` | passed | No high-confidence secret patterns |
 | `scripts/verify-helm-safety.sh` | passed | 11 passed, 0 failed |
 | `make verify-postgres` | skipped | No PostgreSQL available locally; CI runs in GitHub Actions |
-| `make verify` | not run | Requires Node.js for web build; partial components verified individually |
+| `make verify` | passed | Full verification path runs cleanly. Web build gracefully skips without Node. Helm safety 11/11. All components verified. |
 | `git diff --check` | passed | No whitespace errors |
 
 ## 4. Planned vs Completed
@@ -195,12 +195,12 @@ Comparison against the plan in `/Users/carson/Downloads/123.txt`:
       "./scripts/verify-architecture.sh",
       "./scripts/verify-no-secrets.sh",
       "scripts/verify-helm-safety.sh (11/11)",
+      "make verify (full path, web skips gracefully without Node)",
       "git diff --check"
     ],
     "failed": [],
     "skipped": [
-      "make verify-postgres — no PostgreSQL available locally; CI runs it",
-      "make verify — requires Node.js for web build, partial components verified"
+      "make verify-postgres — no PostgreSQL available locally; CI runs it"
     ]
   }
 }

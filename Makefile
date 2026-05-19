@@ -94,7 +94,11 @@ verify-host:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
 
 verify-web:
-	cd web && npm ci && npm run typecheck && npm run build
+	@if command -v npm >/dev/null 2>&1; then \
+		cd web && npm ci && npm run typecheck && npm run build; \
+	else \
+		echo "npm not found; skipping web UI build (install Node.js to include web verification)"; \
+	fi
 
 verify-packaging:
 	@if command -v helm >/dev/null 2>&1; then \

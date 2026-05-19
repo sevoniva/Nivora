@@ -2,7 +2,7 @@
 
 Nivora uses layered tests so contributors can verify changes without requiring cloud accounts, local kind clusters, registries, Argo CD, or external scanners.
 
-Nivora is still an alpha-stage project. These gates keep the foundation reliable; they do not claim production readiness.
+Nivora is a hardened beta-candidate project. These gates keep the foundation reliable; they do not claim production readiness.
 
 ## Test Layers
 
@@ -16,13 +16,15 @@ Nivora is still an alpha-stage project. These gates keep the foundation reliable
 | CLI smoke | Run version/config/pipeline/deployment/artifact CLI paths. | `make verify-cli` | Yes |
 | Runtime smoke | Execute a local shell PipelineRun. | `make verify-runtime` | Yes |
 | Packaging checks | Template and lint Helm chart when Helm is available. | `make verify-packaging` | Yes |
-| Web build | Typecheck and build the minimal web foundation when `web/` exists. | `make verify-web` | Yes |
+| Web build | Typecheck and build the minimal web foundation. Gracefully skips when npm is not installed. | `make verify-web` | Yes (CI has Node; local skips gracefully) |
+| Helm safety | Verify chart defaults are dev-safe and production profile is hardened. | `make verify-helm-safety` | Yes |
+| Postgres integration | Run migration up/down and runtime recovery tests against a real PostgreSQL. | `make test-postgres-integration` | Yes (separate CI job with PG16 service container) |
 | Race tests | Exercise selected concurrent runtime/API packages with Go's race detector. | `make test-race` | Manual |
 | Coverage | Generate a local Go coverage report. | `make coverage` | Manual |
 
 ## Baseline CI
 
-CI should remain self-contained and deterministic. It runs formatting, module tidiness, vet, unit tests, binary builds, web build, architecture checks, secret scans, example validation, local runtime/API/CLI smoke checks, API spec parsing, packaging template checks, and alpha release documentation checks.
+CI should remain self-contained and deterministic. The main CI job runs formatting, module tidiness, vet, unit tests, binary builds, web build (with Node.js), architecture checks, secret scans, example validation, local runtime/API/CLI smoke checks, API spec parsing, packaging template checks, Helm safety verification, and release documentation checks. A separate `postgres-integration` job runs migration up/down and runtime recovery tests against a PostgreSQL 16 service container.
 
 ## Manual Checks
 

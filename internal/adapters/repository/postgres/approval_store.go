@@ -198,10 +198,7 @@ func (s *ApprovalStore) Events(ctx context.Context) ([]event.Event, error) {
 }
 
 func (s *ApprovalStore) AppendAudit(ctx context.Context, entry audit.AuditLog) error {
-	payload, _ := json.Marshal(entry)
-	_, err := s.pool.Exec(ctx, `INSERT INTO governance_audit_logs (id, source, actor_id, action, subject, payload, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		entry.ID, "approval", entry.ActorID, entry.Action, entry.Subject, payload, entry.CreatedAt)
-	return err
+	return AppendHashChainedAudit(ctx, s.pool, "approval", entry)
 }
 
 func (s *ApprovalStore) Audits(ctx context.Context) ([]audit.AuditLog, error) {

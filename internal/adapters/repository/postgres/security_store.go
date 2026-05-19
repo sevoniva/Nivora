@@ -107,8 +107,5 @@ func (s *SecurityStore) Events(ctx context.Context, scanID string) ([]event.Even
 }
 
 func (s *SecurityStore) AppendAudit(ctx context.Context, scanID string, entry audit.AuditLog) error {
-	payload, _ := json.Marshal(entry)
-	_, err := s.pool.Exec(ctx, `INSERT INTO governance_audit_logs (id, source, actor_id, action, subject, payload, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		entry.ID, "security", entry.ActorID, entry.Action, scanID, payload, entry.CreatedAt)
-	return err
+	return AppendHashChainedAudit(ctx, s.pool, "security", entry)
 }

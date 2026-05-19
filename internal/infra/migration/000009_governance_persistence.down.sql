@@ -1,0 +1,16 @@
+DROP TABLE IF EXISTS governance_event_logs;
+DROP TABLE IF EXISTS governance_audit_logs;
+DROP TABLE IF EXISTS tenancy_usage_records;
+DROP TABLE IF EXISTS tenancy_quotas;
+DROP TABLE IF EXISTS cloud_inventory_snapshots;
+DROP TABLE IF EXISTS cloud_accounts;
+DROP TABLE IF EXISTS approval_notifications;
+DROP TABLE IF EXISTS approval_change_windows;
+DROP TABLE IF EXISTS approval_requests;
+DROP TABLE IF EXISTS security_scans;
+DROP TABLE IF EXISTS credential_secret_usages;
+DROP TABLE IF EXISTS credential_records;
+DROP TABLE IF EXISTS auth_memberships;
+DROP TABLE IF EXISTS auth_api_tokens;
+DROP TABLE IF EXISTS auth_service_accounts;
+DROP TABLE IF EXISTS auth_users;

@@ -139,16 +139,61 @@ func NewSecurityService() *securityusecase.Service {
 	return securityusecase.NewService(securityusecase.NewMemoryStore(), securitynoop.New(), securitynoop.SignatureVerifier{}, bus)
 }
 
+func NewSecurityServiceWithConfig(ctx context.Context, cfg config.Config) (*securityusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewSecurityService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	bus := memory.New()
+	return securityusecase.NewService(postgresrepo.NewSecurityStore(pool), securitynoop.New(), securitynoop.SignatureVerifier{}, bus), pool.Close, nil
+}
+
 func NewCredentialService() *credentialusecase.Service {
 	return credentialusecase.NewService(credentialusecase.NewMemoryStore(), builtinsecret.New(), memory.New())
+}
+
+func NewCredentialServiceWithConfig(ctx context.Context, cfg config.Config) (*credentialusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewCredentialService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return credentialusecase.NewService(postgresrepo.NewCredentialStore(pool), builtinsecret.New(), memory.New()), pool.Close, nil
 }
 
 func NewAuthService() *authusecase.Service {
 	return authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
 }
 
+func NewAuthServiceWithConfig(ctx context.Context, cfg config.Config) (*authusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewAuthService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return authusecase.NewService(postgresrepo.NewAuthStore(pool), memory.New()), pool.Close, nil
+}
+
 func NewApprovalService() *approvalusecase.Service {
 	return approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New())
+}
+
+func NewApprovalServiceWithConfig(ctx context.Context, cfg config.Config) (*approvalusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewApprovalService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return approvalusecase.NewService(postgresrepo.NewApprovalStore(pool), noopnotification.New(), memory.New()), pool.Close, nil
 }
 
 func NewCloudService() *cloudusecase.Service {
@@ -159,6 +204,23 @@ func NewCloudService() *cloudusecase.Service {
 		domaincloud.ProviderGeneric: cloudfake.New(domaincloud.ProviderGeneric),
 	}
 	return cloudusecase.NewService(cloudusecase.NewMemoryStore(), providers, memory.New())
+}
+
+func NewCloudServiceWithConfig(ctx context.Context, cfg config.Config) (*cloudusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewCloudService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	providers := map[string]portcloud.CloudProvider{
+		domaincloud.ProviderAWS:     aws.New(),
+		domaincloud.ProviderAliyun:  aliyun.New(),
+		domaincloud.ProviderTencent: tencent.New(),
+		domaincloud.ProviderGeneric: cloudfake.New(domaincloud.ProviderGeneric),
+	}
+	return cloudusecase.NewService(postgresrepo.NewCloudStore(pool), providers, memory.New()), pool.Close, nil
 }
 
 func NewTenancyService() *tenancyusecase.Service {

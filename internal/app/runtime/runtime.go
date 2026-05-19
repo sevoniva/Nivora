@@ -27,6 +27,7 @@ import (
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
@@ -96,6 +97,10 @@ func NewCloudService() *cloudusecase.Service {
 		domaincloud.ProviderGeneric: cloudfake.New(domaincloud.ProviderGeneric),
 	}
 	return cloudusecase.NewService(cloudusecase.NewMemoryStore(), providers, memory.New())
+}
+
+func NewPluginRegistry() *pluginusecase.Registry {
+	return pluginusecase.NewDefaultRegistry()
 }
 
 type allowAllPolicyEngine struct{}

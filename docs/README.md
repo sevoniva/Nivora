@@ -76,6 +76,7 @@ For a quick path through the project:
 - [Approval Model](architecture/approval-model.md)
 - [Cloud Provider Model](architecture/cloud-provider-model.md)
 - [Secret Model](architecture/secret-model.md)
+- [Plugin System](architecture/plugin-system.md)
 - [Visualization API](architecture/visualization-api.md)
 - [Policy Gates](architecture/policy-gates.md)
 - [Observability Model](architecture/observability-model.md)
@@ -109,6 +110,7 @@ For a quick path through the project:
 
 - [RFC Process](rfcs/README.md)
 - [RFC Template](rfcs/0000-template.md)
+- [Plugin RFC Template](rfcs/plugin-template.md)
 - [ADR Directory](adr/)
 
 Use RFCs for large proposals before implementation. Use ADRs to record accepted architecture decisions.
@@ -145,6 +147,7 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 - [Host Deployment Dry-Run](dev/host-deployment-dry-run.md)
 - [Visualization APIs](dev/visualization-apis.md)
 - [Web UI](dev/web-ui.md)
+- [Writing Adapters](dev/writing-adapters.md)
 - [AI Change Policy](engineering/ai-change-policy.md)
 - [Dependency Policy](engineering/dependency-policy.md)
 - [Testing Policy](engineering/testing-policy.md)

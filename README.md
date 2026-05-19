@@ -41,6 +41,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | Visualization backend APIs | Phase 4.0 read-model foundation |
 | Web UI foundation | Phase 4.1 minimal Vite / React app |
 | Observability and operations | Phase 4.2 request/correlation IDs, diagnostics, and local metrics |
+| Plugin and extension registry | Phase 4.3 manifest / capability registry foundation |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
 | Frontend visualization | Future phase |
@@ -767,6 +768,8 @@ go run ./cmd/nivora deployment host plan --file examples/deployments/host-dry-ru
 go run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
 go run ./cmd/nivora release plan --file examples/releases/multi-target-release.yaml --local
 go run ./cmd/nivora release deploy --file examples/releases/sequential-release.yaml --local
+go run ./cmd/nivora plugins list --local
+go run ./cmd/nivora plugins inspect artifact-oci --local
 ```
 
 ## Local Development

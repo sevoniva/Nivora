@@ -24,6 +24,7 @@ import (
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"github.com/sevoniva/nivora/internal/version"
@@ -60,6 +61,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newPolicyCommand())
 	root.AddCommand(newSecretCommand())
 	root.AddCommand(newCredentialCommand())
+	root.AddCommand(newPluginsCommand())
 	root.AddCommand(newDeploymentCommand())
 	root.AddCommand(newHostGroupsCommand())
 	root.AddCommand(newGitOpsCommand())
@@ -260,6 +262,70 @@ func newCloudAccountInspectCommand(name string, short string, suffix string) *co
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&region, "region", "", "optional cloud region filter")
+	return cmd
+}
+
+func newPluginsCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "plugins", Short: "Plugin and adapter registry utilities"}
+	cmd.AddCommand(newPluginsListCommand())
+	cmd.AddCommand(newPluginsInspectCommand())
+	return cmd
+}
+
+func newPluginsListCommand() *cobra.Command {
+	var serverURL string
+	var local bool
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List registered built-in and configured plugins",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if local {
+				plugins, err := pluginusecase.NewDefaultRegistry().List(cmd.Context())
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), plugins)
+				return nil
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/plugins", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().BoolVar(&local, "local", false, "use the local built-in registry without contacting a server")
+	return cmd
+}
+
+func newPluginsInspectCommand() *cobra.Command {
+	var serverURL string
+	var local bool
+	cmd := &cobra.Command{
+		Use:   "inspect <name>",
+		Short: "Inspect a plugin manifest",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if local {
+				manifest, err := pluginusecase.NewDefaultRegistry().Get(cmd.Context(), args[0])
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), manifest)
+				return nil
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/plugins/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().BoolVar(&local, "local", false, "use the local built-in registry without contacting a server")
 	return cmd
 }
 

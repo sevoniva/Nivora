@@ -31,6 +31,7 @@ import (
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"github.com/sevoniva/nivora/internal/version"
@@ -247,6 +248,7 @@ func newTestRouter(cfg config.Config) http.Handler {
 		authusecase.NewService(authusecase.NewMemoryStore(), memory.New()),
 		approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New()),
 		newTestCloudService(),
+		pluginusecase.NewDefaultRegistry(),
 	)
 }
 

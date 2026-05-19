@@ -16,12 +16,13 @@ import (
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, pluginRegistry *pluginusecase.Registry) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
@@ -39,6 +40,9 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/system/info", handlers.SystemInfo(cfg))
 		api.Get("/system/runtime", handlers.SystemRuntime(cfg))
 		api.Get("/system/diagnostics", handlers.SystemDiagnostics(cfg))
+		api.Get("/plugins", handlers.ListPlugins(pluginRegistry))
+		api.Get("/plugins/{name}", handlers.GetPlugin(pluginRegistry))
+		api.Get("/plugins/{name}/capabilities", handlers.GetPluginCapabilities(pluginRegistry))
 		api.Get("/auth/whoami", handlers.WhoAmI())
 		api.Get("/auth/permissions", handlers.AuthPermissions(authService))
 		api.Get("/auth/token-info", handlers.AuthTokenInfo())

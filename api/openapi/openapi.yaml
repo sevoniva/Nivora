@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 4.2 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory foundations, safe host deployment planning/noop execution, durable runner protocol foundations, backend visualization read models, and lightweight observability/operations endpoints.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 4.3 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory foundations, safe host deployment planning/noop execution, durable runner protocol foundations, backend visualization read models, lightweight observability/operations endpoints, and plugin capability registry metadata.
 servers:
   - url: http://localhost:8080
 paths:
@@ -68,6 +68,56 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SystemDiagnostics"
+  /api/v1/plugins:
+    get:
+      summary: List plugin manifests
+      responses:
+        "200":
+          description: Built-in and configured plugin metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PluginManifest"
+  /api/v1/plugins/{name}:
+    get:
+      summary: Get a plugin manifest
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Plugin manifest
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PluginManifest"
+        "404":
+          description: Plugin not found
+  /api/v1/plugins/{name}/capabilities:
+    get:
+      summary: Get plugin capabilities
+      parameters:
+        - name: name
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Plugin capabilities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PluginCapability"
+        "404":
+          description: Plugin not found
   /api/v1/auth/whoami:
     get:
       summary: Show current authenticated subject
@@ -2475,6 +2525,60 @@ components:
           type: string
         message:
           type: string
+    PluginManifest:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          $ref: "#/components/schemas/PluginType"
+        version:
+          type: string
+        protocol:
+          type: string
+          description: builtin, http, grpc, or another explicit configured protocol
+        endpoint:
+          type: string
+          description: Optional endpoint for future external process plugins; never contains credentials
+        capabilities:
+          type: array
+          items:
+            $ref: "#/components/schemas/PluginCapability"
+        status:
+          type: string
+          enum: [builtin, configured, unavailable, external]
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PluginType:
+      type: string
+      enum: [scm, artifact, cloud, executor, secret, notification, policy, scanner, gitops]
+    PluginCapability:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        inputs:
+          type: array
+          items:
+            type: string
+        outputs:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
     ArtifactReference:
       type: object
       required: [reference]

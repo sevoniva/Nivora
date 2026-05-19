@@ -82,6 +82,27 @@ Non-goals:
 - Frontend observability dashboards.
 - Production readiness claims.
 
+## Phase 4.3 Plugin and Extension System Foundation
+
+Phase 4.3 defines plugin metadata, a capability registry, and an external protocol skeleton.
+
+Scope:
+
+- Plugin manifest model.
+- Plugin types for SCM, artifact, cloud, executor, secret, notification, policy, scanner, and GitOps extensions.
+- Static built-in adapter capability registry.
+- Plugin metadata APIs and CLI commands.
+- External plugin protocol skeleton in `api/proto/plugin.proto`.
+- Adapter authoring and plugin RFC documentation.
+
+Non-goals:
+
+- Go plugin dynamic loading.
+- Unsafe external code loading.
+- Marketplace behavior.
+- Frontend plugin management.
+- Production plugin execution.
+
 ## Contribution Opportunities
 
 - API design for timelines.

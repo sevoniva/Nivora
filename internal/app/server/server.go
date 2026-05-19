@@ -18,6 +18,7 @@ import (
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"github.com/sevoniva/nivora/internal/version"
@@ -41,8 +42,9 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 	authService := NewAuthService()
 	approvalService := NewApprovalService()
 	cloudService := NewCloudService()
+	pluginRegistry := NewPluginRegistry()
 	releaseService := NewReleaseOrchestrationServiceWith(artifactService, deploymentService)
-	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService, cloudService)
+	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService, cloudService, pluginRegistry)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.BindAddress,
 		Handler:           handler,
@@ -102,4 +104,8 @@ func NewApprovalService() *approvalusecase.Service {
 
 func NewCloudService() *cloudusecase.Service {
 	return appruntime.NewCloudService()
+}
+
+func NewPluginRegistry() *pluginusecase.Registry {
+	return appruntime.NewPluginRegistry()
 }

@@ -12,7 +12,9 @@ Small local Adapters can live in the repository. Large vendor-specific or securi
 
 ## Plugin Direction
 
-A plugin system is possible in future phases, but it requires an RFC. The project should first stabilize core Ports, data model, runner protocol, and security model.
+Phase 4.3 adds a plugin metadata and capability registry foundation. It lists built-in adapter capabilities and defines an external protocol skeleton, but it does not dynamically load code or install external plugins.
+
+Future plugin execution, marketplace behavior, or external adapter runtime changes still require an RFC.
 
 ## What Requires an RFC
 
@@ -32,4 +34,3 @@ A plugin system is possible in future phases, but it requires an RFC. The projec
 3. Avoid leaking provider types into domain or usecase packages.
 4. Add tests that do not require real external services.
 5. Update docs and OpenAPI or AsyncAPI if behavior becomes public.
-

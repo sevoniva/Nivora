@@ -17,7 +17,7 @@ Use an RFC for:
 
 ## How to Submit
 
-1. Copy `0000-template.md`.
+1. Copy `0000-template.md`, or `plugin-template.md` for plugin protocol or external adapter proposals.
 2. Name the file with the next available number and short title.
 3. Fill in goals, non-goals, proposal, impact, alternatives, rollout, and open questions.
 4. Open a pull request for discussion.
@@ -25,4 +25,3 @@ Use an RFC for:
 ## RFCs and ADRs
 
 An RFC proposes a direction. An ADR records an accepted architecture decision. Accepted RFCs may lead to one or more ADRs.
-

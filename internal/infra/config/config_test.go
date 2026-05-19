@@ -68,8 +68,43 @@ func TestRepositoryConfigExamplesValidate(t *testing.T) {
 func TestProductionRejectsMemoryRuntimeStore(t *testing.T) {
 	cfg := Default()
 	cfg.Env = "production"
+	cfg.Auth.Enabled = true
+	cfg.Runtime.AllowLocalShellExecutor = false
 	cfg.Database.RuntimeStore = "memory"
 	if err := cfg.Validate(); err == nil {
 		t.Fatal("expected production memory runtime store to be rejected")
+	}
+}
+
+func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
+	base := Default()
+	base.Env = "production"
+	base.Database.RuntimeStore = "postgres"
+	base.Auth.Enabled = true
+	base.Runtime.AllowLocalShellExecutor = false
+
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+	}{
+		{"auth disabled", func(c *Config) { c.Auth.Enabled = false }},
+		{"local shell", func(c *Config) { c.Runtime.AllowLocalShellExecutor = true }},
+		{"privileged executor", func(c *Config) { c.Runtime.AllowPrivilegedExecutor = true }},
+		{"remote host deploy", func(c *Config) { c.Runtime.AllowRemoteHostDeploy = true }},
+		{"kubernetes apply", func(c *Config) { c.Runtime.AllowKubernetesApply = true }},
+		{"argo sync", func(c *Config) { c.Runtime.AllowArgoSync = true }},
+		{"insecure registry", func(c *Config) { c.Runtime.AllowInsecureRegistry = true }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := base
+			tc.mutate(&cfg)
+			if err := cfg.Validate(); err == nil {
+				t.Fatalf("expected %s to be rejected", tc.name)
+			}
+		})
+	}
+	if err := base.Validate(); err != nil {
+		t.Fatalf("safe production config rejected: %v", err)
 	}
 }

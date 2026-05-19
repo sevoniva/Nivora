@@ -17,6 +17,9 @@ This checklist supports Phase 9.2 security review before GA. It is not complete 
 ## Secure Defaults
 
 - [x] `configs/production.example.yaml` has `auth.enabled: true`.
+- [x] Production config validation rejects disabled auth.
+- [x] Production config validation rejects memory runtime storage.
+- [x] Production config validation rejects local shell, privileged executor, remote host deploy, Kubernetes apply, Argo sync, and insecure registry global allowances.
 - [x] Production-shaped config uses token mode with `NIVORA_AUTH_TOKEN` as an environment variable reference, not a token value.
 - [x] Insecure OCI registries require explicit `insecure: true` or CLI `--insecure`.
 - [x] Kubernetes apply is guarded and not default in examples.
@@ -42,7 +45,9 @@ This checklist supports Phase 9.2 security review before GA. It is not complete 
 - [x] Credential management APIs require credential management permissions.
 - [x] Runner token rotation/revocation requires runner management permission.
 - [x] Runner mutation endpoints require runner token validation.
-- [ ] Maintainers have reviewed all mutation routes for permission coverage.
+- [x] Route permission matrix exists at `docs/security/ROUTE_PERMISSION_MATRIX.md`.
+- [x] Runner tokens are tested so they can reach runner protocol endpoints but not admin APIs.
+- [ ] Maintainers have reviewed all mutation routes for permission coverage beyond the current test matrix.
 - [ ] Cross-tenant negative tests have been reviewed for critical resources.
 
 ## Runner Trust Boundary

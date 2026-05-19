@@ -66,6 +66,7 @@ Current controls:
 
 - Runner mutation endpoints require runner tokens.
 - Runner tokens are stored as hashes and raw tokens are returned only once at registration/rotation.
+- Runner tokens are accepted only on runner protocol endpoints and cannot authenticate control-plane admin APIs.
 - Runner claim uses identity, capabilities, labels, leases, heartbeat, max concurrency, and offline detection.
 - Runner protocol does not expose the full domain model.
 - Privileged execution and autoscaling are not enabled by default.
@@ -217,7 +218,12 @@ Required hardening before GA:
 | Area | Expected default |
 | --- | --- |
 | Production-shaped config auth | Enabled, token or future OIDC mode; dev anonymous mode must not be production default |
+| Production runtime store | PostgreSQL; memory mode is rejected for `production` / `prod` configs |
+| Local shell executor | Allowed for local/dev only; rejected by production config validation |
 | Insecure OCI registry | Disabled unless explicitly configured |
+| Kubernetes apply | Disabled unless explicitly guarded by request/config |
+| Argo CD sync | Disabled unless explicitly guarded by request/config |
+| Remote host deploy | Disabled unless explicitly guarded by request/config |
 | Kubernetes apply | Disabled unless `apply=true` and confirmation/target policy allow it |
 | Argo CD sync | Disabled unless `sync=true`, `allowSync=true`, confirmation, and policy allow it |
 | Host remote deploy | Disabled unless apply, confirm, CredentialRef, and `allowRemoteHostDeploy` are explicit |

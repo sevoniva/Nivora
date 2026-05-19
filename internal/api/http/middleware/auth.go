@@ -26,6 +26,12 @@ func Authenticate(cfg config.AuthConfig, service *authusecase.Service, writeErro
 			if !cfg.Enabled {
 				mode = "disabled"
 			}
+			if isRunnerProtocolRequest(r) && runnerProtocolToken(r) != "" {
+				runnerID := chi.URLParam(r, "id")
+				subject := auth.Subject{ID: "runner:" + runnerID, Username: runnerID, DisplayName: runnerID, AuthMode: "runner_token", ScopeType: "runner", ScopeID: runnerID}
+				next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), subjectKey{}, subject)))
+				return
+			}
 			subject, err := service.Authenticate(r.Context(), authusecase.AuthenticateInput{
 				Mode:         mode,
 				DevUser:      cfg.DevUser,
@@ -41,6 +47,24 @@ func Authenticate(cfg config.AuthConfig, service *authusecase.Service, writeErro
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), subjectKey{}, subject)))
 		})
 	}
+}
+
+func isRunnerProtocolRequest(r *http.Request) bool {
+	path := r.URL.Path
+	if !strings.HasPrefix(path, "/api/v1/runners/") {
+		return false
+	}
+	if strings.Contains(path, "/heartbeat") || strings.Contains(path, "/jobs/") {
+		return true
+	}
+	return false
+}
+
+func runnerProtocolToken(r *http.Request) string {
+	if token := r.Header.Get("X-Nivora-Runner-Token"); token != "" {
+		return token
+	}
+	return bearerToken(r.Header.Get("Authorization"))
 }
 
 func firstNonEmpty(values ...string) string {

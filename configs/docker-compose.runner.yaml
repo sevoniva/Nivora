@@ -33,3 +33,10 @@ runner:
   name: compose-runner
   group: docker-compose
   heartbeat_interval: 30s
+runtime:
+  allow_local_shell_executor: true
+  allow_privileged_executor: false
+  allow_remote_host_deploy: false
+  allow_kubernetes_apply: false
+  allow_argo_sync: false
+  allow_insecure_registry: false

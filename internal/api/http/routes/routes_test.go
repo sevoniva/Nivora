@@ -408,6 +408,140 @@ func TestCriticalRoutesRequirePermissionInOIDCMode(t *testing.T) {
 	}
 }
 
+func TestRouteRBACAllowsSufficientPermission(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "oidc"
+	cfg.Auth.OIDC.Issuer = "https://issuer.example"
+	cfg.Auth.OIDC.ClientID = "nivora"
+	authService := authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+	authService.SetOIDCProvider(securityOIDCProvider{})
+	router := newTestRouterWithAuth(cfg, authService)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments/plan", strings.NewReader(`{"apiVersion":"nivora.io/v1alpha1","kind":"Deployment","metadata":{"name":"rbac-plan"},"spec":{"application":"demo","environment":"dev","target":{"type":"kubernetes-yaml","name":"dev","namespace":"default"},"manifests":["../../../../examples/yaml/deployment.yaml"],"options":{"dryRun":true,"apply":false}}}`))
+	req.Header.Set("Authorization", "Bearer developer-token")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("developer deployment plan status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestAuditorCanReadAuditButCannotMutate(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "oidc"
+	cfg.Auth.OIDC.Issuer = "https://issuer.example"
+	cfg.Auth.OIDC.ClientID = "nivora"
+	authService := authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+	authService.SetOIDCProvider(securityOIDCProvider{})
+	router := newTestRouterWithAuth(cfg, authService)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/audit/search", nil)
+	req.Header.Set("Authorization", "Bearer auditor-token")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("auditor audit read status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/deployments", strings.NewReader(`{}`))
+	req.Header.Set("Authorization", "Bearer auditor-token")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("auditor mutate status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestRunnerTokenScopeInTokenAuthMode(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	t.Setenv("NIVORA_TEST_AUTH_TOKEN", "admin-token")
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	cfg.Auth.StaticTokenEnv = "NIVORA_TEST_AUTH_TOKEN"
+	router := newTestRouter(cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runners/register", strings.NewReader(`{"id":"scoped-runner","name":"scoped-runner","status":"online","executors":["shell"]}`))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("runner register status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var registered struct {
+		Token struct {
+			Token string `json:"token"`
+		} `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &registered); err != nil {
+		t.Fatalf("decode runner token: %v", err)
+	}
+	if registered.Token.Token == "" {
+		t.Fatalf("expected one-time runner token body = %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "tokenHash") {
+		t.Fatalf("runner token response leaked hash = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/scoped-runner/heartbeat", nil)
+	req.Header.Set("X-Nivora-Runner-Token", registered.Token.Token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("runner heartbeat with runner token status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/runners", nil)
+	req.Header.Set("Authorization", "Bearer "+registered.Token.Token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("runner bearer token reached admin route status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestCredentialRoutesDoNotReturnCredentialValues(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/credentials", strings.NewReader(`{"name":"registry","type":"registry","scopeType":"project","scopeId":"demo","secretRef":{"id":"sec-placeholder","name":"placeholder","provider":"builtin","key":"registry/token"}}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create credential status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "password") || strings.Contains(rec.Body.String(), "tokenValue") {
+		t.Fatalf("credential response leaked value-like field = %s", rec.Body.String())
+	}
+	var created struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode credential: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/credentials/"+created.ID+"?scopeType=project&scopeId=demo", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get credential status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "password") || strings.Contains(rec.Body.String(), "tokenValue") || strings.Contains(rec.Body.String(), "secretValue") {
+		t.Fatalf("credential GET leaked secret material = %s", rec.Body.String())
+	}
+}
+
 func TestApprovalRoutes(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {
@@ -529,6 +663,22 @@ func (routeOIDCProvider) Validate(ctx context.Context, token string, issuer stri
 		return authusecase.OIDCClaims{}, authusecase.ErrUnauthorized
 	}
 	return authusecase.OIDCClaims{Subject: "viewer", Username: "viewer", Roles: []string{domainauth.RoleViewer}}, nil
+}
+
+type securityOIDCProvider struct{}
+
+func (securityOIDCProvider) Validate(ctx context.Context, token string, issuer string, audience string) (authusecase.OIDCClaims, error) {
+	if issuer != "https://issuer.example" || audience != "nivora" {
+		return authusecase.OIDCClaims{}, authusecase.ErrUnauthorized
+	}
+	switch token {
+	case "developer-token":
+		return authusecase.OIDCClaims{Subject: "developer", Username: "developer", Roles: []string{domainauth.RoleDeveloper}}, nil
+	case "auditor-token":
+		return authusecase.OIDCClaims{Subject: "auditor", Username: "auditor", Roles: []string{domainauth.RoleAuditor}}, nil
+	default:
+		return authusecase.OIDCClaims{}, authusecase.ErrUnauthorized
+	}
 }
 
 func TestCloudRoutes(t *testing.T) {

@@ -5,6 +5,8 @@ info:
   description: Beta-candidate Nivora API for the DevOps delivery control plane. This surface includes foundation-level shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory skeletons, safe host deployment planning/noop execution, durable runner protocol foundations, backend visualization read models, lightweight observability/operations endpoints, plugin capability registry metadata, and packaging assets. Nivora is not production-ready; some endpoints are experimental, foundation-only, or structured placeholders.
 servers:
   - url: http://localhost:8080
+security:
+  - BearerAuth: []
 paths:
   /healthz:
     get:
@@ -1691,6 +1693,8 @@ paths:
           description: Runner not found
   /api/v1/runners/{id}/heartbeat:
     post:
+      security:
+        - RunnerTokenAuth: []
       summary: Record a runner heartbeat with runner token authentication
       parameters:
         - $ref: "#/components/parameters/ID"
@@ -1735,6 +1739,8 @@ paths:
           description: Runner not found
   /api/v1/runners/{id}/jobs/claim:
     post:
+      security:
+        - RunnerTokenAuth: []
       summary: Claim one queued job for an authenticated runner
       parameters:
         - $ref: "#/components/parameters/ID"
@@ -1756,6 +1762,8 @@ paths:
           description: Runner token missing or invalid
   /api/v1/runners/{id}/jobs/{job_id}/logs:
     post:
+      security:
+        - RunnerTokenAuth: []
       summary: Append logs for a job owned by an authenticated runner
       parameters:
         - $ref: "#/components/parameters/ID"
@@ -1783,6 +1791,8 @@ paths:
           description: Runner token missing, invalid, or not authorized for the job
   /api/v1/runners/{id}/jobs/{job_id}/status:
     post:
+      security:
+        - RunnerTokenAuth: []
       summary: Update job status for a job owned by an authenticated runner
       parameters:
         - $ref: "#/components/parameters/ID"
@@ -2424,6 +2434,17 @@ paths:
         "501":
           $ref: "#/components/responses/NotImplemented"
 components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: API token, service account token, static token, or future OIDC access token
+      description: Control-plane API authentication. Permissions are enforced by route-specific RBAC middleware.
+    RunnerTokenAuth:
+      type: apiKey
+      in: header
+      name: X-Nivora-Runner-Token
+      description: Runner protocol token. Valid only for runner heartbeat, job claim, job log append, and job status update endpoints.
   parameters:
     ID:
       name: id

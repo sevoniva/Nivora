@@ -19,6 +19,7 @@ type Config struct {
 	Telemetry   TelemetryConfig   `mapstructure:"telemetry" yaml:"telemetry"`
 	Auth        AuthConfig        `mapstructure:"auth" yaml:"auth"`
 	Runner      RunnerConfig      `mapstructure:"runner" yaml:"runner"`
+	Runtime     RuntimeConfig     `mapstructure:"runtime" yaml:"runtime"`
 }
 
 type AppConfig struct {
@@ -76,6 +77,15 @@ type RunnerConfig struct {
 	HeartbeatInterval string `mapstructure:"heartbeat_interval" yaml:"heartbeat_interval"`
 }
 
+type RuntimeConfig struct {
+	AllowLocalShellExecutor bool `mapstructure:"allow_local_shell_executor" yaml:"allow_local_shell_executor"`
+	AllowPrivilegedExecutor bool `mapstructure:"allow_privileged_executor" yaml:"allow_privileged_executor"`
+	AllowRemoteHostDeploy   bool `mapstructure:"allow_remote_host_deploy" yaml:"allow_remote_host_deploy"`
+	AllowKubernetesApply    bool `mapstructure:"allow_kubernetes_apply" yaml:"allow_kubernetes_apply"`
+	AllowArgoSync           bool `mapstructure:"allow_argo_sync" yaml:"allow_argo_sync"`
+	AllowInsecureRegistry   bool `mapstructure:"allow_insecure_registry" yaml:"allow_insecure_registry"`
+}
+
 func Load(path string) (Config, error) {
 	cfg := Default()
 
@@ -131,6 +141,9 @@ func Default() Config {
 			Group:             "default",
 			HeartbeatInterval: "30s",
 		},
+		Runtime: RuntimeConfig{
+			AllowLocalShellExecutor: true,
+		},
 	}
 }
 
@@ -155,6 +168,29 @@ func (c Config) Validate() error {
 	}
 	if (c.Env == "production" || c.Env == "prod") && c.Database.RuntimeStore == "memory" {
 		return errors.New("config database.runtime_store=memory is dev-only; use postgres for production")
+	}
+	if c.Env == "production" || c.Env == "prod" {
+		if !c.Auth.Enabled {
+			return errors.New("config auth.enabled=false is not allowed in production")
+		}
+		if c.Runtime.AllowLocalShellExecutor {
+			return errors.New("config runtime.allow_local_shell_executor=true is not allowed in production")
+		}
+		if c.Runtime.AllowPrivilegedExecutor {
+			return errors.New("config runtime.allow_privileged_executor=true is not allowed in production")
+		}
+		if c.Runtime.AllowRemoteHostDeploy {
+			return errors.New("config runtime.allow_remote_host_deploy=true is not allowed in production")
+		}
+		if c.Runtime.AllowKubernetesApply {
+			return errors.New("config runtime.allow_kubernetes_apply=true is not allowed in production")
+		}
+		if c.Runtime.AllowArgoSync {
+			return errors.New("config runtime.allow_argo_sync=true is not allowed in production")
+		}
+		if c.Runtime.AllowInsecureRegistry {
+			return errors.New("config runtime.allow_insecure_registry=true is not allowed in production")
+		}
 	}
 	if c.EventBus.Type == "" {
 		return errors.New("config event_bus.type is required")

@@ -8,6 +8,8 @@ Security review docs:
 
 - [Threat Model](docs/security/threat-model.md)
 - [Security Review Checklist](docs/security/security-review-checklist.md)
+- [Route Permission Matrix](docs/security/ROUTE_PERMISSION_MATRIX.md)
+- [Runner Trust Boundary](docs/security/runner-trust-boundary.md)
 
 ## Secret Handling Principles
 
@@ -27,3 +29,5 @@ Phase 3.2 includes local development auth and RBAC foundations. Dev auth and sta
 ## Secure Defaults
 
 Production-shaped configuration must keep auth enabled, insecure registries explicit, Kubernetes apply guarded, Argo CD sync guarded, host remote deployment guarded, and secret values redacted from logs, audit records, events, diagnostics, release notes, and examples.
+
+Production config validation rejects disabled auth, memory runtime storage, local shell executor allowance, privileged executor allowance, remote host deployment allowance, Kubernetes apply allowance, Argo CD sync allowance, and global insecure registry allowance.

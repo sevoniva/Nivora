@@ -67,5 +67,6 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 ## Phase 4: Visualization Frontend
 
 - Phase 4.0 adds visualization-ready backend APIs for PipelineRun DAGs, timelines, DeploymentRun resources/health/diff, release overviews, environment topology, runner/security summaries, and audit timelines.
+- Phase 4.1 adds a minimal React + TypeScript + Vite web UI foundation that consumes existing visualization APIs.
 - Future Phase 4 work can build frontend surfaces on top of these backend contracts.
 - Add deployment topology, pipeline timelines, audit exploration, and operations dashboards.

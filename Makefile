@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify-security verify-host verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
+.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify-security verify-host verify-web verify run-server run-worker run-runner run-web pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -53,7 +53,10 @@ verify-host:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment host plan --file examples/deployments/host-dry-run.yaml --local
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
 
-verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify-security verify-host
+verify-web:
+	cd web && npm ci && npm run typecheck && npm run build
+
+verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify-security verify-host verify-web
 
 run-server:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora server --config configs/server.yaml
@@ -63,6 +66,9 @@ run-worker:
 
 run-runner:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora runner --config configs/runner.yaml
+
+run-web:
+	cd web && npm install && npm run dev
 
 pipeline-run-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml

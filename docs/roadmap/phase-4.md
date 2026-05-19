@@ -40,6 +40,27 @@ Build visualization-ready backend APIs first, then future frontend surfaces on t
 - No frontend code is added in Phase 4.0.
 - Normal verification passes.
 
+## Phase 4.1 Web UI Foundation
+
+Phase 4.1 adds a minimal React + TypeScript + Vite app under `web/`.
+
+Scope:
+
+- Dashboard.
+- PipelineRun detail.
+- Deployment detail.
+- Release execution detail.
+- Runner summary.
+- Security summary.
+- Minimal API client for existing visualization endpoints.
+
+Non-goals:
+
+- Complete product UI.
+- New backend behavior.
+- Heavy design system.
+- Production readiness claims.
+
 ## Contribution Opportunities
 
 - API design for timelines.

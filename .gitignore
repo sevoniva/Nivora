@@ -8,6 +8,7 @@
 !.env.example
 .idea/
 .vscode/
+node_modules/
 *.swp
 *.swo
 *~

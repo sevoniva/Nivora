@@ -139,6 +139,7 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 - [Cloud Inventory](dev/cloud-inventory.md)
 - [Host Deployment Dry-Run](dev/host-deployment-dry-run.md)
 - [Visualization APIs](dev/visualization-apis.md)
+- [Web UI](dev/web-ui.md)
 - [AI Change Policy](engineering/ai-change-policy.md)
 - [Dependency Policy](engineering/dependency-policy.md)
 - [Testing Policy](engineering/testing-policy.md)

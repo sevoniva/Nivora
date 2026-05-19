@@ -39,6 +39,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | Host deployment | Phase 3.5 planning / noop execution foundation |
 | Durable runner runtime | Phase 3.6 protocol / outbox foundation |
 | Visualization backend APIs | Phase 4.0 read-model foundation |
+| Web UI foundation | Phase 4.1 minimal Vite / React app |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
 | Frontend visualization | Future phase |
@@ -719,6 +720,14 @@ make smoke-api
 make run-server
 ```
 
+### Run Web UI
+
+```bash
+make run-web
+```
+
+The web UI lives under `web/` and consumes the existing `/api/v1/visualization/*` backend APIs. It is a minimal Phase 4.1 foundation, not a complete frontend product.
+
 ### Health Check
 
 ```bash
@@ -970,9 +979,10 @@ flowchart LR
     P36["Phase 3.6<br/>Durable Runner Runtime"]
     P3["Future Phase 3<br/>Multi-cloud & DevSecOps"]
     P40["Phase 4.0<br/>Visualization Backend APIs"]
+    P41["Phase 4.1<br/>Web UI Foundation"]
     P4["Future Phase 4<br/>Frontend Visualization"]
 
-    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P30 --> P31 --> P32 --> P33 --> P34 --> P35 --> P36 --> P3 --> P40 --> P4
+    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P30 --> P31 --> P32 --> P33 --> P34 --> P35 --> P36 --> P3 --> P40 --> P41 --> P4
 ```
 
 See [ROADMAP.md](ROADMAP.md) and [docs/roadmap/overview.md](docs/roadmap/overview.md) for details.

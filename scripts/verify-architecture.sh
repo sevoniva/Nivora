@@ -44,9 +44,19 @@ check_forbidden "internal/usecase" "github.com/aws/aws-sdk-go" "usecase must not
 check_forbidden "internal/usecase" "github.com/aws/aws-sdk-go-v2" "usecase must not import AWS SDK v2 directly"
 check_forbidden "internal/usecase" "k8s.io/client-go" "usecase must not import Kubernetes clients directly"
 
-if find . -path './.git' -prune -o -type d -name utils -print | grep -q .; then
+if find . \
+  -path './.git' -prune -o \
+  -path './web/node_modules' -prune -o \
+  -path './web/dist' -prune -o \
+  -path './node_modules' -prune -o \
+  -type d -name utils -print | grep -q .; then
   echo "Directory named utils found. Avoid vague utility packages unless explicitly justified."
-  find . -path './.git' -prune -o -type d -name utils -print
+  find . \
+    -path './.git' -prune -o \
+    -path './web/node_modules' -prune -o \
+    -path './web/dist' -prune -o \
+    -path './node_modules' -prune -o \
+    -type d -name utils -print
   exit 1
 fi
 

@@ -40,3 +40,16 @@ Phase 3.6 keeps the default runtime in-memory but adds the protocol and state sh
 - a worker step that processes queued work and publishes pending outbox events.
 
 PostgreSQL migrations now include the minimal columns and `event_outbox` table shape needed by future durable repositories. The default tests do not require PostgreSQL.
+
+## Phase 5.2 Durable Workflow Recovery
+
+Phase 5.2 makes the internal runtime recoverable without introducing Temporal, Tekton, Argo Workflows, Redis, or NATS. The worker now runs one reconciliation pass that can:
+
+- acquire leases for queued PipelineRuns before execution;
+- detect running PipelineRuns whose owner lease or update heartbeat has expired;
+- return recoverable stale PipelineRuns and expired JobRun claims to `Queued`;
+- reconcile cancel-requested PipelineRuns into `Canceled`;
+- reconcile long-running stale PipelineRuns into `Timeout`;
+- publish pending outbox events and record retry metadata for failed publish attempts.
+
+The current durable recovery implementation is strongest for PipelineRun state because that is the first runtime path backed by the Phase 5.1 PostgreSQL repository. DeploymentRun and ReleaseExecution include lease fields so their state model is ready for the same pattern, but their full database-backed recovery loops remain future hardening work.

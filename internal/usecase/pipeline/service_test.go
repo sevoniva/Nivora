@@ -2,6 +2,7 @@ package pipeline
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -221,6 +222,127 @@ func TestRunnerClaimLogStatusCancelAndOutbox(t *testing.T) {
 	}
 }
 
+func TestReconcileRuntimeRecoversExpiredLease(t *testing.T) {
+	service := newTestService()
+	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})
+	if err != nil {
+		t.Fatalf("create queued: %v", err)
+	}
+	past := time.Now().Add(-10 * time.Minute)
+	record := created.Record
+	record.Run.Status = domainpipeline.PipelineRunRunning
+	record.Run.OwnerID = "dead-worker"
+	record.Run.LeaseExpiresAt = &past
+	record.Run.UpdatedAt = past
+	record.Stages[0].Stage.Status = domainpipeline.JobRunRunning
+	record.Stages[0].Jobs[0].Job.Status = domainpipeline.JobRunAssigned
+	record.Stages[0].Jobs[0].Job.RunnerID = "dead-runner"
+	record.Stages[0].Jobs[0].Job.LeaseExpiresAt = &past
+	if err := service.store.Save(context.Background(), record); err != nil {
+		t.Fatalf("save stale run: %v", err)
+	}
+	summary, err := service.ReconcileRuntime(context.Background(), RuntimeRecoveryOptions{
+		WorkerID:     "worker-recovery",
+		StaleAfter:   time.Minute,
+		TimeoutAfter: time.Hour,
+		ProcessLimit: 1,
+	})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if summary.RecoveredPipelineRuns == 0 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	recovered, err := service.Get(context.Background(), record.Run.ID)
+	if err != nil {
+		t.Fatalf("get recovered: %v", err)
+	}
+	if recovered.Run.Status != domainpipeline.PipelineRunSucceeded {
+		t.Fatalf("status = %s", recovered.Run.Status)
+	}
+	if !hasEvent(recovered.Events, EventPipelineRunRecovered) {
+		t.Fatal("expected recovered event")
+	}
+}
+
+func TestReconcileRuntimeCancellationAndTimeout(t *testing.T) {
+	service := newTestService()
+	cancelRun, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})
+	if err != nil {
+		t.Fatalf("create cancel run: %v", err)
+	}
+	if _, err := service.RequestCancel(context.Background(), cancelRun.Record.Run.ID, "tester"); err != nil {
+		t.Fatalf("request cancel: %v", err)
+	}
+	timeoutRun, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})
+	if err != nil {
+		t.Fatalf("create timeout run: %v", err)
+	}
+	stale := timeoutRun.Record
+	past := time.Now().Add(-2 * time.Hour)
+	stale.Run.Status = domainpipeline.PipelineRunRunning
+	stale.Run.UpdatedAt = past
+	if err := service.store.Save(context.Background(), stale); err != nil {
+		t.Fatalf("save stale timeout: %v", err)
+	}
+	summary, err := service.ReconcileRuntime(context.Background(), RuntimeRecoveryOptions{
+		WorkerID:     "worker-recovery",
+		StaleAfter:   time.Minute,
+		TimeoutAfter: time.Minute,
+		ProcessLimit: 10,
+	})
+	if err != nil {
+		t.Fatalf("reconcile: %v", err)
+	}
+	if summary.CancelRequestedPipelineRuns != 1 || summary.TimedOutPipelineRuns != 1 {
+		t.Fatalf("summary = %#v", summary)
+	}
+	canceled, err := service.Get(context.Background(), cancelRun.Record.Run.ID)
+	if err != nil {
+		t.Fatalf("get canceled: %v", err)
+	}
+	if canceled.Run.Status != domainpipeline.PipelineRunCanceled {
+		t.Fatalf("cancel status = %s", canceled.Run.Status)
+	}
+	timedOut, err := service.Get(context.Background(), stale.Run.ID)
+	if err != nil {
+		t.Fatalf("get timeout: %v", err)
+	}
+	if timedOut.Run.Status != domainpipeline.PipelineRunTimeout {
+		t.Fatalf("timeout status = %s", timedOut.Run.Status)
+	}
+}
+
+func TestPublishPendingOutboxFailureSchedulesRetry(t *testing.T) {
+	store := NewMemoryStore()
+	service := NewService(store, NewLocalRunner("test-runner", &fakeExecutor{calls: make(map[string]int)}), fakeBus{})
+	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})
+	if err != nil {
+		t.Fatalf("create queued: %v", err)
+	}
+	_, _ = service.ProcessRun(context.Background(), created.Record.Run.ID, "")
+	service.eventBus = failingBus{}
+	published, err := service.PublishPendingOutbox(context.Background(), 100)
+	if err == nil {
+		t.Fatal("expected publish error")
+	}
+	if published != 0 {
+		t.Fatalf("published = %d", published)
+	}
+	foundFailed := false
+	store.mu.RLock()
+	defer store.mu.RUnlock()
+	for _, item := range store.outbox {
+		if item.Status == "failed" && item.RetryCount > 0 && item.NextAttemptAt != nil && item.LastError != "" {
+			foundFailed = true
+			break
+		}
+	}
+	if !foundFailed {
+		t.Fatalf("outbox = %#v", store.outbox)
+	}
+}
+
 func newTestService() *Service {
 	return NewService(NewMemoryStore(), NewLocalRunner("test-runner", &fakeExecutor{calls: make(map[string]int)}), fakeBus{})
 }
@@ -284,6 +406,18 @@ func (b fakeBus) Publish(ctx context.Context, evt event.Event) error {
 }
 
 func (b fakeBus) Subscribe(ctx context.Context, eventType string) (<-chan event.Event, error) {
+	ch := make(chan event.Event)
+	close(ch)
+	return ch, nil
+}
+
+type failingBus struct{}
+
+func (b failingBus) Publish(ctx context.Context, evt event.Event) error {
+	return errors.New("publish failed")
+}
+
+func (b failingBus) Subscribe(ctx context.Context, eventType string) (<-chan event.Event, error) {
 	ch := make(chan event.Event)
 	close(ch)
 	return ch, nil

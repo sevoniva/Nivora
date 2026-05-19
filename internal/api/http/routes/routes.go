@@ -40,6 +40,8 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/system/info", handlers.SystemInfo(cfg))
 		api.Get("/system/runtime", handlers.SystemRuntime(cfg))
 		api.Get("/system/diagnostics", handlers.SystemDiagnostics(cfg))
+		api.Get("/system/runtime/recovery", handlers.RuntimeRecoveryStatus(pipelineService))
+		api.Post("/system/runtime/reconcile", handlers.ReconcileRuntime(pipelineService))
 		api.Get("/plugins", handlers.ListPlugins(pluginRegistry))
 		api.Get("/plugins/{name}", handlers.GetPlugin(pluginRegistry))
 		api.Get("/plugins/{name}/capabilities", handlers.GetPluginCapabilities(pluginRegistry))

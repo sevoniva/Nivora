@@ -70,13 +70,40 @@ type UpdateJobStatusInput struct {
 }
 
 type EventOutboxRecord struct {
-	ID          string      `json:"id"`
-	EventType   string      `json:"eventType"`
-	Subject     string      `json:"subject"`
-	Payload     event.Event `json:"payload"`
-	Status      string      `json:"status"`
-	CreatedAt   time.Time   `json:"createdAt"`
-	PublishedAt *time.Time  `json:"publishedAt,omitempty"`
+	ID            string      `json:"id"`
+	EventType     string      `json:"eventType"`
+	Subject       string      `json:"subject"`
+	Payload       event.Event `json:"payload"`
+	Status        string      `json:"status"`
+	RetryCount    int         `json:"retryCount,omitempty"`
+	NextAttemptAt *time.Time  `json:"nextAttemptAt,omitempty"`
+	LastError     string      `json:"lastError,omitempty"`
+	CreatedAt     time.Time   `json:"createdAt"`
+	PublishedAt   *time.Time  `json:"publishedAt,omitempty"`
+}
+
+type RuntimeRecoveryOptions struct {
+	WorkerID      string
+	LeaseDuration time.Duration
+	StaleAfter    time.Duration
+	TimeoutAfter  time.Duration
+	ProcessLimit  int
+	OutboxLimit   int
+}
+
+type RuntimeRecoverySummary struct {
+	WorkerID                    string    `json:"workerId"`
+	QueuedPipelineRuns          int       `json:"queuedPipelineRuns"`
+	ProcessedPipelineRuns       int       `json:"processedPipelineRuns"`
+	RecoveredPipelineRuns       int       `json:"recoveredPipelineRuns"`
+	StaleRunningPipelineRuns    int       `json:"staleRunningPipelineRuns"`
+	ExpiredJobClaims            int       `json:"expiredJobClaims"`
+	CancelRequestedPipelineRuns int       `json:"cancelRequestedPipelineRuns"`
+	TimedOutPipelineRuns        int       `json:"timedOutPipelineRuns"`
+	PublishedOutboxEvents       int       `json:"publishedOutboxEvents"`
+	FailedOutboxEvents          int       `json:"failedOutboxEvents"`
+	CheckedAt                   time.Time `json:"checkedAt"`
+	Warnings                    []string  `json:"warnings,omitempty"`
 }
 
 type CreateRunInput struct {

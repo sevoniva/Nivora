@@ -58,6 +58,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SystemRuntime"
+  /api/v1/system/runtime/recovery:
+    get:
+      summary: Runtime recovery status
+      responses:
+        "200":
+          description: Recoverable runtime work summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimeRecoverySummary"
+  /api/v1/system/runtime/reconcile:
+    post:
+      summary: Run one runtime reconciliation pass
+      responses:
+        "200":
+          description: Reconciliation summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimeRecoverySummary"
   /api/v1/system/diagnostics:
     get:
       summary: Runtime diagnostics
@@ -2494,6 +2514,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DiagnosticCheck"
+    RuntimeRecoverySummary:
+      type: object
+      properties:
+        workerId:
+          type: string
+        queuedPipelineRuns:
+          type: integer
+        processedPipelineRuns:
+          type: integer
+        recoveredPipelineRuns:
+          type: integer
+        staleRunningPipelineRuns:
+          type: integer
+        expiredJobClaims:
+          type: integer
+        cancelRequestedPipelineRuns:
+          type: integer
+        timedOutPipelineRuns:
+          type: integer
+        publishedOutboxEvents:
+          type: integer
+        failedOutboxEvents:
+          type: integer
+        checkedAt:
+          type: string
+          format: date-time
+        warnings:
+          type: array
+          items:
+            type: string
     MetricsSnapshot:
       type: object
       properties:
@@ -3374,7 +3424,14 @@ components:
           type: string
         status:
           type: string
-          enum: [pending, published]
+          enum: [pending, published, failed]
+        retryCount:
+          type: integer
+        nextAttemptAt:
+          type: string
+          format: date-time
+        lastError:
+          type: string
         createdAt:
           type: string
           format: date-time

@@ -41,6 +41,10 @@ type JobRepository interface {
 	ClaimJob(ctx context.Context, runnerID string, leaseUntil time.Time) (JobClaim, error)
 	UpdateJobStatus(ctx context.Context, jobRunID string, status domainpipeline.JobRunStatus, reason string, at time.Time) (RunRecord, error)
 	RequestCancel(ctx context.Context, pipelineRunID string, at time.Time) (RunRecord, error)
+	AcquirePipelineRunLease(ctx context.Context, id string, ownerID string, leaseUntil time.Time, at time.Time) (RunRecord, error)
+	HeartbeatPipelineRunLease(ctx context.Context, id string, ownerID string, leaseUntil time.Time, at time.Time) (RunRecord, error)
+	ListStaleRunningPipelineRuns(ctx context.Context, olderThan time.Time, limit int) ([]RunRecord, error)
+	ListExpiredJobClaims(ctx context.Context, now time.Time, limit int) ([]JobClaim, error)
 }
 
 type EventRepository interface {
@@ -52,6 +56,7 @@ type EventOutboxRepository interface {
 	AppendOutbox(ctx context.Context, item EventOutboxRecord) error
 	ListPendingOutbox(ctx context.Context, limit int) ([]EventOutboxRecord, error)
 	MarkOutboxPublished(ctx context.Context, id string, at time.Time) error
+	MarkOutboxFailed(ctx context.Context, id string, retryCount int, nextAttemptAt time.Time, reason string) error
 }
 
 type AuditRepository interface {
@@ -292,6 +297,95 @@ func (s *MemoryStore) RequestCancel(ctx context.Context, pipelineRunID string, a
 	return cloneRecord(record), nil
 }
 
+func (s *MemoryStore) AcquirePipelineRunLease(ctx context.Context, id string, ownerID string, leaseUntil time.Time, at time.Time) (RunRecord, error) {
+	select {
+	case <-ctx.Done():
+		return RunRecord{}, ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.runs[id]
+	if !ok {
+		return RunRecord{}, ErrRunNotFound
+	}
+	record.Run.OwnerID = ownerID
+	record.Run.LeaseExpiresAt = &leaseUntil
+	record.Run.HeartbeatAt = &at
+	record.Run.UpdatedAt = at
+	record.Run.Attempt++
+	if record.Run.Attempt <= 0 {
+		record.Run.Attempt = 1
+	}
+	s.runs[id] = cloneRecord(record)
+	return cloneRecord(record), nil
+}
+
+func (s *MemoryStore) HeartbeatPipelineRunLease(ctx context.Context, id string, ownerID string, leaseUntil time.Time, at time.Time) (RunRecord, error) {
+	select {
+	case <-ctx.Done():
+		return RunRecord{}, ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.runs[id]
+	if !ok {
+		return RunRecord{}, ErrRunNotFound
+	}
+	if record.Run.OwnerID != "" && record.Run.OwnerID != ownerID {
+		return RunRecord{}, errors.New("pipeline run lease is owned by another worker")
+	}
+	record.Run.OwnerID = ownerID
+	record.Run.LeaseExpiresAt = &leaseUntil
+	record.Run.HeartbeatAt = &at
+	record.Run.UpdatedAt = at
+	s.runs[id] = cloneRecord(record)
+	return cloneRecord(record), nil
+}
+
+func (s *MemoryStore) ListStaleRunningPipelineRuns(ctx context.Context, olderThan time.Time, limit int) ([]RunRecord, error) {
+	records, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var stale []RunRecord
+	for _, record := range records {
+		expiredLease := record.Run.LeaseExpiresAt != nil && record.Run.LeaseExpiresAt.Before(olderThan)
+		staleTimestamp := record.Run.UpdatedAt.Before(olderThan)
+		if record.Run.Status == domainpipeline.PipelineRunRunning && (expiredLease || staleTimestamp) {
+			stale = append(stale, record)
+		}
+	}
+	if limit > 0 && len(stale) > limit {
+		stale = stale[:limit]
+	}
+	return stale, nil
+}
+
+func (s *MemoryStore) ListExpiredJobClaims(ctx context.Context, now time.Time, limit int) ([]JobClaim, error) {
+	records, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var claims []JobClaim
+	for _, record := range records {
+		for stageIndex := range record.Stages {
+			for jobIndex := range record.Stages[stageIndex].Jobs {
+				job := record.Stages[stageIndex].Jobs[jobIndex].Job
+				if job.Status != domainpipeline.JobRunAssigned || job.LeaseExpiresAt == nil || !job.LeaseExpiresAt.Before(now) {
+					continue
+				}
+				claims = append(claims, buildJobClaim(record, stageIndex, jobIndex, job.RunnerID, *job.LeaseExpiresAt))
+				if limit > 0 && len(claims) >= limit {
+					return claims, nil
+				}
+			}
+		}
+	}
+	return claims, nil
+}
+
 func (s *MemoryStore) LogsByPipelineRun(ctx context.Context, runID string) ([]event.LogChunk, error) {
 	record, err := s.Get(ctx, runID)
 	if err != nil {
@@ -354,8 +448,9 @@ func (s *MemoryStore) ListPendingOutbox(ctx context.Context, limit int) ([]Event
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	items := make([]EventOutboxRecord, 0, len(s.outbox))
+	now := time.Now()
 	for _, item := range s.outbox {
-		if item.Status == "pending" {
+		if item.Status == "pending" || (item.Status == "failed" && (item.NextAttemptAt == nil || !item.NextAttemptAt.After(now))) {
 			items = append(items, item)
 		}
 	}
@@ -380,6 +475,27 @@ func (s *MemoryStore) MarkOutboxPublished(ctx context.Context, id string, at tim
 	}
 	item.Status = "published"
 	item.PublishedAt = &at
+	item.LastError = ""
+	s.outbox[id] = item
+	return nil
+}
+
+func (s *MemoryStore) MarkOutboxFailed(ctx context.Context, id string, retryCount int, nextAttemptAt time.Time, reason string) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	item, ok := s.outbox[id]
+	if !ok {
+		return ErrOutboxNotFound
+	}
+	item.Status = "failed"
+	item.RetryCount = retryCount
+	item.NextAttemptAt = &nextAttemptAt
+	item.LastError = reason
 	s.outbox[id] = item
 	return nil
 }

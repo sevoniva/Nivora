@@ -67,6 +67,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newGitOpsCommand())
 	root.AddCommand(newArgoCDCommand())
 	root.AddCommand(newRunnerCommand())
+	root.AddCommand(newRuntimeCommand())
 	return root
 }
 
@@ -1946,6 +1947,34 @@ func newRunnerUpdateStatusCommand() *cobra.Command {
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&status, "status", "", "job status")
 	cmd.Flags().StringVar(&reason, "reason", "", "status reason")
+	return cmd
+}
+
+func newRuntimeCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "runtime",
+		Short: "Runtime recovery utilities",
+	}
+	cmd.AddCommand(newRuntimeInspectCommand("status", "Show recoverable runtime work", http.MethodGet, "/api/v1/system/runtime/recovery"))
+	cmd.AddCommand(newRuntimeInspectCommand("reconcile", "Run one runtime reconciliation pass", http.MethodPost, "/api/v1/system/runtime/reconcile"))
+	return cmd
+}
+
+func newRuntimeInspectCommand(name string, short string, method string, path string) *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   name,
+		Short: short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), method, serverURL, path, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	return cmd
 }
 

@@ -212,10 +212,10 @@ func (s *PipelineStore) AppendOutbox(ctx context.Context, item pipelineusecase.E
 	if err != nil {
 		return err
 	}
-	_, err = s.pool.Exec(ctx, `INSERT INTO runtime_event_outbox (id, event_type, subject, payload, status, created_at, published_at)
-		VALUES ($1, $2, $3, $4, $5, $6, $7)
-		ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, published_at = EXCLUDED.published_at`,
-		item.ID, item.EventType, item.Subject, raw, item.Status, item.CreatedAt, item.PublishedAt)
+	_, err = s.pool.Exec(ctx, `INSERT INTO runtime_event_outbox (id, event_type, subject, payload, status, retry_count, next_attempt_at, last_error, created_at, published_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+		ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, retry_count = EXCLUDED.retry_count, next_attempt_at = EXCLUDED.next_attempt_at, last_error = EXCLUDED.last_error, published_at = EXCLUDED.published_at`,
+		item.ID, item.EventType, item.Subject, raw, item.Status, item.RetryCount, item.NextAttemptAt, item.LastError, item.CreatedAt, item.PublishedAt)
 	return err
 }
 
@@ -223,7 +223,10 @@ func (s *PipelineStore) ListPendingOutbox(ctx context.Context, limit int) ([]pip
 	if limit <= 0 {
 		limit = 100
 	}
-	rows, err := s.pool.Query(ctx, `SELECT id, event_type, subject, payload, status, created_at, published_at FROM runtime_event_outbox WHERE status = 'pending' ORDER BY created_at, id LIMIT $1`, limit)
+	rows, err := s.pool.Query(ctx, `SELECT id, event_type, subject, payload, status, retry_count, next_attempt_at, last_error, created_at, published_at
+		FROM runtime_event_outbox
+		WHERE status = 'pending' OR (status = 'failed' AND (next_attempt_at IS NULL OR next_attempt_at <= now()))
+		ORDER BY created_at, id LIMIT $1`, limit)
 	if err != nil {
 		return nil, err
 	}
@@ -232,7 +235,7 @@ func (s *PipelineStore) ListPendingOutbox(ctx context.Context, limit int) ([]pip
 	for rows.Next() {
 		var item pipelineusecase.EventOutboxRecord
 		var raw []byte
-		if err := rows.Scan(&item.ID, &item.EventType, &item.Subject, &raw, &item.Status, &item.CreatedAt, &item.PublishedAt); err != nil {
+		if err := rows.Scan(&item.ID, &item.EventType, &item.Subject, &raw, &item.Status, &item.RetryCount, &item.NextAttemptAt, &item.LastError, &item.CreatedAt, &item.PublishedAt); err != nil {
 			return nil, err
 		}
 		if err := json.Unmarshal(raw, &item.Payload); err != nil {
@@ -244,7 +247,18 @@ func (s *PipelineStore) ListPendingOutbox(ctx context.Context, limit int) ([]pip
 }
 
 func (s *PipelineStore) MarkOutboxPublished(ctx context.Context, id string, at time.Time) error {
-	tag, err := s.pool.Exec(ctx, `UPDATE runtime_event_outbox SET status = 'published', published_at = $2 WHERE id = $1`, id, at)
+	tag, err := s.pool.Exec(ctx, `UPDATE runtime_event_outbox SET status = 'published', published_at = $2, last_error = '' WHERE id = $1`, id, at)
+	if err != nil {
+		return err
+	}
+	if tag.RowsAffected() == 0 {
+		return pipelineusecase.ErrOutboxNotFound
+	}
+	return nil
+}
+
+func (s *PipelineStore) MarkOutboxFailed(ctx context.Context, id string, retryCount int, nextAttemptAt time.Time, reason string) error {
+	tag, err := s.pool.Exec(ctx, `UPDATE runtime_event_outbox SET status = 'failed', retry_count = $2, next_attempt_at = $3, last_error = $4 WHERE id = $1`, id, retryCount, nextAttemptAt, reason)
 	if err != nil {
 		return err
 	}
@@ -397,12 +411,59 @@ func (s *PipelineStore) ListStaleRunningPipelineRuns(ctx context.Context, olderT
 	if limit <= 0 {
 		limit = 100
 	}
-	rows, err := s.pool.Query(ctx, `SELECT record FROM runtime_pipeline_runs WHERE status = $1 AND updated_at < $2 ORDER BY updated_at, id LIMIT $3`, string(domainpipeline.PipelineRunRunning), olderThan, limit)
+	rows, err := s.pool.Query(ctx, `SELECT record FROM runtime_pipeline_runs WHERE status = $1 AND (updated_at < $2 OR lease_expires_at < $2) ORDER BY updated_at, id LIMIT $3`, string(domainpipeline.PipelineRunRunning), olderThan, limit)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 	return scanRunRecords(rows)
+}
+
+func (s *PipelineStore) AcquirePipelineRunLease(ctx context.Context, id string, ownerID string, leaseUntil time.Time, at time.Time) (pipelineusecase.RunRecord, error) {
+	var out pipelineusecase.RunRecord
+	err := s.withTx(ctx, func(tx pgx.Tx) error {
+		record, err := s.getForUpdate(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		record.Run.OwnerID = ownerID
+		record.Run.LeaseExpiresAt = &leaseUntil
+		record.Run.HeartbeatAt = &at
+		record.Run.UpdatedAt = at
+		record.Run.Attempt++
+		if record.Run.Attempt <= 0 {
+			record.Run.Attempt = 1
+		}
+		if err := s.saveRecord(ctx, tx, record); err != nil {
+			return err
+		}
+		out = record
+		return nil
+	})
+	return out, err
+}
+
+func (s *PipelineStore) HeartbeatPipelineRunLease(ctx context.Context, id string, ownerID string, leaseUntil time.Time, at time.Time) (pipelineusecase.RunRecord, error) {
+	var out pipelineusecase.RunRecord
+	err := s.withTx(ctx, func(tx pgx.Tx) error {
+		record, err := s.getForUpdate(ctx, tx, id)
+		if err != nil {
+			return err
+		}
+		if record.Run.OwnerID != "" && record.Run.OwnerID != ownerID {
+			return errors.New("pipeline run lease is owned by another worker")
+		}
+		record.Run.OwnerID = ownerID
+		record.Run.LeaseExpiresAt = &leaseUntil
+		record.Run.HeartbeatAt = &at
+		record.Run.UpdatedAt = at
+		if err := s.saveRecord(ctx, tx, record); err != nil {
+			return err
+		}
+		out = record
+		return nil
+	})
+	return out, err
 }
 
 func (s *PipelineStore) ListExpiredJobClaims(ctx context.Context, now time.Time, limit int) ([]pipelineusecase.JobClaim, error) {
@@ -467,10 +528,10 @@ func (s *PipelineStore) saveRecord(ctx context.Context, tx pgx.Tx, record pipeli
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO runtime_pipeline_runs (id, pipeline_id, status, correlation_id, cancel_requested, record, created_at, updated_at, started_at, finished_at, failure_reason)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
-		ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, correlation_id = EXCLUDED.correlation_id, cancel_requested = EXCLUDED.cancel_requested, record = EXCLUDED.record, updated_at = EXCLUDED.updated_at, started_at = EXCLUDED.started_at, finished_at = EXCLUDED.finished_at, failure_reason = EXCLUDED.failure_reason, version = runtime_pipeline_runs.version + 1`,
-		record.Run.ID, record.Run.PipelineID, string(record.Run.Status), record.Run.CorrelationID, record.Run.CancelRequested, raw, record.Run.CreatedAt, record.Run.UpdatedAt, record.Run.StartedAt, record.Run.FinishedAt, record.Run.FailureReason)
+	_, err = tx.Exec(ctx, `INSERT INTO runtime_pipeline_runs (id, pipeline_id, status, correlation_id, cancel_requested, owner_id, lease_expires_at, attempt, heartbeat_at, record, created_at, updated_at, started_at, finished_at, failure_reason)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+		ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, correlation_id = EXCLUDED.correlation_id, cancel_requested = EXCLUDED.cancel_requested, owner_id = EXCLUDED.owner_id, lease_expires_at = EXCLUDED.lease_expires_at, attempt = EXCLUDED.attempt, heartbeat_at = EXCLUDED.heartbeat_at, record = EXCLUDED.record, updated_at = EXCLUDED.updated_at, started_at = EXCLUDED.started_at, finished_at = EXCLUDED.finished_at, failure_reason = EXCLUDED.failure_reason, version = runtime_pipeline_runs.version + 1`,
+		record.Run.ID, record.Run.PipelineID, string(record.Run.Status), record.Run.CorrelationID, record.Run.CancelRequested, record.Run.OwnerID, record.Run.LeaseExpiresAt, record.Run.Attempt, record.Run.HeartbeatAt, raw, record.Run.CreatedAt, record.Run.UpdatedAt, record.Run.StartedAt, record.Run.FinishedAt, record.Run.FailureReason)
 	if err != nil {
 		return err
 	}

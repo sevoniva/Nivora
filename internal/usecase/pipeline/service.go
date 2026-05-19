@@ -34,8 +34,13 @@ const (
 	EventRunnerRegistered      = "devops.runner.registered"
 	EventRunnerHeartbeat       = "devops.runner.heartbeat"
 	EventRunnerJobClaimed      = "devops.runner.job.claimed"
+	EventPipelineRunRecovered  = "devops.pipeline.run.recovered"
+	EventPipelineRunTimedOut   = "devops.pipeline.run.timeout_reconciled"
 
-	defaultStepTimeout = 30 * time.Second
+	defaultStepTimeout  = 30 * time.Second
+	defaultRunLease     = 30 * time.Second
+	defaultStaleAfter   = 2 * time.Minute
+	defaultTimeoutAfter = 30 * time.Minute
 )
 
 var ErrRunTerminal = errors.New("pipeline run is already terminal")
@@ -118,7 +123,11 @@ func (s *Service) ProcessQueued(ctx context.Context, limit int) ([]RunRecord, er
 	}
 	processed := make([]RunRecord, 0, limit)
 	for i := 0; i < limit; i++ {
-		record, err := s.ProcessRun(ctx, queued[i].Run.ID, "")
+		leased, err := s.store.AcquirePipelineRunLease(ctx, queued[i].Run.ID, "worker-local", s.now().Add(defaultRunLease), s.now())
+		if err != nil {
+			return processed, err
+		}
+		record, err := s.ProcessRun(ctx, leased.Run.ID, "")
 		if err != nil {
 			return processed, err
 		}
@@ -398,15 +407,170 @@ func (s *Service) PublishPendingOutbox(ctx context.Context, limit int) (int, err
 	if err != nil {
 		return 0, err
 	}
+	published := 0
+	var firstErr error
 	for _, item := range items {
 		if err := s.eventBus.Publish(ctx, item.Payload); err != nil {
-			return 0, err
+			if firstErr == nil {
+				firstErr = err
+			}
+			next := s.now().Add(outboxBackoff(item.RetryCount + 1))
+			_ = s.store.MarkOutboxFailed(ctx, item.ID, item.RetryCount+1, next, err.Error())
+			continue
 		}
 		if err := s.store.MarkOutboxPublished(ctx, item.ID, s.now()); err != nil {
-			return 0, err
+			if firstErr == nil {
+				firstErr = err
+			}
+			continue
+		}
+		published++
+	}
+	return published, firstErr
+}
+
+func (s *Service) RuntimeStatus(ctx context.Context) (RuntimeRecoverySummary, error) {
+	now := s.now()
+	queued, err := s.store.ListByStatus(ctx, domainpipeline.PipelineRunQueued)
+	if err != nil {
+		return RuntimeRecoverySummary{}, err
+	}
+	stale, err := s.store.ListStaleRunningPipelineRuns(ctx, now.Add(-defaultStaleAfter), 100)
+	if err != nil {
+		return RuntimeRecoverySummary{}, err
+	}
+	expiredClaims, err := s.store.ListExpiredJobClaims(ctx, now, 100)
+	if err != nil {
+		return RuntimeRecoverySummary{}, err
+	}
+	outbox, err := s.store.ListPendingOutbox(ctx, 100)
+	if err != nil {
+		return RuntimeRecoverySummary{}, err
+	}
+	all, err := s.store.List(ctx)
+	if err != nil {
+		return RuntimeRecoverySummary{}, err
+	}
+	summary := RuntimeRecoverySummary{
+		WorkerID:                 "status",
+		QueuedPipelineRuns:       len(queued),
+		StaleRunningPipelineRuns: len(stale),
+		ExpiredJobClaims:         len(expiredClaims),
+		CheckedAt:                now,
+	}
+	for _, item := range outbox {
+		if item.Status == "failed" {
+			summary.FailedOutboxEvents++
 		}
 	}
-	return len(items), nil
+	for _, record := range all {
+		if record.Run.CancelRequested && !isTerminalPipelineStatus(record.Run.Status) {
+			summary.CancelRequestedPipelineRuns++
+		}
+		if record.Run.Status == domainpipeline.PipelineRunRunning && record.Run.UpdatedAt.Before(now.Add(-defaultTimeoutAfter)) {
+			summary.TimedOutPipelineRuns++
+		}
+	}
+	return summary, nil
+}
+
+func (s *Service) ReconcileRuntime(ctx context.Context, options RuntimeRecoveryOptions) (RuntimeRecoverySummary, error) {
+	options = defaultRecoveryOptions(options)
+	now := s.now()
+	summary := RuntimeRecoverySummary{WorkerID: options.WorkerID, CheckedAt: now}
+
+	all, err := s.store.List(ctx)
+	if err != nil {
+		return summary, err
+	}
+	for _, record := range all {
+		if record.Run.CancelRequested && !isTerminalPipelineStatus(record.Run.Status) {
+			if _, err := s.Cancel(ctx, record.Run.ID, options.WorkerID); err != nil && !errors.Is(err, ErrRunTerminal) {
+				summary.Warnings = append(summary.Warnings, err.Error())
+				continue
+			}
+			summary.CancelRequestedPipelineRuns++
+		}
+	}
+
+	stale, err := s.store.ListStaleRunningPipelineRuns(ctx, now.Add(-options.StaleAfter), options.ProcessLimit)
+	if err != nil {
+		return summary, err
+	}
+	summary.StaleRunningPipelineRuns = len(stale)
+	for _, record := range stale {
+		if record.Run.Status != domainpipeline.PipelineRunRunning || record.Run.CancelRequested {
+			continue
+		}
+		if record.Run.UpdatedAt.Before(now.Add(-options.TimeoutAfter)) {
+			if err := s.timeoutRun(ctx, record, "pipeline run exceeded runtime timeout"); err != nil {
+				summary.Warnings = append(summary.Warnings, err.Error())
+				continue
+			}
+			summary.TimedOutPipelineRuns++
+			continue
+		}
+		if err := s.requeueRun(ctx, record, "worker lease expired; run returned to queue"); err != nil {
+			summary.Warnings = append(summary.Warnings, err.Error())
+			continue
+		}
+		summary.RecoveredPipelineRuns++
+	}
+
+	expiredClaims, err := s.store.ListExpiredJobClaims(ctx, now, options.ProcessLimit)
+	if err != nil {
+		return summary, err
+	}
+	summary.ExpiredJobClaims = len(expiredClaims)
+	for _, claim := range expiredClaims {
+		record, err := s.store.Get(ctx, claim.PipelineRunID)
+		if err != nil {
+			summary.Warnings = append(summary.Warnings, err.Error())
+			continue
+		}
+		if err := s.requeueRun(ctx, record, "job lease expired; run returned to queue"); err != nil {
+			summary.Warnings = append(summary.Warnings, err.Error())
+			continue
+		}
+		summary.RecoveredPipelineRuns++
+	}
+
+	queued, err := s.store.ListByStatus(ctx, domainpipeline.PipelineRunQueued)
+	if err != nil {
+		return summary, err
+	}
+	summary.QueuedPipelineRuns = len(queued)
+	limit := options.ProcessLimit
+	if limit <= 0 || limit > len(queued) {
+		limit = len(queued)
+	}
+	for i := 0; i < limit; i++ {
+		leased, err := s.store.AcquirePipelineRunLease(ctx, queued[i].Run.ID, options.WorkerID, s.now().Add(options.LeaseDuration), s.now())
+		if err != nil {
+			summary.Warnings = append(summary.Warnings, err.Error())
+			continue
+		}
+		if _, err := s.ProcessRun(ctx, leased.Run.ID, options.WorkerID); err != nil {
+			summary.Warnings = append(summary.Warnings, err.Error())
+			continue
+		}
+		summary.ProcessedPipelineRuns++
+	}
+
+	published, err := s.PublishPendingOutbox(ctx, options.OutboxLimit)
+	summary.PublishedOutboxEvents = published
+	if err != nil {
+		summary.Warnings = append(summary.Warnings, err.Error())
+	}
+	pending, listErr := s.store.ListPendingOutbox(ctx, options.OutboxLimit)
+	if listErr == nil {
+		for _, item := range pending {
+			if item.Status == "failed" {
+				summary.FailedOutboxEvents++
+			}
+		}
+	}
+	return summary, nil
 }
 
 func (s *Service) newRecord(def Definition) RunRecord {
@@ -660,6 +824,107 @@ func (s *Service) appendOutbox(ctx context.Context, evt event.Event) error {
 		Status:    "pending",
 		CreatedAt: s.now(),
 	})
+}
+
+func (s *Service) requeueRun(ctx context.Context, record RunRecord, reason string) error {
+	now := s.now()
+	record.Run.Status = domainpipeline.PipelineRunQueued
+	record.Run.OwnerID = ""
+	record.Run.LeaseExpiresAt = nil
+	record.Run.HeartbeatAt = nil
+	record.Run.FailureReason = ""
+	record.Run.UpdatedAt = now
+	for stageIndex := range record.Stages {
+		stage := &record.Stages[stageIndex].Stage
+		if stage.Status == domainpipeline.JobRunRunning || stage.Status == domainpipeline.JobRunAssigned {
+			stage.Status = domainpipeline.JobRunPending
+			stage.FinishedAt = nil
+			stage.FailureReason = ""
+			stage.UpdatedAt = now
+		}
+		for jobIndex := range record.Stages[stageIndex].Jobs {
+			job := &record.Stages[stageIndex].Jobs[jobIndex].Job
+			if job.Status == domainpipeline.JobRunAssigned || job.Status == domainpipeline.JobRunRunning || job.Status == domainpipeline.JobRunRetrying {
+				job.Status = domainpipeline.JobRunPending
+				job.RunnerID = ""
+				job.LeaseExpiresAt = nil
+				job.FinishedAt = nil
+				job.FailureReason = ""
+				job.UpdatedAt = now
+			}
+			for stepIndex := range record.Stages[stageIndex].Jobs[jobIndex].Steps {
+				step := &record.Stages[stageIndex].Jobs[jobIndex].Steps[stepIndex]
+				if step.Status == domainpipeline.JobRunRunning {
+					step.Status = domainpipeline.JobRunPending
+					step.FinishedAt = nil
+					step.FailureReason = ""
+					step.UpdatedAt = now
+				}
+			}
+		}
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return err
+	}
+	return s.recordEvent(ctx, record.Run.ID, EventPipelineRunRecovered, record.Run.ID, string(record.Run.Status), reason)
+}
+
+func (s *Service) timeoutRun(ctx context.Context, record RunRecord, reason string) error {
+	now := s.now()
+	if err := transitionPipelineRun(&record.Run, domainpipeline.PipelineRunTimeout, now, reason); err != nil {
+		return err
+	}
+	for stageIndex := range record.Stages {
+		if !isTerminalJobStatus(record.Stages[stageIndex].Stage.Status) {
+			_ = transitionStageRun(&record.Stages[stageIndex].Stage, domainpipeline.JobRunFailed, now, reason)
+		}
+		for jobIndex := range record.Stages[stageIndex].Jobs {
+			if !isTerminalJobStatus(record.Stages[stageIndex].Jobs[jobIndex].Job.Status) {
+				_ = transitionJobRun(&record.Stages[stageIndex].Jobs[jobIndex].Job, domainpipeline.JobRunFailed, now, reason)
+			}
+			for stepIndex := range record.Stages[stageIndex].Jobs[jobIndex].Steps {
+				if !isTerminalJobStatus(record.Stages[stageIndex].Jobs[jobIndex].Steps[stepIndex].Status) {
+					_ = transitionStepRun(&record.Stages[stageIndex].Jobs[jobIndex].Steps[stepIndex], domainpipeline.JobRunFailed, now, reason)
+				}
+			}
+		}
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return err
+	}
+	return s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunTimedOut, "PipelineRun timeout reconciled", "worker", string(record.Run.Status), reason)
+}
+
+func defaultRecoveryOptions(options RuntimeRecoveryOptions) RuntimeRecoveryOptions {
+	if options.WorkerID == "" {
+		options.WorkerID = "worker-local"
+	}
+	if options.LeaseDuration <= 0 {
+		options.LeaseDuration = defaultRunLease
+	}
+	if options.StaleAfter <= 0 {
+		options.StaleAfter = defaultStaleAfter
+	}
+	if options.TimeoutAfter <= 0 {
+		options.TimeoutAfter = defaultTimeoutAfter
+	}
+	if options.ProcessLimit <= 0 {
+		options.ProcessLimit = 10
+	}
+	if options.OutboxLimit <= 0 {
+		options.OutboxLimit = 100
+	}
+	return options
+}
+
+func outboxBackoff(retry int) time.Duration {
+	if retry < 1 {
+		retry = 1
+	}
+	if retry > 5 {
+		retry = 5
+	}
+	return time.Duration(retry) * time.Minute
 }
 
 func timeoutFor(job Job, step Step) time.Duration {

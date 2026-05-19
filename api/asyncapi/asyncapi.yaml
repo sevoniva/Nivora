@@ -34,6 +34,16 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.pipeline.run.recovered:
+    address: devops.pipeline.run.recovered
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.pipeline.run.timeout_reconciled:
+    address: devops.pipeline.run.timeout_reconciled
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.job.run.assigned:
     address: devops.job.run.assigned
     messages:

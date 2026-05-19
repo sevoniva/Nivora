@@ -18,6 +18,9 @@ func transitionPipelineRun(run *domainpipeline.PipelineRun, next domainpipeline.
 	}
 	if isTerminalPipelineStatus(next) {
 		run.FinishedAt = &now
+		run.OwnerID = ""
+		run.LeaseExpiresAt = nil
+		run.HeartbeatAt = nil
 	}
 	if reason != "" {
 		run.FailureReason = reason
@@ -63,6 +66,7 @@ func transitionJobRun(job *domainpipeline.JobRun, next domainpipeline.JobRunStat
 	}
 	if isTerminalJobStatus(next) {
 		job.FinishedAt = &now
+		job.LeaseExpiresAt = nil
 	}
 	if reason != "" {
 		job.FailureReason = reason

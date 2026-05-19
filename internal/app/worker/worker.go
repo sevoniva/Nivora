@@ -6,6 +6,7 @@ import (
 	appruntime "github.com/sevoniva/nivora/internal/app/runtime"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	"github.com/sevoniva/nivora/internal/infra/logging"
+	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
 func Run(ctx context.Context, configPath string) error {
@@ -27,14 +28,26 @@ func Run(ctx context.Context, configPath string) error {
 		return err
 	}
 	defer closePipeline()
-	processed, err := service.ProcessQueued(ctx, 10)
+	summary, err := service.ReconcileRuntime(ctx, pipelineRecoveryOptions(cfg.Runner.Name))
 	if err != nil {
 		return err
 	}
-	published, err := service.PublishPendingOutbox(ctx, 100)
-	if err != nil {
-		return err
-	}
-	logger.Info("workflow advancement loop completed", "processed_pipeline_runs", len(processed), "published_outbox_events", published)
+	logger.Info(
+		"workflow recovery loop completed",
+		"worker_id", summary.WorkerID,
+		"queued_pipeline_runs", summary.QueuedPipelineRuns,
+		"processed_pipeline_runs", summary.ProcessedPipelineRuns,
+		"recovered_pipeline_runs", summary.RecoveredPipelineRuns,
+		"expired_job_claims", summary.ExpiredJobClaims,
+		"published_outbox_events", summary.PublishedOutboxEvents,
+		"failed_outbox_events", summary.FailedOutboxEvents,
+	)
 	return nil
+}
+
+func pipelineRecoveryOptions(workerID string) pipelineusecase.RuntimeRecoveryOptions {
+	if workerID == "" {
+		workerID = "nivora-worker"
+	}
+	return pipelineusecase.RuntimeRecoveryOptions{WorkerID: workerID}
 }

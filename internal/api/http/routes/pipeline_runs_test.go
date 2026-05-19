@@ -135,6 +135,33 @@ func TestSystemDiagnosticsIncludesCorrelationContext(t *testing.T) {
 	}
 }
 
+func TestRuntimeRecoveryRoutes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+
+	for _, tc := range []struct {
+		method string
+		path   string
+		field  string
+	}{
+		{method: http.MethodGet, path: "/api/v1/system/runtime/recovery", field: `"queuedPipelineRuns"`},
+		{method: http.MethodPost, path: "/api/v1/system/runtime/reconcile", field: `"publishedOutboxEvents"`},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s %s status = %d body = %s", tc.method, tc.path, rec.Code, rec.Body.String())
+		}
+		if !bytes.Contains(rec.Body.Bytes(), []byte(tc.field)) {
+			t.Fatalf("missing %s body = %s", tc.field, rec.Body.String())
+		}
+	}
+}
+
 func TestMetricsEndpointExposesRuntimeCounters(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {

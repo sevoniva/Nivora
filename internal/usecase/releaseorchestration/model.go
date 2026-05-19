@@ -100,6 +100,10 @@ type ReleaseExecution struct {
 	Status           ExecutionStatus   `json:"status"`
 	DeploymentRunIDs []string          `json:"deploymentRunIds,omitempty"`
 	Targets          []TargetExecution `json:"targets,omitempty"`
+	OwnerID          string            `json:"ownerId,omitempty"`
+	LeaseExpiresAt   *time.Time        `json:"leaseExpiresAt,omitempty"`
+	Attempt          int               `json:"attempt,omitempty"`
+	HeartbeatAt      *time.Time        `json:"heartbeatAt,omitempty"`
 	StartedAt        *time.Time        `json:"startedAt,omitempty"`
 	FinishedAt       *time.Time        `json:"finishedAt,omitempty"`
 	Reason           string            `json:"reason,omitempty"`

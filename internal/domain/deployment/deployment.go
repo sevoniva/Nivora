@@ -40,6 +40,10 @@ type DeploymentRun struct {
 	TargetType          string              `json:"targetType"`
 	Status              DeploymentRunStatus `json:"status"`
 	Reason              string              `json:"reason,omitempty"`
+	OwnerID             string              `json:"ownerId,omitempty"`
+	LeaseExpiresAt      *time.Time          `json:"leaseExpiresAt,omitempty"`
+	Attempt             int                 `json:"attempt,omitempty"`
+	HeartbeatAt         *time.Time          `json:"heartbeatAt,omitempty"`
 	ManifestSnapshotRef string              `json:"manifestSnapshotRef,omitempty"`
 	ArtifactReferences  []string            `json:"artifactReferences,omitempty"`
 	StartedAt           *time.Time          `json:"startedAt,omitempty"`

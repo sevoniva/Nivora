@@ -66,6 +66,7 @@ For a quick path through the project:
 - [Runner and Executor](architecture/runner-and-executor.md)
 - [Runner Design](architecture/runner-design.md)
 - [Workflow Model](architecture/workflow-model.md)
+- [Runtime Recovery](architecture/runtime-recovery.md)
 - [Deployment Model](architecture/deployment-model.md)
 - [Release Orchestration](architecture/release-orchestration.md)
 - [Artifact Model](architecture/artifact-model.md)
@@ -104,6 +105,7 @@ For a quick path through the project:
 - [Kubernetes Install](operations/install-kubernetes.md)
 - [Observability Operations](operations/observability.md)
 - [Database Operations](operations/database.md)
+- [Runtime Recovery Operations](operations/runtime-recovery.md)
 - [Troubleshooting](operations/troubleshooting.md)
 
 ## Community and Governance

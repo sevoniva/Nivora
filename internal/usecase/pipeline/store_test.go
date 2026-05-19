@@ -77,3 +77,34 @@ func TestMemoryStoreClaimJobAndLeaseExpiration(t *testing.T) {
 		t.Fatalf("expected no claimable job, got %v", err)
 	}
 }
+
+func TestMemoryStorePipelineRunLeaseAndRecoveryQueries(t *testing.T) {
+	store := NewMemoryStore()
+	now := time.Now()
+	record := RunRecord{Run: domainpipeline.PipelineRun{
+		ID:        "run-lease",
+		Status:    domainpipeline.PipelineRunRunning,
+		CreatedAt: now,
+		UpdatedAt: now.Add(-10 * time.Minute),
+	}}
+	if err := store.Save(context.Background(), record); err != nil {
+		t.Fatalf("save: %v", err)
+	}
+	leased, err := store.AcquirePipelineRunLease(context.Background(), "run-lease", "worker-a", now.Add(time.Minute), now)
+	if err != nil {
+		t.Fatalf("acquire lease: %v", err)
+	}
+	if leased.Run.OwnerID != "worker-a" || leased.Run.LeaseExpiresAt == nil || leased.Run.HeartbeatAt == nil || leased.Run.Attempt != 1 {
+		t.Fatalf("leased run = %#v", leased.Run)
+	}
+	stale, err := store.ListStaleRunningPipelineRuns(context.Background(), now.Add(2*time.Minute), 10)
+	if err != nil {
+		t.Fatalf("list stale: %v", err)
+	}
+	if len(stale) != 1 {
+		t.Fatalf("stale = %#v", stale)
+	}
+	if _, err := store.HeartbeatPipelineRunLease(context.Background(), "run-lease", "worker-b", now.Add(time.Minute), now); err == nil {
+		t.Fatal("expected heartbeat owned by another worker to fail")
+	}
+}

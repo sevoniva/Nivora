@@ -28,6 +28,9 @@ telemetry:
   enabled: false
 auth:
   enabled: false
+  mode: dev
+  dev_user: local-admin
+  static_token_env: NIVORA_AUTH_TOKEN
 `)
 	if err := os.WriteFile(path, body, 0o600); err != nil {
 		t.Fatal(err)

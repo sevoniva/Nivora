@@ -47,6 +47,8 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newRunCommand("server", "configs/server.yaml", server.Run))
 	root.AddCommand(newRunCommand("worker", "configs/worker.yaml", worker.Run))
 	root.AddCommand(newConfigCommand())
+	root.AddCommand(newAuthCommand())
+	root.AddCommand(newProjectCommand())
 	root.AddCommand(newPipelineCommand())
 	root.AddCommand(newArtifactCommand())
 	root.AddCommand(newReleaseCommand())
@@ -59,6 +61,63 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newArgoCDCommand())
 	root.AddCommand(newRunnerCommand())
 	return root
+}
+
+func newAuthCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "auth", Short: "Authentication and RBAC utilities"}
+	cmd.AddCommand(newAuthInspectCommand("whoami", "Show the current authenticated subject", "/api/v1/auth/whoami"))
+	cmd.AddCommand(newAuthInspectCommand("permissions", "List known permissions", "/api/v1/auth/permissions"))
+	cmd.AddCommand(newAuthInspectCommand("token-info", "Show token metadata without printing token values", "/api/v1/auth/token-info"))
+	return cmd
+}
+
+func newAuthInspectCommand(name string, short string, path string) *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   name,
+		Short: short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newProjectCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "project", Short: "Project utilities"}
+	members := &cobra.Command{Use: "members", Short: "Project membership utilities"}
+	members.AddCommand(newProjectMembersListCommand())
+	cmd.AddCommand(members)
+	return cmd
+}
+
+func newProjectMembersListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "list <project-id>",
+		Short: "List project members",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/projects/"+args[0]+"/members", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
 }
 
 func newSecretCommand() *cobra.Command {
@@ -1368,6 +1427,10 @@ func newRunnerHeartbeatCommand() *cobra.Command {
 }
 
 func doJSON(ctx context.Context, method string, serverURL string, path string, body []byte) (any, error) {
+	return doJSONWithToken(ctx, method, serverURL, path, body, "")
+}
+
+func doJSONWithToken(ctx context.Context, method string, serverURL string, path string, body []byte, token string) (any, error) {
 	if serverURL == "" {
 		return nil, fmt.Errorf("server URL is required")
 	}
@@ -1377,6 +1440,9 @@ func doJSON(ctx context.Context, method string, serverURL string, path string, b
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

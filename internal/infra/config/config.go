@@ -52,8 +52,11 @@ type TelemetryConfig struct {
 }
 
 type AuthConfig struct {
-	Enabled bool   `mapstructure:"enabled" yaml:"enabled"`
-	Issuer  string `mapstructure:"issuer" yaml:"issuer"`
+	Enabled        bool   `mapstructure:"enabled" yaml:"enabled"`
+	Mode           string `mapstructure:"mode" yaml:"mode"`
+	DevUser        string `mapstructure:"dev_user" yaml:"dev_user"`
+	StaticTokenEnv string `mapstructure:"static_token_env" yaml:"static_token_env"`
+	Issuer         string `mapstructure:"issuer" yaml:"issuer"`
 }
 
 type RunnerConfig struct {
@@ -106,7 +109,10 @@ func Default() Config {
 			Enabled: false,
 		},
 		Auth: AuthConfig{
-			Enabled: false,
+			Enabled:        false,
+			Mode:           "dev",
+			DevUser:        "local-admin",
+			StaticTokenEnv: "NIVORA_AUTH_TOKEN",
 		},
 		Runner: RunnerConfig{
 			Name:              "local-runner",

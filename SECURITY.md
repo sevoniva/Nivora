@@ -15,3 +15,6 @@ Nivora is in Phase 0 and is not production-ready. If you find a security issue, 
 
 Logs must not include tokens, passwords, private keys, or full credential payloads. Future logging helpers should redact known sensitive fields before writing structured logs.
 
+## Authentication and Authorization
+
+Phase 3.2 includes local development auth and RBAC foundations. Dev auth and static token auth are not production SSO. Token values must come from environment variables or a future secret provider, never from committed config files. OIDC and Keycloak integration remain future work.

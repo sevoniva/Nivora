@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 3.1 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning and guarded sync foundations, Kubernetes resource inventory, health, snapshot, diff, rollback-plan output, sequential ReleasePlan / ReleaseExecution orchestration across targets, early DevSecOps scan / policy gate foundations, and SecretRef / Credential metadata APIs.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 3.2 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning and guarded sync foundations, Kubernetes resource inventory, health, snapshot, diff, rollback-plan output, sequential ReleasePlan / ReleaseExecution orchestration across targets, early DevSecOps scan / policy gate foundations, SecretRef / Credential metadata APIs, and local auth/RBAC foundations.
 servers:
   - url: http://localhost:8080
 paths:
@@ -38,6 +38,110 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SystemInfo"
+  /api/v1/auth/whoami:
+    get:
+      summary: Show current authenticated subject
+      responses:
+        "200":
+          description: Auth subject
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthSubject"
+  /api/v1/auth/permissions:
+    get:
+      summary: List known permissions
+      responses:
+        "200":
+          description: Permission list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Permission"
+  /api/v1/auth/token-info:
+    get:
+      summary: Show token metadata without returning token values
+      responses:
+        "200":
+          description: Token metadata
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TokenMetadata"
+  /api/v1/users:
+    get:
+      summary: List local users
+      responses:
+        "200":
+          description: User list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+  /api/v1/roles:
+    get:
+      summary: List built-in roles
+      responses:
+        "200":
+          description: Role list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Role"
+  /api/v1/permissions:
+    get:
+      summary: List built-in permissions
+      responses:
+        "200":
+          description: Permission list
+  /api/v1/orgs/{id}/members:
+    get:
+      summary: List organization members
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Organization memberships
+    post:
+      summary: Add organization member
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Membership"
+      responses:
+        "200":
+          description: Membership created
+  /api/v1/projects/{id}/members:
+    get:
+      summary: List project members
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Project memberships
+    post:
+      summary: Add project member
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Membership"
+      responses:
+        "200":
+          description: Membership created
   /api/v1/orgs:
     get:
       summary: Organizations placeholder
@@ -1072,6 +1176,105 @@ components:
           type: string
     Error:
       $ref: "#/components/schemas/ErrorResponse"
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+        username:
+          type: string
+        email:
+          type: string
+        displayName:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Role:
+      type: object
+      properties:
+        name:
+          type: string
+        description:
+          type: string
+        permissions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Permission"
+    Permission:
+      type: object
+      properties:
+        action:
+          type: string
+        description:
+          type: string
+    Membership:
+      type: object
+      properties:
+        id:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        userId:
+          type: string
+        role:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    AuthSubject:
+      type: object
+      properties:
+        subject:
+          type: object
+          properties:
+            id:
+              type: string
+            username:
+              type: string
+            displayName:
+              type: string
+            roles:
+              type: array
+              items:
+                type: string
+            authMode:
+              type: string
+    AuthDecision:
+      type: object
+      properties:
+        allowed:
+          type: boolean
+        reason:
+          type: string
+        action:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+    TokenMetadata:
+      type: object
+      properties:
+        authenticated:
+          type: boolean
+        mode:
+          type: string
+        subjectId:
+          type: string
+        issuedAt:
+          type: string
+          format: date-time
     SecretRef:
       type: object
       properties:

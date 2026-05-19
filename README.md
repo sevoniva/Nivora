@@ -1065,6 +1065,15 @@ go run ./cmd/nivora credential create --file examples/credentials/registry-crede
 
 Secret values are accepted only at creation boundaries and are not returned by normal APIs. The builtin provider is development-only; Vault, Kubernetes Secret, and cloud KMS adapters remain future work.
 
+Phase 3.2 adds local auth and RBAC foundations:
+
+```bash
+go run ./cmd/nivora auth whoami
+go run ./cmd/nivora auth permissions
+```
+
+Dev auth is not production authentication. Static token mode reads token values from environment variables, and OIDC/Keycloak integration remains future work.
+
 ## Documentation
 
 | Document | Purpose |

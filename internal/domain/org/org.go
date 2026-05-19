@@ -13,8 +13,10 @@ type Org struct {
 type User struct {
 	ID          string
 	OrgID       string
+	Username    string
 	Email       string
 	DisplayName string
+	Status      string
 	CreatedAt   time.Time
 	UpdatedAt   time.Time
 }

@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"strings"
 	"testing"
 
@@ -21,6 +22,7 @@ import (
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	portsecurity "github.com/sevoniva/nivora/internal/ports/security"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -130,6 +132,58 @@ func TestCredentialRoutesDoNotReturnSecretValue(t *testing.T) {
 	}
 }
 
+func TestAuthWhoamiDevMode(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/whoami", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("whoami status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "local-admin") {
+		t.Fatalf("expected local-admin subject, body = %s", rec.Body.String())
+	}
+}
+
+func TestAuthTokenModeRequiresBearerToken(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	t.Setenv("NIVORA_TEST_AUTH_TOKEN", "test-token")
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	cfg.Auth.StaticTokenEnv = "NIVORA_TEST_AUTH_TOKEN"
+	router := newTestRouter(cfg)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/auth/whoami", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expected unauthorized, got %d body = %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/whoami", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("NIVORA_TEST_AUTH_TOKEN"))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected authorized, got %d body = %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/token-info", nil)
+	req.Header.Set("Authorization", "Bearer "+os.Getenv("NIVORA_TEST_AUTH_TOKEN"))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected token-info, got %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), os.Getenv("NIVORA_TEST_AUTH_TOKEN")) {
+		t.Fatalf("token-info response leaked token value")
+	}
+}
+
 func newTestPipelineService() *pipelineusecase.Service {
 	return pipelineusecase.NewService(
 		pipelineusecase.NewMemoryStore(),
@@ -151,6 +205,7 @@ func newTestRouter(cfg config.Config) http.Handler {
 		newTestReleaseOrchestrationService(artifactService, deploymentService),
 		securityusecase.NewService(securityusecase.NewMemoryStore(), fakeSecurityScanner{}, nil, memory.New()),
 		credentialusecase.NewService(credentialusecase.NewMemoryStore(), builtinsecret.New(), memory.New()),
+		authusecase.NewService(authusecase.NewMemoryStore(), memory.New()),
 	)
 }
 

@@ -13,6 +13,7 @@ import (
 	securitynoop "github.com/sevoniva/nivora/internal/adapters/security/noop"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -65,6 +66,10 @@ func NewSecurityService() *securityusecase.Service {
 
 func NewCredentialService() *credentialusecase.Service {
 	return credentialusecase.NewService(credentialusecase.NewMemoryStore(), builtinsecret.New(), memory.New())
+}
+
+func NewAuthService() *authusecase.Service {
+	return authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
 }
 
 type allowAllPolicyEngine struct{}

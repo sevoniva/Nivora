@@ -7,8 +7,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/sevoniva/nivora/internal/api/http/handlers"
+	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -17,7 +19,7 @@ import (
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -27,8 +29,19 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	r.Get("/readyz", handlers.Ready)
 
 	r.Route("/api/v1", func(api chi.Router) {
+		api.Use(apimiddleware.Authenticate(cfg.Auth, authService, handlers.RespondError))
 		api.Get("/version", handlers.Version(info))
 		api.Get("/system/info", handlers.SystemInfo(cfg))
+		api.Get("/auth/whoami", handlers.WhoAmI())
+		api.Get("/auth/permissions", handlers.AuthPermissions(authService))
+		api.Get("/auth/token-info", handlers.AuthTokenInfo())
+		api.Get("/users", handlers.ListUsers(authService))
+		api.Get("/roles", handlers.ListRoles(authService))
+		api.Get("/permissions", handlers.ListPermissions(authService))
+		api.Get("/orgs/{id}/members", handlers.ListOrgMembers(authService))
+		api.Post("/orgs/{id}/members", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.AddOrgMember(authService)))
+		api.Get("/projects/{id}/members", handlers.ListProjectMembers(authService))
+		api.Post("/projects/{id}/members", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.AddProjectMember(authService)))
 		api.Get("/pipeline-runs", handlers.ListPipelineRuns(pipelineService))
 		api.Post("/pipeline-runs", handlers.CreatePipelineRun(pipelineService))
 		api.Get("/pipeline-runs/{id}", handlers.GetPipelineRun(pipelineService))
@@ -53,14 +66,14 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/security/scans/{id}", handlers.GetSecurityScan(securityService))
 		api.Get("/security/scans/{id}/findings", handlers.GetSecurityFindings(securityService))
 		api.Post("/policies/evaluate", handlers.EvaluatePolicy(securityService))
-		api.Post("/secrets", handlers.CreateSecret(credentialService))
-		api.Get("/secrets/refs", handlers.ListSecretRefs(credentialService))
-		api.Delete("/secrets/{id}", handlers.DeleteSecret(credentialService))
-		api.Post("/credentials", handlers.CreateCredential(credentialService))
-		api.Get("/credentials", handlers.ListCredentials(credentialService))
-		api.Get("/credentials/{id}", handlers.GetCredential(credentialService))
-		api.Delete("/credentials/{id}", handlers.DeleteCredential(credentialService))
-		api.Post("/credentials/{id}/validate", handlers.ValidateCredential(credentialService))
+		api.Post("/secrets", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.CreateSecret(credentialService)))
+		api.Get("/secrets/refs", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.ListSecretRefs(credentialService)))
+		api.Delete("/secrets/{id}", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.DeleteSecret(credentialService)))
+		api.Post("/credentials", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.CreateCredential(credentialService)))
+		api.Get("/credentials", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.ListCredentials(credentialService)))
+		api.Get("/credentials/{id}", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.GetCredential(credentialService)))
+		api.Delete("/credentials/{id}", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.DeleteCredential(credentialService)))
+		api.Post("/credentials/{id}/validate", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.ValidateCredential(credentialService)))
 		api.Get("/releases", handlers.ListReleases(artifactService))
 		api.Post("/releases", handlers.CreateRelease(artifactService))
 		api.Post("/releases/{id}/plan", handlers.PlanRelease(releaseService))

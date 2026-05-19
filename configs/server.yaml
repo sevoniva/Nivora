@@ -17,9 +17,11 @@ telemetry:
   endpoint: ""
 auth:
   enabled: false
+  mode: dev
+  dev_user: local-admin
+  static_token_env: NIVORA_AUTH_TOKEN
   issuer: ""
 runner:
   name: local-runner
   group: default
   heartbeat_interval: 30s
-

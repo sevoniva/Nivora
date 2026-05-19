@@ -77,6 +77,8 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/jobs/{id}/status", apimiddleware.RequirePermission(authService, "runner.manage", handlers.RespondError, handlers.UpdateJobStatus(pipelineService)))
 		api.Post("/deployments/plan", handlers.PlanDeploymentRun(deploymentService))
 		api.Post("/deployments/gitops/plan", handlers.PlanGitOpsDeployment(deploymentService))
+		api.Post("/deployments/gitops/commit", handlers.CommitGitOpsDeployment(deploymentService))
+		api.Post("/deployments/gitops/rollback", handlers.RollbackGitOpsDeployment(deploymentService))
 		api.Post("/deployments/gitops", handlers.CreateDeploymentRun(deploymentService))
 		api.Get("/host-groups", handlers.ListHostGroups(deploymentService))
 		api.Post("/host-groups", handlers.CreateHostGroup(deploymentService))

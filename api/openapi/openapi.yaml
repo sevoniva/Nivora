@@ -869,6 +869,42 @@ paths:
                 $ref: "#/components/schemas/GitOpsChangePlan"
         "400":
           description: Invalid GitOps deployment definition
+  /api/v1/deployments/gitops/commit:
+    post:
+      summary: Write and commit GitOps changes in a local working tree
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GitOpsExecutionRequest"
+      responses:
+        "201":
+          description: GitOps DeploymentRun committed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentRunRecord"
+        "400":
+          description: GitOps commit rejected or failed
+  /api/v1/deployments/gitops/rollback:
+    post:
+      summary: Plan and execute a guarded local GitOps rollback by revision
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/GitOpsExecutionRequest"
+      responses:
+        "201":
+          description: GitOps rollback DeploymentRun created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentRunRecord"
+        "400":
+          description: GitOps rollback rejected or failed
   /api/v1/deployments/gitops:
     post:
       summary: Create a GitOps DeploymentRun in safe plan mode
@@ -3735,6 +3771,26 @@ components:
               default: false
             workingTree:
               type: string
+            commit:
+              type: boolean
+              default: false
+            commitMessage:
+              type: string
+            push:
+              type: boolean
+              default: false
+            allowPush:
+              type: boolean
+              default: false
+            remote:
+              type: string
+            branch:
+              type: string
+            rollback:
+              type: boolean
+              default: false
+            rollbackRevision:
+              type: string
             sync:
               type: boolean
               default: false
@@ -4048,6 +4104,15 @@ components:
           type: string
     GitOpsDeploymentSpec:
       $ref: "#/components/schemas/DeploymentDefinition"
+    GitOpsExecutionRequest:
+      type: object
+      properties:
+        definition:
+          $ref: "#/components/schemas/DeploymentDefinition"
+        confirm:
+          type: boolean
+        allowPush:
+          type: boolean
     GitOpsTarget:
       type: object
       properties:
@@ -4104,6 +4169,10 @@ components:
           items:
             type: string
         commitMessageProposal:
+          type: string
+        commitRevision:
+          type: string
+        rollbackRevision:
           type: string
         dryRun:
           type: boolean

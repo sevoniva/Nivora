@@ -1567,6 +1567,8 @@ func newGitOpsCommand() *cobra.Command {
 	cmd.AddCommand(newGitOpsPlanCommand())
 	cmd.AddCommand(newGitOpsDiffCommand())
 	cmd.AddCommand(newGitOpsWriteCommand())
+	cmd.AddCommand(newGitOpsCommitCommand())
+	cmd.AddCommand(newGitOpsRollbackCommand())
 	cmd.AddCommand(newGitOpsDeployCommand())
 	return cmd
 }
@@ -1649,6 +1651,103 @@ func newGitOpsWriteCommand() *cobra.Command {
 	cmd.Flags().Bool("local", true, "use the in-process Phase 2.3 local runtime")
 	cmd.Flags().StringVar(&workingTree, "working-tree", "", "local GitOps working tree root")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm local working tree writes")
+	return cmd
+}
+
+func newGitOpsCommitCommand() *cobra.Command {
+	var workingTree string
+	var confirm bool
+	var push bool
+	var allowPush bool
+	var remote string
+	var branch string
+	var message string
+	cmd := &cobra.Command{
+		Use:   "commit --local <deployment.yaml> --working-tree <path> --confirm",
+		Short: "Write and commit GitOps changes in a local working tree",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !confirm {
+				return fmt.Errorf("gitops commit requires --confirm")
+			}
+			if workingTree == "" {
+				return fmt.Errorf("--working-tree is required")
+			}
+			if push && !allowPush {
+				return fmt.Errorf("gitops push requires --allow-push")
+			}
+			def, err := deploymentusecase.LoadDefinitionFile(args[0])
+			if err != nil {
+				return err
+			}
+			def.Spec.GitOps.WriteToWorkingTree = true
+			def.Spec.GitOps.WorkingTree = workingTree
+			def.Spec.GitOps.Commit = true
+			def.Spec.GitOps.CommitMessage = message
+			def.Spec.GitOps.Push = push
+			def.Spec.GitOps.AllowPush = allowPush
+			def.Spec.GitOps.Remote = remote
+			def.Spec.GitOps.Branch = branch
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, Confirm: true})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "DeploymentRun: %s\n", result.Record.Run.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", result.Record.Run.Status)
+			fmt.Fprintf(cmd.OutOrStdout(), "Commit: %s\n", result.Record.GitOpsCommit.Revision)
+			if result.Record.GitOpsPush.Pushed {
+				fmt.Fprintf(cmd.OutOrStdout(), "Pushed: %s\n", result.Record.GitOpsPush.Revision)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().Bool("local", true, "use the in-process Phase 6.1 local runtime")
+	cmd.Flags().StringVar(&workingTree, "working-tree", "", "local GitOps working tree root")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm local working tree commit")
+	cmd.Flags().BoolVar(&push, "push", false, "push commit after creating it; disabled by default")
+	cmd.Flags().BoolVar(&allowPush, "allow-push", false, "allow guarded Git push")
+	cmd.Flags().StringVar(&remote, "remote", "origin", "Git remote for guarded push")
+	cmd.Flags().StringVar(&branch, "branch", "HEAD", "Git branch/ref for guarded push")
+	cmd.Flags().StringVar(&message, "message", "", "override generated commit message")
+	return cmd
+}
+
+func newGitOpsRollbackCommand() *cobra.Command {
+	var workingTree string
+	var revision string
+	var confirm bool
+	cmd := &cobra.Command{
+		Use:   "rollback --local <deployment.yaml> --working-tree <path> --revision <rev> --confirm",
+		Short: "Plan and execute a guarded local GitOps rollback by Git revision",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !confirm {
+				return fmt.Errorf("gitops rollback requires --confirm")
+			}
+			if workingTree == "" || revision == "" {
+				return fmt.Errorf("gitops rollback requires --working-tree and --revision")
+			}
+			def, err := deploymentusecase.LoadDefinitionFile(args[0])
+			if err != nil {
+				return err
+			}
+			def.Spec.GitOps.WorkingTree = workingTree
+			def.Spec.GitOps.Rollback = true
+			def.Spec.GitOps.RollbackRevision = revision
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, Confirm: true})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "DeploymentRun: %s\n", result.Record.Run.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", result.Record.Run.Status)
+			fmt.Fprintf(cmd.OutOrStdout(), "RollbackRevision: %s\n", result.Record.GitOpsRollback.Revision)
+			return nil
+		},
+	}
+	cmd.Flags().Bool("local", true, "use the in-process Phase 6.1 local runtime")
+	cmd.Flags().StringVar(&workingTree, "working-tree", "", "local GitOps working tree root")
+	cmd.Flags().StringVar(&revision, "revision", "", "Git revision to check out")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm guarded revision checkout")
 	return cmd
 }
 

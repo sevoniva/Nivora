@@ -353,6 +353,31 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.gitops.commit.created:
+    address: devops.gitops.commit.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.gitops.push.completed:
+    address: devops.gitops.push.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.gitops.push.skipped:
+    address: devops.gitops.push.skipped
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.gitops.rollback.planned:
+    address: devops.gitops.rollback.planned
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.gitops.rollback.completed:
+    address: devops.gitops.rollback.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.argocd.status.read:
     address: devops.argocd.status.read
     messages:

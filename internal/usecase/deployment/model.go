@@ -27,6 +27,9 @@ type RunRecord struct {
 	Plan            DeploymentPlan                    `json:"plan"`
 	GitOpsPlan      GitOpsChangePlan                  `json:"gitopsPlan,omitempty"`
 	GitOpsDiff      GitOpsDiff                        `json:"gitopsDiff,omitempty"`
+	GitOpsCommit    portgitops.CommitResult           `json:"gitopsCommit,omitempty"`
+	GitOpsPush      portgitops.CommitResult           `json:"gitopsPush,omitempty"`
+	GitOpsRollback  portgitops.CommitResult           `json:"gitopsRollback,omitempty"`
 	HostPlan        HostDeploymentPlan                `json:"hostPlan,omitempty"`
 	HostDetails     []HostDeploymentRunDetail         `json:"hostDetails,omitempty"`
 	ArgoCD          portargocd.ApplicationStatus      `json:"argocd,omitempty"`
@@ -146,6 +149,8 @@ type GitOpsChangePlan struct {
 	ArtifactChanges       []string                     `json:"artifactChanges,omitempty"`
 	ManifestValueChanges  []string                     `json:"manifestValueChanges,omitempty"`
 	CommitMessageProposal string                       `json:"commitMessageProposal,omitempty"`
+	CommitRevision        string                       `json:"commitRevision,omitempty"`
+	RollbackRevision      string                       `json:"rollbackRevision,omitempty"`
 	DryRun                bool                         `json:"dryRun"`
 	Warnings              []string                     `json:"warnings,omitempty"`
 	SyncRequested         bool                         `json:"syncRequested"`

@@ -108,6 +108,7 @@ For a quick path through the project:
 - [Runtime Recovery Operations](operations/runtime-recovery.md)
 - [Runner Fleet Operations](operations/runner-fleet.md)
 - [Kubernetes Deployment Operations](operations/kubernetes-deployment.md)
+- [GitOps and Argo CD Operations](operations/gitops-argocd.md)
 - [Troubleshooting](operations/troubleshooting.md)
 
 ## Community and Governance

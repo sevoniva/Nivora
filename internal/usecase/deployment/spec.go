@@ -86,6 +86,14 @@ type GitOps struct {
 	Mode               string   `json:"mode,omitempty" yaml:"mode,omitempty"`
 	WriteToWorkingTree bool     `json:"writeToWorkingTree" yaml:"writeToWorkingTree"`
 	WorkingTree        string   `json:"workingTree,omitempty" yaml:"workingTree,omitempty"`
+	Commit             bool     `json:"commit" yaml:"commit"`
+	CommitMessage      string   `json:"commitMessage,omitempty" yaml:"commitMessage,omitempty"`
+	Push               bool     `json:"push" yaml:"push"`
+	AllowPush          bool     `json:"allowPush" yaml:"allowPush"`
+	Remote             string   `json:"remote,omitempty" yaml:"remote,omitempty"`
+	Branch             string   `json:"branch,omitempty" yaml:"branch,omitempty"`
+	Rollback           bool     `json:"rollback" yaml:"rollback"`
+	RollbackRevision   string   `json:"rollbackRevision,omitempty" yaml:"rollbackRevision,omitempty"`
 	Sync               bool     `json:"sync" yaml:"sync"`
 	AllowSync          bool     `json:"allowSync" yaml:"allowSync"`
 	Prune              bool     `json:"prune" yaml:"prune"`

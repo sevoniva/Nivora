@@ -55,6 +55,11 @@ const (
 	EventGitOpsPlanCreated             = "devops.gitops.plan.created"
 	EventGitOpsDiffGenerated           = "devops.gitops.diff.generated"
 	EventGitOpsWorkingTreeUpdated      = "devops.gitops.workingtree.updated"
+	EventGitOpsCommitCreated           = "devops.gitops.commit.created"
+	EventGitOpsPushCompleted           = "devops.gitops.push.completed"
+	EventGitOpsPushSkipped             = "devops.gitops.push.skipped"
+	EventGitOpsRollbackPlanned         = "devops.gitops.rollback.planned"
+	EventGitOpsRollbackCompleted       = "devops.gitops.rollback.completed"
 	EventArgoCDStatusReadStarted       = "devops.argocd.status.read.started"
 	EventArgoCDStatusReadCompleted     = "devops.argocd.status.read.completed"
 	EventArgoCDStatusReadFailed        = "devops.argocd.status.read.failed"
@@ -724,6 +729,27 @@ func (s *Service) processGitOps(ctx context.Context, record RunRecord, actorID s
 	}
 	record, _ = s.store.Get(ctx, record.Run.ID)
 
+	if record.Definition.Spec.GitOps.Rollback {
+		result, err := s.rollbackGitOpsRevision(ctx, record.Definition, confirm)
+		if err != nil {
+			return s.fail(ctx, record, actorID, err.Error())
+		}
+		record.GitOpsRollback = result
+		record.GitOpsPlan.RollbackRevision = record.Definition.Spec.GitOps.RollbackRevision
+		record.GitOpsPlan.CommitRevision = result.Revision
+		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("GitOps rollback revision checked out: %s", result.Revision), int64(len(record.Logs)+1)))
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventGitOpsRollbackPlanned, "GitOps rollback planned", actorID, string(record.Run.Status), "GitOps rollback by revision planned"); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventGitOpsRollbackCompleted, "GitOps rollback revision checked out", actorID, string(record.Run.Status), result.Revision); err != nil {
+			return RunRecord{}, err
+		}
+		record, _ = s.store.Get(ctx, record.Run.ID)
+	}
+
 	if record.Definition.Spec.GitOps.WriteToWorkingTree {
 		updated, diff, err := s.applyGitOpsWorkingTree(ctx, record.GitOpsPlan, record.Definition)
 		if err != nil {
@@ -743,6 +769,46 @@ func (s *Service) processGitOps(ctx context.Context, record RunRecord, actorID s
 			return RunRecord{}, err
 		}
 		record, _ = s.store.Get(ctx, record.Run.ID)
+
+		if record.Definition.Spec.GitOps.Commit {
+			commit, err := s.commitGitOpsChanges(ctx, record.GitOpsDiff, record.Definition)
+			if err != nil {
+				return s.fail(ctx, record, actorID, err.Error())
+			}
+			record.GitOpsCommit = commit
+			record.GitOpsPlan.CommitRevision = commit.Revision
+			record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("GitOps commit completed: %s", commit.Revision), int64(len(record.Logs)+1)))
+			if err := s.store.Save(ctx, record); err != nil {
+				return RunRecord{}, err
+			}
+			if err := s.recordEventAndAudit(ctx, record.Run.ID, EventGitOpsCommitCreated, "GitOps commit created", actorID, string(record.Run.Status), commit.Revision); err != nil {
+				return RunRecord{}, err
+			}
+			record, _ = s.store.Get(ctx, record.Run.ID)
+		}
+		if record.Definition.Spec.GitOps.Push {
+			if !record.Definition.Spec.GitOps.AllowPush || !confirm {
+				return s.fail(ctx, record, actorID, "gitops push requires gitops.allowPush=true and confirmation")
+			}
+			push, err := s.gitops.Push(ctx, record.Definition.Spec.GitOps.WorkingTree, record.Definition.Spec.GitOps.Remote, record.Definition.Spec.GitOps.Branch, true)
+			if err != nil {
+				return s.fail(ctx, record, actorID, err.Error())
+			}
+			record.GitOpsPush = push
+			record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("GitOps push completed: %s", push.Revision), int64(len(record.Logs)+1)))
+			if err := s.store.Save(ctx, record); err != nil {
+				return RunRecord{}, err
+			}
+			if err := s.recordEventAndAudit(ctx, record.Run.ID, EventGitOpsPushCompleted, "GitOps push completed", actorID, string(record.Run.Status), push.Revision); err != nil {
+				return RunRecord{}, err
+			}
+			record, _ = s.store.Get(ctx, record.Run.ID)
+		} else if record.Definition.Spec.GitOps.AllowPush {
+			if err := s.recordEventAndAudit(ctx, record.Run.ID, EventGitOpsPushSkipped, "GitOps push skipped", actorID, string(record.Run.Status), "push=false; remote Git push was not requested"); err != nil {
+				return RunRecord{}, err
+			}
+			record, _ = s.store.Get(ctx, record.Run.ID)
+		}
 	}
 
 	if s.argocd != nil && (record.Definition.Spec.GitOps.StatusRead || record.Definition.Spec.GitOps.Sync) {
@@ -853,6 +919,9 @@ func (s *Service) processGitOps(ctx context.Context, record RunRecord, actorID s
 					}
 					if err := s.recordEventAndAudit(ctx, record.Run.ID, EventArgoCDHealthChanged, "Argo CD health changed", actorID, string(record.Run.Status), last.HealthStatus); err != nil {
 						return RunRecord{}, err
+					}
+					if last.SyncStatus == "OutOfSync" || last.HealthStatus == "Degraded" {
+						return s.fail(ctx, record, actorID, fmt.Sprintf("Argo CD watch ended unhealthy: sync=%s health=%s", last.SyncStatus, last.HealthStatus))
 					}
 				}
 			}
@@ -1454,6 +1523,15 @@ func (s *Service) buildGitOpsPlan(runID string, def Definition, changes []portgi
 	if def.Spec.GitOps.WriteToWorkingTree && def.Spec.GitOps.WorkingTree == "" {
 		warnings = append(warnings, "writeToWorkingTree=true requires gitops.workingTree")
 	}
+	if def.Spec.GitOps.Commit {
+		warnings = append(warnings, "GitOps commit requested; local commit only, push remains disabled unless explicitly allowed")
+	}
+	if def.Spec.GitOps.Push {
+		warnings = append(warnings, "GitOps push requested; push requires allowPush=true and confirmation")
+	}
+	if def.Spec.GitOps.Rollback {
+		warnings = append(warnings, "GitOps rollback by revision requested; checkout requires confirmation and does not sync by default")
+	}
 	if def.Spec.GitOps.Sync {
 		warnings = append(warnings, "Argo CD sync requested; sync is disabled unless explicitly allowed and confirmed")
 	}
@@ -1474,6 +1552,7 @@ func (s *Service) buildGitOpsPlan(runID string, def Definition, changes []portgi
 		ArtifactChanges:       artifacts,
 		ManifestValueChanges:  plannedImageChanges(def),
 		CommitMessageProposal: fmt.Sprintf("chore: update %s release artifacts", def.Spec.Application),
+		RollbackRevision:      def.Spec.GitOps.RollbackRevision,
 		DryRun:                !def.Spec.GitOps.WriteToWorkingTree,
 		Warnings:              warnings,
 		SyncRequested:         def.Spec.GitOps.Sync,
@@ -1484,6 +1563,15 @@ func deploymentPlanFromGitOps(plan GitOpsChangePlan, def Definition) DeploymentP
 	actions := []string{"build GitOps change plan", "policy pre-check"}
 	if def.Spec.GitOps.WriteToWorkingTree {
 		actions = append(actions, "update local working tree", "generate diff")
+	}
+	if def.Spec.GitOps.Commit {
+		actions = append(actions, "commit local GitOps working tree changes")
+	}
+	if def.Spec.GitOps.Push {
+		actions = append(actions, "push GitOps commit if explicitly confirmed")
+	}
+	if def.Spec.GitOps.Rollback {
+		actions = append(actions, "checkout requested GitOps rollback revision")
 	}
 	if def.Spec.GitOps.StatusRead {
 		actions = append(actions, "read Argo CD application status")
@@ -1504,7 +1592,7 @@ func deploymentPlanFromGitOps(plan GitOpsChangePlan, def Definition) DeploymentP
 		Apply:           def.Spec.GitOps.WriteToWorkingTree,
 		Actions:         actions,
 		Warnings:        append([]string(nil), plan.Warnings...),
-		DiffSummary:     fmt.Sprintf("GitOps plan for %s in %s; remote Git diff is not available in Phase 2.3", plan.ApplicationName, plan.Path),
+		DiffSummary:     fmt.Sprintf("GitOps plan for %s in %s; remote Git push and sync remain guarded in Phase 6.1", plan.ApplicationName, plan.Path),
 	}
 }
 
@@ -1554,6 +1642,44 @@ func (s *Service) applyGitOpsWorkingTree(ctx context.Context, plan GitOpsChangeP
 	plan.FileChanges = changes
 	plan.DryRun = false
 	return plan, GitOpsDiff{Summary: fmt.Sprintf("generated local GitOps diff for %d file(s)", len(changes)), Files: changes}, nil
+}
+
+func (s *Service) commitGitOpsChanges(ctx context.Context, diff GitOpsDiff, def Definition) (portgitops.CommitResult, error) {
+	if s.gitops == nil {
+		return portgitops.CommitResult{}, fmt.Errorf("gitops working tree adapter is not configured")
+	}
+	if def.Spec.GitOps.WorkingTree == "" {
+		return portgitops.CommitResult{}, fmt.Errorf("gitops.workingTree is required for gitops commit")
+	}
+	files := changedGitOpsFiles(diff)
+	if len(files) == 0 {
+		return portgitops.CommitResult{}, fmt.Errorf("gitops commit requires changed files")
+	}
+	message := strings.TrimSpace(def.Spec.GitOps.CommitMessage)
+	if message == "" {
+		message = fmt.Sprintf("chore: update %s release artifacts", def.Spec.Application)
+	}
+	return s.gitops.Commit(ctx, def.Spec.GitOps.WorkingTree, message, files)
+}
+
+func (s *Service) rollbackGitOpsRevision(ctx context.Context, def Definition, confirm bool) (portgitops.CommitResult, error) {
+	if s.gitops == nil {
+		return portgitops.CommitResult{}, fmt.Errorf("gitops working tree adapter is not configured")
+	}
+	if def.Spec.GitOps.WorkingTree == "" {
+		return portgitops.CommitResult{}, fmt.Errorf("gitops.workingTree is required for gitops rollback")
+	}
+	return s.gitops.CheckoutRevision(ctx, def.Spec.GitOps.WorkingTree, def.Spec.GitOps.RollbackRevision, confirm)
+}
+
+func changedGitOpsFiles(diff GitOpsDiff) []string {
+	files := make([]string, 0, len(diff.Files))
+	for _, change := range diff.Files {
+		if change.Changed {
+			files = append(files, change.Path)
+		}
+	}
+	return files
 }
 
 func replaceContainerImage(content string, containerName string, reference string) string {

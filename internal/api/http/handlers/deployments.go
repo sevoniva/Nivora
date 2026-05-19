@@ -129,6 +129,64 @@ func PlanGitOpsDeployment(service *deploymentusecase.Service) http.HandlerFunc {
 	}
 }
 
+type gitOpsExecutionRequest struct {
+	Definition deploymentusecase.Definition `json:"definition"`
+	Confirm    bool                         `json:"confirm"`
+	AllowPush  bool                         `json:"allowPush"`
+}
+
+func CommitGitOpsDeployment(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req gitOpsExecutionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must include definition and confirm"})
+			return
+		}
+		if !req.Confirm {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "gitops_commit_unconfirmed", Message: "gitops commit requires confirm=true"})
+			return
+		}
+		req.Definition.Spec.GitOps.WriteToWorkingTree = true
+		req.Definition.Spec.GitOps.Commit = true
+		req.Definition.Spec.GitOps.AllowPush = req.Definition.Spec.GitOps.AllowPush || req.AllowPush
+		result, err := service.CreateAndRun(r.Context(), deploymentusecase.CreateRunInput{
+			Definition:    req.Definition,
+			Confirm:       true,
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+		})
+		if err != nil {
+			respondDeploymentResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, result.Record)
+	}
+}
+
+func RollbackGitOpsDeployment(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var req gitOpsExecutionRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must include definition, rollbackRevision, and confirm"})
+			return
+		}
+		if !req.Confirm {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "gitops_rollback_unconfirmed", Message: "gitops rollback requires confirm=true"})
+			return
+		}
+		req.Definition.Spec.GitOps.Rollback = true
+		result, err := service.CreateAndRun(r.Context(), deploymentusecase.CreateRunInput{
+			Definition:    req.Definition,
+			Confirm:       true,
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+		})
+		if err != nil {
+			respondDeploymentResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, result.Record)
+	}
+}
+
 func PlanHostDeployment(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var def deploymentusecase.Definition

@@ -191,6 +191,19 @@ func TestGitOpsDeploymentRoutes(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("guarded sync status = %d body = %s", rec.Code, rec.Body.String())
 	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/deployments/gitops/commit", bytes.NewReader([]byte(`{"confirm":false}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unguarded gitops commit status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/deployments/gitops/rollback", bytes.NewReader([]byte(`{"confirm":false}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("unguarded gitops rollback status = %d body = %s", rec.Code, rec.Body.String())
+	}
 }
 
 func TestHostDeploymentRoutes(t *testing.T) {

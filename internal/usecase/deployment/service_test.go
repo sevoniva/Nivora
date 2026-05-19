@@ -3,6 +3,7 @@ package deployment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -371,6 +372,60 @@ func TestServiceGitOpsWorkingTreeUpdate(t *testing.T) {
 	}
 }
 
+func TestServiceGitOpsCommitAndPushGuard(t *testing.T) {
+	service, def := newGitOpsTestService(t)
+	dir := t.TempDir()
+	file := filepath.Join(dir, "apps/demo-springboot/dev/deployment.yaml")
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(file, []byte("containers:\n  - name: app\n    image: old.example/demo:old\n"), 0o600); err != nil {
+		t.Fatalf("write file: %v", err)
+	}
+	def.Spec.GitOps.WriteToWorkingTree = true
+	def.Spec.GitOps.WorkingTree = dir
+	def.Spec.GitOps.Commit = true
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("run gitops commit: %v", err)
+	}
+	if !result.Record.GitOpsCommit.Committed || result.Record.GitOpsCommit.Revision == "" {
+		t.Fatalf("commit = %#v", result.Record.GitOpsCommit)
+	}
+	assertHasDeploymentEvent(t, result.Record.Events, EventGitOpsCommitCreated)
+
+	def.Spec.GitOps.Push = true
+	result, err = service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("push guard should fail run cleanly: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("unguarded push status = %s", result.Record.Run.Status)
+	}
+}
+
+func TestServiceGitOpsRollbackRequiresConfirmation(t *testing.T) {
+	service, def := newGitOpsTestService(t)
+	def.Spec.GitOps.Rollback = true
+	def.Spec.GitOps.RollbackRevision = "fake-previous"
+	def.Spec.GitOps.WorkingTree = t.TempDir()
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("rollback guard should fail run cleanly: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("unguarded rollback status = %s", result.Record.Run.Status)
+	}
+	result, err = service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, Confirm: true})
+	if err != nil {
+		t.Fatalf("confirmed rollback: %v", err)
+	}
+	if result.Record.GitOpsRollback.Revision != "fake-previous" {
+		t.Fatalf("rollback = %#v", result.Record.GitOpsRollback)
+	}
+	assertHasDeploymentEvent(t, result.Record.Events, EventGitOpsRollbackCompleted)
+}
+
 func TestServiceGitOpsSyncRequiresConfirmation(t *testing.T) {
 	service, def := newGitOpsTestService(t)
 	def.Spec.GitOps.Sync = true
@@ -718,6 +773,28 @@ func (fakeWorkingTree) WriteFile(ctx context.Context, root string, path string, 
 
 func (fakeWorkingTree) Diff(ctx context.Context, root string, path string, before string, after string) (string, error) {
 	return before + "\n---\n" + after, nil
+}
+
+func (fakeWorkingTree) CurrentRevision(ctx context.Context, root string) (string, error) {
+	return "fake-revision", nil
+}
+
+func (fakeWorkingTree) Commit(ctx context.Context, root string, message string, files []string) (portgitops.CommitResult, error) {
+	return portgitops.CommitResult{Message: message, Revision: "fake-commit", Files: append([]string(nil), files...), Committed: true}, nil
+}
+
+func (fakeWorkingTree) Push(ctx context.Context, root string, remote string, branch string, allowPush bool) (portgitops.CommitResult, error) {
+	if !allowPush {
+		return portgitops.CommitResult{}, fmt.Errorf("push disabled")
+	}
+	return portgitops.CommitResult{Revision: "fake-commit", Pushed: true}, nil
+}
+
+func (fakeWorkingTree) CheckoutRevision(ctx context.Context, root string, revision string, confirm bool) (portgitops.CommitResult, error) {
+	if !confirm {
+		return portgitops.CommitResult{}, fmt.Errorf("rollback requires confirmation")
+	}
+	return portgitops.CommitResult{Revision: revision}, nil
 }
 
 var _ portgitops.WorkingTree = fakeWorkingTree{}

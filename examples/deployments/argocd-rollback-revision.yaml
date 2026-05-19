@@ -1,0 +1,22 @@
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-gitops-rollback-revision
+spec:
+  application: demo-springboot
+  environment: dev
+  target:
+    type: argocd
+    name: local-argocd-noop
+    applicationName: demo-springboot
+    repoURL: https://example.com/gitops/demo.git
+    path: apps/demo-springboot/dev
+    revision: main
+  gitops:
+    mode: plan
+    workingTree: ./tmp/gitops
+    rollback: false
+    rollbackRevision: ""
+    sync: false
+    files:
+      - apps/demo-springboot/dev/deployment.yaml

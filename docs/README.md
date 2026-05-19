@@ -96,6 +96,9 @@ For a quick path through the project:
 
 ## Operations Docs
 
+- [Configuration](operations/configuration.md)
+- [Docker Compose Install](operations/install-docker-compose.md)
+- [Kubernetes Install](operations/install-kubernetes.md)
 - [Observability Operations](operations/observability.md)
 - [Troubleshooting](operations/troubleshooting.md)
 

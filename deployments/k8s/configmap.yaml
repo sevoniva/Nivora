@@ -1,0 +1,89 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: nivora-config
+data:
+  server.yaml: |
+    app:
+      name: nivora-server
+    environment: kubernetes
+    http:
+      bind_address: ":8080"
+    database:
+      url: "postgres://nivora@postgres:5432/nivora?sslmode=disable"
+    event_bus:
+      type: memory
+    object_store:
+      type: local
+      path: "/var/lib/nivora/objectstore"
+    log:
+      level: info
+    telemetry:
+      enabled: false
+      endpoint: ""
+    auth:
+      enabled: false
+      mode: dev
+      dev_user: local-admin
+      static_token_env: NIVORA_AUTH_TOKEN
+      issuer: ""
+    runner:
+      name: k8s-runner
+      group: default
+      heartbeat_interval: 30s
+  worker.yaml: |
+    app:
+      name: nivora-worker
+    environment: kubernetes
+    http:
+      bind_address: ":8081"
+    database:
+      url: "postgres://nivora@postgres:5432/nivora?sslmode=disable"
+    event_bus:
+      type: memory
+    object_store:
+      type: local
+      path: "/var/lib/nivora/objectstore"
+    log:
+      level: info
+    telemetry:
+      enabled: false
+      endpoint: ""
+    auth:
+      enabled: false
+      mode: dev
+      dev_user: local-admin
+      static_token_env: NIVORA_AUTH_TOKEN
+      issuer: ""
+    runner:
+      name: k8s-runner
+      group: default
+      heartbeat_interval: 30s
+  runner.yaml: |
+    app:
+      name: nivora-runner
+    environment: kubernetes
+    http:
+      bind_address: ":8082"
+    database:
+      url: "postgres://nivora@postgres:5432/nivora?sslmode=disable"
+    event_bus:
+      type: memory
+    object_store:
+      type: local
+      path: "/var/lib/nivora/objectstore"
+    log:
+      level: info
+    telemetry:
+      enabled: false
+      endpoint: ""
+    auth:
+      enabled: false
+      mode: dev
+      dev_user: local-admin
+      static_token_env: NIVORA_AUTH_TOKEN
+      issuer: ""
+    runner:
+      name: k8s-runner
+      group: default
+      heartbeat_interval: 30s

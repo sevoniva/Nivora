@@ -3,8 +3,8 @@ services:
     image: postgres:16
     environment:
       POSTGRES_USER: nivora
-      POSTGRES_PASSWORD: nivora
       POSTGRES_DB: nivora
+      POSTGRES_HOST_AUTH_METHOD: trust
     ports:
       - "5432:5432"
     volumes:
@@ -19,8 +19,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: nivora
-      MINIO_ROOT_PASSWORD: nivora-dev-only
+      MINIO_ROOT_USER: ${NIVORA_MINIO_ROOT_USER:-nivora-local}
+      MINIO_ROOT_PASSWORD: ${NIVORA_MINIO_ROOT_PASSWORD:-set-local-minio-password}
     ports:
       - "9000:9000"
       - "9001:9001"
@@ -31,41 +31,42 @@ services:
     build:
       context: ../..
       dockerfile: Dockerfile
-      args:
-        NIVORA_BINARY: nivora-server
-    command: ["/etc/nivora/server.yaml"]
+    image: nivora:local
+    command: ["server", "--config", "/etc/nivora/server.yaml"]
     ports:
       - "8080:8080"
     volumes:
-      - ../../configs:/etc/nivora:ro
+      - ../../configs/docker-compose.server.yaml:/etc/nivora/server.yaml:ro
+      - nivora-objectstore:/var/lib/nivora/objectstore
     depends_on:
       postgres:
         condition: service_healthy
 
   nivora-worker:
+    image: nivora:local
     build:
       context: ../..
       dockerfile: Dockerfile
-      args:
-        NIVORA_BINARY: nivora-worker
-    command: ["/etc/nivora/worker.yaml"]
+    command: ["worker", "--config", "/etc/nivora/worker.yaml"]
     volumes:
-      - ../../configs:/etc/nivora:ro
+      - ../../configs/docker-compose.worker.yaml:/etc/nivora/worker.yaml:ro
+      - nivora-objectstore:/var/lib/nivora/objectstore
     depends_on:
       postgres:
         condition: service_healthy
 
   nivora-runner:
+    image: nivora:local
     build:
       context: ../..
       dockerfile: Dockerfile
-      args:
-        NIVORA_BINARY: nivora-runner
-    command: ["/etc/nivora/runner.yaml"]
+    command: ["runner", "--config", "/etc/nivora/runner.yaml"]
     profiles: ["runner"]
     volumes:
-      - ../../configs:/etc/nivora:ro
+      - ../../configs/docker-compose.runner.yaml:/etc/nivora/runner.yaml:ro
+      - nivora-objectstore:/var/lib/nivora/objectstore
 
 volumes:
   postgres-data:
   minio-data:
+  nivora-objectstore:

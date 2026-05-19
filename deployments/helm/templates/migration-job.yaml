@@ -1,0 +1,41 @@
+{{- if .Values.migration.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "nivora.fullname" . }}-migration
+  labels:
+    {{- include "nivora.labels" . | nindent 4 }}
+    app.kubernetes.io/component: migration
+spec:
+  template:
+    metadata:
+      labels:
+        {{- include "nivora.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: migration
+    spec:
+      restartPolicy: OnFailure
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: migration
+          image: "{{ .Values.migration.image.repository }}:{{ .Values.migration.image.tag }}"
+          imagePullPolicy: {{ .Values.migration.image.pullPolicy }}
+          {{- with .Values.migration.command }}
+          command:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.migration.args }}
+          args:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nivora
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "nivora.fullname" . }}-config
+{{- end }}

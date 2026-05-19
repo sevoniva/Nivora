@@ -1,0 +1,27 @@
+app:
+  name: nivora-worker
+environment: docker-compose
+http:
+  bind_address: ":8081"
+database:
+  url: "postgres://nivora@postgres:5432/nivora?sslmode=disable"
+event_bus:
+  type: memory
+object_store:
+  type: local
+  path: "/var/lib/nivora/objectstore"
+log:
+  level: info
+telemetry:
+  enabled: false
+  endpoint: ""
+auth:
+  enabled: false
+  mode: dev
+  dev_user: local-admin
+  static_token_env: NIVORA_AUTH_TOKEN
+  issuer: ""
+runner:
+  name: compose-runner
+  group: docker-compose
+  heartbeat_interval: 30s

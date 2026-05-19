@@ -103,6 +103,27 @@ Non-goals:
 - Frontend plugin management.
 - Production plugin execution.
 
+## Phase 4.4 Packaging and Deployment Foundation
+
+Phase 4.4 makes local and Kubernetes installation easier to verify.
+
+Scope:
+
+- Hardened multi-binary Docker image with non-root runtime.
+- Docker Compose stack for server, worker, runner, PostgreSQL, and MinIO local validation.
+- Helm chart for server, worker, runner, ConfigMap, Secret placeholder, Service, optional Ingress, and optional migration Job.
+- Minimal raw Kubernetes manifests.
+- Configuration examples for local, compose, and production-shaped installs.
+- Makefile targets for Docker and Helm validation.
+- Operations installation and configuration docs.
+
+Non-goals:
+
+- Kubernetes operator.
+- Cloud-provider-specific deployment.
+- Committed secrets.
+- Production readiness claims.
+
 ## Contribution Opportunities
 
 - API design for timelines.

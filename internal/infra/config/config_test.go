@@ -47,3 +47,20 @@ auth:
 		t.Fatalf("bind address = %q", cfg.HTTP.BindAddress)
 	}
 }
+
+func TestRepositoryConfigExamplesValidate(t *testing.T) {
+	paths := []string{
+		"../../../configs/server.yaml",
+		"../../../configs/worker.yaml",
+		"../../../configs/runner.yaml",
+		"../../../configs/docker-compose.server.yaml",
+		"../../../configs/docker-compose.worker.yaml",
+		"../../../configs/docker-compose.runner.yaml",
+		"../../../configs/production.example.yaml",
+	}
+	for _, path := range paths {
+		if _, err := Load(path); err != nil {
+			t.Fatalf("load %s: %v", path, err)
+		}
+	}
+}

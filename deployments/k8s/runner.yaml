@@ -12,8 +12,25 @@ spec:
       labels:
         app: nivora-runner
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
       containers:
         - name: runner
           image: sevoniva/nivora:0.1.0-dev
           args: ["runner", "--config", "/etc/nivora/runner.yaml"]
-
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nivora
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: nivora-config

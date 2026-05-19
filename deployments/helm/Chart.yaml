@@ -1,7 +1,6 @@
 apiVersion: v2
 name: nivora
-description: Nivora control plane Phase 0 chart skeleton
+description: Nivora control plane packaging foundation
 type: application
-version: 0.1.0
+version: 0.4.4
 appVersion: "0.1.0-dev"
-

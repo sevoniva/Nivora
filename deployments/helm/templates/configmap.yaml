@@ -1,0 +1,91 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nivora.fullname" . }}-config
+  labels:
+    {{- include "nivora.labels" . | nindent 4 }}
+data:
+  server.yaml: |
+    app:
+      name: nivora-server
+    environment: {{ .Values.config.environment | quote }}
+    http:
+      bind_address: ":8080"
+    database:
+      url: {{ .Values.config.databaseURL | quote }}
+    event_bus:
+      type: {{ .Values.config.eventBusType | quote }}
+    object_store:
+      type: {{ .Values.config.objectStoreType | quote }}
+      path: {{ .Values.config.objectStorePath | quote }}
+    log:
+      level: {{ .Values.config.logLevel | quote }}
+    telemetry:
+      enabled: {{ .Values.config.telemetryEnabled }}
+      endpoint: {{ .Values.config.telemetryEndpoint | quote }}
+    auth:
+      enabled: {{ .Values.config.auth.enabled }}
+      mode: {{ .Values.config.auth.mode | quote }}
+      dev_user: {{ .Values.config.auth.devUser | quote }}
+      static_token_env: {{ .Values.config.auth.staticTokenEnv | quote }}
+      issuer: ""
+    runner:
+      name: {{ .Values.runner.name | quote }}
+      group: {{ .Values.runner.group | quote }}
+      heartbeat_interval: "30s"
+  worker.yaml: |
+    app:
+      name: nivora-worker
+    environment: {{ .Values.config.environment | quote }}
+    http:
+      bind_address: ":8081"
+    database:
+      url: {{ .Values.config.databaseURL | quote }}
+    event_bus:
+      type: {{ .Values.config.eventBusType | quote }}
+    object_store:
+      type: {{ .Values.config.objectStoreType | quote }}
+      path: {{ .Values.config.objectStorePath | quote }}
+    log:
+      level: {{ .Values.config.logLevel | quote }}
+    telemetry:
+      enabled: {{ .Values.config.telemetryEnabled }}
+      endpoint: {{ .Values.config.telemetryEndpoint | quote }}
+    auth:
+      enabled: {{ .Values.config.auth.enabled }}
+      mode: {{ .Values.config.auth.mode | quote }}
+      dev_user: {{ .Values.config.auth.devUser | quote }}
+      static_token_env: {{ .Values.config.auth.staticTokenEnv | quote }}
+      issuer: ""
+    runner:
+      name: {{ .Values.runner.name | quote }}
+      group: {{ .Values.runner.group | quote }}
+      heartbeat_interval: "30s"
+  runner.yaml: |
+    app:
+      name: nivora-runner
+    environment: {{ .Values.config.environment | quote }}
+    http:
+      bind_address: ":8082"
+    database:
+      url: {{ .Values.config.databaseURL | quote }}
+    event_bus:
+      type: {{ .Values.config.eventBusType | quote }}
+    object_store:
+      type: {{ .Values.config.objectStoreType | quote }}
+      path: {{ .Values.config.objectStorePath | quote }}
+    log:
+      level: {{ .Values.config.logLevel | quote }}
+    telemetry:
+      enabled: {{ .Values.config.telemetryEnabled }}
+      endpoint: {{ .Values.config.telemetryEndpoint | quote }}
+    auth:
+      enabled: {{ .Values.config.auth.enabled }}
+      mode: {{ .Values.config.auth.mode | quote }}
+      dev_user: {{ .Values.config.auth.devUser | quote }}
+      static_token_env: {{ .Values.config.auth.staticTokenEnv | quote }}
+      issuer: ""
+    runner:
+      name: {{ .Values.runner.name | quote }}
+      group: {{ .Values.runner.group | quote }}
+      heartbeat_interval: "30s"

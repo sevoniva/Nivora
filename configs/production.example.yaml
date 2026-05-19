@@ -1,0 +1,27 @@
+app:
+  name: nivora
+environment: production
+http:
+  bind_address: ":8080"
+database:
+  url: "postgres://nivora@postgres.example.internal:5432/nivora?sslmode=require"
+event_bus:
+  type: memory
+object_store:
+  type: local
+  path: "/var/lib/nivora/objectstore"
+log:
+  level: info
+telemetry:
+  enabled: false
+  endpoint: ""
+auth:
+  enabled: true
+  mode: token
+  dev_user: ""
+  static_token_env: NIVORA_AUTH_TOKEN
+  issuer: ""
+runner:
+  name: production-runner
+  group: default
+  heartbeat_interval: 30s

@@ -709,6 +709,20 @@ make test
 make verify
 ```
 
+### Package
+
+```bash
+make docker-build
+make helm-template
+make helm-lint
+```
+
+Packaging docs:
+
+- [Docker Compose install](docs/operations/install-docker-compose.md)
+- [Kubernetes install](docs/operations/install-kubernetes.md)
+- [Configuration](docs/operations/configuration.md)
+
 ### Smoke Tests
 
 ```bash

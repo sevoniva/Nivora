@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nivora.fullname" . }}-server
+  labels:
+    {{- include "nivora.labels" . | nindent 4 }}
+    app.kubernetes.io/component: server
+spec:
+  replicas: {{ .Values.server.replicas }}
+  selector:
+    matchLabels:
+      {{- include "nivora.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: server
+  template:
+    metadata:
+      labels:
+        {{- include "nivora.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: server
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: server
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["server", "--config", "/etc/nivora/server.yaml"]
+          ports:
+            - name: http
+              containerPort: 8080
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: http
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.server.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nivora
+              readOnly: true
+            - name: objectstore
+              mountPath: /var/lib/nivora/objectstore
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "nivora.fullname" . }}-config
+        - name: objectstore
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "nivora.fullname" . }}-objectstore
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

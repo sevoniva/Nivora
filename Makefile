@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify-security verify-host verify-web verify run-server run-worker run-runner run-web pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
+.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify-security verify-host verify-web verify run-server run-worker run-runner run-web docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -69,6 +69,22 @@ run-runner:
 
 run-web:
 	cd web && npm install && npm run dev
+
+docker-build:
+	docker build -t nivora:local .
+
+docker-run:
+	docker run --rm -p 8080:8080 -v "$$(pwd)/configs/server.yaml:/etc/nivora/server.yaml:ro" nivora:local server --config /etc/nivora/server.yaml
+
+helm-template:
+	helm template nivora deployments/helm
+
+helm-lint:
+	helm lint deployments/helm
+
+kind-install:
+	@test "$$NIVORA_ALLOW_KIND_INSTALL" = "true" || (echo "set NIVORA_ALLOW_KIND_INSTALL=true to install into the current Kubernetes context" >&2; exit 1)
+	helm upgrade --install nivora deployments/helm
 
 pipeline-run-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml

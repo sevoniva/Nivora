@@ -12,8 +12,29 @@ spec:
       labels:
         app: nivora-worker
     spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
       containers:
         - name: worker
           image: sevoniva/nivora:0.1.0-dev
           args: ["worker", "--config", "/etc/nivora/worker.yaml"]
-
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nivora
+              readOnly: true
+            - name: objectstore
+              mountPath: /var/lib/nivora/objectstore
+      volumes:
+        - name: config
+          configMap:
+            name: nivora-config
+        - name: objectstore
+          emptyDir: {}

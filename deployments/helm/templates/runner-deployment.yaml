@@ -1,0 +1,40 @@
+{{- if .Values.runner.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "nivora.fullname" . }}-runner
+  labels:
+    {{- include "nivora.labels" . | nindent 4 }}
+    app.kubernetes.io/component: runner
+spec:
+  replicas: {{ .Values.runner.replicas }}
+  selector:
+    matchLabels:
+      {{- include "nivora.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: runner
+  template:
+    metadata:
+      labels:
+        {{- include "nivora.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: runner
+    spec:
+      securityContext:
+        {{- toYaml .Values.podSecurityContext | nindent 8 }}
+      containers:
+        - name: runner
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          args: ["runner", "--config", "/etc/nivora/runner.yaml"]
+          securityContext:
+            {{- toYaml .Values.securityContext | nindent 12 }}
+          resources:
+            {{- toYaml .Values.runner.resources | nindent 12 }}
+          volumeMounts:
+            - name: config
+              mountPath: /etc/nivora
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: {{ include "nivora.fullname" . }}-config
+{{- end }}

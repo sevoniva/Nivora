@@ -166,6 +166,10 @@ func (s *Service) Get(ctx context.Context, id string) (ScanRecord, error) {
 	return s.store.Get(ctx, id)
 }
 
+func (s *Service) List(ctx context.Context) ([]ScanRecord, error) {
+	return s.store.List(ctx)
+}
+
 func (s *Service) Findings(ctx context.Context, id string) ([]domainsecurity.SecurityFinding, error) {
 	record, err := s.store.Get(ctx, id)
 	if err != nil {

@@ -16,6 +16,7 @@ var ErrScanNotFound = errors.New("security scan not found")
 type Store interface {
 	Save(ctx context.Context, record ScanRecord) error
 	Get(ctx context.Context, id string) (ScanRecord, error)
+	List(ctx context.Context) ([]ScanRecord, error)
 	AppendEvent(ctx context.Context, scanID string, evt event.Event) error
 	Events(ctx context.Context, scanID string) ([]event.Event, error)
 	AppendAudit(ctx context.Context, scanID string, entry audit.AuditLog) error
@@ -63,6 +64,24 @@ func (s *MemoryStore) Get(ctx context.Context, id string) (ScanRecord, error) {
 		return ScanRecord{}, ErrScanNotFound
 	}
 	return cloneRecord(record), nil
+}
+
+func (s *MemoryStore) List(ctx context.Context) ([]ScanRecord, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	records := make([]ScanRecord, 0, len(s.scans))
+	for _, record := range s.scans {
+		records = append(records, cloneRecord(record))
+	}
+	sort.Slice(records, func(i, j int) bool {
+		return records[i].Scan.CreatedAt.Before(records[j].Scan.CreatedAt)
+	})
+	return records, nil
 }
 
 func (s *MemoryStore) AppendEvent(ctx context.Context, scanID string, evt event.Event) error {

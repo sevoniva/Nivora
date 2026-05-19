@@ -38,6 +38,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | Multi-cloud inventory | Phase 3.4 foundation |
 | Host deployment | Phase 3.5 planning / noop execution foundation |
 | Durable runner runtime | Phase 3.6 protocol / outbox foundation |
+| Visualization backend APIs | Phase 4.0 read-model foundation |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
 | Frontend visualization | Future phase |
@@ -968,9 +969,10 @@ flowchart LR
     P35["Phase 3.5<br/>Host Deployment Foundation"]
     P36["Phase 3.6<br/>Durable Runner Runtime"]
     P3["Future Phase 3<br/>Multi-cloud & DevSecOps"]
-    P4["Phase 4<br/>Visualization"]
+    P40["Phase 4.0<br/>Visualization Backend APIs"]
+    P4["Future Phase 4<br/>Frontend Visualization"]
 
-    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P30 --> P31 --> P32 --> P33 --> P34 --> P35 --> P36 --> P3 --> P4
+    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P30 --> P31 --> P32 --> P33 --> P34 --> P35 --> P36 --> P3 --> P40 --> P4
 ```
 
 See [ROADMAP.md](ROADMAP.md) and [docs/roadmap/overview.md](docs/roadmap/overview.md) for details.

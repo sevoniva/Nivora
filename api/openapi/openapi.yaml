@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 3.6 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory foundations, safe host deployment planning/noop execution, and durable runner protocol foundations.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 4.0 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory foundations, safe host deployment planning/noop execution, durable runner protocol foundations, and backend visualization read models.
 servers:
   - url: http://localhost:8080
 paths:
@@ -1541,6 +1541,205 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/CloudInventorySnapshot"
+  /api/v1/visualization/pipeline-runs/{id}/dag:
+    get:
+      summary: Get PipelineRun DAG view model
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: PipelineRun graph
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  nodes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GraphNode"
+                  edges:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GraphEdge"
+  /api/v1/visualization/pipeline-runs/{id}/timeline:
+    get:
+      summary: Get PipelineRun visualization timeline
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Ordered PipelineRun timeline items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelineItem"
+  /api/v1/visualization/pipeline-runs/{id}/summary:
+    get:
+      summary: Get PipelineRun visualization summary
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: PipelineRun summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DashboardSummary"
+  /api/v1/visualization/deployments/{id}/timeline:
+    get:
+      summary: Get DeploymentRun visualization timeline
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Ordered DeploymentRun timeline items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelineItem"
+  /api/v1/visualization/deployments/{id}/resources:
+    get:
+      summary: Get DeploymentRun resource visualization nodes
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Resource nodes
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ResourceNode"
+  /api/v1/visualization/deployments/{id}/diff:
+    get:
+      summary: Get DeploymentRun diff view
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Deployment diff
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentDiff"
+  /api/v1/visualization/deployments/{id}/health:
+    get:
+      summary: Get DeploymentRun health view
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Deployment health view
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    $ref: "#/components/schemas/StatusBadge"
+                  summary:
+                    $ref: "#/components/schemas/HealthEvaluation"
+  /api/v1/visualization/releases/{id}/overview:
+    get:
+      summary: Get release visualization overview
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Release overview
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  release:
+                    $ref: "#/components/schemas/Release"
+                  plan:
+                    $ref: "#/components/schemas/ReleasePlan"
+                  summary:
+                    $ref: "#/components/schemas/DashboardSummary"
+                  executions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReleaseExecutionRecord"
+  /api/v1/visualization/releases/executions/{id}/timeline:
+    get:
+      summary: Get ReleaseExecution visualization timeline
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Ordered ReleaseExecution timeline items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelineItem"
+  /api/v1/visualization/releases/executions/{id}/targets:
+    get:
+      summary: Get ReleaseExecution target visualization rows
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Release target executions
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TargetExecution"
+  /api/v1/visualization/environments/{id}/topology:
+    get:
+      summary: Get environment topology view model
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Environment topology
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EnvironmentTopology"
+  /api/v1/visualization/runners/summary:
+    get:
+      summary: Get runner dashboard summary
+      responses:
+        "200":
+          description: Runner summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunnerSummary"
+  /api/v1/visualization/security/summary:
+    get:
+      summary: Get security dashboard summary
+      responses:
+        "200":
+          description: Security summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecuritySummary"
+  /api/v1/visualization/audit/timeline:
+    get:
+      summary: Get aggregate audit timeline
+      responses:
+        "200":
+          description: Ordered audit timeline items
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/TimelineItem"
   /api/v1/policies:
     get:
       summary: Policies placeholder
@@ -3905,6 +4104,137 @@ components:
           type: array
           items:
             type: string
+    GraphNode:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        label:
+          type: string
+        status:
+          $ref: "#/components/schemas/StatusBadge"
+        metadata:
+          type: object
+          additionalProperties: true
+    GraphEdge:
+      type: object
+      properties:
+        id:
+          type: string
+        source:
+          type: string
+        target:
+          type: string
+        label:
+          type: string
+    TimelineItem:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        time:
+          type: string
+          format: date-time
+        subject:
+          type: string
+        status:
+          $ref: "#/components/schemas/StatusBadge"
+        message:
+          type: string
+        data:
+          type: object
+          additionalProperties: true
+    StatusBadge:
+      type: object
+      properties:
+        value:
+          type: string
+        tone:
+          type: string
+          enum: [neutral, success, danger, progress, warning]
+    ResourceNode:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+        status:
+          $ref: "#/components/schemas/StatusBadge"
+        health:
+          $ref: "#/components/schemas/StatusBadge"
+        metadata:
+          type: object
+          additionalProperties: true
+    EnvironmentTopology:
+      type: object
+      properties:
+        environmentId:
+          type: string
+        applications:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceNode"
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceNode"
+        latestDeployments:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceNode"
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/ResourceNode"
+        healthSummary:
+          $ref: "#/components/schemas/DashboardSummary"
+    DashboardSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        status:
+          $ref: "#/components/schemas/StatusBadge"
+        counts:
+          type: object
+          additionalProperties:
+            type: integer
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        updatedAt:
+          type: string
+          format: date-time
+    SecuritySummary:
+      allOf:
+        - $ref: "#/components/schemas/DashboardSummary"
+        - type: object
+          properties:
+            findings:
+              type: object
+              additionalProperties:
+                type: integer
+    RunnerSummary:
+      allOf:
+        - $ref: "#/components/schemas/DashboardSummary"
+        - type: object
+          properties:
+            runners:
+              type: array
+              items:
+                $ref: "#/components/schemas/ResourceNode"
     TimelineEntry:
       type: object
       properties:

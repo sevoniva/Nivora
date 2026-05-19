@@ -137,6 +137,20 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/deployments/{id}/security", handlers.GetDeploymentSecurity(deploymentService))
 		api.Post("/deployments/{id}/cancel", handlers.CancelDeploymentRun(deploymentService))
 		api.Post("/deployments/{id}/sync", handlers.SyncDeploymentArgoCD(deploymentService))
+		api.Get("/visualization/pipeline-runs/{id}/dag", handlers.GetVisualizationPipelineDAG(pipelineService))
+		api.Get("/visualization/pipeline-runs/{id}/timeline", handlers.GetVisualizationPipelineTimeline(pipelineService))
+		api.Get("/visualization/pipeline-runs/{id}/summary", handlers.GetVisualizationPipelineSummary(pipelineService))
+		api.Get("/visualization/deployments/{id}/timeline", handlers.GetVisualizationDeploymentTimeline(deploymentService))
+		api.Get("/visualization/deployments/{id}/resources", handlers.GetVisualizationDeploymentResources(deploymentService))
+		api.Get("/visualization/deployments/{id}/diff", handlers.GetVisualizationDeploymentDiff(deploymentService))
+		api.Get("/visualization/deployments/{id}/health", handlers.GetVisualizationDeploymentHealth(deploymentService))
+		api.Get("/visualization/releases/{id}/overview", handlers.GetVisualizationReleaseOverview(releaseService))
+		api.Get("/visualization/releases/executions/{id}/timeline", handlers.GetVisualizationReleaseExecutionTimeline(releaseService))
+		api.Get("/visualization/releases/executions/{id}/targets", handlers.GetVisualizationReleaseExecutionTargets(releaseService))
+		api.Get("/visualization/environments/{id}/topology", handlers.GetVisualizationEnvironmentTopology(deploymentService, releaseService))
+		api.Get("/visualization/runners/summary", handlers.GetVisualizationRunnerSummary(pipelineService))
+		api.Get("/visualization/security/summary", handlers.GetVisualizationSecuritySummary(securityService))
+		api.Get("/visualization/audit/timeline", handlers.GetVisualizationAuditTimeline(pipelineService, deploymentService, releaseService, securityService))
 
 		for _, group := range placeholderGroups() {
 			group := group

@@ -7,6 +7,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
+	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
+	"github.com/sevoniva/nivora/internal/infra/telemetry"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
@@ -21,6 +23,9 @@ func CreateSecurityScan(service *securityusecase.Service) http.HandlerFunc {
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "security_scan_failed", Message: err.Error()})
 			return
+		}
+		if record.Policy.Decision == domainsecurity.GateDeny {
+			telemetry.DefaultMetrics().IncPolicyDenial()
 		}
 		RespondJSON(w, http.StatusCreated, record)
 	}
@@ -48,6 +53,9 @@ func EvaluatePolicy(service *securityusecase.Service) http.HandlerFunc {
 			return
 		}
 		result, err := service.EvaluateAndStore(r.Context(), input)
+		if err == nil && result.Decision == domainsecurity.GateDeny {
+			telemetry.DefaultMetrics().IncPolicyDenial()
+		}
 		respondSecurityResult(w, r, result, err)
 	}
 }

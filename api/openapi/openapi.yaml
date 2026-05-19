@@ -3446,9 +3446,17 @@ components:
           type: integer
         runner_heartbeat_count:
           type: integer
+        job_claim_count:
+          type: integer
+        policy_denial_count:
+          type: integer
         pipeline_duration:
           $ref: "#/components/schemas/DurationStats"
         deployment_duration:
+          $ref: "#/components/schemas/DurationStats"
+        queue_time:
+          $ref: "#/components/schemas/DurationStats"
+        job_claim_latency:
           $ref: "#/components/schemas/DurationStats"
     DurationStats:
       type: object

@@ -204,6 +204,7 @@ func HeartbeatRunner(service *pipelineusecase.Service) http.HandlerFunc {
 
 func ClaimRunnerJob(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		start := time.Now()
 		id := chi.URLParam(r, "id")
 		if err := service.ValidateRunnerToken(r.Context(), id, runnerToken(r)); err != nil {
 			respondPipelineResult(w, r, nil, err)
@@ -219,6 +220,8 @@ func ClaimRunnerJob(service *pipelineusecase.Service) http.HandlerFunc {
 			lease = parsed
 		}
 		claim, err := service.ClaimJob(r.Context(), id, lease)
+		telemetry.DefaultMetrics().IncJobClaim()
+		telemetry.DefaultMetrics().ObserveJobClaimLatency(time.Since(start))
 		respondPipelineResult(w, r, claim, err)
 	}
 }

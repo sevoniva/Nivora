@@ -107,6 +107,7 @@ For a quick path through the project:
 - [Cloud Providers](operations/cloud-providers.md)
 - [Host Deployment](operations/host-deployment.md)
 - [Observability Operations](operations/observability.md)
+- [Runbooks](operations/runbooks/stuck-pipelinerun.md)
 - [OIDC Auth](operations/auth-oidc.md)
 - [RBAC Operations](operations/rbac.md)
 - [Quotas and Usage](operations/quotas.md)

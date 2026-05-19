@@ -40,7 +40,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the `v0
 | Durable runner runtime | Phase 3.6 protocol / outbox foundation |
 | Visualization backend APIs | Phase 4.0 read-model foundation |
 | Web UI foundation | Phase 4.1 minimal Vite / React app |
-| Observability and operations | Phase 4.2 request/correlation IDs, diagnostics, and local metrics |
+| Observability and operations | Phase 8.3 request/correlation IDs, diagnostics, metrics, SLO docs, alerts, and runbooks |
 | Plugin and extension registry | Phase 4.3 manifest / capability registry foundation |
 | Packaging and deployment foundation | Phase 4.4 Docker Compose / Helm / Kubernetes manifests |
 | Alpha release hardening | Phase 5.0 in progress for `v0.1.0-alpha.1` |

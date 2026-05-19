@@ -75,10 +75,10 @@ Scope:
 
 - Request ID, correlation ID, and trace ID propagation through HTTP.
 - Structured access logs with non-secret operational fields.
-- Process-local metrics for PipelineRuns, DeploymentRuns, failures, durations, and runner heartbeats.
+- Process-local metrics for PipelineRuns, DeploymentRuns, failures, durations, queue time, runner heartbeats, job claim latency, and policy denials.
 - `/metrics`, `/api/v1/system/runtime`, and `/api/v1/system/diagnostics` endpoints.
 - Tracing configuration placeholder for future OpenTelemetry work.
-- Operations documentation for observability and troubleshooting.
+- Operations documentation for observability, SLOs, alerts, troubleshooting, and runbooks.
 
 Non-goals:
 

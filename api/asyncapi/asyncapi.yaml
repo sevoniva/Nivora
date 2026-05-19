@@ -1,8 +1,8 @@
 asyncapi: 3.0.0
 info:
   title: Nivora Events
-  version: 0.1.0-dev
-  description: Phase 3.6 uses a local in-memory EventBus and event outbox foundation with this CloudEvents-style envelope. External brokers are future work.
+  version: 0.1.0-alpha.1
+  description: v0.1.0-alpha.1 uses local in-memory EventBus and event outbox foundations with this CloudEvents-style envelope. External brokers are future work, and this event surface is not production-ready.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created

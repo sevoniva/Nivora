@@ -124,6 +124,26 @@ Non-goals:
 - Committed secrets.
 - Production readiness claims.
 
+## Phase 5.0 Alpha Release Hardening
+
+Phase 5.0 stabilizes the public alpha surface without adding large new features.
+
+Scope:
+
+- Capability matrix.
+- Alpha demo path.
+- Changelog, release template, and version alignment.
+- Release checklist and known limitations.
+- CI and Makefile verification hardening.
+- Documentation consistency review.
+
+Non-goals:
+
+- Production GA release.
+- New external integrations.
+- Architecture rewrite.
+- Hiding limitations.
+
 ## Contribution Opportunities
 
 - API design for timelines.

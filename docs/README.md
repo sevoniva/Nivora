@@ -1,12 +1,14 @@
 # Nivora Documentation
 
-This index helps new contributors understand where to start. Nivora has completed the backend skeleton, guardrails, public planning docs, and an initial shell-only PipelineRun runtime foundation. It is still early-stage and not production-ready.
+This index helps new contributors understand where to start. Nivora is preparing the `v0.1.0-alpha.1` public alpha with backend, runtime, deployment, release, security, governance, visualization, operations, plugin, and packaging foundations. It is still early-stage and not production-ready.
 
 ## Start Here
 
 - [Project Charter](../PROJECT_CHARTER.md): what Nivora is, why it exists, and how it develops.
 - [README](../README.md): public project overview, architecture diagrams, runtime model, roadmap, and local commands.
 - [Roadmap](../ROADMAP.md): phase summary.
+- [Alpha Capability Matrix](ALPHA_CAPABILITY_MATRIX.md): what is implemented, partial, planned, or unsupported in the alpha.
+- [Alpha Demo Guide](demo/alpha-demo.md): self-contained demo path that does not require external services.
 - [Contribution Guide](../CONTRIBUTING.md): development setup and contribution rules.
 - [AI Agent Rules](../AGENTS.md): canonical coding instructions for AI agents.
 
@@ -93,6 +95,7 @@ For a quick path through the project:
 - [Phase 2](roadmap/phase-2.md)
 - [Phase 3](roadmap/phase-3.md)
 - [Phase 4](roadmap/phase-4.md)
+- [v0.1.0-alpha.1 Checklist](releases/v0.1.0-alpha.1-checklist.md)
 
 ## Operations Docs
 

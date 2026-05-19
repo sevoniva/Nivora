@@ -1,6 +1,6 @@
 image:
   repository: sevoniva/nivora
-  tag: "0.1.0-dev"
+  tag: "0.1.0-alpha.1"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -78,7 +78,7 @@ migration:
   enabled: false
   image:
     repository: sevoniva/nivora-migrations
-    tag: "0.1.0-dev"
+    tag: "0.1.0-alpha.1"
     pullPolicy: IfNotPresent
   command: []
   args: []

@@ -19,7 +19,7 @@ spec:
         fsGroup: 65532
       containers:
         - name: worker
-          image: sevoniva/nivora:0.1.0-dev
+          image: sevoniva/nivora:0.1.0-alpha.1
           args: ["worker", "--config", "/etc/nivora/worker.yaml"]
           securityContext:
             allowPrivilegeEscalation: false

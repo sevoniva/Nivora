@@ -78,9 +78,9 @@ Do not create new top-level directories unless the reason is clear.
 
 ## 5. Phase Control
 
-Current phase: Phase 0 / Phase 0.5 / Phase 0.6 backend skeleton, guardrails, and planning docs, unless the user explicitly says otherwise.
+Current phase is set by the maintainer's explicit task. If no phase is specified, default to alpha-safe maintenance: documentation, tests, examples, guardrails, and small bug fixes only.
 
-Allowed in Phase 0:
+Allowed in foundation and alpha-hardening work:
 
 - repository skeleton
 - binaries
@@ -101,16 +101,16 @@ Allowed in Phase 0:
 - architecture validation and guardrail polish
 - public planning, concept, roadmap, community, and RFC documentation
 
-Not allowed in Phase 0 unless explicitly requested:
+Not allowed unless explicitly requested by the current phase task:
 
 - real AWS integration
 - real Aliyun integration
 - real Tencent Cloud integration
-- real Kubernetes deployment engine
-- real Argo CD integration
+- production Kubernetes deployment engine
+- production Argo CD automation
 - real GitHub/GitLab write integration
 - real Harbor/Nexus/JFrog integration
-- frontend
+- frontend beyond explicitly requested frontend foundation work
 - production readiness claims
 - complex workflow engine
 - multi-service decomposition

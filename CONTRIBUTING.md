@@ -53,10 +53,14 @@ make dev-up
 ## Architecture Rules
 
 - Control plane and runner remain separate.
-- Phase 0 does not include frontend work.
+- Frontend work is allowed only when the current phase explicitly asks for it.
 - GitOps is one deployment mode, not the only deployment mode.
 - Adapters depend on ports and domain concepts; domain does not depend on adapters.
 - New production integrations should start as ports plus small adapter packages.
+
+## Alpha Release Posture
+
+Nivora is preparing `v0.1.0-alpha.1`. Contributions should keep limitations visible, avoid production-readiness claims, avoid committed secrets, and keep examples self-contained unless an optional local environment is clearly documented.
 
 ## Adding a New Adapter
 

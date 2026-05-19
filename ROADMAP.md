@@ -68,5 +68,13 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 
 - Phase 4.0 adds visualization-ready backend APIs for PipelineRun DAGs, timelines, DeploymentRun resources/health/diff, release overviews, environment topology, runner/security summaries, and audit timelines.
 - Phase 4.1 adds a minimal React + TypeScript + Vite web UI foundation that consumes existing visualization APIs.
-- Future Phase 4 work can build frontend surfaces on top of these backend contracts.
-- Add deployment topology, pipeline timelines, audit exploration, and operations dashboards.
+- Phase 4.2 adds lightweight observability, diagnostics, and operations docs.
+- Phase 4.3 adds plugin manifest and capability registry foundations.
+- Phase 4.4 adds Docker Compose, Helm, Kubernetes manifests, configuration examples, and install docs.
+- Future Phase 4 work can harden frontend surfaces on top of these backend contracts.
+
+## Phase 5: Alpha Release Hardening
+
+- Phase 5.0 prepares `v0.1.0-alpha.1` with a capability matrix, alpha demo guide, changelog, release checklist, version alignment, CI hardening, and documentation consistency review.
+- The alpha is for public architecture review, contributor onboarding, and local demos.
+- It is not a production GA release.

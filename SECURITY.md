@@ -2,7 +2,7 @@
 
 ## Responsible Disclosure
 
-Nivora is in Phase 0 and is not production-ready. If you find a security issue, please open a private disclosure channel with the maintainers once the project publishes one. Until then, avoid posting exploit details publicly.
+Nivora is preparing a public alpha and is not production-ready. If you find a security issue, please open a private disclosure channel with the maintainers once the project publishes one. Until then, avoid posting exploit details publicly.
 
 ## Secret Handling Principles
 

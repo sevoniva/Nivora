@@ -123,7 +123,7 @@ func builtin(name string, pluginType domainplugin.Type, capabilities []domainplu
 	return domainplugin.Manifest{
 		Name:         name,
 		Type:         pluginType,
-		Version:      "0.1.0-dev",
+		Version:      "0.1.0-alpha.1",
 		Protocol:     "builtin",
 		Capabilities: capabilities,
 		Status:       domainplugin.StatusBuiltIn,

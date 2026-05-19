@@ -2,7 +2,7 @@
 
 Nivora is an open-source DevOps delivery control plane under the `sevoniva` organization. It is backend-first, written in Go, and currently developed as a modular monolith with separate binaries for `nivora-server`, `nivora-worker`, `nivora-runner`, and the `nivora` CLI.
 
-Nivora has completed the Phase 0 backend skeleton, Phase 0.5 guardrails, Phase 0.6 public planning docs, and the initial Phase 1 / Phase 1.5 shell-based PipelineRun runtime foundation. It is not production-ready and does not yet implement production Kubernetes deployment, Argo CD integration, cloud integrations, vendor integrations, durable distributed scheduling, or frontend code.
+Nivora is preparing the `v0.1.0-alpha.1` public alpha. It has backend, runtime, deployment, release, security, governance, visualization, operations, plugin, and packaging foundations, but it is not production-ready. Production Kubernetes deployment semantics, destructive rollback, production Argo CD automation, real cloud deployment, full Git provider and registry integrations, production SSO, external notification delivery, enterprise secret backends, and complete frontend workflows remain future work.
 
 ## What Nivora Is
 
@@ -85,6 +85,7 @@ Nivora is not:
 - Phase 1: minimal PipelineRun execution, runner assignment, shell executor flow, log streaming, status transitions, audit event, minimal persistence.
 - Phase 1.5: runtime foundation hardening, explicit state transitions, in-memory runtime repositories, worker advancement path, runner heartbeat, retry, timeout, cancellation, ordered LogChunks, and timeline APIs.
 - Phase 1.6: runtime acceptance, developer experience, smoke scripts, example polish, CLI/API inspection, and troubleshooting docs.
-- Phase 2: GitOps and production release basics.
-- Phase 3: multi-cloud and DevSecOps.
-- Phase 4: visualization frontend.
+- Phase 2: Release, DeploymentRun, Kubernetes YAML, GitOps, artifact binding, and release orchestration foundations.
+- Phase 3: DevSecOps, secrets, auth/RBAC, approvals, multi-cloud inventory, host deployment, and durable runner protocol foundations.
+- Phase 4: visualization APIs, minimal web UI, observability, plugin registry, and packaging foundations.
+- Phase 5: public alpha hardening, release notes, capability matrix, demo path, and known limitations.

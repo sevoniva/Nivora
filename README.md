@@ -13,7 +13,7 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window foundations, multi-cloud inventory foundations, runner/executor model, logs/events/audit, and open-source contribution foundation. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud deployment, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, external notification adapters, ITSM integration, signing, and scanning remain future phases.
+Nivora is early-stage and **not production-ready**. The current focus is the `v0.1.0-alpha.1` foundation: backend architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window foundations, multi-cloud inventory foundations, runner/executor model, logs/events/audit, visualization APIs, minimal web UI, plugin registry, packaging, and open-source contribution foundation. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud deployment, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, external notification adapters, ITSM integration, signing, and scanning remain future phases.
 
 ## Current Status
 
@@ -42,20 +42,28 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | Web UI foundation | Phase 4.1 minimal Vite / React app |
 | Observability and operations | Phase 4.2 request/correlation IDs, diagnostics, and local metrics |
 | Plugin and extension registry | Phase 4.3 manifest / capability registry foundation |
-| Multi-cloud adapters | Planned |
-| DevSecOps integrations | Planned |
-| Frontend visualization | Future phase |
+| Packaging and deployment foundation | Phase 4.4 Docker Compose / Helm / Kubernetes manifests |
+| Alpha release hardening | Phase 5.0 in progress for `v0.1.0-alpha.1` |
+| Production multi-cloud adapters | Planned |
+| Production DevSecOps integrations | Planned |
+| Complete frontend visualization product | Future phase |
 
 Current focus:
 
 ```text
-backend foundation
-architecture boundaries
-runtime model
-runner / executor model
-logs / events / audit
-open-source contribution foundation
+v0.1.0-alpha.1 readiness
+honest capability boundaries
+self-contained demo path
+runtime and packaging verification
+logs / events / audit consistency
 ```
+
+Alpha release references:
+
+- [Alpha Capability Matrix](docs/ALPHA_CAPABILITY_MATRIX.md)
+- [Alpha Demo Guide](docs/demo/alpha-demo.md)
+- [v0.1.0-alpha.1 Checklist](docs/releases/v0.1.0-alpha.1-checklist.md)
+- [Changelog](CHANGELOG.md)
 
 ## Why Nivora Exists
 

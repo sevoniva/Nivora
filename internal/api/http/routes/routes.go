@@ -33,7 +33,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	r.Use(apimiddleware.StructuredAccessLog(logger))
 
 	r.Get("/healthz", handlers.Health)
-	r.Get("/readyz", handlers.Ready)
+	r.Get("/readyz", handlers.ReadyWithConfig(cfg))
 	r.Get("/metrics", handlers.Metrics())
 
 	r.Route("/api/v1", func(api chi.Router) {

@@ -14,10 +14,20 @@ paths:
           description: Healthy
   /readyz:
     get:
-      summary: Readiness check
+      summary: Readiness check with dependency details
       responses:
         "200":
           description: Ready
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "503":
+          description: Critical dependency configuration is degraded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
   /metrics:
     get:
       summary: Lightweight local runtime metrics
@@ -3211,6 +3221,36 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/DiagnosticCheck"
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+        checks:
+          type: array
+          items:
+            $ref: "#/components/schemas/DiagnosticCheck"
+    DiagnosticCheck:
+      type: object
+      properties:
+        name:
+          type: string
+        component:
+          type: string
+        status:
+          type: string
+          enum: [ok, warning, degraded]
+        critical:
+          type: boolean
+        message:
+          type: string
+        recovery_hint:
+          type: string
+        documentation:
+          type: string
+        checked_at:
+          type: string
+          format: date-time
     TenantScope:
       type: object
       properties:
@@ -3417,15 +3457,6 @@ components:
           type: integer
         total_ms:
           type: integer
-    DiagnosticCheck:
-      type: object
-      properties:
-        name:
-          type: string
-        status:
-          type: string
-        message:
-          type: string
     PluginManifest:
       type: object
       properties:

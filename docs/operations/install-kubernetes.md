@@ -66,6 +66,19 @@ The Helm migration Job is disabled by default. Phase 4.4 does not introduce a pr
 
 - No Kubernetes operator.
 - No cloud-provider dependency.
-- No production database or object-store HA guidance.
+- HA, backup, and restore are documented as operating procedures, not automated by the chart.
 - No production ingress/TLS defaults.
 - Runtime persistence remains early-stage.
+
+## HA and Backup Direction
+
+For production-direction validation:
+
+- run server replicas only with shared PostgreSQL/object store configuration
+- keep workers independently restartable
+- keep runners independently restartable and token-authenticated
+- back up PostgreSQL outside the application pods
+- back up object store buckets or persistent volumes
+- keep Helm values free of raw secrets
+
+See [HA and Disaster Recovery](ha-disaster-recovery.md) and [Backup and Restore](backup-restore.md).

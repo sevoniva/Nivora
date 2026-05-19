@@ -21,7 +21,7 @@ Nivora is in public alpha. This matrix separates implemented foundations from pa
 | Cloud Inventory | Partial | CloudAccount model, CloudProvider port, provider capabilities/config validation, fake AWS/Aliyun/Tencent inventory, inventory snapshots, target binding metadata | Real cloud API inventory, cloud deployment, cloud security scanning |
 | Host Deployment | Partial | HostTarget/HostGroup model, host plan, noop/local execution, guarded SSH adapter surface, batch rollout metadata, typed health checks, guarded symlink rollback | Default remote SSH execution, service manager integrations, destructive cleanup, full remote rollback automation |
 | Visualization | Partial | Backend visualization APIs and minimal Vite/React web foundation | Complete product UI, charts, auth-integrated dashboards |
-| Packaging | Implemented foundation | Multi-binary Dockerfile, Docker Compose, Helm chart, raw Kubernetes examples, config docs | Operator, production HA chart, managed cloud install paths |
+| Packaging / Operations | Implemented foundation | Multi-binary Dockerfile, Docker Compose, Helm chart, raw Kubernetes examples, config docs, HA/DR docs, backup/restore guide, dependency diagnostics | Operator, production HA chart, managed cloud install paths, automated backup/restore |
 | Plugin System | Implemented foundation | Plugin manifest model, built-in capability registry, plugin API version, compatibility checks, adapter templates, external protocol skeleton | Marketplace, unsafe dynamic loading, external plugin process manager |
 
 ## Release Readiness Interpretation

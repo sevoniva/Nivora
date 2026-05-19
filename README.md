@@ -730,6 +730,8 @@ Packaging docs:
 - [Docker Compose install](docs/operations/install-docker-compose.md)
 - [Kubernetes install](docs/operations/install-kubernetes.md)
 - [Configuration](docs/operations/configuration.md)
+- [Backup and restore](docs/operations/backup-restore.md)
+- [HA and disaster recovery](docs/operations/ha-disaster-recovery.md)
 
 ### Smoke Tests
 
@@ -762,6 +764,8 @@ curl http://localhost:8080/api/v1/system/runtime
 curl http://localhost:8080/api/v1/system/diagnostics
 curl http://localhost:8080/metrics
 ```
+
+`/readyz` and `/api/v1/system/diagnostics` include lightweight dependency checks for database, object store, event bus, outbox recovery, and runner reconnect posture.
 
 ### Run Worker
 

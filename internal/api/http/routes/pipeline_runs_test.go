@@ -128,7 +128,29 @@ func TestSystemDiagnosticsIncludesCorrelationContext(t *testing.T) {
 	if rec.Header().Get("X-Correlation-Id") != "correlation-test" {
 		t.Fatalf("correlation header = %q", rec.Header().Get("X-Correlation-Id"))
 	}
-	for _, want := range []string{`"correlation_id":"correlation-test"`, `"trace_id":"0123456789abcdef0123456789abcdef"`, `"metrics"`, `"checks"`} {
+	for _, want := range []string{`"correlation_id":"correlation-test"`, `"trace_id":"0123456789abcdef0123456789abcdef"`, `"metrics"`, `"checks"`, `"database"`, `"event_outbox"`} {
+		if !bytes.Contains(rec.Body.Bytes(), []byte(want)) {
+			t.Fatalf("missing %s body = %s", want, rec.Body.String())
+		}
+	}
+}
+
+func TestReadinessReportsFailedDependencyConfig(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	cfg.Database.RuntimeStore = "postgres"
+	cfg.Database.URL = ""
+	router := newTestRouter(cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/readyz", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusServiceUnavailable {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	for _, want := range []string{`"status":"degraded"`, `"name":"database"`, "database.url is empty"} {
 		if !bytes.Contains(rec.Body.Bytes(), []byte(want)) {
 			t.Fatalf("missing %s body = %s", want, rec.Body.String())
 		}

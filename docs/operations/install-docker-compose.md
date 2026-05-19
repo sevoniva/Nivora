@@ -56,6 +56,17 @@ curl http://localhost:8080/readyz
 curl http://localhost:8080/api/v1/system/diagnostics
 ```
 
+`/readyz` includes dependency checks for database, object store, event bus, outbox recovery, and runner reconnect posture. Docker Compose remains local-only; back up its PostgreSQL and MinIO volumes before testing restore flows.
+
+## Backup Notes
+
+- PostgreSQL data is in the compose database volume.
+- MinIO/object data is in the compose object-store volume.
+- Config files live under `configs/`.
+- Secret values should come from environment variables or an external secret provider, not committed compose files.
+
+See [Backup and Restore](backup-restore.md) and [HA and Disaster Recovery](ha-disaster-recovery.md).
+
 ## Stop
 
 ```sh

@@ -69,4 +69,4 @@ The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to ma
 
 - The default local server still uses in-memory stores. Set `database.runtime_store: postgres` to use the Phase 5.1 PipelineRun store.
 - DeploymentRun, Release, Artifact, Credential metadata, and PolicyResult PostgreSQL repositories remain future work.
-- No high-availability, backup, restore, or online migration process is claimed for alpha.
+- Phase 8.2 documents HA, backup, and restore procedures, but Nivora still does not automate them or claim production readiness.

@@ -1,7 +1,10 @@
 package dto
 
+import "time"
+
 type StatusResponse struct {
-	Status string `json:"status"`
+	Status string            `json:"status"`
+	Checks []DiagnosticCheck `json:"checks,omitempty"`
 }
 
 type ErrorResponse struct {
@@ -43,7 +46,12 @@ type SystemDiagnosticsResponse struct {
 }
 
 type DiagnosticCheck struct {
-	Name    string `json:"name"`
-	Status  string `json:"status"`
-	Message string `json:"message,omitempty"`
+	Name          string    `json:"name"`
+	Component     string    `json:"component,omitempty"`
+	Status        string    `json:"status"`
+	Critical      bool      `json:"critical"`
+	Message       string    `json:"message,omitempty"`
+	RecoveryHint  string    `json:"recovery_hint,omitempty"`
+	Documentation string    `json:"documentation,omitempty"`
+	CheckedAt     time.Time `json:"checked_at,omitempty"`
 }

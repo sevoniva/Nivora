@@ -13,6 +13,7 @@ import (
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	cloudusecase "github.com/sevoniva/nivora/internal/usecase/cloud"
+	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -23,7 +24,7 @@ import (
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, tenancyService *tenancyusecase.Service, pluginRegistry *pluginusecase.Registry) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, tenancyService *tenancyusecase.Service, complianceService *complianceusecase.Service, pluginRegistry *pluginusecase.Registry) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
@@ -46,6 +47,10 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/tenancy/quota", handlers.GetQuota(tenancyService))
 		api.Post("/tenancy/quota", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.SetQuota(tenancyService)))
 		api.Get("/tenancy/usage", handlers.GetUsageSummary(tenancyService))
+		api.Get("/audit/search", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.SearchAudit(complianceService)))
+		api.Get("/evidence/{subject_type}/{id}", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetEvidenceBundle(complianceService)))
+		api.Get("/retention-policy", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetRetentionPolicy(complianceService)))
+		api.Post("/retention-policy", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.SetRetentionPolicy(complianceService)))
 		api.Get("/plugins", handlers.ListPlugins(pluginRegistry))
 		api.Get("/plugins/{name}", handlers.GetPlugin(pluginRegistry))
 		api.Get("/plugins/{name}/capabilities", handlers.GetPluginCapabilities(pluginRegistry))

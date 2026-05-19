@@ -71,7 +71,86 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newRuntimeCommand())
 	root.AddCommand(newQuotaCommand())
 	root.AddCommand(newUsageCommand())
+	root.AddCommand(newAuditCommand())
+	root.AddCommand(newEvidenceCommand())
 	return root
+}
+
+func newAuditCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "audit", Short: "Audit search utilities"}
+	cmd.AddCommand(newAuditSearchCommand())
+	return cmd
+}
+
+func newAuditSearchCommand() *cobra.Command {
+	var serverURL string
+	var subject string
+	var actorID string
+	var action string
+	cmd := &cobra.Command{
+		Use:   "search",
+		Short: "Search audit records",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			values.Set("subject", subject)
+			values.Set("actorId", actorID)
+			values.Set("action", action)
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/audit/search?"+values.Encode(), nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&subject, "subject", "", "subject substring")
+	cmd.Flags().StringVar(&actorID, "actor-id", "", "actor id")
+	cmd.Flags().StringVar(&action, "action", "", "action substring")
+	return cmd
+}
+
+func newEvidenceCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "evidence", Short: "Evidence bundle utilities"}
+	cmd.AddCommand(newEvidenceExportCommand())
+	return cmd
+}
+
+func newEvidenceExportCommand() *cobra.Command {
+	var serverURL string
+	var format string
+	cmd := &cobra.Command{
+		Use:   "export <subject-type> <subject-id>",
+		Short: "Export an evidence bundle as JSON or Markdown",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			if format != "" {
+				values.Set("format", format)
+			}
+			query := ""
+			if encoded := values.Encode(); encoded != "" {
+				query = "?" + encoded
+			}
+			if format == "markdown" {
+				body, err := doRaw(cmd.Context(), http.MethodGet, serverURL, "/api/v1/evidence/"+args[0]+"/"+args[1]+query, nil)
+				if err != nil {
+					return err
+				}
+				_, _ = cmd.OutOrStdout().Write(body)
+				return nil
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/evidence/"+args[0]+"/"+args[1]+query, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&format, "format", "json", "export format: json or markdown")
+	return cmd
 }
 
 func newQuotaCommand() *cobra.Command {
@@ -2551,6 +2630,32 @@ func newRuntimeInspectCommand(name string, short string, method string, path str
 
 func doJSON(ctx context.Context, method string, serverURL string, path string, body []byte) (any, error) {
 	return doJSONWithToken(ctx, method, serverURL, path, body, "")
+}
+
+func doRaw(ctx context.Context, method string, serverURL string, path string, body []byte) ([]byte, error) {
+	if serverURL == "" {
+		return nil, fmt.Errorf("server URL is required")
+	}
+	req, err := http.NewRequestWithContext(ctx, method, strings.TrimRight(serverURL, "/")+path, bytes.NewReader(body))
+	if err != nil {
+		return nil, err
+	}
+	if body != nil {
+		req.Header.Set("Content-Type", "application/json")
+	}
+	resp, err := http.DefaultClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	respBody, err := io.ReadAll(resp.Body)
+	if err != nil {
+		return nil, err
+	}
+	if resp.StatusCode >= 400 {
+		return respBody, fmt.Errorf("server returned %s: %s", resp.Status, strings.TrimSpace(string(respBody)))
+	}
+	return respBody, nil
 }
 
 func doJSONWithToken(ctx context.Context, method string, serverURL string, path string, body []byte, token string) (any, error) {

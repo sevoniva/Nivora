@@ -27,6 +27,7 @@ import (
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	cloudusecase "github.com/sevoniva/nivora/internal/usecase/cloud"
+	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -118,6 +119,10 @@ func NewCloudService() *cloudusecase.Service {
 
 func NewTenancyService() *tenancyusecase.Service {
 	return tenancyusecase.NewService()
+}
+
+func NewComplianceService(pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, approvalService *approvalusecase.Service) *complianceusecase.Service {
+	return complianceusecase.NewService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService)
 }
 
 func NewPluginRegistry() *pluginusecase.Registry {

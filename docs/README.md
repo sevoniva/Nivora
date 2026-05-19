@@ -108,6 +108,7 @@ For a quick path through the project:
 - [OIDC Auth](operations/auth-oidc.md)
 - [RBAC Operations](operations/rbac.md)
 - [Quotas and Usage](operations/quotas.md)
+- [Audit Evidence and Retention](operations/audit-evidence.md)
 - [Database Operations](operations/database.md)
 - [Vault Secret Provider](operations/secrets-vault.md)
 - [KMS and External Secret Providers](operations/secrets-kms.md)

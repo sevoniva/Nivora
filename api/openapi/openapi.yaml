@@ -141,6 +141,100 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TenantUsageSummary"
+  /api/v1/audit/search:
+    get:
+      summary: Search structured audit records
+      parameters:
+        - name: subject
+          in: query
+          schema:
+            type: string
+        - name: actorId
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: scopeType
+          in: query
+          schema:
+            type: string
+        - name: scopeId
+          in: query
+          schema:
+            type: string
+        - name: correlationId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Matching audit records
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditSearchResult"
+  /api/v1/evidence/{subject_type}/{id}:
+    get:
+      summary: Export an evidence bundle for a subject
+      parameters:
+        - name: subject_type
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: "#/components/parameters/ID"
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, markdown]
+      responses:
+        "200":
+          description: Evidence bundle as JSON or Markdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceBundle"
+            text/markdown:
+              schema:
+                type: string
+  /api/v1/retention-policy:
+    get:
+      summary: View retention policy for a scope
+      parameters:
+        - name: scopeType
+          in: query
+          schema:
+            type: string
+        - name: scopeId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Retention policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionPolicy"
+    post:
+      summary: Update retention policy for a scope
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetentionPolicy"
+      responses:
+        "200":
+          description: Updated retention policy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionPolicy"
   /api/v1/plugins:
     get:
       summary: List plugin manifests
@@ -3072,6 +3166,104 @@ components:
         updatedAt:
           type: string
           format: date-time
+    EvidenceBundle:
+      type: object
+      properties:
+        id:
+          type: string
+        subjectType:
+          type: string
+        subjectId:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        summary:
+          type: string
+        release:
+          type: object
+        artifacts:
+          type: array
+          items:
+            type: object
+        approvals:
+          type: array
+          items:
+            type: object
+        policyResults:
+          type: array
+          items:
+            type: object
+        securityFindings:
+          type: array
+          items:
+            type: object
+        deploymentPlans:
+          type: array
+          items:
+            type: object
+        logReferences:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogReference"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        audits:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        generatedAt:
+          type: string
+          format: date-time
+    LogReference:
+      type: object
+      properties:
+        id:
+          type: string
+        subjectId:
+          type: string
+        stream:
+          type: string
+        sequence:
+          type: integer
+          format: int64
+        createdAt:
+          type: string
+          format: date-time
+    RetentionPolicy:
+      type: object
+      properties:
+        id:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        logDays:
+          type: integer
+        auditDays:
+          type: integer
+        eventDays:
+          type: integer
+        evidenceDays:
+          type: integer
+        immutableAudit:
+          type: boolean
+        updatedAt:
+          type: string
+          format: date-time
+    AuditSearchResult:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditLog"
+        count:
+          type: integer
     RuntimeRecoverySummary:
       type: object
       properties:
@@ -5247,11 +5439,36 @@ components:
       properties:
         id:
           type: string
-          format: uuid
-        actor_id:
+        orgId:
           type: string
-          format: uuid
+        actorId:
+          type: string
         action:
           type: string
         subject:
           type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        reason:
+          type: string
+        requestId:
+          type: string
+        correlationId:
+          type: string
+        before:
+          type: object
+          additionalProperties:
+            type: string
+        after:
+          type: object
+          additionalProperties:
+            type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time

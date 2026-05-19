@@ -29,6 +29,7 @@ import (
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	cloudusecase "github.com/sevoniva/nivora/internal/usecase/cloud"
+	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -185,6 +186,49 @@ func TestTenancyQuotaRoutes(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("usage status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestComplianceEvidenceRoutes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs", strings.NewReader(`{"apiVersion":"nivora.io/v1alpha1","kind":"Pipeline","metadata":{"name":"evidence"},"spec":{"stages":[{"name":"build","jobs":[{"name":"job","executor":"shell","steps":[{"name":"step","run":"printf ok"}]}]}]}}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create pipeline status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		Run struct {
+			ID string `json:"id"`
+		} `json:"run"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode pipeline: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/pipelineRun/"+created.Run.ID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("evidence status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"logReferences"`) {
+		t.Fatalf("evidence missing log refs: %s", rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/audit/search?subject="+created.Run.ID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("audit search status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/retention-policy", strings.NewReader(`{"scopeType":"project","scopeId":"project-a","logDays":14,"auditDays":730}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("retention status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -428,20 +472,25 @@ func newTestRouter(cfg config.Config) http.Handler {
 func newTestRouterWithAuth(cfg config.Config, authService *authusecase.Service) http.Handler {
 	artifactService := newTestArtifactService()
 	deploymentService := newTestDeploymentService()
+	pipelineService := newTestPipelineService()
+	approvalService := approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New())
+	securityService := securityusecase.NewService(securityusecase.NewMemoryStore(), fakeSecurityScanner{}, nil, memory.New())
+	releaseService := newTestReleaseOrchestrationService(artifactService, deploymentService)
 	return New(
 		cfg,
 		version.Current(),
 		slog.New(slog.NewTextHandler(io.Discard, nil)),
-		newTestPipelineService(),
+		pipelineService,
 		deploymentService,
 		artifactService,
-		newTestReleaseOrchestrationService(artifactService, deploymentService),
-		securityusecase.NewService(securityusecase.NewMemoryStore(), fakeSecurityScanner{}, nil, memory.New()),
+		releaseService,
+		securityService,
 		credentialusecase.NewService(credentialusecase.NewMemoryStore(), builtinsecret.New(), memory.New()),
 		authService,
-		approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New()),
+		approvalService,
 		newTestCloudService(),
 		tenancyusecase.NewService(),
+		complianceusecase.NewService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService),
 		pluginusecase.NewDefaultRegistry(),
 	)
 }

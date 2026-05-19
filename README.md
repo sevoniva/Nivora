@@ -1153,6 +1153,15 @@ go run ./cmd/nivora usage summary --scope-type project --scope-id demo
 
 Scoped API tokens can be constrained to org/project/environment-style boundaries, and quota read models expose concurrency, runner, artifact, log storage, and rate-limit foundations. Persistent distributed quota enforcement remains future work.
 
+Phase 7.3 adds compliance audit and evidence foundations:
+
+```bash
+go run ./cmd/nivora audit search --subject <subject-id>
+go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id> --format markdown
+```
+
+Evidence bundles collect safe release, artifact, approval, policy, security, deployment, log-reference, event, and audit context. Secret-like values are redacted before export; immutable external audit storage and retention enforcement jobs remain future work.
+
 ## Documentation
 
 | Document | Purpose |

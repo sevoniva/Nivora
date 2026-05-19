@@ -15,6 +15,7 @@ import (
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	cloudusecase "github.com/sevoniva/nivora/internal/usecase/cloud"
+	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -50,7 +51,8 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 	tenancyService := NewTenancyService()
 	pluginRegistry := NewPluginRegistry()
 	releaseService := NewReleaseOrchestrationServiceWith(artifactService, deploymentService)
-	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService, cloudService, tenancyService, pluginRegistry)
+	complianceService := NewComplianceService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService)
+	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService, cloudService, tenancyService, complianceService, pluginRegistry)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.BindAddress,
 		Handler:           handler,
@@ -114,6 +116,10 @@ func NewCloudService() *cloudusecase.Service {
 
 func NewTenancyService() *tenancyusecase.Service {
 	return appruntime.NewTenancyService()
+}
+
+func NewComplianceService(pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, approvalService *approvalusecase.Service) *complianceusecase.Service {
+	return appruntime.NewComplianceService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService)
 }
 
 func NewPluginRegistry() *pluginusecase.Registry {

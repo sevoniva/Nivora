@@ -750,7 +750,7 @@ make run-server
 make run-web
 ```
 
-The web UI lives under `web/` and consumes the existing `/api/v1/visualization/*` backend APIs. It is a minimal Phase 4.1 foundation, not a complete frontend product.
+The web console lives under `web/` and consumes existing runtime and `/api/v1/visualization/*` backend APIs. It is a minimal Phase 6.4 foundation, not a complete frontend product.
 
 ### Health Check
 

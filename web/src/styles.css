@@ -40,6 +40,11 @@ button {
   cursor: pointer;
 }
 
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
 .shell {
   min-height: 100vh;
   display: grid;
@@ -376,6 +381,19 @@ code {
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.table-action {
+  color: var(--text);
+  background: var(--panel-2);
+  border: 1px solid var(--line);
+  min-height: 32px;
+  padding: 5px 10px;
+}
+
+.table-action:hover:not(:disabled) {
+  border-color: var(--green);
+  color: var(--green);
 }
 
 table {

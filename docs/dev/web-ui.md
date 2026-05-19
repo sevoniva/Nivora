@@ -2,7 +2,9 @@
 
 Phase 4.1 adds a minimal React + TypeScript + Vite web UI foundation under `web/`.
 
-The web UI consumes existing visualization APIs. It does not introduce new backend runtime behavior, does not claim production readiness, and does not include credentials or sample secrets.
+Phase 6.4 extends that foundation into the first web console surface. See [Web Console](web-console.md) for the current page map and API usage.
+
+The web UI consumes existing runtime and visualization APIs. It does not introduce new backend runtime behavior, does not claim production readiness, and does not include credentials or sample secrets.
 
 ## Run Locally
 
@@ -42,11 +44,16 @@ This runs:
 ## Current Pages
 
 - Dashboard
+- PipelineRuns
 - PipelineRun detail
+- Deployments
 - Deployment detail
+- Releases
 - Release execution detail
 - Runners
 - Security summary
+- Audit timeline
+- Environment topology
 
 ## Current Components
 
@@ -55,6 +62,7 @@ This runs:
 - Status badge
 - Resource table
 - Runner table
+- Finding table
 
 ## Limitations
 

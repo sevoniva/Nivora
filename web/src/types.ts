@@ -103,3 +103,62 @@ export interface HealthView {
   status?: StatusBadgeModel;
   summary?: Record<string, unknown>;
 }
+
+export interface PipelineRunRecord {
+  run?: {
+    id?: string;
+    pipelineId?: string;
+    status?: string;
+    createdAt?: string;
+    updatedAt?: string;
+    startedAt?: string;
+    finishedAt?: string;
+  };
+}
+
+export interface DeploymentRunRecord {
+  run?: {
+    id?: string;
+    releaseId?: string;
+    environmentId?: string;
+    targetId?: string;
+    targetType?: string;
+    status?: string;
+    reason?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  };
+}
+
+export interface ReleaseRecord {
+  release?: {
+    id?: string;
+    name?: string;
+    version?: string;
+    environmentId?: string;
+    status?: string;
+    createdAt?: string;
+  };
+  warnings?: string[];
+}
+
+export interface ReleaseExecutionRecord {
+  execution?: {
+    id?: string;
+    releaseId?: string;
+    environmentId?: string;
+    status?: string;
+    reason?: string;
+    createdAt?: string;
+    updatedAt?: string;
+  };
+}
+
+export interface RunnerRecord {
+  id?: string;
+  name?: string;
+  status?: string;
+  executors?: string[];
+  labels?: Record<string, string>;
+  lastHeartbeatAt?: string;
+}

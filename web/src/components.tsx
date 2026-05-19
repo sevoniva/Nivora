@@ -2,6 +2,7 @@ import type {
   DashboardSummary,
   GraphResponse,
   ResourceNode,
+  RunnerRecord,
   RunnerSummary,
   StatusBadgeModel,
   TargetExecution,
@@ -114,6 +115,63 @@ export function ResourceTable({ resources }: { resources?: ResourceNode[] }) {
 
 export function RunnerTable({ summary }: { summary?: RunnerSummary }) {
   return <ResourceTable resources={summary?.runners} />;
+}
+
+export function RunnerRecordTable({ runners }: { runners?: RunnerRecord[] }) {
+  if (!runners?.length) {
+    return <EmptyState title="No runners" detail="No runner records were returned by the backend." />;
+  }
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Runner</th>
+            <th>Status</th>
+            <th>Executors</th>
+            <th>Last heartbeat</th>
+          </tr>
+        </thead>
+        <tbody>
+          {runners.map((runner) => (
+            <tr key={runner.id || runner.name}>
+              <td>{runner.name || runner.id || "-"}</td>
+              <td><StatusBadge status={runner.status} /></td>
+              <td>{runner.executors?.join(", ") || "-"}</td>
+              <td>{runner.lastHeartbeatAt ? formatTime(runner.lastHeartbeatAt) : "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+export function FindingTable({ findings }: { findings?: Record<string, number> }) {
+  const rows = Object.entries(findings ?? {});
+  if (!rows.length) {
+    return <EmptyState title="No findings" detail="No security finding counts were returned by the backend." />;
+  }
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Severity</th>
+            <th>Count</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([severity, count]) => (
+            <tr key={severity}>
+              <td>{severity}</td>
+              <td>{count}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
 }
 
 export function TargetTable({ targets }: { targets?: TargetExecution[] }) {

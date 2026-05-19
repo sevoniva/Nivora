@@ -5,8 +5,10 @@ import {
   DAGPlaceholder,
   EmptyState,
   ErrorState,
+  FindingTable,
   LoadingState,
   ResourceTable,
+  RunnerRecordTable,
   RunnerTable,
   StatusBadge,
   SummaryStrip,
@@ -15,10 +17,14 @@ import {
 } from "./components";
 import type {
   DashboardSummary,
+  DeploymentRunRecord,
   DiffView,
   EnvironmentTopology,
   GraphResponse,
   HealthView,
+  PipelineRunRecord,
+  ReleaseExecutionRecord,
+  ReleaseRecord,
   ReleaseOverview,
   ResourceNode,
   RunnerSummary,
@@ -27,19 +33,52 @@ import type {
   TimelineItem
 } from "./types";
 
-type Page = "dashboard" | "pipeline" | "deployment" | "release" | "runners" | "security";
+type Page =
+  | "dashboard"
+  | "pipelines"
+  | "pipeline"
+  | "deployments"
+  | "deployment"
+  | "releases"
+  | "release-execution"
+  | "runners"
+  | "security"
+  | "audit"
+  | "environment";
 
 const nav: Array<{ page: Page; label: string }> = [
   { page: "dashboard", label: "Dashboard" },
-  { page: "pipeline", label: "PipelineRun" },
-  { page: "deployment", label: "Deployment" },
-  { page: "release", label: "Release execution" },
+  { page: "pipelines", label: "PipelineRuns" },
+  { page: "deployments", label: "Deployments" },
+  { page: "releases", label: "Releases" },
   { page: "runners", label: "Runners" },
-  { page: "security", label: "Security" }
+  { page: "security", label: "Security" },
+  { page: "audit", label: "Audit" },
+  { page: "environment", label: "Environment" }
 ];
 
+function useHashPage(): [Page, (page: Page) => void] {
+  const readPage = () => {
+    const value = window.location.hash.replace(/^#\/?/, "") as Page;
+    return nav.some((item) => item.page === value) || value === "pipeline" || value === "deployment" || value === "release-execution"
+      ? value
+      : "dashboard";
+  };
+  const [page, setPageState] = useState<Page>(readPage);
+  useEffect(() => {
+    const onHashChange = () => setPageState(readPage());
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+  const setPage = (next: Page) => {
+    window.location.hash = next;
+    setPageState(next);
+  };
+  return [page, setPage];
+}
+
 export function App() {
-  const [page, setPage] = useState<Page>("dashboard");
+  const [page, setPage] = useHashPage();
 
   return (
     <div className="shell">
@@ -58,15 +97,20 @@ export function App() {
             </button>
           ))}
         </nav>
-        <p className="sidebar-note">Phase 4.1 web foundation. Backend APIs remain the source of truth.</p>
+        <p className="sidebar-note">Alpha console. Backend APIs remain the source of truth.</p>
       </aside>
       <main>
         {page === "dashboard" ? <DashboardPage /> : null}
+        {page === "pipelines" ? <PipelineRunsPage /> : null}
         {page === "pipeline" ? <PipelinePage /> : null}
+        {page === "deployments" ? <DeploymentsPage /> : null}
         {page === "deployment" ? <DeploymentPage /> : null}
-        {page === "release" ? <ReleasePage /> : null}
+        {page === "releases" ? <ReleasesPage /> : null}
+        {page === "release-execution" ? <ReleaseExecutionPage /> : null}
         {page === "runners" ? <RunnersPage /> : null}
         {page === "security" ? <SecurityPage /> : null}
+        {page === "audit" ? <AuditPage /> : null}
+        {page === "environment" ? <EnvironmentPage /> : null}
       </main>
     </div>
   );
@@ -100,6 +144,20 @@ function DashboardPage() {
   );
 }
 
+function PipelineRunsPage() {
+  const state = useFetch(api.pipelineRuns);
+  return (
+    <PageFrame title="PipelineRuns" eyebrow="CI runtime" description="Queued, running, and completed PipelineRun records from the backend runtime API.">
+      <AsyncBlock state={state} render={(records) => (
+        <section className="panel">
+          <h2>Runs</h2>
+          <PipelineRunTable records={records} />
+        </section>
+      )} />
+    </PageFrame>
+  );
+}
+
 function PipelinePage() {
   const [id, setId] = useState("");
   const activeId = id.trim();
@@ -118,6 +176,20 @@ function PipelinePage() {
           <section className="panel"><h2>Timeline</h2><AsyncBlock state={timeline} render={(data) => <Timeline items={data} />} /></section>
         </>
       ) : null}
+    </PageFrame>
+  );
+}
+
+function DeploymentsPage() {
+  const state = useFetch(api.deploymentRuns);
+  return (
+    <PageFrame title="Deployments" eyebrow="CD runtime" description="DeploymentRun records across YAML, GitOps, host, and future target types.">
+      <AsyncBlock state={state} render={(records) => (
+        <section className="panel">
+          <h2>Runs</h2>
+          <DeploymentRunTable records={records} />
+        </section>
+      )} />
     </PageFrame>
   );
 }
@@ -148,7 +220,31 @@ function DeploymentPage() {
   );
 }
 
-function ReleasePage() {
+function ReleasesPage() {
+  const state = useFetch(api.releases);
+  const [releaseId, setReleaseId] = useState("");
+  const releaseKey = releaseId.trim();
+  const executions = useFetch(() => releaseKey ? api.releaseExecutions(releaseKey) : Promise.resolve(undefined), [releaseKey]);
+  return (
+    <PageFrame title="Releases" eyebrow="Artifact intent" description="Release records and their target execution history.">
+      <AsyncBlock state={state} render={(records) => (
+        <section className="panel">
+          <h2>Releases</h2>
+          <ReleaseTable records={records} onSelect={setReleaseId} />
+        </section>
+      )} />
+      <LookupBar label="Release ID for executions" value={releaseId} onChange={setReleaseId} placeholder="rel-..." />
+      {releaseKey ? (
+        <section className="panel">
+          <h2>Executions</h2>
+          <AsyncBlock state={executions} render={(records) => <ReleaseExecutionTable records={records} />} />
+        </section>
+      ) : null}
+    </PageFrame>
+  );
+}
+
+function ReleaseExecutionPage() {
   const [releaseId, setReleaseId] = useState("");
   const [executionId, setExecutionId] = useState("");
   const releaseKey = releaseId.trim();
@@ -177,6 +273,7 @@ function ReleasePage() {
 
 function RunnersPage() {
   const state = useFetch(api.runnerSummary);
+  const records = useFetch(api.runners);
   return (
     <PageFrame title="Runners" eyebrow="Execution plane" description="Runner status and executor capability summary.">
       <AsyncBlock state={state} render={(summary) => (
@@ -185,6 +282,10 @@ function RunnersPage() {
           <section className="panel"><h2>Runner table</h2><RunnerTable summary={summary} /></section>
         </>
       )} />
+      <section className="panel">
+        <h2>Runtime runner records</h2>
+        <AsyncBlock state={records} render={(runners) => <RunnerRecordTable runners={runners} />} />
+      </section>
     </PageFrame>
   );
 }
@@ -196,6 +297,7 @@ function SecurityPage() {
       <AsyncBlock state={state} render={(summary) => (
         <>
           <SummaryStrip summary={summary} />
+          <section className="panel"><h2>Finding table</h2><FindingTable findings={summary?.findings} /></section>
           <section className="panel finding-grid">
             {Object.entries(summary?.findings ?? {}).map(([severity, count]) => (
               <div className="finding" key={severity}>
@@ -210,6 +312,147 @@ function SecurityPage() {
   );
 }
 
+function AuditPage() {
+  const audit = useFetch(api.auditTimeline);
+  return (
+    <PageFrame title="Audit timeline" eyebrow="Evidence trail" description="Audit-oriented timeline projection across pipeline, deployment, release, and security records.">
+      <section className="panel">
+        <h2>Timeline</h2>
+        <AsyncBlock state={audit} render={(items) => <Timeline items={items} />} />
+      </section>
+    </PageFrame>
+  );
+}
+
+function EnvironmentPage() {
+  const [environmentId, setEnvironmentId] = useState("dev");
+  const activeId = environmentId.trim();
+  const topology = useFetch(() => activeId ? api.environmentTopology(activeId) : Promise.resolve(undefined), [activeId]);
+  return (
+    <PageFrame title="Environment topology" eyebrow="Delivery map" description="Applications, targets, latest deployments, and resources grouped by environment.">
+      <LookupBar label="Environment ID" value={environmentId} onChange={setEnvironmentId} placeholder="dev" />
+      <AsyncBlock state={topology} render={(data) => (
+        <>
+          <TopologySummary state={{ data, loading: false }} />
+          <section className="summary-grid">
+            <TopologyPanel title="Applications" resources={data?.applications} />
+            <TopologyPanel title="Targets" resources={data?.targets} />
+            <TopologyPanel title="Latest deployments" resources={data?.latestDeployments} />
+          </section>
+          <section className="panel"><h2>Resources</h2><ResourceTable resources={data?.resources} /></section>
+        </>
+      )} />
+    </PageFrame>
+  );
+}
+
+function PipelineRunTable({ records }: { records?: PipelineRunRecord[] }) {
+  if (!records?.length) return <EmptyState title="No PipelineRuns" detail="No PipelineRun records were returned by the backend." />;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Pipeline</th><th>Status</th><th>Updated</th></tr>
+        </thead>
+        <tbody>
+          {records.map((record) => (
+            <tr key={record.run?.id}>
+              <td><code>{record.run?.id || "-"}</code></td>
+              <td>{record.run?.pipelineId || "-"}</td>
+              <td><StatusBadge status={record.run?.status} /></td>
+              <td>{formatDate(record.run?.updatedAt || record.run?.createdAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function DeploymentRunTable({ records }: { records?: DeploymentRunRecord[] }) {
+  if (!records?.length) return <EmptyState title="No DeploymentRuns" detail="No DeploymentRun records were returned by the backend." />;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Target</th><th>Environment</th><th>Status</th><th>Reason</th></tr>
+        </thead>
+        <tbody>
+          {records.map((record) => (
+            <tr key={record.run?.id}>
+              <td><code>{record.run?.id || "-"}</code></td>
+              <td>{record.run?.targetType || record.run?.targetId || "-"}</td>
+              <td>{record.run?.environmentId || "-"}</td>
+              <td><StatusBadge status={record.run?.status} /></td>
+              <td>{record.run?.reason || "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ReleaseTable({ records, onSelect }: { records?: ReleaseRecord[]; onSelect: (id: string) => void }) {
+  if (!records?.length) return <EmptyState title="No Releases" detail="No release records were returned by the backend." />;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Release</th><th>Version</th><th>Environment</th><th>Status</th><th>Executions</th></tr>
+        </thead>
+        <tbody>
+          {records.map((record) => {
+            const id = record.release?.id || "";
+            return (
+              <tr key={id || record.release?.name}>
+                <td><code>{id || "-"}</code></td>
+                <td>{record.release?.version || "-"}</td>
+                <td>{record.release?.environmentId || "-"}</td>
+                <td><StatusBadge status={record.release?.status} /></td>
+                <td><button className="table-action" type="button" disabled={!id} onClick={() => onSelect(id)}>Load</button></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function ReleaseExecutionTable({ records }: { records?: ReleaseExecutionRecord[] }) {
+  if (!records?.length) return <EmptyState title="No ReleaseExecutions" detail="No execution records were returned for this release." />;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>ID</th><th>Release</th><th>Environment</th><th>Status</th><th>Reason</th></tr>
+        </thead>
+        <tbody>
+          {records.map((record) => (
+            <tr key={record.execution?.id}>
+              <td><code>{record.execution?.id || "-"}</code></td>
+              <td>{record.execution?.releaseId || "-"}</td>
+              <td>{record.execution?.environmentId || "-"}</td>
+              <td><StatusBadge status={record.execution?.status} /></td>
+              <td>{record.execution?.reason || "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function TopologyPanel({ title, resources }: { title: string; resources?: ResourceNode[] }) {
+  return (
+    <section className="panel compact">
+      <h2>{title}</h2>
+      <ResourceTable resources={resources} />
+    </section>
+  );
+}
+
 function PageFrame({ title, eyebrow, description, children }: { title: string; eyebrow: string; description: string; children: ReactNode }) {
   return (
     <div className="page">
@@ -221,6 +464,12 @@ function PageFrame({ title, eyebrow, description, children }: { title: string; e
       {children}
     </div>
   );
+}
+
+function formatDate(value?: string) {
+  if (!value) return "-";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
 }
 
 function LookupBar({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {

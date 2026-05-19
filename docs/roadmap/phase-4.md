@@ -47,12 +47,18 @@ Phase 4.1 adds a minimal React + TypeScript + Vite app under `web/`.
 Scope:
 
 - Dashboard.
+- PipelineRun and DeploymentRun list views.
 - PipelineRun detail.
 - Deployment detail.
+- Release and release execution views.
 - Release execution detail.
 - Runner summary.
 - Security summary.
+- Audit timeline.
+- Environment topology.
 - Minimal API client for existing visualization endpoints.
+
+Phase 6.4 extends this into a web console foundation that also calls existing runtime list APIs. It remains a backend-driven console and does not add production UI claims.
 
 Non-goals:
 

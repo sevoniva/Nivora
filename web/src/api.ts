@@ -1,11 +1,16 @@
 import type {
   DashboardSummary,
+  DeploymentRunRecord,
   DiffView,
   EnvironmentTopology,
   GraphResponse,
   HealthView,
+  PipelineRunRecord,
+  ReleaseExecutionRecord,
+  ReleaseRecord,
   ReleaseOverview,
   ResourceNode,
+  RunnerRecord,
   RunnerSummary,
   SecuritySummary,
   TargetExecution,
@@ -32,6 +37,11 @@ async function request<T>(path: string): Promise<T> {
 }
 
 export const api = {
+  pipelineRuns: () => request<PipelineRunRecord[]>("/pipeline-runs"),
+  deploymentRuns: () => request<DeploymentRunRecord[]>("/deployments"),
+  releases: () => request<ReleaseRecord[]>("/releases"),
+  releaseExecutions: (id: string) => request<ReleaseExecutionRecord[]>(`/releases/${encodeURIComponent(id)}/executions`),
+  runners: () => request<RunnerRecord[]>("/runners"),
   runnerSummary: () => request<RunnerSummary>("/visualization/runners/summary"),
   securitySummary: () => request<SecuritySummary>("/visualization/security/summary"),
   auditTimeline: () => request<TimelineItem[]>("/visualization/audit/timeline"),

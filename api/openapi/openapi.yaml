@@ -190,6 +190,32 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/AuditSearchResult"
+  /api/v1/audit/verify:
+    get:
+      summary: Verify tamper-evident audit hash chain
+      parameters:
+        - name: scopeType
+          in: query
+          schema:
+            type: string
+        - name: scopeId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Audit chain verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  firstBrokenId:
+                    type: string
+                  message:
+                    type: string
   /api/v1/evidence/{subject_type}/{id}:
     get:
       summary: Export an evidence bundle for a subject

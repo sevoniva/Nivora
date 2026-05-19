@@ -203,6 +203,28 @@ func (s *Service) SetRetentionPolicy(ctx context.Context, input RetentionInput) 
 	return policy, nil
 }
 
+type AuditChainVerifyResult struct {
+	Valid         bool   `json:"valid"`
+	FirstBrokenID string `json:"firstBrokenId,omitempty"`
+	Message       string `json:"message,omitempty"`
+}
+
+func (s *Service) VerifyAuditChain(ctx context.Context, scopeType, scopeID string) (AuditChainVerifyResult, error) {
+	valid, firstBroken, err := s.store.VerifyAuditChain(ctx, scopeType, scopeID)
+	if err != nil {
+		return AuditChainVerifyResult{Valid: false, Message: err.Error()}, nil
+	}
+	result := AuditChainVerifyResult{Valid: valid, FirstBrokenID: firstBroken}
+	if valid {
+		result.Message = "audit chain verified"
+	} else if firstBroken != "" {
+		result.Message = "audit chain verification failed at record " + firstBroken
+	} else {
+		result.Message = "no audit records found"
+	}
+	return result, nil
+}
+
 func (s *Service) collectAudits(ctx context.Context) ([]audit.AuditLog, error) {
 	var entries []audit.AuditLog
 	if s.pipelines != nil {

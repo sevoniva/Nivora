@@ -20,6 +20,7 @@ type Store interface {
 	SearchEvidenceBundles(ctx context.Context, subjectType string, subjectID string) ([]domaincompliance.EvidenceBundle, error)
 	SaveRetentionPolicy(ctx context.Context, policy domaincompliance.RetentionPolicy) error
 	GetRetentionPolicy(ctx context.Context, scopeType string, scopeID string) (domaincompliance.RetentionPolicy, error)
+		VerifyAuditChain(ctx context.Context, scopeType, scopeID string) (valid bool, firstBrokenID string, err error)
 }
 
 type MemoryStore struct {
@@ -98,6 +99,10 @@ func (s *MemoryStore) GetRetentionPolicy(ctx context.Context, scopeType string, 
 		return domaincompliance.RetentionPolicy{}, ErrRetentionPolicyNotFound
 	}
 	return policy, nil
+}
+
+func (s *MemoryStore) VerifyAuditChain(ctx context.Context, scopeType, scopeID string) (bool, string, error) {
+	return false, "", errors.New("audit hash chain verification not supported with memory store")
 }
 
 func cloneEvidenceBundle(bundle domaincompliance.EvidenceBundle) domaincompliance.EvidenceBundle {

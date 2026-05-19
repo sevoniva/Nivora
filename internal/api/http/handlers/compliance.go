@@ -72,6 +72,13 @@ func SetRetentionPolicy(service *complianceusecase.Service) http.HandlerFunc {
 	}
 }
 
+func VerifyAuditChain(service *complianceusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := service.VerifyAuditChain(r.Context(), r.URL.Query().Get("scopeType"), r.URL.Query().Get("scopeId"))
+		respondComplianceResult(w, r, result, err)
+	}
+}
+
 func respondComplianceResult(w http.ResponseWriter, r *http.Request, payload any, err error) {
 	if err == nil {
 		RespondJSON(w, http.StatusOK, payload)

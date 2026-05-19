@@ -50,6 +50,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/tenancy/quota", handlers.GetQuota(tenancyService))
 		api.Post("/tenancy/quota", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.SetQuota(tenancyService)))
 		api.Get("/tenancy/usage", handlers.GetUsageSummary(tenancyService))
+		api.Get("/audit/verify", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.VerifyAuditChain(complianceService)))
 		api.Get("/audit/search", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.SearchAudit(complianceService)))
 		api.Get("/evidence/{subject_type}/{id}", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetEvidenceBundle(complianceService)))
 		api.Get("/retention-policy", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetRetentionPolicy(complianceService)))

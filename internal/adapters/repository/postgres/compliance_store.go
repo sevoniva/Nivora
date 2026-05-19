@@ -3,7 +3,12 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
+	"fmt"
+	"sort"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -113,6 +118,100 @@ func (s *ComplianceStore) GetRetentionPolicy(ctx context.Context, scopeType stri
 		return domaincompliance.RetentionPolicy{}, err
 	}
 	return policy, nil
+}
+
+type AuditRecord struct {
+	ID            string    `json:"id"`
+	ActorID       string    `json:"actor_id"`
+	Action        string    `json:"action"`
+	SubjectType   string    `json:"subject_type"`
+	SubjectID     string    `json:"subject_id"`
+	Subject       string    `json:"subject"`
+	ScopeType     string    `json:"scope_type"`
+	ScopeID       string    `json:"scope_id"`
+	CorrelationID string    `json:"correlation_id"`
+	RequestID     string    `json:"request_id"`
+	PreviousHash  string    `json:"previous_hash"`
+	RecordHash    string    `json:"record_hash"`
+	Payload       []byte    `json:"payload"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+func (s *ComplianceStore) AppendAuditRecord(ctx context.Context, record AuditRecord) error {
+	prevHash, err := s.latestAuditHash(ctx, record.ScopeType, record.ScopeID)
+	if err != nil {
+		return err
+	}
+	record.PreviousHash = prevHash
+
+	canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+		prevHash, record.ActorID, record.Action, record.SubjectType, record.SubjectID, record.ScopeType, record.ScopeID, record.CreatedAt.Format(time.RFC3339Nano))
+	hash := sha256.Sum256([]byte(canonical))
+	record.RecordHash = hex.EncodeToString(hash[:])
+
+	_, err = s.pool.Exec(ctx, `INSERT INTO compliance_audit_records
+		(id, actor_id, action, subject_type, subject_id, subject, scope_type, scope_id, correlation_id, request_id, previous_hash, record_hash, payload, created_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
+		record.ID, record.ActorID, record.Action, record.SubjectType, record.SubjectID, record.Subject,
+		record.ScopeType, record.ScopeID, record.CorrelationID, record.RequestID,
+		record.PreviousHash, record.RecordHash, record.Payload, record.CreatedAt)
+	return err
+}
+
+func (s *ComplianceStore) VerifyAuditChain(ctx context.Context, scopeType, scopeID string) (valid bool, firstBroken string, err error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, actor_id, action, subject_type, subject_id, subject, scope_type, scope_id, previous_hash, record_hash, payload, created_at
+		FROM compliance_audit_records WHERE scope_type=$1 AND ($2='' OR scope_id=$2) ORDER BY created_at, id`, scopeType, scopeID)
+	if err != nil {
+		return false, "", err
+	}
+	defer rows.Close()
+
+	var records []AuditRecord
+	for rows.Next() {
+		var r AuditRecord
+		if err := rows.Scan(&r.ID, &r.ActorID, &r.Action, &r.SubjectType, &r.SubjectID, &r.Subject, &r.ScopeType, &r.ScopeID, &r.PreviousHash, &r.RecordHash, &r.Payload, &r.CreatedAt); err != nil {
+			return false, "", err
+		}
+		records = append(records, r)
+	}
+	if rows.Err() != nil {
+		return false, "", rows.Err()
+	}
+
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].CreatedAt.Equal(records[j].CreatedAt) {
+			return records[i].ID < records[j].ID
+		}
+		return records[i].CreatedAt.Before(records[j].CreatedAt)
+	})
+
+	var expectedPrev string
+	for i, r := range records {
+		if i == 0 {
+			expectedPrev = ""
+		}
+		if r.PreviousHash != expectedPrev {
+			return false, r.ID, nil
+		}
+		canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+			r.PreviousHash, r.ActorID, r.Action, r.SubjectType, r.SubjectID, r.ScopeType, r.ScopeID, r.CreatedAt.Format(time.RFC3339Nano))
+		hash := sha256.Sum256([]byte(canonical))
+		expectedHash := hex.EncodeToString(hash[:])
+		if r.RecordHash != expectedHash {
+			return false, r.ID, nil
+		}
+		expectedPrev = r.RecordHash
+	}
+	return true, "", nil
+}
+
+func (s *ComplianceStore) latestAuditHash(ctx context.Context, scopeType, scopeID string) (string, error) {
+	var hash string
+	err := s.pool.QueryRow(ctx, `SELECT record_hash FROM compliance_audit_records WHERE scope_type=$1 AND ($2='' OR scope_id=$2) ORDER BY created_at DESC, id DESC LIMIT 1`, scopeType, scopeID).Scan(&hash)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return "", nil
+	}
+	return hash, err
 }
 
 func decodeEvidenceBundle(raw []byte) (domaincompliance.EvidenceBundle, error) {

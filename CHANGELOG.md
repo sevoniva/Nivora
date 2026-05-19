@@ -2,13 +2,13 @@
 
 All notable changes to Nivora are tracked here.
 
-Nivora uses honest capability labels. A `v1.0.0` release can include production-ready foundations alongside beta and experimental capabilities when those limitations are explicit.
+Nivora uses honest capability labels. The current repository is a beta-candidate foundation and is not production-ready. Future `v1.0.0` materials are readiness drafts until maintainers close release blockers.
 
-## v1.0.0 - Prepared
+## Future v1.0.0 - Readiness Draft
 
-This is the Phase 10.0 GA readiness baseline. It sets the project version to `1.0.0`, adds the GA capability matrix and checklist, and prepares release notes for maintainer approval.
+This is the Phase 10.0 future GA readiness draft. It keeps the `v1.0.0` planning materials, capability matrix, checklist, and release notes available for maintainer review, but it does not claim that GA has been achieved.
 
-### Production-Ready Scope
+### Candidate Scope For Review
 
 - Architecture guardrails, module boundaries, and verification discipline.
 - Documentation, tutorials, examples, release playbook, and operations guides.

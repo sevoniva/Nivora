@@ -1,6 +1,6 @@
 # API Inventory
 
-Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API surface and whether each group is implemented, partial, or placeholder. OpenAPI remains the schema source of truth at `api/openapi/openapi.yaml`.
+Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API surface and whether each group is implemented, partial, or placeholder. OpenAPI remains the schema source of truth at `api/openapi/openapi.yaml`, and route/path coverage is checked by `internal/api/http/routes/openapi_contract_test.go`.
 
 ## Implemented Foundation
 

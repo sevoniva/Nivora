@@ -57,8 +57,8 @@ docs/security/security-review-checklist.md
       fi
     done
     for file in README.md CHANGELOG.md docs/releases/v1.0.0-ga-capability-matrix.md docs/releases/v1.0.0-ga-checklist.md docs/releases/v1.0.0-release-notes.md; do
-      if ! grep -qi 'experimental\|known limitations\|beta' "$file"; then
-        echo "$file must describe GA limitations or capability labels" >&2
+      if ! grep -qi 'experimental\|known limitations\|beta\|not production-ready' "$file"; then
+        echo "$file must describe future GA limitations or capability labels" >&2
         exit 1
       fi
     done

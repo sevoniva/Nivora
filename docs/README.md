@@ -1,6 +1,6 @@
 # Nivora Documentation
 
-This index helps new contributors understand where to start. Nivora has a `v1.0.0` GA readiness baseline with explicit production-ready, beta, experimental, planned, and unsupported capability labels.
+This index helps new contributors understand where to start. Nivora is currently a **beta-candidate foundation**, not a production-ready platform. Future `v1.0.0` documents are readiness checklists only until maintainers close the release blockers.
 
 ## Start Here
 
@@ -13,6 +13,8 @@ This index helps new contributors understand where to start. Nivora has a `v1.0.
 - [Roadmap](../ROADMAP.md): phase summary.
 - [Alpha Capability Matrix](ALPHA_CAPABILITY_MATRIX.md): what is implemented, partial, planned, or unsupported in the alpha.
 - [Beta Capability Matrix](BETA_CAPABILITY_MATRIX.md): beta-freeze capability boundaries.
+- [Implementation Audit](status/IMPLEMENTATION_AUDIT.md): evidence-based maturity audit.
+- [Capability Status](status/CAPABILITY_STATUS.md): implemented, partial, foundation, placeholder, experimental, documented-only, and missing capability labels.
 - [API Inventory](API_INVENTORY.md): implemented, partial, and placeholder HTTP API groups.
 - [Alpha Demo Guide](demo/alpha-demo.md): self-contained demo path that does not require external services.
 - [Contribution Guide](../CONTRIBUTING.md): development setup and contribution rules.
@@ -107,9 +109,9 @@ For a quick path through the project:
 - [v0.5.0-beta Checklist](releases/v0.5.0-beta-checklist.md)
 - [v0.5.0-beta Release Notes Draft](releases/v0.5.0-beta-release-notes-draft.md)
 - [v1.0.0-rc.1 Checklist](releases/v1.0.0-rc.1-checklist.md)
-- [v1.0.0 GA Capability Matrix](releases/v1.0.0-ga-capability-matrix.md)
-- [v1.0.0 GA Checklist](releases/v1.0.0-ga-checklist.md)
-- [v1.0.0 Release Notes](releases/v1.0.0-release-notes.md)
+- [Future v1.0.0 GA Capability Matrix](releases/v1.0.0-ga-capability-matrix.md)
+- [Future v1.0.0 GA Checklist](releases/v1.0.0-ga-checklist.md)
+- [Future v1.0.0 Release Notes Draft](releases/v1.0.0-release-notes.md)
 - [Release Playbook](releases/release-playbook.md)
 
 ## Role-Based Guides

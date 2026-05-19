@@ -1,8 +1,8 @@
 # Alpha Capability Matrix
 
-Version target: `v0.1.0-alpha.1`
+Historical version target: `v0.1.0-alpha.1`
 
-Nivora is in public alpha. This matrix separates implemented foundations from partial work, planned work, and intentionally unsupported capabilities. It should be read as an honest release-readiness guide, not as a production support statement.
+This matrix is retained as the historical alpha readiness view. The current repository is a beta-candidate foundation and remains not production-ready; see `docs/status/CAPABILITY_STATUS.md` for the current status source of truth. This matrix separates implemented foundations from partial work, planned work, and intentionally unsupported capabilities for the alpha scope.
 
 | Area | Alpha Status | What Exists | Not Yet Included |
 |---|---|---|---|

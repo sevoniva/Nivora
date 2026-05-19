@@ -13,7 +13,9 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora `v1.0.0` is prepared as a GA readiness baseline with honest capability labels. Production-ready areas include architecture guardrails, documentation, local verification, API/spec discipline, secure-default review, and release operations. Runtime, Kubernetes YAML, runner, artifact, release orchestration, observability, and packaging capabilities are documented as beta foundations where appropriate. GitOps/Argo CD automation, cloud inventory adapters, host remote deployment, external DevSecOps integrations, and the web console remain experimental or future work unless the GA capability matrix says otherwise.
+Nivora is currently a **beta-candidate foundation**, not a production-ready platform. The implementation audit found strong architecture guardrails, documentation, local verification, API/spec discipline, secure-default review, and release operations, while major runtime, persistence, runner, Kubernetes, GitOps, cloud, host, security, and audit capabilities still require hardening before production use.
+
+The repository keeps future `v1.0.0` readiness documents as planning checklists only. They do not mean GA has been achieved. See [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md) and [Capability Status](docs/status/CAPABILITY_STATUS.md) for the current source of truth.
 
 ## Current Status
 
@@ -47,7 +49,7 @@ Nivora `v1.0.0` is prepared as a GA readiness baseline with honest capability la
 | Beta freeze | Phase 9.0 consistency/API/docs/examples/security baseline for `v0.5.0-beta` |
 | Release candidate hardening | Phase 9.1 API/migration/install/security/release baseline for `v1.0.0-rc.1` |
 | Security threat model | Phase 9.2 pre-GA threat model and security review checklist |
-| GA readiness | Phase 10.0 `v1.0.0` capability matrix, checklist, release notes, versioning, and final verification |
+| Future GA readiness | Phase 10.0 future `v1.0.0` capability matrix, checklist, release notes, versioning, and final verification |
 | Production multi-cloud adapters | Planned |
 | Production DevSecOps integrations | Planned |
 | Complete frontend visualization product | Future phase |
@@ -55,7 +57,7 @@ Nivora `v1.0.0` is prepared as a GA readiness baseline with honest capability la
 Current focus:
 
 ```text
-v1.0.0 GA readiness baseline
+beta-candidate foundation truth alignment
 honest capability boundaries
 self-contained demo path
 runtime, install, and packaging verification
@@ -73,9 +75,11 @@ Alpha release references:
 - [v0.5.0-beta Checklist](docs/releases/v0.5.0-beta-checklist.md)
 - [v0.5.0-beta Release Notes Draft](docs/releases/v0.5.0-beta-release-notes-draft.md)
 - [v1.0.0-rc.1 Checklist](docs/releases/v1.0.0-rc.1-checklist.md)
-- [v1.0.0 GA Capability Matrix](docs/releases/v1.0.0-ga-capability-matrix.md)
-- [v1.0.0 GA Checklist](docs/releases/v1.0.0-ga-checklist.md)
-- [v1.0.0 Release Notes](docs/releases/v1.0.0-release-notes.md)
+- [Future v1.0.0 GA Readiness Capability Matrix](docs/releases/v1.0.0-ga-capability-matrix.md)
+- [Future v1.0.0 GA Readiness Checklist](docs/releases/v1.0.0-ga-checklist.md)
+- [Future v1.0.0 Release Notes Draft](docs/releases/v1.0.0-release-notes.md)
+- [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md)
+- [Capability Status](docs/status/CAPABILITY_STATUS.md)
 - [Security Threat Model](docs/security/threat-model.md)
 - [Security Review Checklist](docs/security/security-review-checklist.md)
 - [User Guide](docs/user/README.md)

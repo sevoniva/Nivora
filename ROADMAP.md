@@ -2,6 +2,8 @@
 
 This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/overview.md](docs/roadmap/overview.md).
 
+Current maturity: **beta-candidate foundation**. Nivora is **not production-ready**. Future `v1.0.0` documents are readiness checklists and should not be read as evidence that GA has been achieved.
+
 ## Phase 0: Skeleton
 
 - Establish Go module structure.
@@ -79,3 +81,10 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 - Phase 5.1 hardens the PostgreSQL persistence foundation for PipelineRun runtime state, ordered logs, events, audit records, runners, outbox records, idempotency keys, and recovery queries.
 - The alpha is for public architecture review, contributor onboarding, and local demos.
 - It is not a production GA release.
+
+## Release Truth Alignment and Future GA Readiness
+
+- Keep public maturity language aligned with the implementation audit.
+- Treat future `v1.0.0` materials as readiness checklists until all blockers are closed by maintainers.
+- Keep external integrations labeled as foundation, experimental, fake, noop, skeleton, or placeholder unless real behavior is implemented, tested, documented, and verifiable.
+- Do not claim production readiness while persistence, recovery, RBAC coverage, runner isolation, audit durability, and production install validation remain incomplete.

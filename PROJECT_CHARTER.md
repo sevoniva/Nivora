@@ -2,7 +2,7 @@
 
 Nivora is an open-source DevOps delivery control plane under the `sevoniva` organization. It is backend-first, written in Go, and currently developed as a modular monolith with separate binaries for `nivora-server`, `nivora-worker`, `nivora-runner`, and the `nivora` CLI.
 
-Nivora is preparing the `v0.1.0-alpha.1` public alpha. It has backend, runtime, deployment, release, security, governance, visualization, operations, plugin, and packaging foundations, but it is not production-ready. Production Kubernetes deployment semantics, destructive rollback, production Argo CD automation, real cloud deployment, full Git provider and registry integrations, production SSO, external notification delivery, enterprise secret backends, and complete frontend workflows remain future work.
+Nivora is currently a beta-candidate foundation. It has backend, runtime, deployment, release, security, governance, visualization, operations, plugin, and packaging foundations, but it is not production-ready. Production Kubernetes deployment semantics, destructive rollback, production Argo CD automation, real cloud deployment, full Git provider and registry integrations, production SSO, external notification delivery, enterprise secret backends, durable audit/evidence, complete persistence, and complete frontend workflows remain future work.
 
 ## What Nivora Is
 
@@ -52,7 +52,7 @@ Nivora is not:
 - a Kubernetes-only tool
 - a cloud-provider-specific product
 - a frontend-first project
-- production-ready in the current phase
+- production-ready in the current phase or tagged as GA without maintainer-approved blockers closed
 - a system that hides every underlying tool behind opaque magic
 
 ## Architecture Principles
@@ -89,3 +89,4 @@ Nivora is not:
 - Phase 3: DevSecOps, secrets, auth/RBAC, approvals, multi-cloud inventory, host deployment, and durable runner protocol foundations.
 - Phase 4: visualization APIs, minimal web UI, observability, plugin registry, and packaging foundations.
 - Phase 5: public alpha hardening, release notes, capability matrix, demo path, and known limitations.
+- Current truth-alignment status: beta-candidate foundation. Future `v1.0.0` documents are readiness checklists, not evidence that production GA has been achieved.

@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -22,10 +23,15 @@ type Service struct {
 	eventBus eventbus.EventBus
 	roles    map[string]domainauth.Role
 	now      func() time.Time
+	oidc     OIDCProvider
 }
 
 func NewService(store Store, bus eventbus.EventBus) *Service {
 	return &Service{store: store, eventBus: bus, roles: DefaultRoles(), now: time.Now}
+}
+
+func (s *Service) SetOIDCProvider(provider OIDCProvider) {
+	s.oidc = provider
 }
 
 func DefaultRoles() map[string]domainauth.Role {
@@ -74,15 +80,46 @@ func (s *Service) Authenticate(ctx context.Context, input AuthenticateInput) (do
 		}
 		return domainauth.Subject{ID: username, Username: username, DisplayName: username, Roles: []string{domainauth.RoleOwner}, AuthMode: mode}, nil
 	case "token":
-		if input.StaticToken == "" {
+		if input.Token == "" {
 			return domainauth.Subject{}, ErrUnauthorized
 		}
-		if input.Token == "" || input.Token != input.StaticToken {
+		if input.StaticToken != "" && input.Token == input.StaticToken {
+			return domainauth.Subject{ID: "service-account", Username: "service-account", DisplayName: "Service Account", Roles: []string{domainauth.RoleOwner}, AuthMode: mode}, nil
+		}
+		token, err := s.store.FindTokenByHash(ctx, hashToken(input.Token))
+		if err != nil {
 			return domainauth.Subject{}, ErrUnauthorized
 		}
-		return domainauth.Subject{ID: "service-account", Username: "service-account", DisplayName: "Service Account", Roles: []string{domainauth.RoleOwner}, AuthMode: mode}, nil
-	case "oidc-placeholder":
-		return domainauth.Subject{}, errors.New("oidc auth mode is a placeholder in Phase 3.2")
+		if token.RevokedAt != nil {
+			return domainauth.Subject{}, ErrUnauthorized
+		}
+		if token.ExpiresAt != nil && !token.ExpiresAt.IsZero() && s.now().After(*token.ExpiresAt) {
+			return domainauth.Subject{}, ErrUnauthorized
+		}
+		now := s.now()
+		token.LastUsedAt = &now
+		_ = s.store.SaveToken(ctx, token)
+		return domainauth.Subject{ID: token.SubjectID, Username: token.SubjectID, DisplayName: token.Name, Roles: token.Roles, AuthMode: mode, ScopeType: token.ScopeType, ScopeID: token.ScopeID, TokenID: token.ID}, nil
+	case "oidc", "oidc-placeholder":
+		if s.oidc == nil || input.Token == "" {
+			return domainauth.Subject{}, ErrUnauthorized
+		}
+		claims, err := s.oidc.Validate(ctx, input.Token, input.OIDCIssuer, input.OIDCAudience)
+		if err != nil {
+			return domainauth.Subject{}, ErrUnauthorized
+		}
+		if claims.Subject == "" {
+			return domainauth.Subject{}, ErrUnauthorized
+		}
+		roles := claims.Roles
+		if len(roles) == 0 {
+			roles = []string{domainauth.RoleViewer}
+		}
+		username := claims.Username
+		if username == "" {
+			username = claims.Subject
+		}
+		return domainauth.Subject{ID: claims.Subject, Username: username, DisplayName: claims.DisplayName, Roles: roles, AuthMode: mode}, nil
 	default:
 		return domainauth.Subject{}, fmt.Errorf("unsupported auth mode %q", mode)
 	}
@@ -153,6 +190,111 @@ func (s *Service) ListMemberships(ctx context.Context, scopeType string, scopeID
 	return s.store.ListMemberships(ctx, scopeType, scopeID)
 }
 
+func (s *Service) CreateServiceAccount(ctx context.Context, input ServiceAccountInput, actorID string) (domainauth.ServiceAccount, error) {
+	if input.Name == "" {
+		return domainauth.ServiceAccount{}, errors.New("service account name is required")
+	}
+	if input.Role == "" {
+		input.Role = domainauth.RoleDeveloper
+	}
+	if _, ok := s.roles[input.Role]; !ok {
+		return domainauth.ServiceAccount{}, fmt.Errorf("unknown role %q", input.Role)
+	}
+	now := s.now()
+	account := domainauth.ServiceAccount{
+		ID:        newID("sa"),
+		Name:      input.Name,
+		ScopeType: input.ScopeType,
+		ScopeID:   input.ScopeID,
+		Role:      input.Role,
+		Status:    "active",
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	if err := s.store.SaveServiceAccount(ctx, account); err != nil {
+		return domainauth.ServiceAccount{}, err
+	}
+	_ = s.record(ctx, EventServiceAccountCreated, "service account created", actorID, account.ID, map[string]any{"role": account.Role, "scopeType": account.ScopeType})
+	return account, nil
+}
+
+func (s *Service) ListServiceAccounts(ctx context.Context, scopeType string, scopeID string) ([]domainauth.ServiceAccount, error) {
+	return s.store.ListServiceAccounts(ctx, scopeType, scopeID)
+}
+
+func (s *Service) CreateAPIToken(ctx context.Context, input APITokenInput, actorID string) (APITokenResult, error) {
+	if input.SubjectID == "" {
+		return APITokenResult{}, errors.New("token subjectId is required")
+	}
+	account, err := s.store.GetServiceAccount(ctx, input.SubjectID)
+	if err != nil {
+		return APITokenResult{}, err
+	}
+	raw := newRawToken()
+	now := s.now()
+	metadata := domainauth.TokenMetadata{
+		ID:          newID("tok"),
+		SubjectID:   account.ID,
+		SubjectType: "service_account",
+		Name:        input.Name,
+		ScopeType:   account.ScopeType,
+		ScopeID:     account.ScopeID,
+		Roles:       []string{account.Role},
+		TokenHash:   hashToken(raw),
+		IssuedAt:    now,
+		ExpiresAt:   input.ExpiresAt,
+	}
+	if metadata.Name == "" {
+		metadata.Name = account.Name
+	}
+	if err := s.store.SaveToken(ctx, metadata); err != nil {
+		return APITokenResult{}, err
+	}
+	_ = s.record(ctx, EventAPITokenCreated, "api token created", actorID, metadata.ID, map[string]any{"subjectId": metadata.SubjectID})
+	public := metadata
+	public.TokenHash = ""
+	return APITokenResult{Metadata: public, Token: raw}, nil
+}
+
+func (s *Service) RotateAPIToken(ctx context.Context, tokenID string, actorID string) (APITokenResult, error) {
+	metadata, err := s.store.GetToken(ctx, tokenID)
+	if err != nil {
+		return APITokenResult{}, err
+	}
+	raw := newRawToken()
+	now := s.now()
+	metadata.TokenHash = hashToken(raw)
+	metadata.IssuedAt = now
+	metadata.RevokedAt = nil
+	metadata.LastUsedAt = nil
+	if err := s.store.SaveToken(ctx, metadata); err != nil {
+		return APITokenResult{}, err
+	}
+	_ = s.record(ctx, EventAPITokenRotated, "api token rotated", actorID, metadata.ID, map[string]any{"subjectId": metadata.SubjectID})
+	public := metadata
+	public.TokenHash = ""
+	return APITokenResult{Metadata: public, Token: raw}, nil
+}
+
+func (s *Service) RevokeAPIToken(ctx context.Context, tokenID string, actorID string) (domainauth.TokenMetadata, error) {
+	metadata, err := s.store.GetToken(ctx, tokenID)
+	if err != nil {
+		return domainauth.TokenMetadata{}, err
+	}
+	now := s.now()
+	metadata.RevokedAt = &now
+	if err := s.store.SaveToken(ctx, metadata); err != nil {
+		return domainauth.TokenMetadata{}, err
+	}
+	_ = s.record(ctx, EventAPITokenRevoked, "api token revoked", actorID, metadata.ID, map[string]any{"subjectId": metadata.SubjectID})
+	metadata.TokenHash = ""
+	return metadata, nil
+}
+
+func (s *Service) ListAPITokens(ctx context.Context, subjectID string) ([]domainauth.TokenMetadata, error) {
+	return s.store.ListTokens(ctx, subjectID)
+}
+
 func (s *Service) RecordDenied(ctx context.Context, subject domainauth.Subject, action string, resource domainauth.Resource) {
 	_ = s.record(ctx, EventPermissionDenied, "permission denied", subject.ID, resource.Type+":"+resource.ID, map[string]any{"action": action, "resourceType": resource.Type})
 }
@@ -199,4 +341,17 @@ func newID(prefix string) string {
 		return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 	}
 	return prefix + "-" + hex.EncodeToString(b[:])
+}
+
+func newRawToken() string {
+	var b [24]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("nivora_%d", time.Now().UnixNano())
+	}
+	return "nivora_" + hex.EncodeToString(b[:])
+}
+
+func hashToken(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return "sha256:" + hex.EncodeToString(sum[:])
 }

@@ -19,6 +19,7 @@ import (
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	noopnotification "github.com/sevoniva/nivora/internal/adapters/notification/noop"
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
+	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	portcloud "github.com/sevoniva/nivora/internal/ports/cloud"
@@ -190,6 +191,77 @@ func TestAuthTokenModeRequiresBearerToken(t *testing.T) {
 	}
 }
 
+func TestServiceAccountAndAPITokenRoutesDoNotLeakHashes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/service-accounts", strings.NewReader(`{"name":"ci","role":"developer","scopeType":"project","scopeId":"project-1"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create service account status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var account struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &account); err != nil {
+		t.Fatalf("decode service account: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens", strings.NewReader(`{"name":"ci-token","subjectId":"`+account.ID+`"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create api token status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "tokenHash") || strings.Contains(rec.Body.String(), "sha256:") {
+		t.Fatalf("token response leaked hash = %s", rec.Body.String())
+	}
+	var token struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &token); err != nil {
+		t.Fatalf("decode api token: %v", err)
+	}
+	if token.Token == "" || token.Metadata.ID == "" {
+		t.Fatalf("expected one-time token and metadata id: %s", rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/tokens", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list api tokens status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), token.Token) || strings.Contains(rec.Body.String(), "tokenHash") {
+		t.Fatalf("list api tokens leaked token material = %s", rec.Body.String())
+	}
+}
+
+func TestCriticalRoutesRequirePermissionInOIDCMode(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "oidc"
+	cfg.Auth.OIDC.Issuer = "https://issuer.example"
+	cfg.Auth.OIDC.ClientID = "nivora"
+	authService := authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+	authService.SetOIDCProvider(routeOIDCProvider{})
+	router := newTestRouterWithAuth(cfg, authService)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments", strings.NewReader(`{}`))
+	req.Header.Set("Authorization", "Bearer viewer-token")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("expected forbidden for viewer deployment create, got %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestApprovalRoutes(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {
@@ -275,6 +347,10 @@ func newTestPipelineService() *pipelineusecase.Service {
 }
 
 func newTestRouter(cfg config.Config) http.Handler {
+	return newTestRouterWithAuth(cfg, authusecase.NewService(authusecase.NewMemoryStore(), memory.New()))
+}
+
+func newTestRouterWithAuth(cfg config.Config, authService *authusecase.Service) http.Handler {
 	artifactService := newTestArtifactService()
 	deploymentService := newTestDeploymentService()
 	return New(
@@ -287,11 +363,20 @@ func newTestRouter(cfg config.Config) http.Handler {
 		newTestReleaseOrchestrationService(artifactService, deploymentService),
 		securityusecase.NewService(securityusecase.NewMemoryStore(), fakeSecurityScanner{}, nil, memory.New()),
 		credentialusecase.NewService(credentialusecase.NewMemoryStore(), builtinsecret.New(), memory.New()),
-		authusecase.NewService(authusecase.NewMemoryStore(), memory.New()),
+		authService,
 		approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New()),
 		newTestCloudService(),
 		pluginusecase.NewDefaultRegistry(),
 	)
+}
+
+type routeOIDCProvider struct{}
+
+func (routeOIDCProvider) Validate(ctx context.Context, token string, issuer string, audience string) (authusecase.OIDCClaims, error) {
+	if token != "viewer-token" || issuer != "https://issuer.example" || audience != "nivora" {
+		return authusecase.OIDCClaims{}, authusecase.ErrUnauthorized
+	}
+	return authusecase.OIDCClaims{Subject: "viewer", Username: "viewer", Roles: []string{domainauth.RoleViewer}}, nil
 }
 
 func TestCloudRoutes(t *testing.T) {

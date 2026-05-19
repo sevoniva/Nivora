@@ -14,7 +14,7 @@ Nivora is in public alpha. This matrix separates implemented foundations from pa
 | Kubernetes YAML | Partial | Static YAML render/validation, resource inventory, health summaries, manifest snapshots, rollback plan baseline | Helm, Kustomize, CRD health, production rollback execution |
 | DevSecOps | Partial | SecurityScan/Finding model, noop/fake scanner, simple policy gate rules, examples | Required Trivy/Cosign/SBOM integrations, OPA/Kyverno/Gatekeeper integration |
 | Secret/Credential | Partial | SecretRef/Credential metadata, development secret provider, redaction utilities, value-env CLI pattern | Vault, cloud KMS, rotation workflows, enterprise credential governance |
-| Auth/RBAC | Partial | Local dev auth, static token mode, RBAC model/evaluator, middleware foundations | OIDC/Keycloak, password login, SSO lifecycle, production identity operations |
+| Auth/RBAC | Partial | Local dev auth, static token mode, service accounts, hashed API tokens, OIDC provider/config foundation, RBAC model/evaluator, middleware foundations | Password login, frontend SSO flow, provider lifecycle management, full production identity operations |
 | Approval | Partial | ApprovalRequest/Decision, change window, notification provider foundations | ITSM integration, external notification delivery guarantees, UI approvals |
 | Cloud Inventory | Partial | CloudAccount model, CloudProvider port, fake AWS/Aliyun/Tencent inventory, skeleton adapters | Real cloud inventory APIs, cloud deployment, cloud security scanning |
 | Host Deployment | Partial | HostTarget/HostGroup model, host plan, noop/local execution, guarded SSH skeleton | Default remote SSH execution, service managers, remote rollback execution |

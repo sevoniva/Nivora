@@ -67,16 +67,24 @@ type ServiceAccount struct {
 	ScopeType string    `json:"scopeType" yaml:"scopeType"`
 	ScopeID   string    `json:"scopeId,omitempty" yaml:"scopeId,omitempty"`
 	Role      string    `json:"role" yaml:"role"`
+	Status    string    `json:"status" yaml:"status"`
 	CreatedAt time.Time `json:"createdAt" yaml:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt" yaml:"updatedAt"`
 }
 
 type TokenMetadata struct {
-	ID        string    `json:"id" yaml:"id"`
-	SubjectID string    `json:"subjectId" yaml:"subjectId"`
-	Name      string    `json:"name,omitempty" yaml:"name,omitempty"`
-	IssuedAt  time.Time `json:"issuedAt" yaml:"issuedAt"`
-	ExpiresAt time.Time `json:"expiresAt,omitempty" yaml:"expiresAt,omitempty"`
+	ID          string     `json:"id" yaml:"id"`
+	SubjectID   string     `json:"subjectId" yaml:"subjectId"`
+	SubjectType string     `json:"subjectType,omitempty" yaml:"subjectType,omitempty"`
+	Name        string     `json:"name,omitempty" yaml:"name,omitempty"`
+	ScopeType   string     `json:"scopeType,omitempty" yaml:"scopeType,omitempty"`
+	ScopeID     string     `json:"scopeId,omitempty" yaml:"scopeId,omitempty"`
+	Roles       []string   `json:"roles,omitempty" yaml:"roles,omitempty"`
+	TokenHash   string     `json:"-" yaml:"-"`
+	IssuedAt    time.Time  `json:"issuedAt" yaml:"issuedAt"`
+	ExpiresAt   *time.Time `json:"expiresAt,omitempty" yaml:"expiresAt,omitempty"`
+	RevokedAt   *time.Time `json:"revokedAt,omitempty" yaml:"revokedAt,omitempty"`
+	LastUsedAt  *time.Time `json:"lastUsedAt,omitempty" yaml:"lastUsedAt,omitempty"`
 }
 
 type Subject struct {
@@ -85,6 +93,9 @@ type Subject struct {
 	DisplayName string   `json:"displayName,omitempty" yaml:"displayName,omitempty"`
 	Roles       []string `json:"roles" yaml:"roles"`
 	AuthMode    string   `json:"authMode" yaml:"authMode"`
+	ScopeType   string   `json:"scopeType,omitempty" yaml:"scopeType,omitempty"`
+	ScopeID     string   `json:"scopeId,omitempty" yaml:"scopeId,omitempty"`
+	TokenID     string   `json:"tokenId,omitempty" yaml:"tokenId,omitempty"`
 }
 
 type Resource struct {

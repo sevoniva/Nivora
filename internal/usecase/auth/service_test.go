@@ -3,6 +3,7 @@ package auth
 import (
 	"context"
 	"testing"
+	"time"
 
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 )
@@ -43,6 +44,82 @@ func TestTokenAuth(t *testing.T) {
 	}
 }
 
+func TestAPITokenHashingAndAuthentication(t *testing.T) {
+	service := NewService(NewMemoryStore(), nil)
+	account, err := service.CreateServiceAccount(context.Background(), ServiceAccountInput{Name: "ci", Role: domainauth.RoleDeveloper, ScopeType: "project", ScopeID: "project-1"}, "admin")
+	if err != nil {
+		t.Fatalf("create service account: %v", err)
+	}
+	result, err := service.CreateAPIToken(context.Background(), APITokenInput{Name: "ci-token", SubjectID: account.ID}, "admin")
+	if err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+	if result.Token == "" {
+		t.Fatalf("expected one-time token")
+	}
+	if result.Metadata.TokenHash != "" {
+		t.Fatalf("token hash leaked in public metadata")
+	}
+	tokens, err := service.ListAPITokens(context.Background(), account.ID)
+	if err != nil {
+		t.Fatalf("list tokens: %v", err)
+	}
+	if len(tokens) != 1 || tokens[0].TokenHash != "" {
+		t.Fatalf("token list leaked hash: %#v", tokens)
+	}
+	subject, err := service.Authenticate(context.Background(), AuthenticateInput{Mode: "token", Token: result.Token})
+	if err != nil {
+		t.Fatalf("authenticate api token: %v", err)
+	}
+	if subject.ID != account.ID || subject.TokenID != result.Metadata.ID {
+		t.Fatalf("unexpected api token subject: %#v", subject)
+	}
+	if _, err := service.Authenticate(context.Background(), AuthenticateInput{Mode: "token", Token: "wrong"}); err == nil {
+		t.Fatalf("expected wrong API token to fail")
+	}
+}
+
+func TestAPITokenExpirationAndRevocation(t *testing.T) {
+	service := NewService(NewMemoryStore(), nil)
+	account, err := service.CreateServiceAccount(context.Background(), ServiceAccountInput{Name: "expired", Role: domainauth.RoleDeveloper}, "admin")
+	if err != nil {
+		t.Fatalf("create service account: %v", err)
+	}
+	expiresAt := time.Now().Add(-time.Minute)
+	result, err := service.CreateAPIToken(context.Background(), APITokenInput{Name: "expired-token", SubjectID: account.ID, ExpiresAt: &expiresAt}, "admin")
+	if err != nil {
+		t.Fatalf("create token: %v", err)
+	}
+	if _, err := service.Authenticate(context.Background(), AuthenticateInput{Mode: "token", Token: result.Token}); err == nil {
+		t.Fatalf("expected expired token to fail")
+	}
+	rotated, err := service.RotateAPIToken(context.Background(), result.Metadata.ID, "admin")
+	if err != nil {
+		t.Fatalf("rotate token: %v", err)
+	}
+	if _, err := service.RevokeAPIToken(context.Background(), rotated.Metadata.ID, "admin"); err != nil {
+		t.Fatalf("revoke token: %v", err)
+	}
+	if _, err := service.Authenticate(context.Background(), AuthenticateInput{Mode: "token", Token: rotated.Token}); err == nil {
+		t.Fatalf("expected revoked token to fail")
+	}
+}
+
+func TestOIDCProviderAuthentication(t *testing.T) {
+	service := NewService(NewMemoryStore(), nil)
+	service.SetOIDCProvider(fakeOIDCProvider{})
+	subject, err := service.Authenticate(context.Background(), AuthenticateInput{Mode: "oidc", Token: "valid", OIDCIssuer: "https://issuer.example", OIDCAudience: "nivora"})
+	if err != nil {
+		t.Fatalf("authenticate oidc: %v", err)
+	}
+	if subject.ID != "user-oidc" || subject.AuthMode != "oidc" || len(subject.Roles) != 1 || subject.Roles[0] != domainauth.RoleMaintainer {
+		t.Fatalf("unexpected oidc subject: %#v", subject)
+	}
+	if _, err := service.Authenticate(context.Background(), AuthenticateInput{Mode: "oidc", Token: "bad"}); err == nil {
+		t.Fatalf("expected invalid oidc token to fail")
+	}
+}
+
 func TestMembershipAudit(t *testing.T) {
 	service := NewService(NewMemoryStore(), nil)
 	membership, err := service.CreateMembership(context.Background(), MembershipInput{UserID: "user-1", Role: domainauth.RoleDeveloper, ScopeType: "project", ScopeID: "project-1"}, "admin")
@@ -59,4 +136,13 @@ func TestMembershipAudit(t *testing.T) {
 	if len(memberships) != 1 {
 		t.Fatalf("memberships len = %d", len(memberships))
 	}
+}
+
+type fakeOIDCProvider struct{}
+
+func (fakeOIDCProvider) Validate(ctx context.Context, token string, issuer string, audience string) (OIDCClaims, error) {
+	if token != "valid" || issuer != "https://issuer.example" || audience != "nivora" {
+		return OIDCClaims{}, ErrUnauthorized
+	}
+	return OIDCClaims{Subject: "user-oidc", Username: "oidc-user", Roles: []string{domainauth.RoleMaintainer}}, nil
 }

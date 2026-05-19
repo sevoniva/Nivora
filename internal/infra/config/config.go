@@ -53,11 +53,21 @@ type TelemetryConfig struct {
 }
 
 type AuthConfig struct {
-	Enabled        bool   `mapstructure:"enabled" yaml:"enabled"`
-	Mode           string `mapstructure:"mode" yaml:"mode"`
-	DevUser        string `mapstructure:"dev_user" yaml:"dev_user"`
-	StaticTokenEnv string `mapstructure:"static_token_env" yaml:"static_token_env"`
-	Issuer         string `mapstructure:"issuer" yaml:"issuer"`
+	Enabled        bool       `mapstructure:"enabled" yaml:"enabled"`
+	Mode           string     `mapstructure:"mode" yaml:"mode"`
+	DevUser        string     `mapstructure:"dev_user" yaml:"dev_user"`
+	StaticTokenEnv string     `mapstructure:"static_token_env" yaml:"static_token_env"`
+	Issuer         string     `mapstructure:"issuer" yaml:"issuer"`
+	OIDC           OIDCConfig `mapstructure:"oidc" yaml:"oidc"`
+}
+
+type OIDCConfig struct {
+	Issuer        string   `mapstructure:"issuer" yaml:"issuer"`
+	ClientID      string   `mapstructure:"client_id" yaml:"client_id"`
+	JWKSURL       string   `mapstructure:"jwks_url" yaml:"jwks_url"`
+	Scopes        []string `mapstructure:"scopes" yaml:"scopes"`
+	GroupsClaim   string   `mapstructure:"groups_claim" yaml:"groups_claim"`
+	UsernameClaim string   `mapstructure:"username_claim" yaml:"username_claim"`
 }
 
 type RunnerConfig struct {
@@ -151,6 +161,14 @@ func (c Config) Validate() error {
 	}
 	if c.Log.Level == "" {
 		return errors.New("config log.level is required")
+	}
+	if c.Auth.Enabled && c.Auth.Mode == "oidc" {
+		if c.Auth.OIDC.Issuer == "" && c.Auth.Issuer == "" {
+			return errors.New("config auth.oidc.issuer is required when auth.mode is oidc")
+		}
+		if c.Auth.OIDC.ClientID == "" {
+			return errors.New("config auth.oidc.client_id is required when auth.mode is oidc")
+		}
 	}
 	return nil
 }

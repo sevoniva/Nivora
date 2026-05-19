@@ -25,7 +25,7 @@ func AuthPermissions(service *authusecase.Service) http.HandlerFunc {
 func AuthTokenInfo() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		subject := apimiddleware.Subject(r.Context())
-		RespondJSON(w, http.StatusOK, authusecase.TokenInfo{Authenticated: subject.ID != "", Mode: subject.AuthMode, SubjectID: subject.ID})
+		RespondJSON(w, http.StatusOK, authusecase.TokenInfo{Authenticated: subject.ID != "", Mode: subject.AuthMode, SubjectID: subject.ID, TokenID: subject.TokenID})
 	}
 }
 
@@ -72,6 +72,77 @@ func ListProjectMembers(service *authusecase.Service) http.HandlerFunc {
 
 func AddProjectMember(service *authusecase.Service) http.HandlerFunc {
 	return addMember(service, "project")
+}
+
+func ListEnvironmentMembers(service *authusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		memberships, err := service.ListMemberships(r.Context(), "environment", chi.URLParam(r, "id"))
+		respondAuthResult(w, r, memberships, err)
+	}
+}
+
+func AddEnvironmentMember(service *authusecase.Service) http.HandlerFunc {
+	return addMember(service, "environment")
+}
+
+func ListServiceAccounts(service *authusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		accounts, err := service.ListServiceAccounts(r.Context(), r.URL.Query().Get("scopeType"), r.URL.Query().Get("scopeId"))
+		respondAuthResult(w, r, accounts, err)
+	}
+}
+
+func CreateServiceAccount(service *authusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input authusecase.ServiceAccountInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a service account request"})
+			return
+		}
+		account, err := service.CreateServiceAccount(r.Context(), input, apimiddleware.Subject(r.Context()).ID)
+		respondAuthResult(w, r, account, err)
+	}
+}
+
+func ListAPITokens(service *authusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		tokens, err := service.ListAPITokens(r.Context(), r.URL.Query().Get("subjectId"))
+		respondAuthResult(w, r, tokens, err)
+	}
+}
+
+func CreateAPIToken(service *authusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input authusecase.APITokenInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an API token request"})
+			return
+		}
+		result, err := service.CreateAPIToken(r.Context(), input, apimiddleware.Subject(r.Context()).ID)
+		if err != nil {
+			respondAuthResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, result)
+	}
+}
+
+func RotateAPIToken(service *authusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := service.RotateAPIToken(r.Context(), chi.URLParam(r, "id"), apimiddleware.Subject(r.Context()).ID)
+		if err != nil {
+			respondAuthResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, result)
+	}
+}
+
+func RevokeAPIToken(service *authusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		metadata, err := service.RevokeAPIToken(r.Context(), chi.URLParam(r, "id"), apimiddleware.Subject(r.Context()).ID)
+		respondAuthResult(w, r, metadata, err)
+	}
 }
 
 func addMember(service *authusecase.Service, scopeType string) http.HandlerFunc {

@@ -13,7 +13,7 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora is early-stage and **not production-ready**. The current focus is the `v0.1.0-alpha.1` foundation: backend architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window foundations, multi-cloud inventory foundations, runner/executor model, logs/events/audit, visualization APIs, minimal web UI, plugin registry, packaging, and open-source contribution foundation. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud deployment, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, external notification adapters, ITSM integration, signing, and scanning remain future phases.
+Nivora is early-stage and **not production-ready**. The current focus is the `v0.1.0-alpha.1` foundation: backend architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, service-account API tokens, OIDC provider configuration foundations, approval/change-window foundations, multi-cloud inventory foundations, runner/executor model, logs/events/audit, visualization APIs, minimal web UI, plugin registry, packaging, and open-source contribution foundation. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud deployment, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, external notification adapters, ITSM integration, signing, and scanning remain future phases.
 
 ## Current Status
 
@@ -1132,14 +1132,16 @@ go run ./cmd/nivora credential create --file examples/credentials/registry-crede
 
 Secret values are accepted only at creation boundaries and are not returned by normal APIs. The builtin provider is development-only; Vault, Kubernetes Secret, and cloud KMS adapters remain future work.
 
-Phase 3.2 adds local auth and RBAC foundations:
+Phase 7.0 hardens the local auth and RBAC foundations:
 
 ```bash
 go run ./cmd/nivora auth whoami
 go run ./cmd/nivora auth permissions
+go run ./cmd/nivora auth service-account create --name ci --role developer
+go run ./cmd/nivora auth token create --subject-id <service-account-id>
 ```
 
-Dev auth is not production authentication. Static token mode reads token values from environment variables, and OIDC/Keycloak integration remains future work.
+Dev auth is not production authentication. Static token mode reads token values from environment variables. OIDC is provider-configured backend foundation work; full browser SSO and provider lifecycle operations remain future work.
 
 ## Documentation
 

@@ -584,6 +584,26 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.service_account.created:
+    address: devops.service_account.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.api_token.created:
+    address: devops.api_token.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.api_token.rotated:
+    address: devops.api_token.rotated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.api_token.revoked:
+    address: devops.api_token.revoked
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.approval.requested:
     address: devops.approval.requested
     messages:

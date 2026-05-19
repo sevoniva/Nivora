@@ -2,6 +2,7 @@ package middleware
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -26,6 +27,28 @@ func TestAuthenticateUnauthorizedInTokenMode(t *testing.T) {
 	}
 }
 
+func TestAuthenticateOIDCMode(t *testing.T) {
+	service := authusecase.NewService(authusecase.NewMemoryStore(), nil)
+	service.SetOIDCProvider(testOIDCProvider{})
+	cfg := config.AuthConfig{Enabled: true, Mode: "oidc"}
+	cfg.OIDC.Issuer = "https://issuer.example"
+	cfg.OIDC.ClientID = "nivora"
+	handler := Authenticate(cfg, service, testErrorWriter)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		subject := Subject(r.Context())
+		if subject.ID != "oidc-user" {
+			t.Fatalf("subject = %#v", subject)
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	req.Header.Set("Authorization", "Bearer valid")
+	rec := httptest.NewRecorder()
+	handler.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d", rec.Code)
+	}
+}
+
 func TestRequirePermissionForbidden(t *testing.T) {
 	service := authusecase.NewService(authusecase.NewMemoryStore(), nil)
 	handler := RequirePermission(service, domainauth.PermissionCredentialManage, testErrorWriter, func(w http.ResponseWriter, r *http.Request) {
@@ -42,4 +65,13 @@ func TestRequirePermissionForbidden(t *testing.T) {
 
 func testErrorWriter(w http.ResponseWriter, r *http.Request, status int, payload dto.ErrorResponse) {
 	w.WriteHeader(status)
+}
+
+type testOIDCProvider struct{}
+
+func (testOIDCProvider) Validate(ctx context.Context, token string, issuer string, audience string) (authusecase.OIDCClaims, error) {
+	if token != "valid" || issuer != "https://issuer.example" || audience != "nivora" {
+		return authusecase.OIDCClaims{}, errors.New("invalid")
+	}
+	return authusecase.OIDCClaims{Subject: "oidc-user", Roles: []string{domainauth.RoleViewer}}, nil
 }

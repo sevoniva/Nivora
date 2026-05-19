@@ -336,9 +336,163 @@ func newPluginsInspectCommand() *cobra.Command {
 
 func newAuthCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "auth", Short: "Authentication and RBAC utilities"}
+	cmd.AddCommand(newAuthInspectCommand("login-token", "Validate a bearer token from an environment variable", "/api/v1/auth/whoami"))
 	cmd.AddCommand(newAuthInspectCommand("whoami", "Show the current authenticated subject", "/api/v1/auth/whoami"))
 	cmd.AddCommand(newAuthInspectCommand("permissions", "List known permissions", "/api/v1/auth/permissions"))
 	cmd.AddCommand(newAuthInspectCommand("token-info", "Show token metadata without printing token values", "/api/v1/auth/token-info"))
+	cmd.AddCommand(newAuthServiceAccountCommand())
+	cmd.AddCommand(newAuthTokenCommand())
+	return cmd
+}
+
+func newAuthServiceAccountCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "service-account", Short: "Service account utilities"}
+	cmd.AddCommand(newAuthServiceAccountListCommand())
+	cmd.AddCommand(newAuthServiceAccountCreateCommand())
+	return cmd
+}
+
+func newAuthServiceAccountListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List service accounts",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/service-accounts", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newAuthServiceAccountCreateCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var name string
+	var role string
+	var scopeType string
+	var scopeID string
+	cmd := &cobra.Command{
+		Use:   "create --name <name>",
+		Short: "Create a service account",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if name == "" {
+				return fmt.Errorf("--name is required")
+			}
+			body, err := json.Marshal(map[string]string{"name": name, "role": role, "scopeType": scopeType, "scopeId": scopeID})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/service-accounts", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&name, "name", "", "service account name")
+	cmd.Flags().StringVar(&role, "role", "developer", "service account role")
+	cmd.Flags().StringVar(&scopeType, "scope-type", "project", "service account scope type")
+	cmd.Flags().StringVar(&scopeID, "scope-id", "", "service account scope id")
+	return cmd
+}
+
+func newAuthTokenCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "token", Short: "API token utilities"}
+	cmd.AddCommand(newAuthTokenCreateCommand())
+	cmd.AddCommand(newAuthTokenListCommand())
+	cmd.AddCommand(newAuthTokenRotateCommand())
+	cmd.AddCommand(newAuthTokenRevokeCommand())
+	return cmd
+}
+
+func newAuthTokenCreateCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var name string
+	var subjectID string
+	cmd := &cobra.Command{
+		Use:   "create --subject-id <service-account-id>",
+		Short: "Create an API token; the raw token is printed only once",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if subjectID == "" {
+				return fmt.Errorf("--subject-id is required")
+			}
+			body, err := json.Marshal(map[string]string{"name": name, "subjectId": subjectID})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/auth/tokens", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&name, "name", "", "token name")
+	cmd.Flags().StringVar(&subjectID, "subject-id", "", "service account subject id")
+	return cmd
+}
+
+func newAuthTokenListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List API token metadata without token values",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/auth/tokens", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newAuthTokenRotateCommand() *cobra.Command {
+	return newAuthTokenMutateCommand("rotate", "Rotate an API token; the raw token is printed only once", "/rotate")
+}
+
+func newAuthTokenRevokeCommand() *cobra.Command {
+	return newAuthTokenMutateCommand("revoke", "Revoke an API token", "/revoke")
+}
+
+func newAuthTokenMutateCommand(name string, short string, suffix string) *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   name + " <token-id>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/auth/tokens/"+args[0]+suffix, nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 

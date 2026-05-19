@@ -51,6 +51,12 @@ config:
     mode: dev
     devUser: local-admin
     staticTokenEnv: NIVORA_AUTH_TOKEN
+    oidc:
+      issuer: ""
+      clientId: ""
+      jwksUrl: ""
+      groupsClaim: groups
+      usernameClaim: preferred_username
 
 secret:
   create: true

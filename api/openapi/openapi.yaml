@@ -170,6 +170,72 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/TokenMetadata"
+  /api/v1/service-accounts:
+    get:
+      summary: List service accounts
+      responses:
+        "200":
+          description: Service account list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ServiceAccount"
+    post:
+      summary: Create a service account
+      responses:
+        "200":
+          description: Service account created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ServiceAccount"
+  /api/v1/auth/tokens:
+    get:
+      summary: List API token metadata without token values
+      responses:
+        "200":
+          description: API token metadata list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/APITokenMetadata"
+    post:
+      summary: Create an API token and return the raw token once
+      responses:
+        "201":
+          description: API token created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/APITokenCreateResponse"
+  /api/v1/auth/tokens/{id}/rotate:
+    post:
+      summary: Rotate an API token and return the raw token once
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: API token rotated
+  /api/v1/auth/tokens/{id}/revoke:
+    post:
+      summary: Revoke an API token
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: API token revoked
   /api/v1/users:
     get:
       summary: List local users
@@ -2591,6 +2657,64 @@ components:
         issuedAt:
           type: string
           format: date-time
+    ServiceAccount:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    APITokenMetadata:
+      type: object
+      description: API token metadata. Raw token values and hashes are never returned by list APIs.
+      properties:
+        id:
+          type: string
+        subjectId:
+          type: string
+        subjectType:
+          type: string
+        name:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        roles:
+          type: array
+          items:
+            type: string
+        issuedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        revokedAt:
+          type: string
+          format: date-time
+    APITokenCreateResponse:
+      type: object
+      properties:
+        metadata:
+          $ref: "#/components/schemas/APITokenMetadata"
+        token:
+          type: string
+          description: Raw token returned once on create or rotate.
     SecretRef:
       type: object
       properties:

@@ -41,7 +41,7 @@ go run ./cmd/nivora config validate --file configs/production.example.yaml
 - `object_store.path`: local object-store directory.
 - `log.level`: info, debug, warn, or error.
 - `telemetry.enabled`: tracing/metrics integration switch for future external telemetry.
-- `auth`: local dev or token mode configuration.
+- `auth`: local dev, token, or OIDC foundation configuration. Token values and OIDC secrets must come from environment variables or secret providers, not committed files.
 - `runner`: runner name, group, and heartbeat interval.
 
 ## Secrets

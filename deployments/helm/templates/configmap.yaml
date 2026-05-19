@@ -30,6 +30,13 @@ data:
       dev_user: {{ .Values.config.auth.devUser | quote }}
       static_token_env: {{ .Values.config.auth.staticTokenEnv | quote }}
       issuer: ""
+      oidc:
+        issuer: {{ .Values.config.auth.oidc.issuer | quote }}
+        client_id: {{ .Values.config.auth.oidc.clientId | quote }}
+        jwks_url: {{ .Values.config.auth.oidc.jwksUrl | quote }}
+        scopes: []
+        groups_claim: {{ .Values.config.auth.oidc.groupsClaim | quote }}
+        username_claim: {{ .Values.config.auth.oidc.usernameClaim | quote }}
     runner:
       name: {{ .Values.runner.name | quote }}
       group: {{ .Values.runner.group | quote }}
@@ -59,6 +66,13 @@ data:
       dev_user: {{ .Values.config.auth.devUser | quote }}
       static_token_env: {{ .Values.config.auth.staticTokenEnv | quote }}
       issuer: ""
+      oidc:
+        issuer: {{ .Values.config.auth.oidc.issuer | quote }}
+        client_id: {{ .Values.config.auth.oidc.clientId | quote }}
+        jwks_url: {{ .Values.config.auth.oidc.jwksUrl | quote }}
+        scopes: []
+        groups_claim: {{ .Values.config.auth.oidc.groupsClaim | quote }}
+        username_claim: {{ .Values.config.auth.oidc.usernameClaim | quote }}
     runner:
       name: {{ .Values.runner.name | quote }}
       group: {{ .Values.runner.group | quote }}
@@ -88,6 +102,13 @@ data:
       dev_user: {{ .Values.config.auth.devUser | quote }}
       static_token_env: {{ .Values.config.auth.staticTokenEnv | quote }}
       issuer: ""
+      oidc:
+        issuer: {{ .Values.config.auth.oidc.issuer | quote }}
+        client_id: {{ .Values.config.auth.oidc.clientId | quote }}
+        jwks_url: {{ .Values.config.auth.oidc.jwksUrl | quote }}
+        scopes: []
+        groups_claim: {{ .Values.config.auth.oidc.groupsClaim | quote }}
+        username_claim: {{ .Values.config.auth.oidc.usernameClaim | quote }}
     runner:
       name: {{ .Values.runner.name | quote }}
       group: {{ .Values.runner.group | quote }}

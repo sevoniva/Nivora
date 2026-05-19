@@ -104,6 +104,8 @@ For a quick path through the project:
 - [Docker Compose Install](operations/install-docker-compose.md)
 - [Kubernetes Install](operations/install-kubernetes.md)
 - [Observability Operations](operations/observability.md)
+- [OIDC Auth](operations/auth-oidc.md)
+- [RBAC Operations](operations/rbac.md)
 - [Database Operations](operations/database.md)
 - [Artifact Registries](operations/artifact-registries.md)
 - [Runtime Recovery Operations](operations/runtime-recovery.md)

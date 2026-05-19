@@ -18,7 +18,8 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 - Secret redaction and audit rules.
 - Local AuthN/AuthZ and RBAC foundation.
 - Token auth mode with token values sourced from environment variables.
-- OIDC and Keycloak placeholders only.
+- OIDC provider interface and configuration foundation.
+- Service accounts and hashed API token lifecycle foundation.
 - ApprovalRequest and ApprovalDecision foundations.
 - Simple ChangeWindow evaluation.
 - NotificationProvider port with noop/log-style local behavior.

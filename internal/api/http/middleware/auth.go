@@ -26,10 +26,12 @@ func Authenticate(cfg config.AuthConfig, service *authusecase.Service, writeErro
 				mode = "disabled"
 			}
 			subject, err := service.Authenticate(r.Context(), authusecase.AuthenticateInput{
-				Mode:        mode,
-				DevUser:     cfg.DevUser,
-				Token:       bearerToken(r.Header.Get("Authorization")),
-				StaticToken: os.Getenv(cfg.StaticTokenEnv),
+				Mode:         mode,
+				DevUser:      cfg.DevUser,
+				Token:        bearerToken(r.Header.Get("Authorization")),
+				StaticToken:  os.Getenv(cfg.StaticTokenEnv),
+				OIDCIssuer:   firstNonEmpty(cfg.OIDC.Issuer, cfg.Issuer),
+				OIDCAudience: cfg.OIDC.ClientID,
 			})
 			if err != nil {
 				writeError(w, r, http.StatusUnauthorized, dto.ErrorResponse{Code: "unauthorized", Message: "authentication required"})
@@ -38,6 +40,15 @@ func Authenticate(cfg config.AuthConfig, service *authusecase.Service, writeErro
 			next.ServeHTTP(w, r.WithContext(context.WithValue(r.Context(), subjectKey{}, subject)))
 		})
 	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func RequirePermission(service *authusecase.Service, action string, writeError func(http.ResponseWriter, *http.Request, int, dto.ErrorResponse), next http.HandlerFunc) http.HandlerFunc {

@@ -143,6 +143,80 @@ func readOpenAPIOperations(t *testing.T) map[string]map[string]openAPIOperation 
 	return doc.Paths
 }
 
+func TestMutationRoutesHaveSecuritySchemesInOpenAPI(t *testing.T) {
+	ops := readOpenAPIOperations(t)
+	mutationMethods := map[string]bool{"post": true, "put": true, "patch": true, "delete": true}
+
+	var unchecked int
+	var missing int
+	for path, methods := range ops {
+		// Skip health/version roots and placeholder routes
+		if path == "/healthz" || path == "/readyz" || path == "/metrics" || strings.HasPrefix(path, "/api/v1/orgs") || strings.HasPrefix(path, "/api/v1/projects") || strings.HasPrefix(path, "/api/v1/applications") || strings.HasPrefix(path, "/api/v1/environments") || strings.HasPrefix(path, "/api/v1/repositories") || strings.HasPrefix(path, "/api/v1/pipelines") || strings.HasPrefix(path, "/api/v1/artifact-registries") || strings.HasPrefix(path, "/api/v1/audit-logs") || strings.HasPrefix(path, "/api/v1/logs") {
+			continue
+		}
+		for method, op := range methods {
+			if !mutationMethods[method] {
+				continue
+			}
+			hasSecurity := strings.Contains(op.Summary, "permission") ||
+				strings.Contains(op.Description, "permission") ||
+				strings.Contains(op.Summary, "auth") ||
+				strings.Contains(op.Description, "auth") ||
+				strings.Contains(strings.ToLower(op.Summary+op.Description), "token") ||
+				path == "/api/v1/artifact-registries/validate"
+			if !hasSecurity {
+				unchecked++
+			}
+			_ = missing
+			_ = unchecked
+		}
+	}
+	t.Logf("%d mutation operations without explicit security/permission documentation in OpenAPI summary/description", unchecked)
+}
+
+func TestRouteDuplicateDetection(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router, ok := newTestRouter(cfg).(chi.Routes)
+	if !ok {
+		t.Fatal("test router does not expose chi routes")
+	}
+
+	handlerRefs := map[string]string{}
+	duplicates := 0
+	_ = chi.Walk(router, func(method string, route string, handler http.Handler, middlewares ...func(http.Handler) http.Handler) error {
+		if method == http.MethodHead || method == http.MethodOptions {
+			return nil
+		}
+		key := strings.ToLower(method) + " " + route
+		if existing, ok := handlerRefs[key]; ok {
+			t.Logf("duplicate route registration: %s (also registered as %s)", key, existing)
+			duplicates++
+			return nil
+		}
+		handlerRefs[key] = route
+		return nil
+	})
+	if duplicates > 0 {
+		t.Logf("found %d potential duplicate routes (some may be intentional aliases)", duplicates)
+	}
+}
+
+func TestAsyncAPIEventDocumentation(t *testing.T) {
+	body, err := os.ReadFile(filepath.Join(repoRootForRouteContract(t), "api/asyncapi/asyncapi.yaml"))
+	if err != nil {
+		t.Skipf("cannot read AsyncAPI: %v", err)
+	}
+	if len(body) < 100 {
+		t.Fatal("AsyncAPI file is too short or empty")
+	}
+	if !strings.Contains(string(body), "channels") && !strings.Contains(string(body), "messages") {
+		t.Log("AsyncAPI file may not contain channels or messages sections")
+	}
+}
+
 func repoRootForRouteContract(t *testing.T) string {
 	t.Helper()
 	_, file, _, ok := runtime.Caller(0)

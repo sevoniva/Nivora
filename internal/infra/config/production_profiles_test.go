@@ -68,6 +68,54 @@ func TestComposeProductionProfileAvoidsUnsafeDefaults(t *testing.T) {
 	}
 }
 
+func TestProductionConfigRejectsMemoryStore(t *testing.T) {
+	cfg := Default()
+	cfg.Env = "production"
+	cfg.Database.RuntimeStore = "memory"
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected production to reject memory runtime store")
+	}
+}
+
+func TestProductionConfigRejectsDevAuth(t *testing.T) {
+	cfg := Default()
+	cfg.Env = "production"
+	cfg.Database.RuntimeStore = "postgres"
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "dev"
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected production to reject dev auth mode")
+	}
+}
+
+func TestOIDCConfigRequiresIssuerAndClientID(t *testing.T) {
+	cfg := Default()
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "oidc"
+	err := cfg.Validate()
+	if err == nil {
+		t.Fatal("expected OIDC to require issuer/client_id")
+	}
+}
+
+func TestDefaultConfigIsSafeForDev(t *testing.T) {
+	cfg := Default()
+	if cfg.Env != "local" {
+		t.Fatalf("expected env=local, got %s", cfg.Env)
+	}
+	if cfg.Database.RuntimeStore != "memory" {
+		t.Fatalf("expected runtime_store=memory, got %s", cfg.Database.RuntimeStore)
+	}
+	if cfg.Auth.Enabled {
+		t.Fatal("expected auth disabled by default")
+	}
+	if !cfg.Runtime.AllowLocalShellExecutor {
+		t.Fatal("expected local shell allowed in default dev config")
+	}
+}
+
 func nestedMap(t *testing.T, values map[string]any, key string) map[string]any {
 	t.Helper()
 	raw, ok := values[key]

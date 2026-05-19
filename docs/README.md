@@ -128,6 +128,9 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 ## Engineering Guardrails
 
 - [Developer Getting Started](dev/getting-started.md)
+- [Testing Strategy](dev/testing-strategy.md)
+- [Acceptance Tests](dev/acceptance-tests.md)
+- [Quality Dashboard](dev/quality-dashboard.md)
 - [Local PipelineRun Development](dev/local-pipeline-run.md)
 - [YAML Deployment Dry-Run](dev/deployment-yaml-dry-run.md)
 - [Kubernetes YAML Runtime](dev/kubernetes-yaml-runtime.md)

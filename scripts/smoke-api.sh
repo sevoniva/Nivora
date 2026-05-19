@@ -36,6 +36,15 @@ curl -fsS "${BASE_URL}/healthz" >/dev/null || {
   cat "$LOG_FILE" >&2
   exit 1
 }
+curl -fsS "${BASE_URL}/readyz" >/dev/null || {
+  echo "server did not become ready" >&2
+  cat "$LOG_FILE" >&2
+  exit 1
+}
+curl -fsS "${BASE_URL}/api/v1/version" | grep '"version"' >/dev/null || {
+  echo "version endpoint did not return version information" >&2
+  exit 1
+}
 
 echo "==> Creating PipelineRun through API"
 response="$(curl -fsS -X POST "${BASE_URL}/api/v1/pipeline-runs" \

@@ -1,11 +1,20 @@
-apiVersion: nivora.sevoniva.dev/v1alpha1
+apiVersion: nivora.io/v1alpha1
 kind: Deployment
 metadata:
   name: host-release
 spec:
-  mode: host
-  target: staging-hosts
+  application: example-service
+  environment: staging
+  target:
+    type: host
+    name: staging-hosts
   artifact:
     name: example-service
+    type: binary
+    reference: ./dist/example-service.tar.gz
     digest: sha256:example
-
+  host:
+    deployPath: /opt/nivora/apps/example-service
+    serviceName: example-service
+    strategy: symlink
+    dryRun: true

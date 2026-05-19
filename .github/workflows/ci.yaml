@@ -38,8 +38,10 @@ jobs:
         run: make verify-architecture
       - name: Verify no committed secrets
         run: make verify-no-secrets
+      - name: Validate examples and migrations
+        run: make verify-examples
       - name: Verify local runtime smoke paths
-        run: make verify-runtime verify-api verify-deployment verify-release verify-security verify-host
+        run: make verify-runtime verify-api verify-cli verify-deployment verify-release verify-security verify-host
       - name: Verify API specs
         run: make verify-api-specs
       - name: Verify packaging templates

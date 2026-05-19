@@ -7,16 +7,32 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"time"
 
 	"github.com/sevoniva/nivora/internal/ports/executor"
 )
 
+const DefaultMaxOutputBytes = 10 * 1024 * 1024
+const MaxTimeoutSeconds = 3600
+
+type Config struct {
+	MaxOutputBytes int64
+}
+
 type Executor struct {
 	lastLog []byte
+	cfg     Config
 }
 
 func New() *Executor {
-	return &Executor{}
+	return NewWithConfig(Config{})
+}
+
+func NewWithConfig(cfg Config) *Executor {
+	if cfg.MaxOutputBytes <= 0 {
+		cfg.MaxOutputBytes = DefaultMaxOutputBytes
+	}
+	return &Executor{cfg: cfg}
 }
 
 func (e *Executor) Prepare(ctx context.Context, job executor.JobContext) error {
@@ -39,7 +55,11 @@ func (e *Executor) Run(ctx context.Context, command executor.Command) (executor.
 	runCtx := ctx
 	cancel := func() {}
 	if command.Timeout > 0 {
-		runCtx, cancel = context.WithTimeout(ctx, command.Timeout)
+		timeout := command.Timeout
+		if timeout.Seconds() > MaxTimeoutSeconds {
+			timeout = time.Duration(MaxTimeoutSeconds) * time.Second
+		}
+		runCtx, cancel = context.WithTimeout(ctx, timeout)
 	}
 	defer cancel()
 
@@ -59,14 +79,27 @@ func (e *Executor) Run(ctx context.Context, command executor.Command) (executor.
 	if cmd.ProcessState != nil {
 		exitCode = cmd.ProcessState.ExitCode()
 	}
+
+	stdoutStr := stdout.String()
+	stderrStr := stderr.String()
+	if int64(len(stdoutStr)) > e.cfg.MaxOutputBytes {
+		stdoutStr = stdoutStr[:e.cfg.MaxOutputBytes] + "\n[output truncated]"
+	}
+	if int64(len(stderrStr)) > e.cfg.MaxOutputBytes {
+		stderrStr = stderrStr[:e.cfg.MaxOutputBytes] + "\n[output truncated]"
+	}
+
 	result := executor.Result{
 		ExitCode: exitCode,
-		Stdout:   stdout.String(),
-		Stderr:   stderr.String(),
+		Stdout:   stdoutStr,
+		Stderr:   stderrStr,
 	}
 	e.lastLog = append([]byte(nil), append(stdout.Bytes(), stderr.Bytes()...)...)
 
 	if runCtx.Err() != nil {
+		if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
+			return result, fmt.Errorf("command timed out after %v: %w", command.Timeout, runCtx.Err())
+		}
 		return result, runCtx.Err()
 	}
 	return result, err

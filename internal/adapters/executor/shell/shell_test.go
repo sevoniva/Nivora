@@ -74,3 +74,55 @@ func TestRunFailure(t *testing.T) {
 		t.Fatalf("stderr = %q", result.Stderr)
 	}
 }
+
+func TestRunLargeOutputTruncation(t *testing.T) {
+	exec := NewWithConfig(Config{MaxOutputBytes: 1024})
+	result, err := exec.Run(context.Background(), executor.Command{
+		Name:    "sh",
+		Args:    []string{"-c", `for i in $(seq 1 4000); do printf "x"; done`},
+		Timeout: 5 * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("run command: %v", err)
+	}
+	if int64(len(result.Stdout)) < 1024 {
+		t.Fatalf("expected truncated output >= 1024 bytes, got %d", len(result.Stdout))
+	}
+	if int64(len(result.Stdout)) > 1024+200 {
+		t.Fatalf("expected truncated output near 1024 bytes, got %d", len(result.Stdout))
+	}
+	if !strings.Contains(result.Stdout, "[output truncated]") {
+		t.Fatal("expected truncation marker in output")
+	}
+}
+
+func TestRunMaxTimeoutClamped(t *testing.T) {
+	exec := New()
+	result, err := exec.Run(context.Background(), executor.Command{
+		Name:    "echo",
+		Args:    []string{"ok"},
+		Timeout: time.Duration(MaxTimeoutSeconds+1) * time.Second,
+	})
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if result.ExitCode != 0 {
+		t.Fatalf("exit code = %d", result.ExitCode)
+	}
+}
+
+func TestRunExplicitEnvIsolation(t *testing.T) {
+	exec := New()
+	result, err := exec.Run(context.Background(), executor.Command{
+		Name:    "sh",
+		Args:    []string{"-c", `printf "%s" "$MY_VAR"`},
+		Env:     map[string]string{"PATH": "/bin:/usr/bin", "MY_VAR": "isolated_value"},
+		Timeout: time.Second,
+	})
+	if err != nil {
+		t.Fatalf("run command: %v", err)
+	}
+	if result.Stdout != "isolated_value" {
+		t.Fatalf("expected isolated_value, got %q", result.Stdout)
+	}
+}

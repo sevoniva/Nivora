@@ -2,7 +2,40 @@
 
 All notable changes to Nivora are tracked here.
 
-Nivora is early-stage software. Releases before `1.0.0` may change APIs, configuration, and runtime behavior as the architecture hardens.
+Nivora uses honest capability labels. A `v1.0.0` release can include production-ready foundations alongside beta and experimental capabilities when those limitations are explicit.
+
+## v1.0.0 - Prepared
+
+This is the Phase 10.0 GA readiness baseline. It sets the project version to `1.0.0`, adds the GA capability matrix and checklist, and prepares release notes for maintainer approval.
+
+### Production-Ready Scope
+
+- Architecture guardrails, module boundaries, and verification discipline.
+- Documentation, tutorials, examples, release playbook, and operations guides.
+- CLI-driven local verification paths.
+- OpenAPI/AsyncAPI parsing and API inventory discipline.
+- Secure-default review, secret scan, and redaction test coverage.
+
+### Beta Scope
+
+- Shell PipelineRun runtime, runner protocol, and runtime recovery foundations.
+- PostgreSQL persistence for critical PipelineRun runtime entities.
+- Kubernetes YAML planning, dry-run, guarded apply, inventory, health, diff, and rollback foundations.
+- Artifact binding, OCI digest resolution foundation, release orchestration, observability, diagnostics, and packaging.
+
+### Experimental Scope
+
+- GitOps/Argo CD guarded sync foundations.
+- DevSecOps external integrations.
+- Cloud inventory adapters.
+- Host remote deployment.
+- Minimal web console.
+
+### Release Notes
+
+- See `docs/releases/v1.0.0-release-notes.md`.
+- See `docs/releases/v1.0.0-ga-capability-matrix.md`.
+- See `docs/releases/v1.0.0-ga-checklist.md`.
 
 ## v1.0.0-rc.1 - Draft
 

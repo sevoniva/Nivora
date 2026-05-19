@@ -1,6 +1,6 @@
 # Nivora Documentation
 
-This index helps new contributors understand where to start. Nivora has an alpha foundation, a `v0.5.0-beta` readiness freeze baseline, and a `v1.0.0-rc.1` release-candidate hardening baseline. It is still early-stage and not production-ready.
+This index helps new contributors understand where to start. Nivora has a `v1.0.0` GA readiness baseline with explicit production-ready, beta, experimental, planned, and unsupported capability labels.
 
 ## Start Here
 
@@ -107,6 +107,9 @@ For a quick path through the project:
 - [v0.5.0-beta Checklist](releases/v0.5.0-beta-checklist.md)
 - [v0.5.0-beta Release Notes Draft](releases/v0.5.0-beta-release-notes-draft.md)
 - [v1.0.0-rc.1 Checklist](releases/v1.0.0-rc.1-checklist.md)
+- [v1.0.0 GA Capability Matrix](releases/v1.0.0-ga-capability-matrix.md)
+- [v1.0.0 GA Checklist](releases/v1.0.0-ga-checklist.md)
+- [v1.0.0 Release Notes](releases/v1.0.0-release-notes.md)
 - [Release Playbook](releases/release-playbook.md)
 
 ## Role-Based Guides

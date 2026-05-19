@@ -5,9 +5,6 @@ required_files="
 VERSION
 CHANGELOG.md
 .github/release-template.md
-docs/ALPHA_CAPABILITY_MATRIX.md
-docs/demo/alpha-demo.md
-docs/releases/v0.1.0-alpha.1-checklist.md
 "
 
 for file in $required_files; do
@@ -18,21 +15,58 @@ for file in $required_files; do
 done
 
 version="$(tr -d '[:space:]' < VERSION)"
-if [ "$version" != "0.1.0-alpha.1" ]; then
-  echo "VERSION must be 0.1.0-alpha.1, got $version" >&2
-  exit 1
-fi
 
-if ! grep -q 'Version = "0.1.0-alpha.1"' internal/version/version.go; then
+if ! grep -q "Version = \"$version\"" internal/version/version.go; then
   echo "internal/version/version.go is not aligned with VERSION" >&2
   exit 1
 fi
 
-for file in README.md CHANGELOG.md docs/ALPHA_CAPABILITY_MATRIX.md docs/demo/alpha-demo.md docs/releases/v0.1.0-alpha.1-checklist.md; do
-  if ! grep -qi 'not production-ready\|not production ready\|not a production' "$file"; then
-    echo "$file must state the alpha is not production-ready" >&2
+case "$version" in
+  0.1.0-alpha.1)
+    required_release_files="
+docs/ALPHA_CAPABILITY_MATRIX.md
+docs/demo/alpha-demo.md
+docs/releases/v0.1.0-alpha.1-checklist.md
+"
+    for file in $required_release_files; do
+      if [ ! -s "$file" ]; then
+        echo "missing required alpha release file: $file" >&2
+        exit 1
+      fi
+    done
+    for file in README.md CHANGELOG.md docs/ALPHA_CAPABILITY_MATRIX.md docs/demo/alpha-demo.md docs/releases/v0.1.0-alpha.1-checklist.md; do
+      if ! grep -qi 'not production-ready\|not production ready\|not a production' "$file"; then
+        echo "$file must state the alpha is not production-ready" >&2
+        exit 1
+      fi
+    done
+    ;;
+  1.0.0)
+    required_release_files="
+docs/releases/v1.0.0-ga-capability-matrix.md
+docs/releases/v1.0.0-ga-checklist.md
+docs/releases/v1.0.0-release-notes.md
+docs/releases/release-playbook.md
+docs/security/threat-model.md
+docs/security/security-review-checklist.md
+"
+    for file in $required_release_files; do
+      if [ ! -s "$file" ]; then
+        echo "missing required GA release file: $file" >&2
+        exit 1
+      fi
+    done
+    for file in README.md CHANGELOG.md docs/releases/v1.0.0-ga-capability-matrix.md docs/releases/v1.0.0-ga-checklist.md docs/releases/v1.0.0-release-notes.md; do
+      if ! grep -qi 'experimental\|known limitations\|beta' "$file"; then
+        echo "$file must describe GA limitations or capability labels" >&2
+        exit 1
+      fi
+    done
+    ;;
+  *)
+    echo "unsupported release VERSION for release-doc verification: $version" >&2
     exit 1
-  fi
-done
+    ;;
+esac
 
-echo "Alpha release docs are present and version-aligned."
+echo "Release docs are present and version-aligned for $version."

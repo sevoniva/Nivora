@@ -17,7 +17,7 @@ This playbook is for maintainers preparing Nivora releases. It complements the v
 3. Review the matching checklist:
    - `docs/releases/v0.5.0-beta-checklist.md`
    - `docs/releases/v1.0.0-rc.1-checklist.md`
-   - future release checklist
+   - `docs/releases/v1.0.0-ga-checklist.md`
 4. Review [Security Review Checklist](../security/security-review-checklist.md).
 5. Run the baseline verification commands:
 

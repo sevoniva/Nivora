@@ -13,7 +13,7 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora is early-stage and **not production-ready**. The current focus is the `v1.0.0-rc.1` / pre-GA hardening baseline: API stability review, migration forward/backward review, install validation, runtime recovery review, runner protocol review, security threat modeling, credential/defaults review, performance smoke checks, operational docs, and release automation. The beta foundation covers shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, service-account API tokens, OIDC provider configuration foundations, approval/change-window foundations, multi-cloud inventory foundations, runner/executor model, logs/events/audit, visualization APIs, minimal web UI, plugin registry, packaging, observability, performance/load-test foundations, and open-source contribution docs. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud deployment, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, external notification adapters, ITSM integration, signing, and scanning remain guarded foundations or future phases until maintainers close the RC and security checklists.
+Nivora `v1.0.0` is prepared as a GA readiness baseline with honest capability labels. Production-ready areas include architecture guardrails, documentation, local verification, API/spec discipline, secure-default review, and release operations. Runtime, Kubernetes YAML, runner, artifact, release orchestration, observability, and packaging capabilities are documented as beta foundations where appropriate. GitOps/Argo CD automation, cloud inventory adapters, host remote deployment, external DevSecOps integrations, and the web console remain experimental or future work unless the GA capability matrix says otherwise.
 
 ## Current Status
 
@@ -47,6 +47,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the `v1
 | Beta freeze | Phase 9.0 consistency/API/docs/examples/security baseline for `v0.5.0-beta` |
 | Release candidate hardening | Phase 9.1 API/migration/install/security/release baseline for `v1.0.0-rc.1` |
 | Security threat model | Phase 9.2 pre-GA threat model and security review checklist |
+| GA readiness | Phase 10.0 `v1.0.0` capability matrix, checklist, release notes, versioning, and final verification |
 | Production multi-cloud adapters | Planned |
 | Production DevSecOps integrations | Planned |
 | Complete frontend visualization product | Future phase |
@@ -54,7 +55,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the `v1
 Current focus:
 
 ```text
-v1.0.0-rc.1 / pre-GA hardening baseline
+v1.0.0 GA readiness baseline
 honest capability boundaries
 self-contained demo path
 runtime, install, and packaging verification
@@ -72,6 +73,9 @@ Alpha release references:
 - [v0.5.0-beta Checklist](docs/releases/v0.5.0-beta-checklist.md)
 - [v0.5.0-beta Release Notes Draft](docs/releases/v0.5.0-beta-release-notes-draft.md)
 - [v1.0.0-rc.1 Checklist](docs/releases/v1.0.0-rc.1-checklist.md)
+- [v1.0.0 GA Capability Matrix](docs/releases/v1.0.0-ga-capability-matrix.md)
+- [v1.0.0 GA Checklist](docs/releases/v1.0.0-ga-checklist.md)
+- [v1.0.0 Release Notes](docs/releases/v1.0.0-release-notes.md)
 - [Security Threat Model](docs/security/threat-model.md)
 - [Security Review Checklist](docs/security/security-review-checklist.md)
 - [User Guide](docs/user/README.md)
@@ -226,7 +230,7 @@ Nivora is not:
 - a cloud-provider-specific system
 - a frontend-first project
 - a black-box automation tool
-- production-ready in the current phase
+- a claim that every modeled integration is production-ready
 
 Nivora should integrate with existing systems rather than hide everything behind opaque magic.
 

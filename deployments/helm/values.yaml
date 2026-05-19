@@ -1,6 +1,6 @@
 image:
   repository: sevoniva/nivora
-  tag: "0.1.0-alpha.1"
+  tag: "1.0.0"
   pullPolicy: IfNotPresent
 
 nameOverride: ""
@@ -47,9 +47,9 @@ config:
   telemetryEnabled: false
   telemetryEndpoint: ""
   auth:
-    enabled: false
-    mode: dev
-    devUser: local-admin
+    enabled: true
+    mode: token
+    devUser: ""
     staticTokenEnv: NIVORA_AUTH_TOKEN
     oidc:
       issuer: ""
@@ -85,7 +85,7 @@ migration:
   enabled: false
   image:
     repository: sevoniva/nivora-migrations
-    tag: "0.1.0-alpha.1"
+    tag: "1.0.0"
     pullPolicy: IfNotPresent
   command: []
   args: []

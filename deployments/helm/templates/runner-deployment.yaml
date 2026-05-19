@@ -25,6 +25,11 @@ spec:
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           args: ["runner", "--config", "/etc/nivora/runner.yaml"]
+          {{- if .Values.secret.create }}
+          envFrom:
+            - secretRef:
+                name: {{ include "nivora.fullname" . }}-secret
+          {{- end }}
           securityContext:
             {{- toYaml .Values.securityContext | nindent 12 }}
           resources:

@@ -1,0 +1,11 @@
+CREATE INDEX IF NOT EXISTS idx_pipeline_runs_status_created_at ON pipeline_runs(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_deployment_runs_status_created_at ON deployment_runs(status, created_at);
+CREATE INDEX IF NOT EXISTS idx_log_chunks_pipeline_sequence ON log_chunks(pipeline_run_id, sequence);
+CREATE INDEX IF NOT EXISTS idx_log_chunks_deployment_sequence ON log_chunks(deployment_run_id, sequence);
+CREATE INDEX IF NOT EXISTS idx_events_subject_created_at ON events(subject, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_subject_created_at ON audit_logs(subject, created_at);
+CREATE INDEX IF NOT EXISTS idx_audit_logs_actor_created_at ON audit_logs(actor_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_runners_status_heartbeat ON runners(status, last_heartbeat_at);
+CREATE INDEX IF NOT EXISTS idx_runtime_job_runs_runner_status ON runtime_job_runs(runner_id, status);
+CREATE INDEX IF NOT EXISTS idx_runtime_events_subject_created_at ON runtime_events(subject, created_at);
+CREATE INDEX IF NOT EXISTS idx_runtime_audit_actor_created_at ON runtime_audit_logs(actor_id, created_at);

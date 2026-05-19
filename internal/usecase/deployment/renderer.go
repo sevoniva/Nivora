@@ -18,6 +18,8 @@ type ManifestRenderer interface {
 	Render(ctx context.Context, manifestPaths []string, namespace string) ([]ManifestDocument, error)
 }
 
+const MaxManifestBytes = 1 << 20
+
 type StaticManifestRenderer struct{}
 
 func NewStaticManifestRenderer() StaticManifestRenderer {
@@ -35,6 +37,9 @@ func (r StaticManifestRenderer) Render(ctx context.Context, manifestPaths []stri
 		body, err := os.ReadFile(path)
 		if err != nil {
 			return nil, fmt.Errorf("read manifest %q: %w", path, err)
+		}
+		if len(body) > MaxManifestBytes {
+			return nil, fmt.Errorf("manifest %q exceeds maximum size of %d bytes", path, MaxManifestBytes)
 		}
 		decoder := yaml.NewDecoder(bytes.NewReader(body))
 		index := 0

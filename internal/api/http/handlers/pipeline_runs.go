@@ -70,14 +70,19 @@ func ListPipelineRuns(service *pipelineusecase.Service) http.HandlerFunc {
 		for _, record := range records {
 			response = append(response, pipelineRunResponse(record))
 		}
-		RespondJSON(w, http.StatusOK, response)
+		if respondPaginated(w, r, response, nil) {
+			return
+		}
 	}
 }
 
 func GetPipelineRunLogs(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logs, err := service.Logs(r.Context(), chi.URLParam(r, "id"))
-		respondPipelineResult(w, r, logs, err)
+		if respondPaginated(w, r, logs, err) {
+			return
+		}
+		respondPipelineResult(w, r, nil, err)
 	}
 }
 
@@ -107,14 +112,20 @@ func pipelineRunResponse(record pipelineusecase.RunRecord) map[string]any {
 func GetPipelineRunEvents(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		events, err := service.Events(r.Context(), chi.URLParam(r, "id"))
-		respondPipelineResult(w, r, events, err)
+		if respondPaginated(w, r, events, err) {
+			return
+		}
+		respondPipelineResult(w, r, nil, err)
 	}
 }
 
 func GetPipelineRunTimeline(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		timeline, err := service.Timeline(r.Context(), chi.URLParam(r, "id"))
-		respondPipelineResult(w, r, timeline, err)
+		if respondPaginated(w, r, timeline, err) {
+			return
+		}
+		respondPipelineResult(w, r, nil, err)
 	}
 }
 
@@ -248,6 +259,10 @@ func AppendJobLogs(service *pipelineusecase.Service) http.HandlerFunc {
 		var input pipelineusecase.AppendJobLogInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a job log append request"})
+			return
+		}
+		if len(input.Content) > MaxLogChunkBytes {
+			RespondError(w, r, http.StatusRequestEntityTooLarge, dto.ErrorResponse{Code: "log_chunk_too_large", Message: "log chunk content exceeds 64 KiB"})
 			return
 		}
 		logs, err := service.AppendJobLog(r.Context(), jobID, input)

@@ -179,6 +179,8 @@ paths:
           in: query
           schema:
             type: string
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: Matching audit records
@@ -782,6 +784,9 @@ paths:
   /api/v1/pipeline-runs:
     get:
       summary: List PipelineRuns in the in-memory Phase 1.5 runtime
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: PipelineRun records
@@ -827,6 +832,8 @@ paths:
       summary: Get captured PipelineRun logs
       parameters:
         - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: Captured logs
@@ -843,6 +850,8 @@ paths:
       summary: Get PipelineRun events
       parameters:
         - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: PipelineRun events
@@ -859,6 +868,8 @@ paths:
       summary: Get ordered PipelineRun timeline entries
       parameters:
         - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: PipelineRun timeline
@@ -1083,6 +1094,9 @@ paths:
   /api/v1/deployments:
     get:
       summary: List DeploymentRuns in the in-memory Phase 2.1 runtime
+      parameters:
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: DeploymentRun records
@@ -1410,6 +1424,8 @@ paths:
       summary: Get DeploymentRun logs
       parameters:
         - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: Captured deployment logs
@@ -1523,6 +1539,8 @@ paths:
       summary: Get DeploymentRun events
       parameters:
         - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: DeploymentRun events
@@ -1559,6 +1577,8 @@ paths:
       summary: Get ordered DeploymentRun timeline entries
       parameters:
         - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: DeploymentRun timeline
@@ -2390,6 +2410,25 @@ components:
       required: true
       schema:
         type: string
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Optional page size. When omitted, legacy array responses are returned for compatibility.
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 500
+        default: 100
+    Offset:
+      name: offset
+      in: query
+      required: false
+      description: Optional zero-based page offset. When omitted with limit, legacy array responses are returned for compatibility.
+      schema:
+        type: integer
+        minimum: 0
+        default: 0
   responses:
     NotImplemented:
       description: Endpoint exists but is not implemented in Phase 0.
@@ -2422,6 +2461,24 @@ components:
           type: string
     Error:
       $ref: "#/components/schemas/ErrorResponse"
+    Pagination:
+      type: object
+      properties:
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+    PaginatedResponse:
+      type: object
+      description: Returned by list/log/event/timeline endpoints when limit or offset query parameters are supplied.
+      properties:
+        items:
+          type: array
+          items: {}
+        pagination:
+          $ref: "#/components/schemas/Pagination"
     ApprovalCreateRequest:
       type: object
       required: [subjectType, subjectId]

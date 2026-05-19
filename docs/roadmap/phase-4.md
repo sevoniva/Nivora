@@ -88,6 +88,26 @@ Non-goals:
 - Frontend observability dashboards.
 - Production readiness claims.
 
+## Phase 8.4 Performance, Scale, and Load Testing
+
+Phase 8.4 adds measurement and safety foundations for understanding Nivora performance limits before adding optimization complexity.
+
+Scope:
+
+- Go benchmarks for PipelineRun creation, LogChunk append, timeline query, runner heartbeat, job claim, and deployment resource inventory planning.
+- Local load scripts for generating PipelineRuns, log-heavy runs, and runner heartbeats against a running server.
+- Optional pagination for runtime list/log/event/timeline APIs and audit search while preserving legacy array responses when pagination is not requested.
+- Conservative API limits for request body size, log chunk content size, and static manifest file size.
+- PostgreSQL index review migration for common runtime, audit, log, event, and runner read paths.
+- Operations documentation for benchmark usage, load scripts, pagination, limits, and index review.
+
+Non-goals:
+
+- Large-scale distributed load testing.
+- Blind optimization without benchmark or query-plan evidence.
+- Requiring Kubernetes, cloud services, registries, or external credentials for baseline tests.
+- Production readiness claims.
+
 ## Phase 4.3 / 7.4 Plugin and Extension System Foundation
 
 Phase 4.3 defined plugin metadata, a capability registry, and an external protocol skeleton. Phase 7.4 stabilizes the plugin API version, compatibility checks, validate-config lifecycle, and adapter templates.

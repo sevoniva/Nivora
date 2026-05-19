@@ -236,7 +236,10 @@ func GetHostGroup(service *deploymentusecase.Service) http.HandlerFunc {
 func ListDeploymentRuns(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		records, err := service.List(r.Context())
-		respondDeploymentResult(w, r, records, err)
+		if respondPaginated(w, r, records, err) {
+			return
+		}
+		respondDeploymentResult(w, r, nil, err)
 	}
 }
 
@@ -350,7 +353,10 @@ func GetDeploymentDiff(service *deploymentusecase.Service) http.HandlerFunc {
 func GetDeploymentLogs(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		logs, err := service.Logs(r.Context(), chi.URLParam(r, "id"))
-		respondDeploymentResult(w, r, logs, err)
+		if respondPaginated(w, r, logs, err) {
+			return
+		}
+		respondDeploymentResult(w, r, nil, err)
 	}
 }
 
@@ -415,14 +421,20 @@ func RollbackDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc 
 func GetDeploymentEvents(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		events, err := service.Events(r.Context(), chi.URLParam(r, "id"))
-		respondDeploymentResult(w, r, events, err)
+		if respondPaginated(w, r, events, err) {
+			return
+		}
+		respondDeploymentResult(w, r, nil, err)
 	}
 }
 
 func GetDeploymentTimeline(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		timeline, err := service.Timeline(r.Context(), chi.URLParam(r, "id"))
-		respondDeploymentResult(w, r, timeline, err)
+		if respondPaginated(w, r, timeline, err) {
+			return
+		}
+		respondDeploymentResult(w, r, nil, err)
 	}
 }
 

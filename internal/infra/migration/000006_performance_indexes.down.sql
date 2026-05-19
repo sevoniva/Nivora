@@ -1,0 +1,11 @@
+DROP INDEX IF EXISTS idx_runtime_audit_actor_created_at;
+DROP INDEX IF EXISTS idx_runtime_events_subject_created_at;
+DROP INDEX IF EXISTS idx_runtime_job_runs_runner_status;
+DROP INDEX IF EXISTS idx_runners_status_heartbeat;
+DROP INDEX IF EXISTS idx_audit_logs_actor_created_at;
+DROP INDEX IF EXISTS idx_audit_logs_subject_created_at;
+DROP INDEX IF EXISTS idx_events_subject_created_at;
+DROP INDEX IF EXISTS idx_log_chunks_deployment_sequence;
+DROP INDEX IF EXISTS idx_log_chunks_pipeline_sequence;
+DROP INDEX IF EXISTS idx_deployment_runs_status_created_at;
+DROP INDEX IF EXISTS idx_pipeline_runs_status_created_at;

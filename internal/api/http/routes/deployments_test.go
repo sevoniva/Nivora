@@ -66,6 +66,26 @@ func TestDeploymentRoutes(t *testing.T) {
 		}
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/deployments?limit=1", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("paginated deployments status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"pagination"`)) {
+		t.Fatalf("paginated deployments body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/deployments/"+runID+"/timeline?limit=2", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("paginated deployment timeline status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"pagination"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"limit":2`)) {
+		t.Fatalf("paginated deployment timeline body = %s", rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/deployments/"+runID+"/cancel", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

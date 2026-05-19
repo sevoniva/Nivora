@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test test-race coverage vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-api verify-cli verify-examples verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-alpha verify run-server run-worker run-runner run-web docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-cli smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
+.PHONY: build test test-race benchmark load-generate-runs load-generate-logs load-simulate-runners coverage vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-api verify-cli verify-examples verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-alpha verify run-server run-worker run-runner run-web docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-cli smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -12,6 +12,18 @@ test:
 
 test-race:
 	GOPROXY=$(GOPROXY) $(GO) test -race ./internal/usecase/... ./internal/api/http/...
+
+benchmark:
+	GOPROXY=$(GOPROXY) $(GO) test -run '^$$' -bench=. ./internal/usecase/pipeline ./internal/usecase/deployment
+
+load-generate-runs:
+	./scripts/load-generate-runs.sh
+
+load-generate-logs:
+	./scripts/load-generate-logs.sh
+
+load-simulate-runners:
+	./scripts/load-simulate-runners.sh
 
 coverage:
 	GOPROXY=$(GOPROXY) $(GO) test ./... -coverprofile=coverage.out

@@ -19,6 +19,7 @@ import (
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	noopnotification "github.com/sevoniva/nivora/internal/adapters/notification/noop"
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
+	"github.com/sevoniva/nivora/internal/api/http/handlers"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
@@ -87,6 +88,23 @@ func TestPlaceholderRoute(t *testing.T) {
 	}
 	if body["path"] != "/api/v1/pipelines" {
 		t.Fatalf("path = %v", body["path"])
+	}
+}
+
+func TestRequestBodyLimit(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	body := strings.NewReader(strings.Repeat("x", handlers.MaxRequestBodyBytes+1))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs", body)
+	rec := httptest.NewRecorder()
+
+	router.ServeHTTP(rec, req)
+
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }
 
@@ -223,6 +241,15 @@ func TestComplianceEvidenceRoutes(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("audit search status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/audit/search?subject="+created.Run.ID+"&limit=1", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("paginated audit search status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"pagination"`) || !strings.Contains(rec.Body.String(), `"limit":1`) {
+		t.Fatalf("paginated audit search body = %s", rec.Body.String())
 	}
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/retention-policy", strings.NewReader(`{"scopeType":"project","scopeId":"project-a","logDays":14,"auditDays":730}`))
 	rec = httptest.NewRecorder()

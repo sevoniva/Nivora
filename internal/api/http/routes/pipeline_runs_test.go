@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/sevoniva/nivora/internal/api/http/handlers"
 	"github.com/sevoniva/nivora/internal/infra/config"
 )
 
@@ -54,6 +55,26 @@ func TestPipelineRunRoutes(t *testing.T) {
 		t.Fatalf("list status = %d", rec.Code)
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs?limit=1&offset=0", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("paginated list status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"pagination"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"limit":1`)) {
+		t.Fatalf("paginated list body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs/"+runID+"/logs?limit=1", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("paginated logs status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"pagination"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"items"`)) {
+		t.Fatalf("paginated logs body = %s", rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs/"+runID+"/timeline", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -69,6 +90,59 @@ func TestPipelineRunRoutes(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusConflict {
 		t.Fatalf("cancel terminal status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func TestPipelinePaginationAndLogLimits(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs?limit=501", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid pagination status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	body := []byte(`{"apiVersion":"nivora.io/v1alpha1","kind":"Pipeline","metadata":{"name":"limit-test"},"spec":{"stages":[{"name":"build","jobs":[{"name":"job","executor":"shell","steps":[{"name":"step","run":"printf ok"}]}]}]}}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		Run struct {
+			ID string `json:"id"`
+		} `json:"run"`
+		Stages []struct {
+			Jobs []struct {
+				Job struct {
+					ID string `json:"id"`
+				} `json:"job"`
+			} `json:"jobs"`
+		} `json:"stages"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode create response: %v", err)
+	}
+	large := bytes.Repeat([]byte("x"), handlers.MaxLogChunkBytes+1)
+	payload, err := json.Marshal(map[string]string{
+		"pipelineRunId": created.Run.ID,
+		"stream":        "stdout",
+		"content":       string(large),
+	})
+	if err != nil {
+		t.Fatalf("marshal log append: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/jobs/"+created.Stages[0].Jobs[0].Job.ID+"/logs", bytes.NewReader(payload))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusRequestEntityTooLarge {
+		t.Fatalf("large log status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }
 

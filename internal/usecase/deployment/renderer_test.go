@@ -92,3 +92,17 @@ metadata:
 		t.Fatal("expected render error")
 	}
 }
+
+func TestStaticManifestRendererRejectsOversizedManifest(t *testing.T) {
+	dir := t.TempDir()
+	manifest := filepath.Join(dir, "oversized.yaml")
+	body := strings.Repeat("# padding\n", MaxManifestBytes/10+1)
+	if err := os.WriteFile(manifest, []byte(body), 0o600); err != nil {
+		t.Fatalf("write oversized manifest: %v", err)
+	}
+
+	_, err := (StaticManifestRenderer{}).Render(context.Background(), []string{manifest}, "default")
+	if err == nil || !strings.Contains(err.Error(), "exceeds maximum size") {
+		t.Fatalf("expected oversized manifest error, got %v", err)
+	}
+}

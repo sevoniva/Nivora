@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/sevoniva/nivora/internal/api/http/dto"
 	"github.com/sevoniva/nivora/internal/api/http/handlers"
 	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	"github.com/sevoniva/nivora/internal/infra/config"
@@ -29,6 +30,8 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
 	r.Use(middleware.RealIP)
+	r.Use(rejectOversizedRequestBody)
+	r.Use(middleware.RequestSize(handlers.MaxRequestBodyBytes))
 	r.Use(middleware.Recoverer)
 	r.Use(apimiddleware.StructuredAccessLog(logger))
 
@@ -205,6 +208,19 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	})
 
 	return r
+}
+
+func rejectOversizedRequestBody(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.ContentLength > handlers.MaxRequestBodyBytes {
+			handlers.RespondError(w, r, http.StatusRequestEntityTooLarge, dto.ErrorResponse{
+				Code:    "request_body_too_large",
+				Message: "request body exceeds 4 MiB",
+			})
+			return
+		}
+		next.ServeHTTP(w, r)
+	})
 }
 
 type routeGroup struct {

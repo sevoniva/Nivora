@@ -20,7 +20,20 @@ func SearchAudit(service *complianceusecase.Service) http.HandlerFunc {
 			CorrelationID: r.URL.Query().Get("correlationId"),
 		}
 		result, err := service.SearchAudit(r.Context(), input)
-		respondComplianceResult(w, r, result, err)
+		if err != nil {
+			respondComplianceResult(w, r, nil, err)
+			return
+		}
+		page, pageErr := parsePagination(r)
+		if pageErr != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_pagination", Message: pageErr.Error()})
+			return
+		}
+		if page.Enabled {
+			RespondJSON(w, http.StatusOK, paginatedPayload(result.Items, page))
+			return
+		}
+		RespondJSON(w, http.StatusOK, result)
 	}
 }
 

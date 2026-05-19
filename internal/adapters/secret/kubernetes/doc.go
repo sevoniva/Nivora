@@ -1,2 +1,2 @@
-// Package kubernetes will contain a Kubernetes secret adapter. It is intentionally empty in Phase 0.
+// Package kubernetes contains the Phase 7.1 Kubernetes Secret adapter foundation.
 package kubernetes

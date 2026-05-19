@@ -14,6 +14,12 @@ var sensitiveMarkers = []string{
 	"authorization",
 	"access_key",
 	"accesskey",
+	"secret_key",
+	"secretkey",
+	"client_secret",
+	"refresh_token",
+	"id_token",
+	"session",
 	"bearer",
 }
 

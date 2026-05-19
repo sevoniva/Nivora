@@ -163,6 +163,10 @@ func (f fakeSecretProvider) PutSecret(ctx context.Context, request portsecret.Pu
 	return request.Ref, ctx.Err()
 }
 
+func (f fakeSecretProvider) ValidateProvider(ctx context.Context) (portsecret.ProviderStatus, error) {
+	return portsecret.ProviderStatus{Provider: "fake", Configured: true, Reachable: true}, ctx.Err()
+}
+
 func (f fakeSecretProvider) GetSecret(ctx context.Context, ref domaincredential.SecretRef) ([]byte, error) {
 	if err := ctx.Err(); err != nil {
 		return nil, err

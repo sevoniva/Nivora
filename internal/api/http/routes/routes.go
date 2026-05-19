@@ -127,6 +127,8 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/cloud/accounts/{id}/inventory", handlers.GetCloudInventory(cloudService))
 		api.Post("/secrets", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.CreateSecret(credentialService)))
 		api.Get("/secrets/refs", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.ListSecretRefs(credentialService)))
+		api.Post("/secrets/provider/validate", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.ValidateSecretProvider(credentialService)))
+		api.Post("/secrets/{id}/rotate", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.RotateSecret(credentialService)))
 		api.Delete("/secrets/{id}", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.DeleteSecret(credentialService)))
 		api.Post("/credentials", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.CreateCredential(credentialService)))
 		api.Get("/credentials", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.ListCredentials(credentialService)))

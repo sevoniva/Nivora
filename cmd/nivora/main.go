@@ -548,7 +548,9 @@ func newProjectMembersListCommand() *cobra.Command {
 func newSecretCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "secret", Short: "Secret reference utilities"}
 	cmd.AddCommand(newSecretPutCommand())
+	cmd.AddCommand(newSecretRotateCommand())
 	cmd.AddCommand(newSecretListCommand())
+	cmd.AddCommand(newSecretProviderCommand())
 	cmd.AddCommand(newSecretDeleteCommand())
 	return cmd
 }
@@ -606,6 +608,38 @@ func newSecretPutCommand() *cobra.Command {
 	return cmd
 }
 
+func newSecretRotateCommand() *cobra.Command {
+	var valueEnv string
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "rotate <secret-id> --value-env <ENV_NAME>",
+		Short: "Rotate a secret value and return only updated SecretRef metadata",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if valueEnv == "" {
+				return fmt.Errorf("--value-env is required; inline secret values are intentionally unsupported")
+			}
+			value, ok := os.LookupEnv(valueEnv)
+			if !ok {
+				return fmt.Errorf("environment variable %s is not set", valueEnv)
+			}
+			body, err := json.Marshal(credentialusecase.SecretRotateInput{Value: value})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/secrets/"+args[0]+"/rotate", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&valueEnv, "value-env", "", "environment variable containing the new secret value")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
 func newSecretListCommand() *cobra.Command {
 	var serverURL string
 	cmd := &cobra.Command{
@@ -613,6 +647,30 @@ func newSecretListCommand() *cobra.Command {
 		Short: "List SecretRefs from a Nivora server",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/secrets/refs", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newSecretProviderCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "provider", Short: "Secret provider utilities"}
+	cmd.AddCommand(newSecretProviderValidateCommand())
+	return cmd
+}
+
+func newSecretProviderValidateCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "validate",
+		Short: "Validate the configured secret provider without returning secret values",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/secrets/provider/validate", nil)
 			if err != nil {
 				return err
 			}

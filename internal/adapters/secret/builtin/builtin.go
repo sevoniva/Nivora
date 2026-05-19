@@ -31,6 +31,21 @@ func New() *Store {
 	}
 }
 
+func (s *Store) ValidateProvider(ctx context.Context) (portsecret.ProviderStatus, error) {
+	select {
+	case <-ctx.Done():
+		return portsecret.ProviderStatus{}, ctx.Err()
+	default:
+	}
+	return portsecret.ProviderStatus{
+		Provider:     "builtin",
+		Configured:   true,
+		Reachable:    true,
+		Capabilities: []string{"put", "get", "delete", "rotate", "list", "usage_audit"},
+		Message:      "builtin development secret provider is available",
+	}, nil
+}
+
 func (s *Store) PutSecret(ctx context.Context, request portsecret.PutRequest) (credential.SecretRef, error) {
 	select {
 	case <-ctx.Done():
@@ -56,6 +71,9 @@ func (s *Store) PutSecret(ctx context.Context, request portsecret.PutRequest) (c
 	}
 	if ref.ScopeType == "" {
 		ref.ScopeType = credential.ScopeGlobal
+	}
+	if ref.Version == "" {
+		ref.Version = "1"
 	}
 	if ref.CreatedAt.IsZero() {
 		ref.CreatedAt = now
@@ -114,8 +132,9 @@ func (s *Store) RotateSecret(ctx context.Context, ref credential.SecretRef, newV
 	if !ok {
 		return credential.SecretRef{}, ErrSecretNotFound
 	}
-	stored.Version = fmt.Sprintf("%d", s.now().UnixNano())
-	stored.UpdatedAt = s.now()
+	now := s.now()
+	stored.Version = fmt.Sprintf("%d", now.UnixNano())
+	stored.UpdatedAt = now
 	s.refs[id] = cloneRef(stored)
 	s.values[id] = append([]byte(nil), newValue...)
 	return cloneRef(stored), nil

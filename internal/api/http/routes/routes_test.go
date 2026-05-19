@@ -127,6 +127,13 @@ func TestCredentialRoutesDoNotReturnSecretValue(t *testing.T) {
 	if strings.Contains(rec.Body.String(), "sample-value-for-test-only") {
 		t.Fatalf("secret create response leaked secret value")
 	}
+	var createdSecret struct {
+		ID      string `json:"id"`
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &createdSecret); err != nil {
+		t.Fatalf("decode secret ref: %v", err)
+	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/secrets/refs", nil)
 	rec = httptest.NewRecorder()
@@ -136,6 +143,24 @@ func TestCredentialRoutesDoNotReturnSecretValue(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), "sample-value-for-test-only") {
 		t.Fatalf("secret refs response leaked secret value")
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/secrets/"+createdSecret.ID+"/rotate", strings.NewReader(`{"value":"placeholder-rotated-value"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rotate secret status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "placeholder-rotated-value") {
+		t.Fatalf("secret rotate response leaked secret value")
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/secrets/provider/validate", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("validate provider status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"provider":"builtin"`) {
+		t.Fatalf("provider validation body = %s", rec.Body.String())
 	}
 }
 

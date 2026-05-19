@@ -30,6 +30,26 @@ func ListSecretRefs(service *credcase.Service) http.HandlerFunc {
 	}
 }
 
+func RotateSecret(service *credcase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input credcase.SecretRotateInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a secret rotate request"})
+			return
+		}
+		input.ID = chi.URLParam(r, "id")
+		ref, err := service.RotateSecret(r.Context(), input)
+		respondCredentialResult(w, r, ref, err)
+	}
+}
+
+func ValidateSecretProvider(service *credcase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		status, err := service.ValidateSecretProvider(r.Context(), "")
+		respondCredentialResult(w, r, status, err)
+	}
+}
+
 func DeleteSecret(service *credcase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		err := service.DeleteSecret(r.Context(), chi.URLParam(r, "id"), "")

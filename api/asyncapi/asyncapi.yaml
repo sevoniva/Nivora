@@ -544,8 +544,18 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.secret.rotated:
+    address: devops.secret.rotated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.secret.deleted:
     address: devops.secret.deleted
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.secret.provider.validated:
+    address: devops.secret.provider.validated
     messages:
       event:
         $ref: "#/components/messages/Event"

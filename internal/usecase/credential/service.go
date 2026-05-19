@@ -46,6 +46,7 @@ func (s *Service) PutSecret(ctx context.Context, input SecretCreateInput) (domai
 		ScopeID:   input.ScopeID,
 		Provider:  defaultProvider(input.Provider),
 		Key:       defaultSecretKey(input.Key, input.Name),
+		Policy:    input.Policy,
 		Metadata:  crypto.RedactMap(input.Metadata),
 		CreatedAt: now,
 		UpdatedAt: now,
@@ -62,6 +63,44 @@ func (s *Service) PutSecret(ctx context.Context, input SecretCreateInput) (domai
 	return stored, nil
 }
 
+func (s *Service) RotateSecret(ctx context.Context, input SecretRotateInput) (domaincredential.SecretRef, error) {
+	if input.ID == "" {
+		return domaincredential.SecretRef{}, errors.New("secret id is required")
+	}
+	if input.Value == "" {
+		return domaincredential.SecretRef{}, errors.New("secret value is required")
+	}
+	if s.secrets == nil {
+		return domaincredential.SecretRef{}, errors.New("secret provider is not configured")
+	}
+	ref, err := s.findSecretRef(ctx, input.ID)
+	if err != nil {
+		return domaincredential.SecretRef{}, err
+	}
+	rotated, err := s.secrets.RotateSecret(ctx, ref, []byte(input.Value))
+	if err != nil {
+		return domaincredential.SecretRef{}, err
+	}
+	_ = s.record(ctx, EventSecretRotated, "secret rotated", input.ActorID, rotated.ID, map[string]any{
+		"name":     rotated.Name,
+		"provider": rotated.Provider,
+		"version":  rotated.Version,
+	})
+	return rotated, nil
+}
+
+func (s *Service) ValidateSecretProvider(ctx context.Context, actorID string) (portsecret.ProviderStatus, error) {
+	if s.secrets == nil {
+		return portsecret.ProviderStatus{}, errors.New("secret provider is not configured")
+	}
+	status, err := s.secrets.ValidateProvider(ctx)
+	if err != nil {
+		return status, err
+	}
+	_ = s.record(ctx, EventSecretProviderValidated, "secret provider validated", actorID, status.Provider, map[string]any{"configured": status.Configured, "reachable": status.Reachable})
+	return status, nil
+}
+
 func (s *Service) ListSecretRefs(ctx context.Context, scope portsecret.Scope) ([]domaincredential.SecretRef, error) {
 	if s.secrets == nil {
 		return nil, errors.New("secret provider is not configured")
@@ -73,19 +112,14 @@ func (s *Service) DeleteSecret(ctx context.Context, id string, actorID string) e
 	if id == "" {
 		return errors.New("secret id is required")
 	}
-	refs, err := s.ListSecretRefs(ctx, portsecret.Scope{})
+	ref, err := s.findSecretRef(ctx, id)
 	if err != nil {
 		return err
 	}
-	for _, ref := range refs {
-		if ref.ID == id {
-			if err := s.secrets.DeleteSecret(ctx, ref); err != nil {
-				return err
-			}
-			return s.record(ctx, EventSecretDeleted, "secret deleted", actorID, ref.ID, map[string]any{"name": ref.Name})
-		}
+	if err := s.secrets.DeleteSecret(ctx, ref); err != nil {
+		return err
 	}
-	return errors.New("secret ref not found")
+	return s.record(ctx, EventSecretDeleted, "secret deleted", actorID, ref.ID, map[string]any{"name": ref.Name})
 }
 
 func (s *Service) CreateCredential(ctx context.Context, input CredentialCreateInput) (domaincredential.Credential, error) {
@@ -168,12 +202,30 @@ func (s *Service) ValidateCredential(ctx context.Context, id string, actorID str
 		SubjectID:   cred.ID,
 		CreatedAt:   s.now(),
 	}
+	if err := validateUsagePolicy(cred.SecretRef, usage); err != nil {
+		result := CredentialValidationResult{CredentialID: id, Valid: false, Message: err.Error(), ValidatedAt: s.now()}
+		_ = s.record(ctx, EventCredentialValidated, "credential validation failed", actorID, id, map[string]any{"valid": false})
+		return result, nil
+	}
 	if err := s.secrets.RecordUsage(ctx, usage); err != nil {
 		return CredentialValidationResult{}, err
 	}
 	_ = s.record(ctx, EventSecretUsed, "secret used", actorID, cred.SecretRef.ID, map[string]any{"purpose": usage.Purpose, "subjectType": usage.SubjectType})
 	_ = s.record(ctx, EventCredentialValidated, "credential validated", actorID, id, map[string]any{"valid": true})
 	return CredentialValidationResult{CredentialID: id, Valid: true, Message: "credential secret reference resolved", ValidatedAt: s.now()}, nil
+}
+
+func (s *Service) findSecretRef(ctx context.Context, id string) (domaincredential.SecretRef, error) {
+	refs, err := s.ListSecretRefs(ctx, portsecret.Scope{})
+	if err != nil {
+		return domaincredential.SecretRef{}, err
+	}
+	for _, ref := range refs {
+		if ref.ID == id {
+			return ref, nil
+		}
+	}
+	return domaincredential.SecretRef{}, errors.New("secret ref not found")
 }
 
 func (s *Service) Events(ctx context.Context) ([]event.Event, error) {
@@ -216,6 +268,25 @@ func sanitizeRef(ref domaincredential.SecretRef) domaincredential.SecretRef {
 		ref.Provider = "builtin"
 	}
 	return ref
+}
+
+func validateUsagePolicy(ref domaincredential.SecretRef, usage domaincredential.SecretUsage) error {
+	if len(ref.Policy.AllowedUses) > 0 && !contains(ref.Policy.AllowedUses, usage.UsedBy) && !contains(ref.Policy.AllowedUses, usage.Purpose) {
+		return fmt.Errorf("secret policy does not allow use %q", usage.UsedBy)
+	}
+	if len(ref.Policy.Environments) > 0 && usage.Environment != "" && !contains(ref.Policy.Environments, usage.Environment) {
+		return fmt.Errorf("secret policy does not allow environment %q", usage.Environment)
+	}
+	return nil
+}
+
+func contains(values []string, want string) bool {
+	for _, value := range values {
+		if value == want {
+			return true
+		}
+	}
+	return false
 }
 
 func defaultScope(scope string) string {

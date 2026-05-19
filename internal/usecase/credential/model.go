@@ -9,22 +9,31 @@ import (
 )
 
 const (
-	EventSecretCreated       = "devops.secret.created"
-	EventSecretDeleted       = "devops.secret.deleted"
-	EventCredentialCreated   = "devops.credential.created"
-	EventCredentialValidated = "devops.credential.validated"
-	EventSecretUsed          = "devops.secret.used"
+	EventSecretCreated           = "devops.secret.created"
+	EventSecretRotated           = "devops.secret.rotated"
+	EventSecretDeleted           = "devops.secret.deleted"
+	EventSecretProviderValidated = "devops.secret.provider.validated"
+	EventCredentialCreated       = "devops.credential.created"
+	EventCredentialValidated     = "devops.credential.validated"
+	EventSecretUsed              = "devops.secret.used"
 )
 
 type SecretCreateInput struct {
-	Name      string            `json:"name" yaml:"name"`
-	ScopeType string            `json:"scopeType" yaml:"scopeType"`
-	ScopeID   string            `json:"scopeId,omitempty" yaml:"scopeId,omitempty"`
-	Provider  string            `json:"provider,omitempty" yaml:"provider,omitempty"`
-	Key       string            `json:"key,omitempty" yaml:"key,omitempty"`
-	Value     string            `json:"value,omitempty" yaml:"value,omitempty"`
-	Metadata  map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
-	ActorID   string            `json:"actorId,omitempty" yaml:"actorId,omitempty"`
+	Name      string                        `json:"name" yaml:"name"`
+	ScopeType string                        `json:"scopeType" yaml:"scopeType"`
+	ScopeID   string                        `json:"scopeId,omitempty" yaml:"scopeId,omitempty"`
+	Provider  string                        `json:"provider,omitempty" yaml:"provider,omitempty"`
+	Key       string                        `json:"key,omitempty" yaml:"key,omitempty"`
+	Value     string                        `json:"value,omitempty" yaml:"value,omitempty"`
+	Policy    domaincredential.SecretPolicy `json:"policy,omitempty" yaml:"policy,omitempty"`
+	Metadata  map[string]string             `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	ActorID   string                        `json:"actorId,omitempty" yaml:"actorId,omitempty"`
+}
+
+type SecretRotateInput struct {
+	ID      string `json:"id,omitempty" yaml:"id,omitempty"`
+	Value   string `json:"value,omitempty" yaml:"value,omitempty"`
+	ActorID string `json:"actorId,omitempty" yaml:"actorId,omitempty"`
 }
 
 type CredentialCreateInput struct {

@@ -107,6 +107,8 @@ For a quick path through the project:
 - [OIDC Auth](operations/auth-oidc.md)
 - [RBAC Operations](operations/rbac.md)
 - [Database Operations](operations/database.md)
+- [Vault Secret Provider](operations/secrets-vault.md)
+- [KMS and External Secret Providers](operations/secrets-kms.md)
 - [Artifact Registries](operations/artifact-registries.md)
 - [Runtime Recovery Operations](operations/runtime-recovery.md)
 - [Runner Fleet Operations](operations/runner-fleet.md)

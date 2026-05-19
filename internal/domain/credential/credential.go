@@ -45,9 +45,15 @@ type SecretRef struct {
 	Provider  string            `json:"provider" yaml:"provider"`
 	Key       string            `json:"key" yaml:"key"`
 	Version   string            `json:"version,omitempty" yaml:"version,omitempty"`
+	Policy    SecretPolicy      `json:"policy,omitempty" yaml:"policy,omitempty"`
 	Metadata  map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	CreatedAt time.Time         `json:"createdAt" yaml:"createdAt"`
 	UpdatedAt time.Time         `json:"updatedAt" yaml:"updatedAt"`
+}
+
+type SecretPolicy struct {
+	AllowedUses  []string `json:"allowedUses,omitempty" yaml:"allowedUses,omitempty"`
+	Environments []string `json:"environments,omitempty" yaml:"environments,omitempty"`
 }
 
 type SecretUsage struct {
@@ -57,5 +63,6 @@ type SecretUsage struct {
 	Purpose     string    `json:"purpose" yaml:"purpose"`
 	SubjectType string    `json:"subjectType" yaml:"subjectType"`
 	SubjectID   string    `json:"subjectId,omitempty" yaml:"subjectId,omitempty"`
+	Environment string    `json:"environment,omitempty" yaml:"environment,omitempty"`
 	CreatedAt   time.Time `json:"createdAt" yaml:"createdAt"`
 }

@@ -25,16 +25,21 @@ func TestRedactStringRedactsBearerText(t *testing.T) {
 
 func TestRedactMapRedactsOperationalCredentialMarkers(t *testing.T) {
 	values := map[string]string{
-		"trace_id":    "trace-1",
-		"kubeconfig":  "apiVersion: v1",
-		"access_key":  "placeholder-access-key",
-		"private_key": "placeholder-private-key",
+		"trace_id":       "trace-1",
+		"kubeconfig":     "apiVersion: v1",
+		"access_key":     "placeholder-access-key",
+		"secret_key":     "placeholder-secret-key",
+		"client_secret":  "placeholder-client-secret",
+		"refresh_token":  "placeholder-refresh-token",
+		"id_token":       "placeholder-id-token",
+		"session_cookie": "placeholder-session",
+		"private_key":    "placeholder-private-key",
 	}
 	redactedValues := RedactMap(values)
 	if redactedValues["trace_id"] != "trace-1" {
 		t.Fatalf("expected trace id to remain")
 	}
-	for _, key := range []string{"kubeconfig", "access_key", "private_key"} {
+	for _, key := range []string{"kubeconfig", "access_key", "secret_key", "client_secret", "refresh_token", "id_token", "session_cookie", "private_key"} {
 		if redactedValues[key] != redacted {
 			t.Fatalf("expected %s to be redacted: %#v", key, redactedValues)
 		}

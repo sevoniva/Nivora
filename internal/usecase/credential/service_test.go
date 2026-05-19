@@ -67,6 +67,76 @@ func TestCredentialValidateRecordsUsageAndAudit(t *testing.T) {
 	}
 }
 
+func TestSecretRotateUpdatesVersionWithoutReturningValue(t *testing.T) {
+	service := NewService(NewMemoryStore(), newFakeSecretProvider(), nil)
+	ref, err := service.PutSecret(context.Background(), SecretCreateInput{Name: "registry token", Key: "examples/registry/token", Value: "old-value"})
+	if err != nil {
+		t.Fatalf("put secret: %v", err)
+	}
+	rotated, err := service.RotateSecret(context.Background(), SecretRotateInput{ID: ref.ID, Value: "new-value", ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("rotate secret: %v", err)
+	}
+	if rotated.Version == "" || rotated.Version == ref.Version {
+		t.Fatalf("expected rotated version, before=%q after=%q", ref.Version, rotated.Version)
+	}
+	if rotated.Metadata["value"] == "new-value" {
+		t.Fatalf("secret value leaked through metadata")
+	}
+	audits, err := service.Audits(context.Background())
+	if err != nil {
+		t.Fatalf("audits: %v", err)
+	}
+	if len(audits) == 0 {
+		t.Fatalf("expected rotation audit")
+	}
+	for _, audit := range audits {
+		if audit.Subject == "new-value" {
+			t.Fatalf("audit leaked rotated secret value")
+		}
+	}
+}
+
+func TestValidateSecretProvider(t *testing.T) {
+	service := NewService(NewMemoryStore(), newFakeSecretProvider(), nil)
+	status, err := service.ValidateSecretProvider(context.Background(), "tester")
+	if err != nil {
+		t.Fatalf("validate provider: %v", err)
+	}
+	if !status.Configured || !status.Reachable {
+		t.Fatalf("unexpected provider status: %#v", status)
+	}
+}
+
+func TestSecretUsagePolicyDeniesUnexpectedUse(t *testing.T) {
+	provider := newFakeSecretProvider()
+	service := NewService(NewMemoryStore(), provider, nil)
+	ref, err := service.PutSecret(context.Background(), SecretCreateInput{
+		Name:  "limited",
+		Value: "secret-value",
+		Policy: domaincredential.SecretPolicy{
+			AllowedUses: []string{"deployment.apply"},
+		},
+	})
+	if err != nil {
+		t.Fatalf("put secret: %v", err)
+	}
+	cred, err := service.CreateCredential(context.Background(), CredentialCreateInput{Name: "limited", Type: domaincredential.TypeGeneric, SecretRef: ref})
+	if err != nil {
+		t.Fatalf("create credential: %v", err)
+	}
+	result, err := service.ValidateCredential(context.Background(), cred.ID, "tester")
+	if err != nil {
+		t.Fatalf("validate credential: %v", err)
+	}
+	if result.Valid {
+		t.Fatalf("expected policy to deny validation use")
+	}
+	if len(provider.usages) != 0 {
+		t.Fatalf("unexpected usage recorded when policy denied")
+	}
+}
+
 type fakeSecretProvider struct {
 	values map[string][]byte
 	refs   map[string]domaincredential.SecretRef
@@ -79,6 +149,9 @@ func newFakeSecretProvider() *fakeSecretProvider {
 
 func (f *fakeSecretProvider) PutSecret(ctx context.Context, request portsecret.PutRequest) (domaincredential.SecretRef, error) {
 	ref := request.Ref
+	if ref.Version == "" {
+		ref.Version = "1"
+	}
 	f.refs[ref.ID] = ref
 	f.values[ref.ID] = append([]byte(nil), request.Value...)
 	return ref, nil
@@ -96,6 +169,8 @@ func (f *fakeSecretProvider) DeleteSecret(ctx context.Context, ref domaincredent
 
 func (f *fakeSecretProvider) RotateSecret(ctx context.Context, ref domaincredential.SecretRef, newValue []byte) (domaincredential.SecretRef, error) {
 	f.values[ref.ID] = append([]byte(nil), newValue...)
+	ref.Version = "2"
+	f.refs[ref.ID] = ref
 	return ref, nil
 }
 
@@ -113,4 +188,8 @@ func (f *fakeSecretProvider) ListSecretRefs(ctx context.Context, scope portsecre
 func (f *fakeSecretProvider) RecordUsage(ctx context.Context, usage domaincredential.SecretUsage) error {
 	f.usages = append(f.usages, usage)
 	return nil
+}
+
+func (f *fakeSecretProvider) ValidateProvider(ctx context.Context) (portsecret.ProviderStatus, error) {
+	return portsecret.ProviderStatus{Provider: "fake", Configured: true, Reachable: true}, ctx.Err()
 }

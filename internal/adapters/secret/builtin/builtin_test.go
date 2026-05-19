@@ -49,3 +49,36 @@ func TestStoreDeleteRemovesSecret(t *testing.T) {
 		t.Fatalf("expected deleted secret to be unavailable")
 	}
 }
+
+func TestStoreRotateUpdatesVersion(t *testing.T) {
+	store := New()
+	ref, err := store.PutSecret(context.Background(), portsecret.PutRequest{Ref: credential.SecretRef{Name: "token", Key: "examples/token"}, Value: []byte("old")})
+	if err != nil {
+		t.Fatalf("put secret: %v", err)
+	}
+	rotated, err := store.RotateSecret(context.Background(), ref, []byte("new"))
+	if err != nil {
+		t.Fatalf("rotate secret: %v", err)
+	}
+	if rotated.Version == "" || rotated.Version == ref.Version {
+		t.Fatalf("expected version to change: before=%q after=%q", ref.Version, rotated.Version)
+	}
+	value, err := store.GetSecret(context.Background(), rotated)
+	if err != nil {
+		t.Fatalf("get rotated secret: %v", err)
+	}
+	if string(value) != "new" {
+		t.Fatalf("unexpected rotated value")
+	}
+}
+
+func TestStoreValidateProvider(t *testing.T) {
+	store := New()
+	status, err := store.ValidateProvider(context.Background())
+	if err != nil {
+		t.Fatalf("validate provider: %v", err)
+	}
+	if status.Provider != "builtin" || !status.Configured || !status.Reachable {
+		t.Fatalf("unexpected status: %#v", status)
+	}
+}

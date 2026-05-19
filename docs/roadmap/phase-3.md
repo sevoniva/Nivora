@@ -16,6 +16,8 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 - SecretRef, Credential, SecretUsage, and SecretProvider foundation.
 - Builtin development secret provider.
 - Secret redaction and audit rules.
+- External secret provider foundations for Vault, Kubernetes Secrets, and AWS/Aliyun/Tencent KMS placeholders.
+- Secret rotation model, provider validation, and simple usage policy metadata.
 - Local AuthN/AuthZ and RBAC foundation.
 - Token auth mode with token values sourced from environment variables.
 - OIDC provider interface and configuration foundation.
@@ -47,7 +49,7 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 
 ## Expected Deliverables
 
-Phase 3.0 delivers auditable security scan and policy gate foundations through Ports and Adapters. Phase 3.1 adds the minimal Secret and Credential model needed by future adapters. Phase 3.2 adds local AuthN/AuthZ and RBAC foundations. Multi-cloud inventory, Vault/KMS integrations, OIDC/Keycloak production integration, and full security integrations remain future Phase 3 work.
+Phase 3.0 delivers auditable security scan and policy gate foundations through Ports and Adapters. Phase 3.1 adds the minimal Secret and Credential model needed by future adapters. Phase 3.2 adds local AuthN/AuthZ and RBAC foundations. Phase 7.1 adds external secret provider foundations and rotation metadata without making Vault, Kubernetes, or cloud KMS required for CI. Production Vault/KMS integrations, OIDC/Keycloak production integration, and full security integrations remain future work.
 
 Phase 3.3 adds backend-only human governance foundations: approvals, change windows, notification records, and audit/event trails. Phase 6.3 hardens those foundations with scoped approval policy metadata, pending/approved/rejected/expired/canceled lifecycle behavior, timezone-aware change-window evaluation, and guarded notification adapters. It does not add frontend workflows, ITSM integration, or real external notification delivery by default.
 

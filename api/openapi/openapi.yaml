@@ -500,6 +500,16 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/SecretRef"
+  /api/v1/secrets/provider/validate:
+    post:
+      summary: Validate configured secret provider capabilities
+      responses:
+        "200":
+          description: Provider validation status. No secret values are returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecretProviderStatus"
   /api/v1/secrets/{id}:
     delete:
       summary: Delete a secret by id
@@ -508,6 +518,24 @@ paths:
       responses:
         "200":
           description: Secret deleted
+  /api/v1/secrets/{id}/rotate:
+    post:
+      summary: Rotate a secret value and return updated SecretRef metadata only
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SecretRotateRequest"
+      responses:
+        "200":
+          description: Updated SecretRef metadata. The secret value is never returned.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecretRef"
   /api/v1/credentials:
     get:
       summary: List credential metadata
@@ -2736,12 +2764,25 @@ components:
           type: object
           additionalProperties:
             type: string
+        policy:
+          $ref: "#/components/schemas/SecretPolicy"
         createdAt:
           type: string
           format: date-time
         updatedAt:
           type: string
           format: date-time
+    SecretPolicy:
+      type: object
+      properties:
+        allowedUses:
+          type: array
+          items:
+            type: string
+        environments:
+          type: array
+          items:
+            type: string
     SecretCreateRequest:
       type: object
       required: [name, value]
@@ -2763,6 +2804,34 @@ components:
           type: object
           additionalProperties:
             type: string
+        policy:
+          $ref: "#/components/schemas/SecretPolicy"
+    SecretRotateRequest:
+      type: object
+      required: [value]
+      properties:
+        value:
+          type: string
+          description: Accepted only on rotation. Never returned by normal APIs.
+    SecretProviderStatus:
+      type: object
+      properties:
+        provider:
+          type: string
+        configured:
+          type: boolean
+        reachable:
+          type: boolean
+        capabilities:
+          type: array
+          items:
+            type: string
+        message:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
     SecretMetadata:
       $ref: "#/components/schemas/SecretRef"
     SecretUsage:
@@ -2779,6 +2848,8 @@ components:
         subjectType:
           type: string
         subjectId:
+          type: string
+        environment:
           type: string
         createdAt:
           type: string

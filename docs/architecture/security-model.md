@@ -6,7 +6,7 @@ Security is a first-class architecture concern.
 
 Credential records should store metadata and SecretRefs, not raw secret values. SecretProvider Adapters own secret material. Secret values must not appear in logs, audit records, normal API responses, or test fixtures.
 
-Phase 3.1 adds a minimal Secret and Credential foundation. `SecretRef` is the public reference, `Credential` binds that reference to an intended provider use, and `SecretUsage` records internal access. The builtin provider is development-only and in-memory; Vault, Kubernetes Secret, cloud KMS, and external secret manager adapters remain future work.
+Phase 3.1 adds a minimal Secret and Credential foundation. `SecretRef` is the public reference, `Credential` binds that reference to an intended provider use, and `SecretUsage` records internal access. Phase 7.1 adds rotation, provider validation, usage policy metadata, Vault/Kubernetes Secret adapter skeletons, and cloud KMS placeholders. The builtin provider is development-only and in-memory; production-grade external secret storage remains future work.
 
 ## Log Redaction
 

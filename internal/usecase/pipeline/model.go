@@ -80,8 +80,9 @@ type EventOutboxRecord struct {
 }
 
 type CreateRunInput struct {
-	Definition Definition
-	ActorID    string
+	Definition    Definition
+	ActorID       string
+	CorrelationID string
 }
 
 type CreateRunResult struct {

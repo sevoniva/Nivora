@@ -68,6 +68,7 @@ type PipelineRun struct {
 	ID                string            `json:"id"`
 	PipelineID        string            `json:"pipelineId"`
 	PipelineVersionID string            `json:"pipelineVersionId,omitempty"`
+	CorrelationID     string            `json:"correlationId,omitempty"`
 	Status            PipelineRunStatus `json:"status"`
 	CancelRequested   bool              `json:"cancelRequested,omitempty"`
 	StartedAt         *time.Time        `json:"startedAt,omitempty"`

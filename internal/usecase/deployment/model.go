@@ -303,11 +303,12 @@ type TimelineEntry struct {
 }
 
 type CreateRunInput struct {
-	Definition Definition
-	ActorID    string
-	AllowApply bool
-	AllowSync  bool
-	Confirm    bool
+	Definition    Definition
+	ActorID       string
+	CorrelationID string
+	AllowApply    bool
+	AllowSync     bool
+	Confirm       bool
 }
 
 type CreateRunResult struct {

@@ -40,6 +40,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | Durable runner runtime | Phase 3.6 protocol / outbox foundation |
 | Visualization backend APIs | Phase 4.0 read-model foundation |
 | Web UI foundation | Phase 4.1 minimal Vite / React app |
+| Observability and operations | Phase 4.2 request/correlation IDs, diagnostics, and local metrics |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
 | Frontend visualization | Future phase |
@@ -734,6 +735,9 @@ The web UI lives under `web/` and consumes the existing `/api/v1/visualization/*
 curl http://localhost:8080/healthz
 curl http://localhost:8080/readyz
 curl http://localhost:8080/api/v1/version
+curl http://localhost:8080/api/v1/system/runtime
+curl http://localhost:8080/api/v1/system/diagnostics
+curl http://localhost:8080/metrics
 ```
 
 ### Run Worker

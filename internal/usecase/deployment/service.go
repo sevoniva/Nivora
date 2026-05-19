@@ -147,6 +147,7 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 		}
 	}
 	record := s.newRecord(input.Definition)
+	record.Run.CorrelationID = input.CorrelationID
 	if err := s.store.Save(ctx, record); err != nil {
 		return CreateRunResult{}, err
 	}
@@ -180,6 +181,7 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 		return CreateRunResult{}, err
 	}
 	record := s.newRecord(input.Definition)
+	record.Run.CorrelationID = input.CorrelationID
 	if input.Definition.Spec.Target.Type == "argocd" {
 		record.GitOpsPlan = s.buildGitOpsPlan(record.Run.ID, input.Definition, nil)
 		record.Plan = deploymentPlanFromGitOps(record.GitOpsPlan, input.Definition)

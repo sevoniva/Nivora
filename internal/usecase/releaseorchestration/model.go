@@ -94,6 +94,7 @@ type PolicyResult struct {
 type ReleaseExecution struct {
 	ID               string            `json:"id"`
 	ReleaseID        string            `json:"releaseId"`
+	CorrelationID    string            `json:"correlationId,omitempty"`
 	EnvironmentID    string            `json:"environmentId"`
 	EnvironmentName  string            `json:"environmentName"`
 	Status           ExecutionStatus   `json:"status"`
@@ -147,11 +148,13 @@ type TimelineEntry struct {
 }
 
 type PlanInput struct {
-	Definition Definition
-	ActorID    string
+	Definition    Definition
+	ActorID       string
+	CorrelationID string
 }
 
 type DeployInput struct {
-	Definition Definition
-	ActorID    string
+	Definition    Definition
+	ActorID       string
+	CorrelationID string
 }

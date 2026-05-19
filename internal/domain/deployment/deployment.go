@@ -34,6 +34,7 @@ type DeploymentRun struct {
 	ID                  string              `json:"id"`
 	ReleaseID           string              `json:"releaseId,omitempty"`
 	ApplicationID       string              `json:"applicationId,omitempty"`
+	CorrelationID       string              `json:"correlationId,omitempty"`
 	EnvironmentID       string              `json:"environmentId"`
 	ReleaseTargetID     string              `json:"releaseTargetId"`
 	TargetType          string              `json:"targetType"`

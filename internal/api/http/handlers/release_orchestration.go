@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
+	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 )
 
@@ -20,7 +21,10 @@ func PlanRelease(service *releaseorchestration.Service) http.HandlerFunc {
 		if releaseID := chi.URLParam(r, "id"); releaseID != "" && releaseID != "local" && def.Spec.ReleaseID == "" {
 			def.Spec.ReleaseID = releaseID
 		}
-		record, err := service.Plan(r.Context(), releaseorchestration.PlanInput{Definition: def})
+		record, err := service.Plan(r.Context(), releaseorchestration.PlanInput{
+			Definition:    def,
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+		})
 		respondReleaseOrchestrationResult(w, r, record, err)
 	}
 }
@@ -35,7 +39,10 @@ func DeployRelease(service *releaseorchestration.Service) http.HandlerFunc {
 		if releaseID := chi.URLParam(r, "id"); releaseID != "" && releaseID != "local" && def.Spec.ReleaseID == "" {
 			def.Spec.ReleaseID = releaseID
 		}
-		record, err := service.Deploy(r.Context(), releaseorchestration.DeployInput{Definition: def})
+		record, err := service.Deploy(r.Context(), releaseorchestration.DeployInput{
+			Definition:    def,
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+		})
 		if err == nil {
 			RespondJSON(w, http.StatusCreated, record)
 			return

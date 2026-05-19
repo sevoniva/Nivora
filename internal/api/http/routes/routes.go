@@ -24,16 +24,21 @@ import (
 func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
+	r.Use(apimiddleware.RequestContext())
 	r.Use(middleware.RealIP)
 	r.Use(middleware.Recoverer)
+	r.Use(apimiddleware.StructuredAccessLog(logger))
 
 	r.Get("/healthz", handlers.Health)
 	r.Get("/readyz", handlers.Ready)
+	r.Get("/metrics", handlers.Metrics())
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Use(apimiddleware.Authenticate(cfg.Auth, authService, handlers.RespondError))
 		api.Get("/version", handlers.Version(info))
 		api.Get("/system/info", handlers.SystemInfo(cfg))
+		api.Get("/system/runtime", handlers.SystemRuntime(cfg))
+		api.Get("/system/diagnostics", handlers.SystemDiagnostics(cfg))
 		api.Get("/auth/whoami", handlers.WhoAmI())
 		api.Get("/auth/permissions", handlers.AuthPermissions(authService))
 		api.Get("/auth/token-info", handlers.AuthTokenInfo())

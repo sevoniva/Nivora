@@ -109,6 +109,52 @@ func TestSystemInfoIncludesRuntimeMode(t *testing.T) {
 	}
 }
 
+func TestSystemDiagnosticsIncludesCorrelationContext(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/system/diagnostics", nil)
+	req.Header.Set("X-Request-Id", "request-test")
+	req.Header.Set("X-Correlation-Id", "correlation-test")
+	req.Header.Set("traceparent", "00-0123456789abcdef0123456789abcdef-0123456789abcdef-01")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if rec.Header().Get("X-Correlation-Id") != "correlation-test" {
+		t.Fatalf("correlation header = %q", rec.Header().Get("X-Correlation-Id"))
+	}
+	for _, want := range []string{`"correlation_id":"correlation-test"`, `"trace_id":"0123456789abcdef0123456789abcdef"`, `"metrics"`, `"checks"`} {
+		if !bytes.Contains(rec.Body.Bytes(), []byte(want)) {
+			t.Fatalf("missing %s body = %s", want, rec.Body.String())
+		}
+	}
+}
+
+func TestMetricsEndpointExposesRuntimeCounters(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+
+	req := httptest.NewRequest(http.MethodGet, "/metrics", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	for _, want := range []string{"nivora_pipeline_run_total", "nivora_deployment_run_total", "nivora_runner_heartbeat_total"} {
+		if !bytes.Contains(rec.Body.Bytes(), []byte(want)) {
+			t.Fatalf("missing metric %s body = %s", want, rec.Body.String())
+		}
+	}
+}
+
 func TestRunnerRoutes(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {

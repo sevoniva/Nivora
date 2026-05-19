@@ -93,6 +93,11 @@ For a quick path through the project:
 - [Phase 3](roadmap/phase-3.md)
 - [Phase 4](roadmap/phase-4.md)
 
+## Operations Docs
+
+- [Observability Operations](operations/observability.md)
+- [Troubleshooting](operations/troubleshooting.md)
+
 ## Community and Governance
 
 - [Governance](community/governance.md)

@@ -8,7 +8,10 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
+	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
+	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
 	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
+	"github.com/sevoniva/nivora/internal/infra/telemetry"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
@@ -22,13 +25,23 @@ func CreatePipelineRun(service *pipelineusecase.Service) http.HandlerFunc {
 			})
 			return
 		}
-		result, err := service.CreateAndRun(r.Context(), pipelineusecase.CreateRunInput{Definition: def})
+		start := time.Now()
+		result, err := service.CreateAndRun(r.Context(), pipelineusecase.CreateRunInput{
+			Definition:    def,
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+		})
 		if err != nil {
+			telemetry.DefaultMetrics().IncFailure()
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{
 				Code:    "pipeline_run_failed",
 				Message: err.Error(),
 			})
 			return
+		}
+		telemetry.DefaultMetrics().IncPipelineRun()
+		telemetry.DefaultMetrics().ObservePipelineDuration(time.Since(start))
+		if result.Record.Run.Status == domainpipeline.PipelineRunFailed || result.Record.Run.Status == domainpipeline.PipelineRunTimeout {
+			telemetry.DefaultMetrics().IncFailure()
 		}
 		RespondJSON(w, http.StatusCreated, pipelineRunResponse(result.Record))
 	}
@@ -76,6 +89,7 @@ func pipelineRunResponse(record pipelineusecase.RunRecord) map[string]any {
 		"run": map[string]any{
 			"id":            record.Run.ID,
 			"pipelineId":    record.Run.PipelineID,
+			"correlationId": record.Run.CorrelationID,
 			"status":        record.Run.Status,
 			"startedAt":     record.Run.StartedAt,
 			"finishedAt":    record.Run.FinishedAt,
@@ -161,6 +175,9 @@ func GetRunner(service *pipelineusecase.Service) http.HandlerFunc {
 func HeartbeatRunner(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		runner, err := service.HeartbeatRunner(r.Context(), chi.URLParam(r, "id"))
+		if err == nil {
+			telemetry.DefaultMetrics().IncRunnerHeartbeat()
+		}
 		respondPipelineResult(w, r, runner, err)
 	}
 }

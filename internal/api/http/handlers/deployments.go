@@ -4,9 +4,13 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
+	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
+	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
+	"github.com/sevoniva/nivora/internal/infra/telemetry"
 	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 )
@@ -21,13 +25,23 @@ func CreateDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 			})
 			return
 		}
-		result, err := service.CreateAndRun(r.Context(), deploymentusecase.CreateRunInput{Definition: def})
+		start := time.Now()
+		result, err := service.CreateAndRun(r.Context(), deploymentusecase.CreateRunInput{
+			Definition:    def,
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+		})
 		if err != nil {
+			telemetry.DefaultMetrics().IncFailure()
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{
 				Code:    "deployment_run_failed",
 				Message: err.Error(),
 			})
 			return
+		}
+		telemetry.DefaultMetrics().IncDeploymentRun()
+		telemetry.DefaultMetrics().ObserveDeploymentDuration(time.Since(start))
+		if result.Record.Run.Status == domaindeployment.DeploymentRunFailed {
+			telemetry.DefaultMetrics().IncFailure()
 		}
 		RespondJSON(w, http.StatusCreated, result.Record)
 	}
@@ -43,7 +57,10 @@ func PlanDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 			})
 			return
 		}
-		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{Definition: def})
+		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{
+			Definition:    def,
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+		})
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{
 				Code:    "deployment_plan_failed",
@@ -62,7 +79,10 @@ func PlanGitOpsDeployment(service *deploymentusecase.Service) http.HandlerFunc {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a deployment definition"})
 			return
 		}
-		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{Definition: def})
+		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{
+			Definition:    def,
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+		})
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "gitops_plan_failed", Message: err.Error()})
 			return
@@ -78,7 +98,10 @@ func PlanHostDeployment(service *deploymentusecase.Service) http.HandlerFunc {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a deployment definition"})
 			return
 		}
-		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{Definition: def})
+		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{
+			Definition:    def,
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+		})
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "host_deployment_plan_failed", Message: err.Error()})
 			return

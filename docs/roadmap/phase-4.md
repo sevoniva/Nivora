@@ -1,4 +1,4 @@
-# Phase 4: Visualization Backend and Future Frontend
+# Phase 4: Visualization, Web UI, and Operations Foundations
 
 ## Objective
 
@@ -59,6 +59,27 @@ Non-goals:
 - Complete product UI.
 - New backend behavior.
 - Heavy design system.
+- Production readiness claims.
+
+## Phase 4.2 Observability and Operations Hardening
+
+Phase 4.2 adds lightweight backend operations support without introducing a full observability stack.
+
+Scope:
+
+- Request ID, correlation ID, and trace ID propagation through HTTP.
+- Structured access logs with non-secret operational fields.
+- Process-local metrics for PipelineRuns, DeploymentRuns, failures, durations, and runner heartbeats.
+- `/metrics`, `/api/v1/system/runtime`, and `/api/v1/system/diagnostics` endpoints.
+- Tracing configuration placeholder for future OpenTelemetry work.
+- Operations documentation for observability and troubleshooting.
+
+Non-goals:
+
+- Prometheus deployment.
+- Distributed trace export.
+- Log aggregation or retention.
+- Frontend observability dashboards.
 - Production readiness claims.
 
 ## Contribution Opportunities

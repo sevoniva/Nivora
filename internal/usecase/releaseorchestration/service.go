@@ -116,7 +116,7 @@ func (s *Service) Plan(ctx context.Context, input PlanInput) (PlanRecord, error)
 }
 
 func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecord, error) {
-	planRecord, err := s.Plan(ctx, PlanInput{Definition: input.Definition, ActorID: input.ActorID})
+	planRecord, err := s.Plan(ctx, PlanInput{Definition: input.Definition, ActorID: input.ActorID, CorrelationID: input.CorrelationID})
 	if err != nil {
 		return ExecutionRecord{}, err
 	}
@@ -130,6 +130,7 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 			Execution: ReleaseExecution{
 				ID:              newID("rexec"),
 				ReleaseID:       planRecord.Plan.ReleaseID,
+				CorrelationID:   input.CorrelationID,
 				EnvironmentID:   planRecord.Plan.EnvironmentID,
 				EnvironmentName: planRecord.Plan.EnvironmentName,
 				Status:          ExecutionFailed,
@@ -148,6 +149,7 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 	exec := ReleaseExecution{
 		ID:              newID("rexec"),
 		ReleaseID:       planRecord.Plan.ReleaseID,
+		CorrelationID:   input.CorrelationID,
 		EnvironmentID:   planRecord.Plan.EnvironmentID,
 		EnvironmentName: planRecord.Plan.EnvironmentName,
 		Status:          ExecutionCreated,
@@ -321,7 +323,7 @@ func (s *Service) runSequential(ctx context.Context, record ExecutionRecord, act
 			return ExecutionRecord{}, err
 		}
 		record, _ = s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionTargetStarted, "Target execution started", actorID, target.Name)
-		result, runErr := s.deployments.CreateAndRun(ctx, deploymentusecase.CreateRunInput{Definition: target.Deployment})
+		result, runErr := s.deployments.CreateAndRun(ctx, deploymentusecase.CreateRunInput{Definition: target.Deployment, CorrelationID: record.Execution.CorrelationID})
 		status := mapDeploymentStatus(result.Record.Run.Status)
 		if runErr != nil {
 			status = ExecutionFailed

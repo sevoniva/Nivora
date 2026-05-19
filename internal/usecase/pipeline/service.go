@@ -70,6 +70,7 @@ func (s *Service) CreateQueued(ctx context.Context, input CreateRunInput) (Creat
 	}
 
 	record := s.newRecord(input.Definition)
+	record.Run.CorrelationID = input.CorrelationID
 	if err := s.store.Save(ctx, record); err != nil {
 		return CreateRunResult{}, err
 	}

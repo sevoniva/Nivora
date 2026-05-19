@@ -49,6 +49,9 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newConfigCommand())
 	root.AddCommand(newAuthCommand())
 	root.AddCommand(newProjectCommand())
+	root.AddCommand(newApprovalsCommand())
+	root.AddCommand(newChangeWindowCommand())
+	root.AddCommand(newNotificationCommand())
 	root.AddCommand(newPipelineCommand())
 	root.AddCommand(newArtifactCommand())
 	root.AddCommand(newReleaseCommand())
@@ -61,6 +64,122 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newArgoCDCommand())
 	root.AddCommand(newRunnerCommand())
 	return root
+}
+
+func newApprovalsCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "approvals", Short: "Approval request utilities"}
+	cmd.AddCommand(newApprovalListCommand())
+	cmd.AddCommand(newApprovalDecisionCommand("approve", "Approve an approval request", "/approve"))
+	cmd.AddCommand(newApprovalDecisionCommand("reject", "Reject an approval request", "/reject"))
+	return cmd
+}
+
+func newApprovalListCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List approval requests",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/approvals", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newApprovalDecisionCommand(name string, short string, actionPath string) *cobra.Command {
+	var serverURL string
+	var comment string
+	var approver string
+	cmd := &cobra.Command{
+		Use:   name + " <id>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			body, err := json.Marshal(map[string]string{"approver": approver, "comment": comment})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/approvals/"+args[0]+actionPath, body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&comment, "comment", "", "approval decision comment")
+	cmd.Flags().StringVar(&approver, "approver", "local-user", "approver identity for local development")
+	return cmd
+}
+
+func newChangeWindowCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "change-window", Short: "Change window utilities"}
+	cmd.AddCommand(newChangeWindowEvaluateCommand())
+	return cmd
+}
+
+func newChangeWindowEvaluateCommand() *cobra.Command {
+	var serverURL string
+	var environmentID string
+	cmd := &cobra.Command{
+		Use:   "evaluate --env <environment-id>",
+		Short: "Evaluate whether a deployment is inside an allowed change window",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if environmentID == "" {
+				return fmt.Errorf("--env is required")
+			}
+			body, err := json.Marshal(map[string]string{"environmentId": environmentID})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/change-windows/evaluate", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&environmentID, "env", "", "environment id")
+	return cmd
+}
+
+func newNotificationCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "notification", Short: "Notification utilities"}
+	cmd.AddCommand(newNotificationTestCommand())
+	return cmd
+}
+
+func newNotificationTestCommand() *cobra.Command {
+	var serverURL string
+	var channel string
+	cmd := &cobra.Command{
+		Use:   "test --channel noop",
+		Short: "Send a test notification through a configured provider",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			body, err := json.Marshal(map[string]any{"channel": channel, "type": "test", "subject": "Nivora test notification", "recipients": []string{"local"}})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/notifications/test", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&channel, "channel", "noop", "notification channel")
+	return cmd
 }
 
 func newAuthCommand() *cobra.Command {

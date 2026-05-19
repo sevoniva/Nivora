@@ -16,11 +16,13 @@ import (
 	argocdadapter "github.com/sevoniva/nivora/internal/adapters/executor/argocd"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
+	noopnotification "github.com/sevoniva/nivora/internal/adapters/notification/noop"
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	portsecurity "github.com/sevoniva/nivora/internal/ports/security"
+	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
@@ -184,6 +186,40 @@ func TestAuthTokenModeRequiresBearerToken(t *testing.T) {
 	}
 }
 
+func TestApprovalRoutes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/approvals", strings.NewReader(`{"subjectType":"deployment","subjectId":"drun-test","environmentId":"prod","requestedBy":"tester","reason":"deployment approval"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create approval status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode approval: %v", err)
+	}
+	if created.ID == "" || created.Status != "Pending" {
+		t.Fatalf("created approval = %#v", created)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+created.ID+"/approve", strings.NewReader(`{"approver":"reviewer","comment":"ok"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("approve status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "Approved") {
+		t.Fatalf("approve body = %s", rec.Body.String())
+	}
+}
+
 func newTestPipelineService() *pipelineusecase.Service {
 	return pipelineusecase.NewService(
 		pipelineusecase.NewMemoryStore(),
@@ -206,6 +242,7 @@ func newTestRouter(cfg config.Config) http.Handler {
 		securityusecase.NewService(securityusecase.NewMemoryStore(), fakeSecurityScanner{}, nil, memory.New()),
 		credentialusecase.NewService(credentialusecase.NewMemoryStore(), builtinsecret.New(), memory.New()),
 		authusecase.NewService(authusecase.NewMemoryStore(), memory.New()),
+		approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New()),
 	)
 }
 

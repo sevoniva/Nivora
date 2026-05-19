@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/release"
@@ -79,6 +80,22 @@ func TestPolicyDenied(t *testing.T) {
 	}
 	if record.Execution.Reason == "" {
 		t.Fatal("expected denial reason")
+	}
+}
+
+func TestApprovalRequiredCreatesApprovalRequest(t *testing.T) {
+	def := testDefinition(false, StrategySequential)
+	def.Spec.ApprovalRequired = true
+	service := newTestService(allowPolicy{}).WithGovernance(testGovernance{})
+	record, err := service.Deploy(context.Background(), DeployInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("Deploy() error = %v", err)
+	}
+	if record.Execution.Status != ExecutionWaitingApproval {
+		t.Fatalf("status = %s", record.Execution.Status)
+	}
+	if record.Approval.Status != domainapproval.StatusPending || record.Approval.SubjectID != record.Execution.ID {
+		t.Fatalf("approval = %#v", record.Approval)
 	}
 }
 
@@ -196,6 +213,12 @@ type denyPolicy struct{}
 
 func (denyPolicy) Evaluate(ctx context.Context, request policy.Request) (policy.Result, error) {
 	return policy.Result{Allowed: false, Reasons: []string{"denied by test policy"}}, nil
+}
+
+type testGovernance struct{}
+
+func (testGovernance) RequestApproval(ctx context.Context, subjectType string, subjectID string, environmentID string, requestedBy string, reason string) (domainapproval.ApprovalRequest, error) {
+	return domainapproval.ApprovalRequest{ID: "appr-release-test", SubjectType: subjectType, SubjectID: subjectID, EnvironmentID: environmentID, RequiredByPolicy: true, Status: domainapproval.StatusPending, RequestedBy: requestedBy, Reason: reason}, nil
 }
 
 type fakeArtifactService struct{}

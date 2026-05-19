@@ -1,0 +1,16 @@
+apiVersion: nivora.io/v1alpha1
+kind: ChangeWindow
+metadata:
+  name: prod-business-hours
+spec:
+  environmentId: prod
+  timezone: UTC
+  startTime: "09:00"
+  endTime: "17:00"
+  daysOfWeek:
+    - monday
+    - tuesday
+    - wednesday
+    - thursday
+    - friday
+  allowed: true

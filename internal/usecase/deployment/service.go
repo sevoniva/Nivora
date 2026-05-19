@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
@@ -71,15 +72,21 @@ type KubernetesManifestClient interface {
 type ManifestClient = KubernetesManifestClient
 
 type Service struct {
-	store    Store
-	renderer ManifestRenderer
-	client   ManifestClient
-	policy   policy.Engine
-	eventBus eventbus.EventBus
-	gitops   portgitops.WorkingTree
-	argocd   portargocd.Provider
-	security *securityusecase.Service
-	now      func() time.Time
+	store      Store
+	renderer   ManifestRenderer
+	client     ManifestClient
+	policy     policy.Engine
+	eventBus   eventbus.EventBus
+	gitops     portgitops.WorkingTree
+	argocd     portargocd.Provider
+	security   *securityusecase.Service
+	governance Governance
+	now        func() time.Time
+}
+
+type Governance interface {
+	RequestApproval(ctx context.Context, subjectType string, subjectID string, environmentID string, requestedBy string, reason string) (domainapproval.ApprovalRequest, error)
+	EvaluateChangeWindow(ctx context.Context, environmentID string) (domainapproval.ChangeWindowResult, error)
 }
 
 func NewService(store Store, renderer ManifestRenderer, client ManifestClient, policyEngine policy.Engine, bus eventbus.EventBus) *Service {
@@ -101,6 +108,11 @@ func (s *Service) WithGitOps(workingTree portgitops.WorkingTree, provider portar
 
 func (s *Service) WithSecurity(securityService *securityusecase.Service) *Service {
 	s.security = securityService
+	return s
+}
+
+func (s *Service) WithGovernance(governance Governance) *Service {
+	s.governance = governance
 	return s
 }
 
@@ -251,6 +263,34 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 		return RunRecord{}, err
 	}
 	record, _ = s.store.Get(ctx, record.Run.ID)
+	if record.Definition.Spec.Options.ChangeWindowRequired && s.governance != nil {
+		result, err := s.governance.EvaluateChangeWindow(ctx, record.Run.EnvironmentID)
+		if err != nil {
+			return s.fail(ctx, record, actorID, err.Error())
+		}
+		record.ChangeWindow = result
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if !result.Allowed {
+			return s.fail(ctx, record, actorID, result.Reason)
+		}
+	}
+	if record.Definition.Spec.Options.ApprovalRequired && s.governance != nil {
+		approval, err := s.governance.RequestApproval(ctx, domainapproval.SubjectDeployment, record.Run.ID, record.Run.EnvironmentID, actorID, "deployment approval required")
+		if err != nil {
+			return s.fail(ctx, record, actorID, err.Error())
+		}
+		record.Approval = approval
+		if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunWaitingApproval, s.now(), "approval required"); err != nil {
+			return RunRecord{}, err
+		}
+		record.Run.Reason = "approval required"
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		return record, nil
+	}
 	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunVerifying, s.now(), ""); err != nil {
 		return RunRecord{}, err
 	}

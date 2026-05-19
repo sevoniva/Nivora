@@ -52,11 +52,14 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 ## Phase 3: Multi-Cloud and DevSecOps
 
 - Phase 3.0 adds SecurityScan, SecurityFinding, noop/fake scanner adapters, and built-in policy gate foundations.
+- Phase 3.1 adds SecretRef, Credential metadata, development secret provider, and redaction foundations.
+- Phase 3.2 adds local AuthN/AuthZ and RBAC foundations while keeping OIDC/Keycloak future.
+- Phase 3.3 adds ApprovalRequest, ApprovalDecision, ChangeWindow, NotificationProvider, and audit/event foundations for human governance.
 - Add cloud provider adapters.
 - Add artifact scanning and policy evaluation.
 - Add secret backends and notification providers.
 - Harden authn, authz, audit, and telemetry.
-- Keep Trivy, Cosign, SBOM generation, cloud scanning, and production security automation optional and future until RFC-backed.
+- Keep real notification integrations, ITSM, Trivy, Cosign, SBOM generation, cloud scanning, production SSO, and production security automation optional and future until RFC-backed.
 
 ## Phase 4: Visualization Frontend
 

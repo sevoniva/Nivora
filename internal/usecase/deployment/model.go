@@ -3,6 +3,7 @@ package deployment
 import (
 	"time"
 
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
@@ -44,6 +45,8 @@ type RunRecord struct {
 	Audits          []audit.AuditLog                  `json:"audits,omitempty"`
 	Policy          policy.Result                     `json:"policy"`
 	Security        securityusecase.ScanRecord        `json:"security,omitempty"`
+	Approval        domainapproval.ApprovalRequest    `json:"approval,omitempty"`
+	ChangeWindow    domainapproval.ChangeWindowResult `json:"changeWindow,omitempty"`
 }
 
 type DeploymentPlan struct {

@@ -3,6 +3,7 @@ package releaseorchestration
 import (
 	"time"
 
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	"github.com/sevoniva/nivora/internal/domain/environment"
 	"github.com/sevoniva/nivora/internal/domain/event"
@@ -126,14 +127,15 @@ type PlanRecord struct {
 }
 
 type ExecutionRecord struct {
-	Definition  Definition                    `json:"definition,omitempty"`
-	Release     release.Release               `json:"release"`
-	Plan        ReleasePlan                   `json:"plan"`
-	Execution   ReleaseExecution              `json:"execution"`
-	Deployments []deploymentusecase.RunRecord `json:"deployments,omitempty"`
-	Events      []event.Event                 `json:"events,omitempty"`
-	Audits      []audit.AuditLog              `json:"audits,omitempty"`
-	Security    securityusecase.ScanRecord    `json:"security,omitempty"`
+	Definition  Definition                     `json:"definition,omitempty"`
+	Release     release.Release                `json:"release"`
+	Plan        ReleasePlan                    `json:"plan"`
+	Execution   ReleaseExecution               `json:"execution"`
+	Deployments []deploymentusecase.RunRecord  `json:"deployments,omitempty"`
+	Events      []event.Event                  `json:"events,omitempty"`
+	Audits      []audit.AuditLog               `json:"audits,omitempty"`
+	Security    securityusecase.ScanRecord     `json:"security,omitempty"`
+	Approval    domainapproval.ApprovalRequest `json:"approval,omitempty"`
 }
 
 type TimelineEntry struct {

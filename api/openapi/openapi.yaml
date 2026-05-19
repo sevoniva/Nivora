@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 3.2 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, artifact/release binding with OCI digest resolution, GitOps/Argo CD planning and guarded sync foundations, Kubernetes resource inventory, health, snapshot, diff, rollback-plan output, sequential ReleasePlan / ReleaseExecution orchestration across targets, early DevSecOps scan / policy gate foundations, SecretRef / Credential metadata APIs, and local auth/RBAC foundations.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 3.3 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, and approval/change-window/notification foundations.
 servers:
   - url: http://localhost:8080
 paths:
@@ -1096,10 +1096,176 @@ paths:
           description: Runner not found
   /api/v1/approvals:
     get:
-      summary: Approvals placeholder
+      summary: List approval requests
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Approval requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ApprovalRequest"
+    post:
+      summary: Create an approval request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalCreateRequest"
+      responses:
+        "200":
+          description: Approval request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalRequest"
+  /api/v1/approvals/{id}:
+    get:
+      summary: Get an approval request
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Approval request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalRequest"
+  /api/v1/approvals/{id}/approve:
+    post:
+      summary: Approve an approval request
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalDecisionRequest"
+      responses:
+        "200":
+          description: Approved request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalRequest"
+  /api/v1/approvals/{id}/reject:
+    post:
+      summary: Reject an approval request
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalDecisionRequest"
+      responses:
+        "200":
+          description: Rejected request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalRequest"
+  /api/v1/approvals/{id}/cancel:
+    post:
+      summary: Cancel an approval request
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalDecisionRequest"
+      responses:
+        "200":
+          description: Canceled request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalRequest"
+  /api/v1/change-windows:
+    get:
+      summary: List change windows
+      responses:
+        "200":
+          description: Change windows
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/ChangeWindow"
+    post:
+      summary: Create a change window
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeWindow"
+      responses:
+        "200":
+          description: Change window
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeWindow"
+  /api/v1/change-windows/{id}:
+    get:
+      summary: Get a change window
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Change window
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeWindow"
+  /api/v1/change-windows/evaluate:
+    post:
+      summary: Evaluate a change window for an environment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ChangeWindowEvaluateRequest"
+      responses:
+        "200":
+          description: Change window result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ChangeWindowResult"
+  /api/v1/notifications:
+    get:
+      summary: List recorded notifications
+      responses:
+        "200":
+          description: Notifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Notification"
+  /api/v1/notifications/test:
+    post:
+      summary: Send a test notification through the configured provider
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/Notification"
+      responses:
+        "200":
+          description: Notification record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Notification"
   /api/v1/policies:
     get:
       summary: Policies placeholder
@@ -1176,6 +1342,167 @@ components:
           type: string
     Error:
       $ref: "#/components/schemas/ErrorResponse"
+    ApprovalCreateRequest:
+      type: object
+      required: [subjectType, subjectId]
+      properties:
+        subjectType:
+          type: string
+          enum: [release, deployment, pipeline]
+        subjectId:
+          type: string
+        environmentId:
+          type: string
+        requiredByPolicy:
+          type: boolean
+        requestedBy:
+          type: string
+        reason:
+          type: string
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApprovalParticipant"
+    ApprovalDecisionRequest:
+      type: object
+      properties:
+        approver:
+          type: string
+        comment:
+          type: string
+    ApprovalRequest:
+      type: object
+      properties:
+        id:
+          type: string
+        subjectType:
+          type: string
+          enum: [release, deployment, pipeline]
+        subjectId:
+          type: string
+        environmentId:
+          type: string
+        requiredByPolicy:
+          type: boolean
+        status:
+          type: string
+          enum: [Pending, Approved, Rejected, Canceled, Expired]
+        requestedBy:
+          type: string
+        requestedAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+        reason:
+          type: string
+        participants:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApprovalParticipant"
+        decisions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ApprovalDecision"
+    ApprovalDecision:
+      type: object
+      properties:
+        approver:
+          type: string
+        decision:
+          type: string
+        comment:
+          type: string
+        decidedAt:
+          type: string
+          format: date-time
+    ApprovalParticipant:
+      type: object
+      properties:
+        userId:
+          type: string
+        role:
+          type: string
+    ChangeWindow:
+      type: object
+      required: [name, environmentId]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        environmentId:
+          type: string
+        timezone:
+          type: string
+        startTime:
+          type: string
+        endTime:
+          type: string
+        daysOfWeek:
+          type: array
+          items:
+            type: string
+        allowed:
+          type: boolean
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ChangeWindowEvaluateRequest:
+      type: object
+      required: [environmentId]
+      properties:
+        environmentId:
+          type: string
+        at:
+          type: string
+          format: date-time
+    ChangeWindowResult:
+      type: object
+      properties:
+        windowId:
+          type: string
+        environmentId:
+          type: string
+        allowed:
+          type: boolean
+        reason:
+          type: string
+        evaluatedAt:
+          type: string
+          format: date-time
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+        channel:
+          type: string
+        subject:
+          type: string
+        body:
+          type: string
+        recipients:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
     User:
       type: object
       properties:

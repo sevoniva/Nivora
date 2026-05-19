@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
@@ -135,6 +136,40 @@ func TestServiceFailsWhenPolicyDenies(t *testing.T) {
 	}
 	if result.Record.Policy.Allowed {
 		t.Fatal("expected denied policy result")
+	}
+}
+
+func TestServiceApprovalRequiredBlocksDeployment(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	service.WithGovernance(testGovernance{})
+	def.Spec.Options.ApprovalRequired = true
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("create and run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunWaitingApproval {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	if result.Record.Approval.Status != domainapproval.StatusPending || result.Record.Approval.SubjectID != result.Record.Run.ID {
+		t.Fatalf("approval = %#v", result.Record.Approval)
+	}
+}
+
+func TestServiceChangeWindowDeniedBlocksDeployment(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	service.WithGovernance(testGovernance{changeWindowAllowed: false})
+	def.Spec.Options.ChangeWindowRequired = true
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("create and run should persist failed run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	if result.Record.ChangeWindow.Allowed {
+		t.Fatalf("change window = %#v", result.Record.ChangeWindow)
 	}
 }
 
@@ -487,6 +522,23 @@ func (testEventBus) Subscribe(ctx context.Context, eventType string) (<-chan eve
 	ch := make(chan event.Event)
 	close(ch)
 	return ch, nil
+}
+
+type testGovernance struct {
+	changeWindowAllowed bool
+}
+
+func (g testGovernance) RequestApproval(ctx context.Context, subjectType string, subjectID string, environmentID string, requestedBy string, reason string) (domainapproval.ApprovalRequest, error) {
+	return domainapproval.ApprovalRequest{ID: "appr-test", SubjectType: subjectType, SubjectID: subjectID, EnvironmentID: environmentID, RequiredByPolicy: true, Status: domainapproval.StatusPending, RequestedBy: requestedBy, Reason: reason}, nil
+}
+
+func (g testGovernance) EvaluateChangeWindow(ctx context.Context, environmentID string) (domainapproval.ChangeWindowResult, error) {
+	allowed := g.changeWindowAllowed
+	reason := "change window denied"
+	if allowed {
+		reason = "change window allowed"
+	}
+	return domainapproval.ChangeWindowResult{WindowID: "cwin-test", EnvironmentID: environmentID, Allowed: allowed, Reason: reason}, nil
 }
 
 type fakeWorkingTree struct{}

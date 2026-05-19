@@ -19,6 +19,10 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 - Local AuthN/AuthZ and RBAC foundation.
 - Token auth mode with token values sourced from environment variables.
 - OIDC and Keycloak placeholders only.
+- ApprovalRequest and ApprovalDecision foundations.
+- Simple ChangeWindow evaluation.
+- NotificationProvider port with noop/log-style local behavior.
+- Release and deployment gates can enter WaitingApproval.
 - AWS provider Adapter.
 - Aliyun provider Adapter.
 - Tencent Cloud provider Adapter.
@@ -37,6 +41,8 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 
 Phase 3.0 delivers auditable security scan and policy gate foundations through Ports and Adapters. Phase 3.1 adds the minimal Secret and Credential model needed by future adapters. Phase 3.2 adds local AuthN/AuthZ and RBAC foundations. Multi-cloud inventory, Vault/KMS integrations, OIDC/Keycloak production integration, and full security integrations remain future Phase 3 work.
 
+Phase 3.3 adds backend-only human governance foundations: approvals, change windows, notification records, and audit/event trails. It does not add frontend workflows, ITSM integration, or real external notification delivery.
+
 ## Acceptance Criteria
 
 - Cloud SDKs stay inside Adapters.
@@ -44,6 +50,8 @@ Phase 3.0 delivers auditable security scan and policy gate foundations through P
 - Noop/fake scanners allow deterministic tests without external tools.
 - Policy gate decisions can allow, warn, deny, or require approval.
 - Secret and credential handling follows the security model.
+- Approval decisions and change-window evaluations are auditable.
+- Notification delivery remains adapter-driven and external sends are not required in tests.
 
 ## Contribution Opportunities
 
@@ -51,3 +59,4 @@ Phase 3.0 delivers auditable security scan and policy gate foundations through P
 - Scanner Adapter design.
 - Policy engine design.
 - Secret provider tests.
+- Approval and change-window policy tests.

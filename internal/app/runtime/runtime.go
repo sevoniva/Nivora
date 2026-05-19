@@ -9,9 +9,11 @@ import (
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	localgitops "github.com/sevoniva/nivora/internal/adapters/gitops/local"
+	noopnotification "github.com/sevoniva/nivora/internal/adapters/notification/noop"
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
 	securitynoop "github.com/sevoniva/nivora/internal/adapters/security/noop"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
@@ -31,13 +33,14 @@ func NewPipelineService() *pipelineusecase.Service {
 func NewDeploymentService() *deploymentusecase.Service {
 	store := deploymentusecase.NewMemoryStore()
 	bus := memory.New()
+	approvalService := NewApprovalService()
 	return deploymentusecase.NewService(
 		store,
 		deploymentusecase.NewStaticManifestRenderer(),
 		yamlapply.NoopManifestClient{},
 		allowAllPolicyEngine{},
 		bus,
-	).WithGitOps(localgitops.New(), argocdadapter.NoopProvider{AllowSync: true}).WithSecurity(NewSecurityService())
+	).WithGitOps(localgitops.New(), argocdadapter.NoopProvider{AllowSync: true}).WithSecurity(NewSecurityService()).WithGovernance(approvalService)
 }
 
 func NewArtifactService() *artifactusecase.Service {
@@ -50,13 +53,14 @@ func NewReleaseOrchestrationService() *releaseorchestration.Service {
 
 func NewReleaseOrchestrationServiceWith(artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) *releaseorchestration.Service {
 	bus := memory.New()
+	approvalService := NewApprovalService()
 	return releaseorchestration.NewService(
 		releaseorchestration.NewMemoryStore(),
 		artifactService,
 		deploymentService,
 		allowAllPolicyEngine{},
 		bus,
-	).WithSecurity(NewSecurityService())
+	).WithSecurity(NewSecurityService()).WithGovernance(approvalService)
 }
 
 func NewSecurityService() *securityusecase.Service {
@@ -70,6 +74,10 @@ func NewCredentialService() *credentialusecase.Service {
 
 func NewAuthService() *authusecase.Service {
 	return authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+}
+
+func NewApprovalService() *approvalusecase.Service {
+	return approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New())
 }
 
 type allowAllPolicyEngine struct{}

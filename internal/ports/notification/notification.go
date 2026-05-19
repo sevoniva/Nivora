@@ -1,13 +1,11 @@
 package notification
 
-import "context"
+import (
+	"context"
 
-type Message struct {
-	To      []string
-	Subject string
-	Body    string
-}
+	domainnotification "github.com/sevoniva/nivora/internal/domain/notification"
+)
 
 type Provider interface {
-	Send(ctx context.Context, message Message) error
+	Send(ctx context.Context, notification domainnotification.Notification) error
 }

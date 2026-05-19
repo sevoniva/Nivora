@@ -13,7 +13,7 @@ Nivora turns fragmented delivery tools into an auditable, extensible,
 multi-target delivery control plane.
 ```
 
-Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, runner/executor model, logs/events/audit, and open-source contribution foundation. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud provider, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, signing, and scanning remain future phases.
+Nivora is early-stage and **not production-ready**. The current focus is the backend foundation, architecture boundaries, shell PipelineRun runtime, controlled Kubernetes YAML DeploymentRun dry-run/apply foundation, Kubernetes resource inventory and health foundation, OCI artifact digest resolution foundation, artifact and release binding foundation, guarded Argo CD status/sync modeling, GitOps planning foundation, multi-target ReleasePlan / ReleaseExecution orchestration foundation, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window foundations, runner/executor model, logs/events/audit, and open-source contribution foundation. Production Kubernetes apply semantics, destructive rollback, production Argo CD automation, cloud provider, Git provider, host SSH, full Harbor/Nexus/JFrog integrations, external notification adapters, ITSM integration, signing, and scanning remain future phases.
 
 ## Current Status
 
@@ -32,6 +32,9 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | Argo CD status / guarded sync | Phase 2.6 foundation |
 | Multi-target release orchestration | Phase 2.7 foundation |
 | DevSecOps policy gates | Phase 3.0 foundation |
+| Secret and credential foundation | Phase 3.1 foundation |
+| AuthN/AuthZ and RBAC | Phase 3.2 foundation |
+| Approvals, change windows, notifications | Phase 3.3 foundation |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
 | Frontend visualization | Future phase |
@@ -941,10 +944,13 @@ flowchart LR
     P26["Phase 2.6<br/>Argo CD Guarded Sync"]
     P27["Phase 2.7<br/>Release Orchestration"]
     P30["Phase 3.0<br/>DevSecOps Foundation"]
+    P31["Phase 3.1<br/>Secret & Credential Foundation"]
+    P32["Phase 3.2<br/>Auth & RBAC Foundation"]
+    P33["Phase 3.3<br/>Approvals & Change Windows"]
     P3["Future Phase 3<br/>Multi-cloud & DevSecOps"]
     P4["Phase 4<br/>Visualization"]
 
-    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P30 --> P3 --> P4
+    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P30 --> P31 --> P32 --> P33 --> P3 --> P4
 ```
 
 See [ROADMAP.md](ROADMAP.md) and [docs/roadmap/overview.md](docs/roadmap/overview.md) for details.

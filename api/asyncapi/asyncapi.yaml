@@ -2,7 +2,7 @@ asyncapi: 3.0.0
 info:
   title: Nivora Events
   version: 0.1.0-dev
-  description: Phase 3.2 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
+  description: Phase 3.3 uses a local in-memory EventBus with this CloudEvents-style envelope. External brokers are future work.
 channels:
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
@@ -476,6 +476,46 @@ channels:
         $ref: "#/components/messages/Event"
   devops.membership.deleted:
     address: devops.membership.deleted
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.approval.requested:
+    address: devops.approval.requested
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.approval.approved:
+    address: devops.approval.approved
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.approval.rejected:
+    address: devops.approval.rejected
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.approval.canceled:
+    address: devops.approval.canceled
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.change_window.allowed:
+    address: devops.change_window.allowed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.change_window.denied:
+    address: devops.change_window.denied
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.notification.sent:
+    address: devops.notification.sent
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.notification.failed:
+    address: devops.notification.failed
     messages:
       event:
         $ref: "#/components/messages/Event"

@@ -1,0 +1,14 @@
+apiVersion: nivora.io/v1alpha1
+kind: ApprovalRequest
+metadata:
+  name: prod-deployment-approval
+spec:
+  subjectType: deployment
+  subjectId: deployment-run-placeholder
+  environmentId: prod
+  requiredByPolicy: true
+  requestedBy: platform-engineer
+  reason: Production deployment requires human approval.
+  participants:
+    - userId: release-manager
+      role: approver

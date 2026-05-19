@@ -8,6 +8,7 @@ import (
 	"strings"
 	"time"
 
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/environment"
@@ -49,12 +50,22 @@ type Service struct {
 	deployments DeploymentService
 	policy      policy.Engine
 	security    *securityusecase.Service
+	governance  Governance
 	eventBus    eventbus.EventBus
 	now         func() time.Time
 }
 
+type Governance interface {
+	RequestApproval(ctx context.Context, subjectType string, subjectID string, environmentID string, requestedBy string, reason string) (domainapproval.ApprovalRequest, error)
+}
+
 func (s *Service) WithSecurity(securityService *securityusecase.Service) *Service {
 	s.security = securityService
+	return s
+}
+
+func (s *Service) WithGovernance(governance Governance) *Service {
+	s.governance = governance
 	return s
 }
 
@@ -179,8 +190,15 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionSucceeded, "Release execution succeeded", input.ActorID, "plan-only release execution succeeded")
 	}
 	if input.Definition.Spec.ApprovalRequired {
+		if s.governance != nil {
+			approval, err := s.governance.RequestApproval(ctx, domainapproval.SubjectRelease, record.Execution.ID, record.Execution.EnvironmentID, input.ActorID, "release approval required")
+			if err != nil {
+				return ExecutionRecord{}, err
+			}
+			record.Approval = approval
+		}
 		record.Execution.Status = ExecutionWaitingApproval
-		record.Execution.Reason = "approval is required; approval workflow is a Phase 2.7 placeholder"
+		record.Execution.Reason = "approval is required"
 		record.Execution.UpdatedAt = s.now()
 		if err := s.store.SaveExecution(ctx, record); err != nil {
 			return ExecutionRecord{}, err

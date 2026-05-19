@@ -74,10 +74,12 @@ type GitOps struct {
 }
 
 type Options struct {
-	DryRun         bool `json:"dryRun" yaml:"dryRun"`
-	Apply          bool `json:"apply" yaml:"apply"`
-	Wait           bool `json:"wait" yaml:"wait"`
-	TimeoutSeconds int  `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
+	DryRun               bool `json:"dryRun" yaml:"dryRun"`
+	Apply                bool `json:"apply" yaml:"apply"`
+	Wait                 bool `json:"wait" yaml:"wait"`
+	TimeoutSeconds       int  `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
+	ApprovalRequired     bool `json:"approvalRequired,omitempty" yaml:"approvalRequired,omitempty"`
+	ChangeWindowRequired bool `json:"changeWindowRequired,omitempty" yaml:"changeWindowRequired,omitempty"`
 }
 
 func LoadDefinitionFile(path string) (Definition, error) {

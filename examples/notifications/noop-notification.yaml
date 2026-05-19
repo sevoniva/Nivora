@@ -1,0 +1,11 @@
+apiVersion: nivora.io/v1alpha1
+kind: Notification
+metadata:
+  name: noop-approval-notification
+spec:
+  type: approval
+  channel: noop
+  subject: Approval requested
+  body: A deployment approval is waiting for review.
+  recipients:
+    - local-reviewers

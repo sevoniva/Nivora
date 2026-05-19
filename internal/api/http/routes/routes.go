@@ -9,6 +9,7 @@ import (
 	"github.com/sevoniva/nivora/internal/api/http/handlers"
 	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
@@ -19,7 +20,7 @@ import (
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service) http.Handler {
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service) http.Handler {
 	r := chi.NewRouter()
 	r.Use(middleware.RequestID)
 	r.Use(middleware.RealIP)
@@ -66,6 +67,18 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/security/scans/{id}", handlers.GetSecurityScan(securityService))
 		api.Get("/security/scans/{id}/findings", handlers.GetSecurityFindings(securityService))
 		api.Post("/policies/evaluate", handlers.EvaluatePolicy(securityService))
+		api.Post("/approvals", handlers.CreateApproval(approvalService))
+		api.Get("/approvals", handlers.ListApprovals(approvalService))
+		api.Get("/approvals/{id}", handlers.GetApproval(approvalService))
+		api.Post("/approvals/{id}/approve", handlers.ApproveApproval(approvalService))
+		api.Post("/approvals/{id}/reject", handlers.RejectApproval(approvalService))
+		api.Post("/approvals/{id}/cancel", handlers.CancelApproval(approvalService))
+		api.Get("/change-windows", handlers.ListChangeWindows(approvalService))
+		api.Post("/change-windows", handlers.CreateChangeWindow(approvalService))
+		api.Get("/change-windows/{id}", handlers.GetChangeWindow(approvalService))
+		api.Post("/change-windows/evaluate", handlers.EvaluateChangeWindow(approvalService))
+		api.Get("/notifications", handlers.ListNotifications(approvalService))
+		api.Post("/notifications/test", handlers.TestNotification(approvalService))
 		api.Post("/secrets", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.CreateSecret(credentialService)))
 		api.Get("/secrets/refs", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.ListSecretRefs(credentialService)))
 		api.Delete("/secrets/{id}", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.DeleteSecret(credentialService)))
@@ -131,7 +144,6 @@ func placeholderGroups() []routeGroup {
 		{"/repositories", "repositories"},
 		{"/artifact-registries", "artifact registries"},
 		{"/pipelines", "pipelines"},
-		{"/approvals", "approvals"},
 		{"/policies", "policies"},
 		{"/audit-logs", "audit logs"},
 		{"/events", "events"},

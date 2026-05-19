@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 )
 
@@ -89,6 +90,18 @@ func GetReleaseExecutionTargets(service *releaseorchestration.Service) http.Hand
 func CancelReleaseExecution(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		record, err := service.Cancel(r.Context(), chi.URLParam(r, "execution_id"), "")
+		respondReleaseOrchestrationResult(w, r, record, err)
+	}
+}
+
+func ResumeReleaseExecutionAfterApproval(service *releaseorchestration.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var approval domainapproval.ApprovalRequest
+		if err := json.NewDecoder(r.Body).Decode(&approval); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an approval request"})
+			return
+		}
+		record, err := service.ApplyApprovalDecision(r.Context(), chi.URLParam(r, "execution_id"), approval, "")
 		respondReleaseOrchestrationResult(w, r, record, err)
 	}
 }

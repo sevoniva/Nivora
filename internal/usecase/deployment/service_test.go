@@ -158,6 +158,53 @@ func TestServiceApprovalRequiredBlocksDeployment(t *testing.T) {
 	}
 }
 
+func TestServiceApprovalApprovedResumesDeployment(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	service.WithGovernance(testGovernance{})
+	def.Spec.Options.ApprovalRequired = true
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("create and run: %v", err)
+	}
+	resumed, err := service.ApplyApprovalDecision(context.Background(), result.Record.Run.ID, domainapproval.ApprovalRequest{
+		ID:          result.Record.Approval.ID,
+		SubjectType: domainapproval.SubjectDeployment,
+		SubjectID:   result.Record.Run.ID,
+		Status:      domainapproval.StatusApproved,
+	}, "reviewer")
+	if err != nil {
+		t.Fatalf("resume after approval: %v", err)
+	}
+	if resumed.Run.Status != domaindeployment.DeploymentRunSucceeded {
+		t.Fatalf("status = %s", resumed.Run.Status)
+	}
+	assertHasDeploymentEvent(t, resumed.Events, EventDeploymentSucceeded)
+}
+
+func TestServiceApprovalRejectedStopsDeployment(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	service.WithGovernance(testGovernance{})
+	def.Spec.Options.ApprovalRequired = true
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("create and run: %v", err)
+	}
+	stopped, err := service.ApplyApprovalDecision(context.Background(), result.Record.Run.ID, domainapproval.ApprovalRequest{
+		ID:          result.Record.Approval.ID,
+		SubjectType: domainapproval.SubjectDeployment,
+		SubjectID:   result.Record.Run.ID,
+		Status:      domainapproval.StatusRejected,
+	}, "reviewer")
+	if err != nil {
+		t.Fatalf("reject after approval: %v", err)
+	}
+	if stopped.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("status = %s", stopped.Run.Status)
+	}
+}
+
 func TestServiceChangeWindowDeniedBlocksDeployment(t *testing.T) {
 	service, def := newTestService(t, true, nil)
 	service.WithGovernance(testGovernance{changeWindowAllowed: false})

@@ -55,6 +55,15 @@ func CancelApproval(service *approvalusecase.Service) http.HandlerFunc {
 	}
 }
 
+func ExpireApproval(service *approvalusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input approvalusecase.DecisionInput
+		_ = json.NewDecoder(r.Body).Decode(&input)
+		payload, err := service.Expire(r.Context(), chi.URLParam(r, "id"), input)
+		respondApprovalResult(w, r, payload, err)
+	}
+}
+
 func decideApproval(service *approvalusecase.Service, approve bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var input approvalusecase.DecisionInput

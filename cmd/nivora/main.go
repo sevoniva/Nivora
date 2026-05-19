@@ -76,6 +76,8 @@ func newApprovalsCommand() *cobra.Command {
 	cmd.AddCommand(newApprovalListCommand())
 	cmd.AddCommand(newApprovalDecisionCommand("approve", "Approve an approval request", "/approve"))
 	cmd.AddCommand(newApprovalDecisionCommand("reject", "Reject an approval request", "/reject"))
+	cmd.AddCommand(newApprovalDecisionCommand("cancel", "Cancel an approval request", "/cancel"))
+	cmd.AddCommand(newApprovalDecisionCommand("expire", "Expire an approval request", "/expire"))
 	return cmd
 }
 
@@ -133,6 +135,7 @@ func newChangeWindowCommand() *cobra.Command {
 func newChangeWindowEvaluateCommand() *cobra.Command {
 	var serverURL string
 	var environmentID string
+	var at string
 	cmd := &cobra.Command{
 		Use:   "evaluate --env <environment-id>",
 		Short: "Evaluate whether a deployment is inside an allowed change window",
@@ -140,7 +143,7 @@ func newChangeWindowEvaluateCommand() *cobra.Command {
 			if environmentID == "" {
 				return fmt.Errorf("--env is required")
 			}
-			body, err := json.Marshal(map[string]string{"environmentId": environmentID})
+			body, err := json.Marshal(map[string]string{"environmentId": environmentID, "at": at})
 			if err != nil {
 				return err
 			}
@@ -154,6 +157,7 @@ func newChangeWindowEvaluateCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&environmentID, "env", "", "environment id")
+	cmd.Flags().StringVar(&at, "at", "", "RFC3339 evaluation time; defaults to server time")
 	return cmd
 }
 
@@ -914,6 +918,7 @@ func newReleaseExecutionCommand() *cobra.Command {
 	cmd.AddCommand(newReleaseExecutionInspectCommand("timeline", "Get ReleaseExecution timeline", "/timeline"))
 	cmd.AddCommand(newReleaseExecutionInspectCommand("targets", "Get ReleaseExecution targets", "/targets"))
 	cmd.AddCommand(newReleaseExecutionCancelCommand())
+	cmd.AddCommand(newReleaseExecutionResumeCommand())
 	return cmd
 }
 
@@ -952,6 +957,31 @@ func newReleaseExecutionCancelCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newReleaseExecutionResumeCommand() *cobra.Command {
+	var serverURL string
+	var status string
+	cmd := &cobra.Command{
+		Use:   "resume <execution-id> --approval-status Approved",
+		Short: "Resume or stop a ReleaseExecution using an approval decision",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			body, err := json.Marshal(map[string]string{"subjectType": "release", "subjectId": args[0], "status": status})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/executions/"+args[0]+"/resume", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&status, "approval-status", "Approved", "approval status: Approved, Rejected, Expired, or Canceled")
 	return cmd
 }
 
@@ -1156,6 +1186,7 @@ func newDeploymentCommand() *cobra.Command {
 	cmd.AddCommand(newDeploymentInspectCommand("timeline", "Get DeploymentRun timeline", "/timeline"))
 	cmd.AddCommand(newDeploymentInspectCommand("security", "Get DeploymentRun security gate output", "/security"))
 	cmd.AddCommand(newDeploymentCancelCommand())
+	cmd.AddCommand(newDeploymentResumeCommand())
 	return cmd
 }
 
@@ -1538,6 +1569,31 @@ func newDeploymentCancelCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newDeploymentResumeCommand() *cobra.Command {
+	var serverURL string
+	var status string
+	cmd := &cobra.Command{
+		Use:   "resume <deployment-run-id> --approval-status Approved",
+		Short: "Resume or stop a DeploymentRun using an approval decision",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			body, err := json.Marshal(map[string]string{"subjectType": "deployment", "subjectId": args[0], "status": status})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+args[0]+"/resume", body)
+			if err != nil {
+				return err
+			}
+			printDeploymentRunSummary(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&status, "approval-status", "Approved", "approval status: Approved, Rejected, Expired, or Canceled")
 	return cmd
 }
 

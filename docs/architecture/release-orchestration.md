@@ -45,7 +45,7 @@ Phase 2.7 supports:
 
 Policy is evaluated during planning through the existing PolicyEngine port. The default local runtime uses an allow-all policy placeholder. Tests can simulate denial.
 
-Approval is modeled as a placeholder: a release orchestration definition may request approval, causing the ReleaseExecution to stop in `WaitingApproval`. A durable approval workflow is future work.
+Approval is modeled as a backend gate: a release orchestration definition may request approval, causing the ReleaseExecution to stop in `WaitingApproval`. Phase 6.3 can resume an approved ReleaseExecution or stop it when the approval is rejected, expired, or canceled. Production-grade approval queues, delegation, escalation, and ITSM integration remain future work.
 
 ## Non-Goals
 

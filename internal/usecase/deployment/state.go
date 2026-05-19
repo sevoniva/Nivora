@@ -35,7 +35,8 @@ func canTransitionDeploymentRun(from domaindeployment.DeploymentRunStatus, to do
 		return to == domaindeployment.DeploymentRunVerifying || to == domaindeployment.DeploymentRunWaitingApproval ||
 			to == domaindeployment.DeploymentRunFailed || to == domaindeployment.DeploymentRunCanceled
 	case domaindeployment.DeploymentRunWaitingApproval:
-		return to == domaindeployment.DeploymentRunDeploying || to == domaindeployment.DeploymentRunCanceled
+		return to == domaindeployment.DeploymentRunVerifying || to == domaindeployment.DeploymentRunDeploying ||
+			to == domaindeployment.DeploymentRunFailed || to == domaindeployment.DeploymentRunCanceled
 	case domaindeployment.DeploymentRunDeploying:
 		return to == domaindeployment.DeploymentRunVerifying || to == domaindeployment.DeploymentRunSucceeded ||
 			to == domaindeployment.DeploymentRunFailed || to == domaindeployment.DeploymentRunRollingBack ||

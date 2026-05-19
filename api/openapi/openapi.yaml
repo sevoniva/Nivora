@@ -785,6 +785,28 @@ paths:
       responses:
         "200":
           description: ReleaseExecution canceled
+  /api/v1/releases/executions/{execution_id}/resume:
+    post:
+      summary: Resume or stop a ReleaseExecution using an approval decision
+      parameters:
+        - name: execution_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalRequest"
+      responses:
+        "200":
+          description: ReleaseExecution after approval decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseExecutionRecord"
   /api/v1/deployments:
     get:
       summary: List DeploymentRuns in the in-memory Phase 2.1 runtime
@@ -1275,6 +1297,26 @@ paths:
                   $ref: "#/components/schemas/TimelineEntry"
         "404":
           description: DeploymentRun not found
+  /api/v1/deployments/{id}/resume:
+    post:
+      summary: Resume or stop a DeploymentRun using an approval decision
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalRequest"
+      responses:
+        "200":
+          description: DeploymentRun after approval decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DeploymentRunRecord"
+        "400":
+          description: DeploymentRun is not waiting for approval or approval is invalid
   /api/v1/deployments/{id}/cancel:
     post:
       summary: Cancel a non-terminal DeploymentRun
@@ -1598,6 +1640,23 @@ paths:
       responses:
         "200":
           description: Canceled request
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalRequest"
+  /api/v1/approvals/{id}/expire:
+    post:
+      summary: Expire an approval request
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApprovalDecisionRequest"
+      responses:
+        "200":
+          description: Expired request
           content:
             application/json:
               schema:
@@ -2101,10 +2160,21 @@ components:
           type: string
         environmentId:
           type: string
+        targetType:
+          type: string
+        targetId:
+          type: string
+        severity:
+          type: string
+        policyResultId:
+          type: string
         requiredByPolicy:
           type: boolean
         requestedBy:
           type: string
+        expiresAt:
+          type: string
+          format: date-time
         reason:
           type: string
         participants:
@@ -2129,6 +2199,14 @@ components:
         subjectId:
           type: string
         environmentId:
+          type: string
+        targetType:
+          type: string
+        targetId:
+          type: string
+        severity:
+          type: string
+        policyResultId:
           type: string
         requiredByPolicy:
           type: boolean

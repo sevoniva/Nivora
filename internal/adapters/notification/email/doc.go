@@ -1,2 +1,2 @@
-// Package email will contain an email notification adapter. It is intentionally empty in Phase 0.
+// Package email contains a guarded placeholder notification adapter.
 package email

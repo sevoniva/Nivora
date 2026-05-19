@@ -9,6 +9,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/infra/telemetry"
 	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
@@ -439,6 +440,18 @@ func GetDeploymentSecurity(service *deploymentusecase.Service) http.HandlerFunc 
 func CancelDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		record, err := service.Cancel(r.Context(), chi.URLParam(r, "id"), "")
+		respondDeploymentResult(w, r, record, err)
+	}
+}
+
+func ResumeDeploymentRunAfterApproval(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var approval domainapproval.ApprovalRequest
+		if err := json.NewDecoder(r.Body).Decode(&approval); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an approval request"})
+			return
+		}
+		record, err := service.ApplyApprovalDecision(r.Context(), chi.URLParam(r, "id"), approval, "")
 		respondDeploymentResult(w, r, record, err)
 	}
 }

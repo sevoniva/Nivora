@@ -230,6 +230,54 @@ func (s *Service) Targets(ctx context.Context, id string) ([]TargetExecution, er
 	return append([]TargetExecution(nil), record.Execution.Targets...), nil
 }
 
+func (s *Service) ApplyApprovalDecision(ctx context.Context, id string, approval domainapproval.ApprovalRequest, actorID string) (ExecutionRecord, error) {
+	record, err := s.store.GetExecution(ctx, id)
+	if err != nil {
+		return ExecutionRecord{}, err
+	}
+	if record.Execution.Status != ExecutionWaitingApproval {
+		return ExecutionRecord{}, fmt.Errorf("release execution is not waiting for approval")
+	}
+	if approval.SubjectID != "" && approval.SubjectID != id {
+		return ExecutionRecord{}, fmt.Errorf("approval subject does not match release execution")
+	}
+	record.Approval = approval
+	switch approval.Status {
+	case domainapproval.StatusApproved:
+		record.Execution.Reason = "approval approved"
+		record.Execution.UpdatedAt = s.now()
+		if err := s.store.SaveExecution(ctx, record); err != nil {
+			return ExecutionRecord{}, err
+		}
+		if record, err = s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionStarted, "Release approval approved", actorID, "Release approval approved; resuming execution"); err != nil {
+			return ExecutionRecord{}, err
+		}
+		return s.runSequential(ctx, record, actorID)
+	case domainapproval.StatusRejected, domainapproval.StatusExpired:
+		record.Execution.Status = ExecutionFailed
+		record.Execution.Reason = "approval " + strings.ToLower(approval.Status)
+		finished := s.now()
+		record.Execution.FinishedAt = &finished
+		record.Execution.UpdatedAt = finished
+		if err := s.store.SaveExecution(ctx, record); err != nil {
+			return ExecutionRecord{}, err
+		}
+		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionFailed, "Release execution failed", actorID, record.Execution.Reason)
+	case domainapproval.StatusCanceled:
+		record.Execution.Status = ExecutionCanceled
+		record.Execution.Reason = "approval canceled"
+		finished := s.now()
+		record.Execution.FinishedAt = &finished
+		record.Execution.UpdatedAt = finished
+		if err := s.store.SaveExecution(ctx, record); err != nil {
+			return ExecutionRecord{}, err
+		}
+		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionCanceled, "Release execution canceled", actorID, record.Execution.Reason)
+	default:
+		return ExecutionRecord{}, fmt.Errorf("approval must be Approved, Rejected, Expired, or Canceled")
+	}
+}
+
 func (s *Service) Timeline(ctx context.Context, id string) ([]TimelineEntry, error) {
 	record, err := s.store.GetExecution(ctx, id)
 	if err != nil {

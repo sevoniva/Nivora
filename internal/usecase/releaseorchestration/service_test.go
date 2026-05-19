@@ -99,6 +99,50 @@ func TestApprovalRequiredCreatesApprovalRequest(t *testing.T) {
 	}
 }
 
+func TestApprovalApprovedResumesReleaseExecution(t *testing.T) {
+	def := testDefinition(false, StrategySequential)
+	def.Spec.ApprovalRequired = true
+	service := newTestService(allowPolicy{}).WithGovernance(testGovernance{})
+	record, err := service.Deploy(context.Background(), DeployInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("Deploy() error = %v", err)
+	}
+	resumed, err := service.ApplyApprovalDecision(context.Background(), record.Execution.ID, domainapproval.ApprovalRequest{
+		ID:          record.Approval.ID,
+		SubjectType: domainapproval.SubjectRelease,
+		SubjectID:   record.Execution.ID,
+		Status:      domainapproval.StatusApproved,
+	}, "reviewer")
+	if err != nil {
+		t.Fatalf("resume after approval: %v", err)
+	}
+	if resumed.Execution.Status != ExecutionSucceeded {
+		t.Fatalf("status = %s", resumed.Execution.Status)
+	}
+}
+
+func TestApprovalRejectedStopsReleaseExecution(t *testing.T) {
+	def := testDefinition(false, StrategySequential)
+	def.Spec.ApprovalRequired = true
+	service := newTestService(allowPolicy{}).WithGovernance(testGovernance{})
+	record, err := service.Deploy(context.Background(), DeployInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("Deploy() error = %v", err)
+	}
+	stopped, err := service.ApplyApprovalDecision(context.Background(), record.Execution.ID, domainapproval.ApprovalRequest{
+		ID:          record.Approval.ID,
+		SubjectType: domainapproval.SubjectRelease,
+		SubjectID:   record.Execution.ID,
+		Status:      domainapproval.StatusRejected,
+	}, "reviewer")
+	if err != nil {
+		t.Fatalf("reject approval: %v", err)
+	}
+	if stopped.Execution.Status != ExecutionFailed {
+		t.Fatalf("status = %s", stopped.Execution.Status)
+	}
+}
+
 func TestCancelExecution(t *testing.T) {
 	service := newTestService(allowPolicy{})
 	record, err := service.Deploy(context.Background(), DeployInput{Definition: testDefinition(false, StrategyPlanOnly)})

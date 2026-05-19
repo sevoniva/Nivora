@@ -604,6 +604,11 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.approval.expired:
+    address: devops.approval.expired
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.change_window.allowed:
     address: devops.change_window.allowed
     messages:

@@ -110,6 +110,7 @@ For a quick path through the project:
 - [Runner Fleet Operations](operations/runner-fleet.md)
 - [Kubernetes Deployment Operations](operations/kubernetes-deployment.md)
 - [GitOps and Argo CD Operations](operations/gitops-argocd.md)
+- [Change Management](operations/change-management.md)
 - [Troubleshooting](operations/troubleshooting.md)
 
 ## Community and Governance

@@ -1,6 +1,12 @@
 # Notifications
 
-Phase 3.3 adds a `NotificationProvider` port and a noop local provider.
+Phase 6.3 keeps notifications pluggable and safe by default.
+
+Available foundation adapters:
+
+- `noop`: records the notification without external delivery.
+- `log`: writes metadata-only notification records to structured logs.
+- `webhook`: posts JSON only when explicitly configured with `AllowSend=true`.
 
 ## Test Notification
 

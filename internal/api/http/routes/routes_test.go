@@ -222,6 +222,48 @@ func TestApprovalRoutes(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "Approved") {
 		t.Fatalf("approve body = %s", rec.Body.String())
 	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals", strings.NewReader(`{"subjectType":"deployment","subjectId":"drun-expire","environmentId":"prod","requestedBy":"tester","reason":"deployment approval"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create approval for expire status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode approval for expire: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+created.ID+"/expire", strings.NewReader(`{"approver":"system","comment":"expired"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expire status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "Expired") {
+		t.Fatalf("expire body = %s", rec.Body.String())
+	}
+}
+
+func TestChangeWindowRoutes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/change-windows", strings.NewReader(`{"name":"prod-hours","environmentId":"prod","timezone":"Asia/Shanghai","startTime":"09:00","endTime":"17:00","daysOfWeek":["Monday"],"allowed":true}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create change window status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/change-windows/evaluate", strings.NewReader(`{"environmentId":"prod","at":"2026-05-18T02:00:00Z"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("evaluate change window status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"allowed":true`) {
+		t.Fatalf("evaluate body = %s", rec.Body.String())
+	}
 }
 
 func newTestPipelineService() *pipelineusecase.Service {

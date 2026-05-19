@@ -15,6 +15,8 @@ const (
 
 	DecisionApprove = "approve"
 	DecisionReject  = "reject"
+	DecisionCancel  = "cancel"
+	DecisionExpire  = "expire"
 )
 
 type ApprovalRequest struct {
@@ -22,6 +24,10 @@ type ApprovalRequest struct {
 	SubjectType      string                `json:"subjectType" yaml:"subjectType"`
 	SubjectID        string                `json:"subjectId" yaml:"subjectId"`
 	EnvironmentID    string                `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+	TargetType       string                `json:"targetType,omitempty" yaml:"targetType,omitempty"`
+	TargetID         string                `json:"targetId,omitempty" yaml:"targetId,omitempty"`
+	Severity         string                `json:"severity,omitempty" yaml:"severity,omitempty"`
+	PolicyResultID   string                `json:"policyResultId,omitempty" yaml:"policyResultId,omitempty"`
 	RequiredByPolicy bool                  `json:"requiredByPolicy" yaml:"requiredByPolicy"`
 	Status           string                `json:"status" yaml:"status"`
 	RequestedBy      string                `json:"requestedBy,omitempty" yaml:"requestedBy,omitempty"`
@@ -44,6 +50,10 @@ type ApprovalPolicy struct {
 	Name          string   `json:"name" yaml:"name"`
 	SubjectType   string   `json:"subjectType,omitempty" yaml:"subjectType,omitempty"`
 	EnvironmentID string   `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+	TargetType    string   `json:"targetType,omitempty" yaml:"targetType,omitempty"`
+	TargetID      string   `json:"targetId,omitempty" yaml:"targetId,omitempty"`
+	Severity      string   `json:"severity,omitempty" yaml:"severity,omitempty"`
+	PolicyResult  string   `json:"policyResult,omitempty" yaml:"policyResult,omitempty"`
 	RequiredRoles []string `json:"requiredRoles,omitempty" yaml:"requiredRoles,omitempty"`
 	RequiredCount int      `json:"requiredCount" yaml:"requiredCount"`
 }

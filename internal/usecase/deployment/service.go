@@ -214,6 +214,145 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 	return CreateRunResult{Record: record}, nil
 }
 
+func (s *Service) ApplyApprovalDecision(ctx context.Context, id string, approval domainapproval.ApprovalRequest, actorID string) (RunRecord, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if record.Run.Status != domaindeployment.DeploymentRunWaitingApproval {
+		return RunRecord{}, fmt.Errorf("deployment run is not waiting for approval")
+	}
+	if approval.SubjectID != "" && approval.SubjectID != id {
+		return RunRecord{}, fmt.Errorf("approval subject does not match deployment run")
+	}
+	record.Approval = approval
+	switch approval.Status {
+	case domainapproval.StatusApproved:
+		record.Definition.Spec.Options.ApprovalRequired = false
+		record.Run.Reason = "approval approved"
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentPrecheckCompleted, "Deployment approval approved", actorID, string(record.Run.Status), "Deployment approval approved; resuming deployment"); err != nil {
+			return RunRecord{}, err
+		}
+		record, _ = s.store.Get(ctx, record.Run.ID)
+		return s.resumeKubernetesAfterApproval(ctx, record, actorID)
+	case domainapproval.StatusRejected, domainapproval.StatusExpired:
+		reason := "approval " + strings.ToLower(approval.Status)
+		if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunFailed, s.now(), reason); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentFailed, "DeploymentRun failed", actorID, string(record.Run.Status), reason); err != nil {
+			return RunRecord{}, err
+		}
+		return s.store.Get(ctx, record.Run.ID)
+	case domainapproval.StatusCanceled:
+		if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunCanceled, s.now(), "approval canceled"); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentCanceled, "DeploymentRun canceled", actorID, string(record.Run.Status), "approval canceled"); err != nil {
+			return RunRecord{}, err
+		}
+		return s.store.Get(ctx, record.Run.ID)
+	default:
+		return RunRecord{}, fmt.Errorf("approval must be Approved, Rejected, Expired, or Canceled")
+	}
+}
+
+func (s *Service) resumeKubernetesAfterApproval(ctx context.Context, record RunRecord, actorID string) (RunRecord, error) {
+	if record.Run.TargetType != "kubernetes-yaml" {
+		return RunRecord{}, fmt.Errorf("approval resume currently supports kubernetes-yaml deployments")
+	}
+	documents, err := s.renderer.Render(ctx, record.Definition.Spec.Manifests, record.Definition.Spec.Target.Namespace)
+	if err != nil {
+		return s.fail(ctx, record, actorID, err.Error())
+	}
+	if record.Plan.DeploymentRunID == "" {
+		record.Plan = s.buildPlan(record.Run.ID, record.Definition, documents)
+		record = s.attachResourceObservability(record, record.Definition, documents)
+	}
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunVerifying, s.now(), "approval approved"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if record, err = s.recordRuntimeEvent(ctx, record, EventDeploymentDryRunStarted, string(record.Run.Status), "Deployment dry-run started after approval"); err != nil {
+		return RunRecord{}, err
+	}
+	request := ManifestRequest{Plan: record.Plan, Documents: documents, TimeoutSeconds: record.Plan.TimeoutSeconds}
+	dryRunResult, err := s.client.ServerDryRun(ctx, request)
+	if err != nil {
+		record, _ = s.recordRuntimeEvent(ctx, record, EventDeploymentDryRunFailed, string(domaindeployment.DeploymentRunFailed), err.Error())
+		return s.fail(ctx, record, actorID, err.Error())
+	}
+	record.DryRun = dryRunResult
+	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", dryRunResult.Message, int64(len(record.Logs)+1)))
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentDryRunCompleted, "Deployment dry-run completed", actorID, string(record.Run.Status), "Deployment dry-run completed after approval"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	record.Health = evaluateResourceHealth(record.Run.ID, record.Plan.Resources, s.now())
+	record.Rollout = rolloutFromHealth(record.Health)
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentHealthCompleted, "Health evaluation completed", actorID, string(record.Run.Status), string(record.Health.Status)); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	if !record.Plan.Apply {
+		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", "dry-run validation completed after approval", int64(len(record.Logs)+1)))
+		if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunSucceeded, s.now(), "dry-run deployment run succeeded after approval"); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentSucceeded, "DeploymentRun succeeded", actorID, string(record.Run.Status), "DeploymentRun dry-run succeeded after approval"); err != nil {
+			return RunRecord{}, err
+		}
+		return s.store.Get(ctx, record.Run.ID)
+	}
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunDeploying, s.now(), "approval approved"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentApplyStarted, "Deployment apply started", actorID, string(record.Run.Status), "Deployment apply started after approval"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	applyResult, err := s.client.Apply(ctx, request)
+	if err != nil {
+		record, _ = s.recordRuntimeEvent(ctx, record, EventDeploymentApplyFailed, string(domaindeployment.DeploymentRunFailed), err.Error())
+		return s.fail(ctx, record, actorID, err.Error())
+	}
+	record.Apply = applyResult
+	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", applyResult.Message, int64(len(record.Logs)+1)))
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunSucceeded, s.now(), "kubernetes YAML apply completed after approval"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentSucceeded, "DeploymentRun succeeded", actorID, string(record.Run.Status), "DeploymentRun apply succeeded after approval"); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.Get(ctx, record.Run.ID)
+}
+
 func (s *Service) Rollback(ctx context.Context, input RollbackInput) (RunRecord, error) {
 	if !input.Confirm {
 		return RunRecord{}, fmt.Errorf("deployment rollback requires explicit confirmation")

@@ -14,7 +14,7 @@ Current maturity: **beta-candidate foundation**.
 | **Security** | `usecase/security.Store` | `security.NewMemoryStore()` | **MISSING** | **Always MemoryStore** | **MISSING** | security service tests only | **High** |
 | **Approval** | `usecase/approval.Store` | `approval.NewMemoryStore()` | **MISSING** | **Always MemoryStore** | **MISSING** | approval service tests only | **High** |
 | **Cloud** | `usecase/cloud.Store` | `cloud.NewMemoryStore()` | **MISSING** | **Always MemoryStore** | **MISSING** | cloud service tests only | **High** |
-| Tenancy | N/A (no Store interface) | N/A | N/A | `tenancyusecase.NewService()` creates internal state | N/A | tenancy service tests | Low |
+| Tenancy | `usecase/tenancy.Store` | `tenancy.NewMemoryStore()` | `postgres.NewTenancyStore(pool)` | `runtime.WithConfig` selects Postgres when `runtime_store: postgres` | 000009 | tenancy service tests | Low |
 | Plugin | N/A (built-in registry) | N/A | N/A | `pluginusecase.NewDefaultRegistry()` | N/A | plugin registry tests | Low |
 
 ## Key Risks

@@ -30,7 +30,8 @@ type HTTPConfig struct {
 }
 
 type DatabaseConfig struct {
-	URL string `mapstructure:"url" yaml:"url"`
+	URL          string `mapstructure:"url" yaml:"url"`
+	RuntimeStore string `mapstructure:"runtime_store" yaml:"runtime_store"`
 }
 
 type EventBusConfig struct {
@@ -93,7 +94,8 @@ func Default() Config {
 			BindAddress: ":8080",
 		},
 		Database: DatabaseConfig{
-			URL: "postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable",
+			URL:          "postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable",
+			RuntimeStore: "memory",
 		},
 		EventBus: EventBusConfig{
 			Type: "memory",
@@ -134,6 +136,12 @@ func (c Config) Validate() error {
 	}
 	if c.Database.URL == "" {
 		return errors.New("config database.url is required")
+	}
+	if c.Database.RuntimeStore == "" {
+		return errors.New("config database.runtime_store is required")
+	}
+	if c.Database.RuntimeStore != "memory" && c.Database.RuntimeStore != "postgres" {
+		return errors.New("config database.runtime_store must be memory or postgres")
 	}
 	if c.EventBus.Type == "" {
 		return errors.New("config event_bus.type is required")

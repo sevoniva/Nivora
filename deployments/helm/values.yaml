@@ -38,6 +38,7 @@ runner:
 
 config:
   environment: kubernetes
+  runtimeStore: memory
   databaseURL: "postgres://nivora@postgres:5432/nivora?sslmode=disable"
   eventBusType: memory
   objectStoreType: local

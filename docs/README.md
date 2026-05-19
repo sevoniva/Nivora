@@ -103,6 +103,7 @@ For a quick path through the project:
 - [Docker Compose Install](operations/install-docker-compose.md)
 - [Kubernetes Install](operations/install-kubernetes.md)
 - [Observability Operations](operations/observability.md)
+- [Database Operations](operations/database.md)
 - [Troubleshooting](operations/troubleshooting.md)
 
 ## Community and Governance
@@ -142,6 +143,7 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 - [Runtime Acceptance Matrix](dev/runtime-acceptance.md)
 - [Runner Protocol](dev/runner-protocol.md)
 - [Runtime Troubleshooting](dev/troubleshooting.md)
+- [Persistence Development](dev/persistence.md)
 - [Security Scans](dev/security-scans.md)
 - [Policy Gates](dev/policy-gates.md)
 - [Secret Management](dev/secret-management.md)

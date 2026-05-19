@@ -1,0 +1,23 @@
+DROP INDEX IF EXISTS idx_runtime_outbox_status_created_at;
+DROP INDEX IF EXISTS idx_runtime_runners_last_heartbeat;
+DROP INDEX IF EXISTS idx_runtime_runners_status;
+DROP INDEX IF EXISTS idx_runtime_audit_subject_created_at;
+DROP INDEX IF EXISTS idx_runtime_events_type;
+DROP INDEX IF EXISTS idx_runtime_events_run_created_at;
+DROP INDEX IF EXISTS idx_runtime_log_chunks_job_sequence;
+DROP INDEX IF EXISTS idx_runtime_log_chunks_run_sequence;
+DROP INDEX IF EXISTS idx_runtime_job_runs_lease;
+DROP INDEX IF EXISTS idx_runtime_job_runs_status;
+DROP INDEX IF EXISTS idx_runtime_job_runs_pipeline_run_id;
+DROP INDEX IF EXISTS idx_runtime_pipeline_runs_updated_at;
+DROP INDEX IF EXISTS idx_runtime_pipeline_runs_correlation_id;
+DROP INDEX IF EXISTS idx_runtime_pipeline_runs_status_created_at;
+
+DROP TABLE IF EXISTS idempotency_keys;
+DROP TABLE IF EXISTS runtime_event_outbox;
+DROP TABLE IF EXISTS runtime_runners;
+DROP TABLE IF EXISTS runtime_audit_logs;
+DROP TABLE IF EXISTS runtime_events;
+DROP TABLE IF EXISTS runtime_log_chunks;
+DROP TABLE IF EXISTS runtime_job_runs;
+DROP TABLE IF EXISTS runtime_pipeline_runs;

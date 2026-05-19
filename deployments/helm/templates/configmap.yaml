@@ -12,6 +12,7 @@ data:
     http:
       bind_address: ":8080"
     database:
+      runtime_store: {{ .Values.config.runtimeStore | quote }}
       url: {{ .Values.config.databaseURL | quote }}
     event_bus:
       type: {{ .Values.config.eventBusType | quote }}
@@ -40,6 +41,7 @@ data:
     http:
       bind_address: ":8081"
     database:
+      runtime_store: {{ .Values.config.runtimeStore | quote }}
       url: {{ .Values.config.databaseURL | quote }}
     event_bus:
       type: {{ .Values.config.eventBusType | quote }}
@@ -68,6 +70,7 @@ data:
     http:
       bind_address: ":8082"
     database:
+      runtime_store: {{ .Values.config.runtimeStore | quote }}
       url: {{ .Values.config.databaseURL | quote }}
     event_bus:
       type: {{ .Values.config.eventBusType | quote }}

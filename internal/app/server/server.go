@@ -34,7 +34,11 @@ func Run(ctx context.Context, configPath string) error {
 }
 
 func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
-	pipelineService := NewPipelineService()
+	pipelineService, closePipeline, err := appruntime.NewPipelineServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closePipeline()
 	deploymentService := NewDeploymentService()
 	artifactService := NewArtifactService()
 	securityService := NewSecurityService()
@@ -59,7 +63,7 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 	}()
 
 	logger.Info("nivora server starting", "address", cfg.HTTP.BindAddress)
-	err := srv.ListenAndServe()
+	err = srv.ListenAndServe()
 	if errors.Is(err, http.ErrServerClosed) {
 		return nil
 	}

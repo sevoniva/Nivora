@@ -21,8 +21,12 @@ func Run(ctx context.Context, configPath string) error {
 	default:
 	}
 
-	logger.Info("worker runtime is ready", "event_bus", cfg.EventBus.Type)
-	service := appruntime.NewPipelineService()
+	logger.Info("worker runtime is ready", "event_bus", cfg.EventBus.Type, "runtime_store", cfg.Database.RuntimeStore)
+	service, closePipeline, err := appruntime.NewPipelineServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closePipeline()
 	processed, err := service.ProcessQueued(ctx, 10)
 	if err != nil {
 		return err

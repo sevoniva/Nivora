@@ -35,6 +35,7 @@ go run ./cmd/nivora config validate --file configs/production.example.yaml
 - `environment`: local, docker-compose, kubernetes, or another deployment label.
 - `http.bind_address`: bind address for the process.
 - `database.url`: PostgreSQL connection string.
+- `database.runtime_store`: `memory` for local/CI mode or `postgres` for the Phase 5.1 PipelineRun runtime store.
 - `event_bus.type`: currently `memory` by default.
 - `object_store.type`: currently `local` by default.
 - `object_store.path`: local object-store directory.

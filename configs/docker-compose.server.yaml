@@ -4,6 +4,7 @@ environment: docker-compose
 http:
   bind_address: ":8080"
 database:
+  runtime_store: memory
   url: "postgres://nivora@postgres:5432/nivora?sslmode=disable"
 event_bus:
   type: memory

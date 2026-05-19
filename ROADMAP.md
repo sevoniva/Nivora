@@ -76,5 +76,6 @@ This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/o
 ## Phase 5: Alpha Release Hardening
 
 - Phase 5.0 prepares `v0.1.0-alpha.1` with a capability matrix, alpha demo guide, changelog, release checklist, version alignment, CI hardening, and documentation consistency review.
+- Phase 5.1 hardens the PostgreSQL persistence foundation for PipelineRun runtime state, ordered logs, events, audit records, runners, outbox records, idempotency keys, and recovery queries.
 - The alpha is for public architecture review, contributor onboarding, and local demos.
 - It is not a production GA release.

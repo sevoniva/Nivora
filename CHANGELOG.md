@@ -19,6 +19,7 @@ This is the first public alpha foundation release. It is intended for contributo
 - DevSecOps policy gate foundation with noop/fake scanners, policy decisions, and security examples.
 - SecretRef/Credential metadata, local development auth/RBAC, approval/change-window/notification foundations, cloud inventory skeletons, and host deployment planning/noop execution.
 - Visualization backend APIs, minimal web UI foundation, observability diagnostics, plugin capability registry, Docker Compose, Helm chart, and Kubernetes packaging examples.
+- Phase 5.1 PostgreSQL PipelineRun persistence foundation with runtime tables, ordered LogChunks, events, audit records, runner state, outbox records, idempotency keys, recovery queries, and explicit `database.runtime_store` configuration.
 
 ### Known Limitations
 

@@ -4,6 +4,7 @@ environment: local
 http:
   bind_address: ":8080"
 database:
+  runtime_store: memory
   url: "postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable"
 event_bus:
   type: memory

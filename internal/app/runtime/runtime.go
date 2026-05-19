@@ -15,9 +15,12 @@ import (
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	localgitops "github.com/sevoniva/nivora/internal/adapters/gitops/local"
 	noopnotification "github.com/sevoniva/nivora/internal/adapters/notification/noop"
+	postgresrepo "github.com/sevoniva/nivora/internal/adapters/repository/postgres"
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
 	securitynoop "github.com/sevoniva/nivora/internal/adapters/security/noop"
 	domaincloud "github.com/sevoniva/nivora/internal/domain/cloud"
+	"github.com/sevoniva/nivora/internal/infra/config"
+	"github.com/sevoniva/nivora/internal/infra/db"
 	portcloud "github.com/sevoniva/nivora/internal/ports/cloud"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
@@ -37,6 +40,19 @@ func NewPipelineService() *pipelineusecase.Service {
 	bus := memory.New()
 	runner := pipelineusecase.NewLocalRunner("local-runner", shellexecutor.New())
 	return pipelineusecase.NewService(store, runner, bus)
+}
+
+func NewPipelineServiceWithConfig(ctx context.Context, cfg config.Config) (*pipelineusecase.Service, func(), error) {
+	bus := memory.New()
+	runner := pipelineusecase.NewLocalRunner(cfg.Runner.Name, shellexecutor.New())
+	if cfg.Database.RuntimeStore != "postgres" {
+		return pipelineusecase.NewService(pipelineusecase.NewMemoryStore(), runner, bus), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pipelineusecase.NewService(postgresrepo.NewPipelineStore(pool), runner, bus), pool.Close, nil
 }
 
 func NewDeploymentService() *deploymentusecase.Service {

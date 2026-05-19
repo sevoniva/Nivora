@@ -38,7 +38,7 @@ Artifact records should prefer immutable digests. Release history should not dep
 
 ## Runtime Persistence Foundation
 
-Phase 5.1 adds a focused PostgreSQL persistence foundation for the PipelineRun runtime path. It intentionally strengthens the most recovery-sensitive part of the system first instead of rewriting every model at once.
+Phase 5.1 started with a focused PostgreSQL persistence foundation for the PipelineRun runtime path. The current runtime hardening pass extends that direction to DeploymentRun, release artifact binding, ReleasePlan, and ReleaseExecution state while preserving the in-memory stores for local development and unit tests.
 
 The runtime persistence tables use text IDs because alpha runtime IDs are domain-generated values such as `prun-*`, `job-*`, and `runner-*`. The earlier relational skeleton remains useful for future normalized models, while the `runtime_*` tables provide a reversible foundation for current runtime state.
 
@@ -52,6 +52,18 @@ Persisted in Phase 5.1:
 - runner registration and heartbeat state in `runtime_runners`
 - outbox records in `runtime_event_outbox`
 - idempotency keys in `idempotency_keys`
+
+Persisted by the deployment/release runtime hardening pass:
+
+- DeploymentRun snapshots in `runtime_deployment_runs`
+- DeploymentRun logs, events, and audit in `runtime_deployment_logs`, `runtime_deployment_events`, and `runtime_deployment_audit_logs`
+- Deployment resource inventory in `runtime_deployment_resources`
+- manifest snapshot metadata in `runtime_manifest_snapshots`
+- rollback plan metadata in `runtime_rollback_plans`
+- Release records and ReleaseArtifact bindings in `runtime_releases` and `runtime_release_artifacts`
+- ReleasePlan records in `runtime_release_plans`
+- ReleaseExecution records and target states in `runtime_release_executions` and `runtime_release_execution_targets`
+- ReleaseExecution events and audit in `runtime_release_execution_events` and `runtime_release_execution_audit_logs`
 
 ## Transaction Boundaries
 
@@ -82,4 +94,4 @@ These queries are intended for worker recovery loops and future operational tool
 
 ## Remaining Work
 
-DeploymentRun, Release, Artifact, Credential metadata, and PolicyResult already have domain/usecase foundations, but PostgreSQL repositories for those areas remain a priority after the PipelineRun runtime store is wired into application bootstrap.
+DeploymentRun and ReleaseExecution now have PostgreSQL-backed repository foundations when `database.runtime_store: postgres` is configured. Remaining persistence priorities include Credential metadata, PolicyResult, approval/notification state, richer idempotency use at API boundaries, and integration tests against a real PostgreSQL instance.

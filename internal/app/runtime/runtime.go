@@ -58,7 +58,21 @@ func NewPipelineServiceWithConfig(ctx context.Context, cfg config.Config) (*pipe
 }
 
 func NewDeploymentService() *deploymentusecase.Service {
-	store := deploymentusecase.NewMemoryStore()
+	return NewDeploymentServiceWithStore(deploymentusecase.NewMemoryStore())
+}
+
+func NewDeploymentServiceWithConfig(ctx context.Context, cfg config.Config) (*deploymentusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewDeploymentService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return NewDeploymentServiceWithStore(postgresrepo.NewDeploymentStore(pool)), pool.Close, nil
+}
+
+func NewDeploymentServiceWithStore(store deploymentusecase.Store) *deploymentusecase.Service {
 	bus := memory.New()
 	approvalService := NewApprovalService()
 	return deploymentusecase.NewService(
@@ -71,7 +85,22 @@ func NewDeploymentService() *deploymentusecase.Service {
 }
 
 func NewArtifactService() *artifactusecase.Service {
-	return artifactusecase.NewService(artifactusecase.NewMemoryStore(), ociartifact.New(ociartifact.WithSecretProvider(builtinsecret.New())), memory.New())
+	return NewArtifactServiceWithStore(artifactusecase.NewMemoryStore())
+}
+
+func NewArtifactServiceWithConfig(ctx context.Context, cfg config.Config) (*artifactusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewArtifactService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return NewArtifactServiceWithStore(postgresrepo.NewReleaseStore(pool)), pool.Close, nil
+}
+
+func NewArtifactServiceWithStore(store artifactusecase.Store) *artifactusecase.Service {
+	return artifactusecase.NewService(store, ociartifact.New(ociartifact.WithSecretProvider(builtinsecret.New())), memory.New())
 }
 
 func NewReleaseOrchestrationService() *releaseorchestration.Service {
@@ -79,10 +108,25 @@ func NewReleaseOrchestrationService() *releaseorchestration.Service {
 }
 
 func NewReleaseOrchestrationServiceWith(artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) *releaseorchestration.Service {
+	return NewReleaseOrchestrationServiceWithStore(releaseorchestration.NewMemoryStore(), artifactService, deploymentService)
+}
+
+func NewReleaseOrchestrationServiceWithConfig(ctx context.Context, cfg config.Config, artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) (*releaseorchestration.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewReleaseOrchestrationServiceWith(artifactService, deploymentService), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return NewReleaseOrchestrationServiceWithStore(postgresrepo.NewReleaseOrchestrationStore(pool), artifactService, deploymentService), pool.Close, nil
+}
+
+func NewReleaseOrchestrationServiceWithStore(store releaseorchestration.Store, artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) *releaseorchestration.Service {
 	bus := memory.New()
 	approvalService := NewApprovalService()
 	return releaseorchestration.NewService(
-		releaseorchestration.NewMemoryStore(),
+		store,
 		artifactService,
 		deploymentService,
 		allowAllPolicyEngine{},

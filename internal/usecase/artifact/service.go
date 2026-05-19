@@ -33,13 +33,21 @@ const (
 var ErrReleaseNotFound = errors.New("release not found")
 
 type Service struct {
-	store    *MemoryStore
+	store    Store
 	provider artifact.ArtifactProvider
 	eventBus eventbus.EventBus
 	now      func() time.Time
 }
 
-func NewService(store *MemoryStore, provider artifact.ArtifactProvider, bus eventbus.EventBus) *Service {
+type Store interface {
+	SaveRelease(ctx context.Context, record ReleaseRecord) error
+	GetRelease(ctx context.Context, id string) (ReleaseRecord, error)
+	ListReleases(ctx context.Context) ([]ReleaseRecord, error)
+	AppendEvent(ctx context.Context, subject string, evt event.Event) error
+	AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error
+}
+
+func NewService(store Store, provider artifact.ArtifactProvider, bus eventbus.EventBus) *Service {
 	return &Service{store: store, provider: provider, eventBus: bus, now: time.Now}
 }
 

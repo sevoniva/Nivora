@@ -23,8 +23,8 @@ Nivora is **not production-ready**. Production readiness work is still in progre
 | Capability | Status | Evidence | Notes / Limitations |
 |---|---|---|---|
 | PipelineRun runtime | implemented | `internal/usecase/pipeline`, `internal/adapters/executor/shell`, `scripts/smoke-pipelinerun-local.sh` | Shell-based local/foundation runtime; not a full distributed workflow engine. |
-| DeploymentRun runtime | partial | `internal/usecase/deployment`, deployment API routes, smoke dry-run scripts | Memory-backed by default; production recovery and persistence are incomplete. |
-| ReleaseExecution | partial | `internal/usecase/releaseorchestration`, release API routes, `make verify-release` | Sequential local orchestration foundation; durable recovery is incomplete. |
+| DeploymentRun runtime | partial | `internal/usecase/deployment`, deployment API routes, smoke dry-run scripts, `internal/adapters/repository/postgres/deployment_store.go` | PostgreSQL persistence foundation exists when configured; production recovery loops and full CD hardening remain incomplete. |
+| ReleaseExecution | partial | `internal/usecase/releaseorchestration`, release API routes, `make verify-release`, `internal/adapters/repository/postgres/release_orchestration_store.go` | Sequential orchestration and PostgreSQL persistence foundation exist; advanced recovery and approvals remain incomplete. |
 | Runner protocol | partial | runner routes in `internal/api/http/routes/routes.go`, PipelineStore runner methods | Token/heartbeat/claim/log/status foundations exist; sandboxing and fleet-scale behavior are not production-grade. |
 | Shell executor | implemented | `internal/adapters/executor/shell`, shell executor tests | Executes local shell commands; operators must isolate untrusted workloads. |
 | Kubernetes YAML apply | experimental | `internal/adapters/executor/yaml_apply`, guarded deployment apply command/API | Apply and rollback require explicit confirmation; no default destructive behavior; production cluster semantics remain future hardening. |
@@ -42,7 +42,7 @@ Nivora is **not production-ready**. Production readiness work is still in progre
 | Packaging | partial | Dockerfile, Docker Compose, Helm, Kubernetes manifests | Templates and local install assets exist; no operator and no validated production installer. |
 | Observability | partial | request/correlation middleware, `/metrics`, diagnostics endpoints | Lightweight metrics/diagnostics/runbooks; distributed tracing/export dashboards remain future work. |
 | Audit/evidence | foundation | `internal/usecase/compliance`, audit/evidence routes | Evidence bundle/search model exists; durable tamper-evident audit storage is not complete. |
-| Persistence | partial | Postgres PipelineStore, migrations under `internal/infra/migration` | PipelineRun/runner/outbox persistence foundation; DeploymentRun/Release/Artifact persistence remains partial or memory-backed. |
+| Persistence | partial | Postgres PipelineStore, deployment/release runtime stores, migrations under `internal/infra/migration` | PipelineRun/runner/outbox plus DeploymentRun/Release/ReleaseExecution persistence foundations exist; several governance/security stores remain memory-backed. |
 | Backup/restore | documented-only | `docs/operations/backup-restore.md`, HA/DR docs | Procedures are documented but restore drills are not automated or verified. |
 
 ## Contract Notes

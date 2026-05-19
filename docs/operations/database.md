@@ -1,6 +1,6 @@
 # Database Operations
 
-Nivora uses PostgreSQL as the target source of truth. The alpha still runs many local demos with in-memory stores, but Phase 5.1 adds the first focused PostgreSQL runtime repository for PipelineRun state.
+Nivora uses PostgreSQL as the target source of truth. Local demos still run with in-memory stores by default, but the runtime now has PostgreSQL-backed repository foundations for PipelineRun, DeploymentRun, release artifact binding, ReleasePlan, and ReleaseExecution state.
 
 Nivora is not production-ready.
 
@@ -16,6 +16,7 @@ Current migration groups:
 - `000004_runtime_recovery`: PipelineRun and DeploymentRun lease fields plus outbox retry metadata and recovery indexes.
 - `000005_runner_fleet`: runner token metadata, capabilities, max concurrency, last seen time, and runner fleet indexes.
 - `000006_performance_indexes`: query-shape indexes for list, log, event, audit, runner, lease, and outbox paths.
+- `000007_deployment_release_runtime`: DeploymentRun, DeploymentPlan/resource/log/event/audit, Release, ReleaseArtifact, ReleasePlan, and ReleaseExecution runtime tables.
 
 Run migrations with:
 
@@ -31,7 +32,7 @@ make migrate-down
 
 Set `DATABASE_URL` explicitly. Do not commit credentials.
 
-Enable the PostgreSQL PipelineRun runtime store with:
+Enable the PostgreSQL runtime store with:
 
 ```yaml
 database:
@@ -39,7 +40,7 @@ database:
   url: "<set per environment>"
 ```
 
-Local demos keep `runtime_store: memory` by default.
+Local demos keep `runtime_store: memory` by default. Production/prod configs are rejected if they use memory mode.
 
 ## Runtime Tables
 
@@ -53,6 +54,20 @@ The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to ma
 - `runtime_runners`
 - `runtime_event_outbox`
 - `idempotency_keys`
+- `runtime_deployment_runs`
+- `runtime_deployment_logs`
+- `runtime_deployment_events`
+- `runtime_deployment_audit_logs`
+- `runtime_deployment_resources`
+- `runtime_manifest_snapshots`
+- `runtime_rollback_plans`
+- `runtime_releases`
+- `runtime_release_artifacts`
+- `runtime_release_plans`
+- `runtime_release_executions`
+- `runtime_release_execution_targets`
+- `runtime_release_execution_events`
+- `runtime_release_execution_audit_logs`
 
 ## Operational Notes
 
@@ -68,6 +83,7 @@ The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to ma
 
 ## Not Yet Complete
 
-- The default local server still uses in-memory stores. Set `database.runtime_store: postgres` to use the Phase 5.1 PipelineRun store.
-- DeploymentRun, Release, Artifact, Credential metadata, and PolicyResult PostgreSQL repositories remain future work.
+- The default local server still uses in-memory stores. Set `database.runtime_store: postgres` to use the runtime PostgreSQL stores.
+- DeploymentRun and ReleaseExecution persistence is a foundation: it stores durable aggregate records and query tables, but worker recovery policy and idempotency at every API boundary still need further hardening.
+- Credential metadata, PolicyResult, approval, notification, and tamper-evident evidence persistence remain future work.
 - Phase 8.2 documents HA, backup, and restore procedures, but Nivora still does not automate them or claim production readiness.

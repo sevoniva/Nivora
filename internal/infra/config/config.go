@@ -153,6 +153,9 @@ func (c Config) Validate() error {
 	if c.Database.RuntimeStore != "memory" && c.Database.RuntimeStore != "postgres" {
 		return errors.New("config database.runtime_store must be memory or postgres")
 	}
+	if (c.Env == "production" || c.Env == "prod") && c.Database.RuntimeStore == "memory" {
+		return errors.New("config database.runtime_store=memory is dev-only; use postgres for production")
+	}
 	if c.EventBus.Type == "" {
 		return errors.New("config event_bus.type is required")
 	}

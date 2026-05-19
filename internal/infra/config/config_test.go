@@ -64,3 +64,12 @@ func TestRepositoryConfigExamplesValidate(t *testing.T) {
 		}
 	}
 }
+
+func TestProductionRejectsMemoryRuntimeStore(t *testing.T) {
+	cfg := Default()
+	cfg.Env = "production"
+	cfg.Database.RuntimeStore = "memory"
+	if err := cfg.Validate(); err == nil {
+		t.Fatal("expected production memory runtime store to be rejected")
+	}
+}

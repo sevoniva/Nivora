@@ -41,8 +41,16 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer closePipeline()
-	deploymentService := NewDeploymentService()
-	artifactService := NewArtifactService()
+	deploymentService, closeDeployment, err := appruntime.NewDeploymentServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeDeployment()
+	artifactService, closeArtifact, err := appruntime.NewArtifactServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeArtifact()
 	securityService := NewSecurityService()
 	credentialService := NewCredentialService()
 	authService := NewAuthService()
@@ -50,7 +58,11 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 	cloudService := NewCloudService()
 	tenancyService := NewTenancyService()
 	pluginRegistry := NewPluginRegistry()
-	releaseService := NewReleaseOrchestrationServiceWith(artifactService, deploymentService)
+	releaseService, closeRelease, err := appruntime.NewReleaseOrchestrationServiceWithConfig(ctx, cfg, artifactService, deploymentService)
+	if err != nil {
+		return err
+	}
+	defer closeRelease()
 	complianceService := NewComplianceService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService)
 	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService, cloudService, tenancyService, complianceService, pluginRegistry)
 	srv := &http.Server{

@@ -11,7 +11,7 @@ The weakest areas are production durability beyond PipelineRun, full persistence
 Main architectural risks:
 
 - The README and release docs use `v1.0.0`/GA language, while several major runtime capabilities remain beta or experimental.
-- Server bootstrapping still defaults most services to in-memory stores except optional PipelineRun Postgres mode.
+- Server bootstrapping now supports Postgres-backed PipelineRun, DeploymentRun, release artifact binding, ReleasePlan, and ReleaseExecution stores when `database.runtime_store: postgres` is configured; several governance/security stores still default to memory.
 - Route surface is very broad; several groups are placeholders or shallow foundations.
 - External provider packages exist, but many are skeletons/fake/noop rather than real integrations.
 - Runner security and workload isolation are foundations, not a production sandbox.
@@ -75,14 +75,14 @@ Recommended next phase: **truth-aligned beta hardening**, focused on persistence
 | Phase 1 | Minimal PipelineRun Runtime | 70% | `internal/usecase/pipeline`, shell executor, pipeline tests, smoke script. | Shell-only; no full distributed execution guarantee. | Harden runtime durability and runner isolation. |
 | Phase 1.5 | Durable Pipeline Runtime Foundation | 60% | runner claim, leases, Postgres PipelineStore, outbox, recovery APIs. | Durable coverage focused on PipelineRun; recovery not fully production-validated. | Add integration DB recovery tests. |
 | Phase 1.6 | Runtime Developer Experience | 70% | runtime docs, examples, CLI/API smoke scripts. | Mostly local/dev oriented. | Keep as beta contributor path. |
-| Phase 2.0 | DeploymentRun and YAML Planning Foundation | 60% | deployment spec/parser/renderer, plan/dry-run examples/tests. | Store is memory by default; no full live diff. | Persist DeploymentRun and plan state. |
+| Phase 2.0 | DeploymentRun and YAML Planning Foundation | 65% | deployment spec/parser/renderer, plan/dry-run examples/tests, Postgres DeploymentRun store. | Local mode is memory; no full live diff or recovery loop. | Add DB integration tests and recovery behavior. |
 | Phase 2.1 | Kubernetes YAML Apply Runtime | 55% | guarded apply command/API, noop and kubectl adapters, tests. | Production cluster safety and real apply validation limited. | Harden namespace/context policy and integration tests. |
-| Phase 2.2 | Artifact and Release Binding | 60% | artifact parser, Release/ReleaseArtifact service, examples/tests. | Release persistence incomplete; full registry integration absent. | Persist Release/Artifact and enforce immutability policy. |
+| Phase 2.2 | Artifact and Release Binding | 65% | artifact parser, Release/ReleaseArtifact service, Postgres release store, examples/tests. | Full registry integration absent; idempotent API create path incomplete. | Add DB integration tests and stronger immutability enforcement. |
 | Phase 2.3 | GitOps / Argo CD Foundation | 45% | GitOps local adapter, Argo CD noop provider, docs/examples. | No production Git provider; Argo CD real integration limited. | Keep experimental; harden local repo tests. |
 | Phase 2.4 | Kubernetes Resource Inventory / Health / Rollback | 55% | inventory/health/snapshot/rollback plan models and routes. | Health is lightweight; rollback execution guarded/foundation. | Add live-state integration tests with fake adapters. |
 | Phase 2.5 | OCI / Harbor Digest Resolution | 55% | OCI adapter/parser tests; Harbor documented as OCI-compatible. | No full Harbor management; network resolution optional. | Harden credentialed resolution without CI registry dependency. |
 | Phase 2.6 | Argo CD Status / Guarded Sync | 45% | status/sync models, guarded CLI/API, noop tests. | Production sync automation absent by design. | Keep sync opt-in and experimental. |
-| Phase 2.7 | Release Orchestration Across Targets | 55% | ReleasePlan/ReleaseExecution usecase/tests; sequential local execution. | Persistence/recovery partial; advanced orchestration absent. | Persist execution state and approval resume behavior. |
+| Phase 2.7 | Release Orchestration Across Targets | 60% | ReleasePlan/ReleaseExecution usecase/tests; sequential local execution; Postgres orchestration store. | Recovery loop and advanced orchestration absent. | Add restart reconciliation and approval resume behavior. |
 | Phase 3.0 | DevSecOps Foundation | 45% | SecurityScan/Finding, noop scanner, built-in policy tests. | No Trivy/Cosign/SBOM real integration. | Treat as policy model foundation. |
 | Phase 3.1 | Secret and Credential Foundation | 55% | SecretRef/Credential services, builtin provider, redaction tests. | External providers are skeleton/minimal. | Production provider validation and lifecycle hardening. |
 | Phase 3.2 | AuthN / AuthZ / RBAC Foundation | 45% | auth service, middleware tests, roles/permissions/API tokens. | Critical route coverage needs review; no full SSO. | Perform permission coverage audit. |
@@ -96,7 +96,7 @@ Recommended next phase: **truth-aligned beta hardening**, focused on persistence
 | Phase 4.3 | Plugin System Foundation | 45% | plugin model/registry/API/proto/templates/tests. | No external supervisor or marketplace. | Stabilize protocol only after adapter demand. |
 | Phase 4.4 | Packaging and Deployment Foundation | 55% | Dockerfile, Compose, Helm, K8s manifests, config docs. | Helm defaults memory store; Docker build not rerun in this audit. | Validate install on disposable environment. |
 | Phase 5.0 | Alpha Release Hardening | 80% | alpha matrix, demo, checklist, docs, smoke tests. | Public alpha wording now overlaps GA docs. | Preserve alpha docs as historical, clarify status. |
-| Phase 5.1 | Production Persistence and Migration | 45% | Postgres PipelineStore, migrations/indexes/idempotency table. | DeploymentRun/Release/Artifact persistence partial or absent. | Prioritize production persistence gap. |
+| Phase 5.1 | Production Persistence and Migration | 55% | Postgres PipelineStore plus DeploymentRun/Release/ReleaseExecution runtime stores and migrations. | Governance/security persistence, full idempotent API create paths, and DB integration tests remain incomplete. | Continue recovery and persistence hardening. |
 | Phase 5.2 | Durable Workflow Runtime | 45% | leases/recovery APIs/outbox foundation. | Recovery mostly PipelineRun; Deployment/Release restart recovery incomplete. | Add restart/reconciliation integration tests. |
 | Phase 5.3 | Runner Fleet and Secure Protocol | 55% | token hash, one-time token, heartbeat/claim/concurrency/labels. | No autoscaling; sandbox policy incomplete. | Harden runner auth and workload isolation. |
 | Phase 5.4 | Quality Gates and Test Harness | 70% | `make verify`, smoke scripts, example validation, CI. | No broad e2e with real DB/runner fleet. | Add optional integration test profile. |
@@ -133,7 +133,7 @@ Recommended next phase: **truth-aligned beta hardening**, focused on persistence
 | OpenAPI | usable | `api/openapi/openapi.yaml` large route/schema coverage. | YAML parse only. | API inventory. | Description stale; coverage is not semantic validation. | Medium. |
 | AsyncAPI | usable | `api/asyncapi/asyncapi.yaml`. | YAML parse only. | event docs. | Some events marked reserved/future. | Medium. |
 | domain model | usable | `internal/domain/*`. | Some domain tests. | concepts docs. | Many domains have no tests. | Medium. |
-| repository/persistence | minimal | Memory stores; Postgres PipelineStore only. | PipelineStore tests. | data/database/persistence docs. | Deployment/Release/Artifact persistence partial. | High. |
+| repository/persistence | minimal | Memory stores plus Postgres PipelineStore and deployment/release runtime stores. | migration/interface tests. | data/database/persistence docs. | Governance/security persistence and DB integration coverage remain partial. | High. |
 | Pipeline DSL | usable | parser/spec in `internal/usecase/pipeline/spec.go`. | spec tests. | pipeline docs/examples. | Shell-focused. | Medium. |
 | PipelineRun runtime | usable | service, shell executor, smoke/API. | service/routes/smoke tests. | runtime docs. | Distributed durability partial. | Medium. |
 | StageRun / JobRun / StepRun | usable | domain/usecase models and state tests. | state tests. | concept docs. | Persistence nested in record JSON. | Medium. |
@@ -148,7 +148,7 @@ Recommended next phase: **truth-aligned beta hardening**, focused on persistence
 | cancellation | minimal | pipeline/deployment/release cancel endpoints. | tests exist. | runtime docs. | Executor-level cancel limited. | Medium. |
 | retry | minimal | Pipeline retry model/tests. | pipeline tests. | runtime acceptance. | Limited DSL/runner cases. | Medium. |
 | timeout | minimal | Pipeline/deployment timeout models/tests. | tests. | docs. | Reconciliation partial. | Medium. |
-| DeploymentRun model | usable | deployment domain/usecase. | service/state tests. | deployment docs. | Memory persistence. | High. |
+| DeploymentRun model | usable | deployment domain/usecase and Postgres runtime store. | service/state/migration tests. | deployment docs. | Recovery loop and DB integration tests are shallow. | Medium. |
 | YAML manifest renderer | usable | static renderer, validation/resource extraction. | renderer tests. | YAML docs. | No Helm/Kustomize. | Medium. |
 | Kubernetes dry-run | minimal | noop/kubectl adapter and dry-run path. | adapter/service tests. | ops docs. | Live cluster optional only. | Medium. |
 | Kubernetes apply | minimal | explicit guarded apply path. | local/noop tests/smoke. | ops docs. | Not production cluster hardened. | High. |
@@ -164,7 +164,7 @@ Recommended next phase: **truth-aligned beta hardening**, focused on persistence
 | GitOps plan | minimal | local working tree adapter/plan commands. | local adapter tests. | GitOps docs. | No full provider auth/push by default. | Medium. |
 | Argo CD status read | minimal | noop provider/status routes. | noop tests. | Argo docs. | Real Argo optional/skeletal. | Medium. |
 | Argo CD guarded sync | placeholder | guarded sync route/CLI/noop. | guard tests. | docs. | Not production automation. | High. |
-| release orchestration | usable | sequential ReleaseExecution. | service tests. | orchestration docs. | Recovery/persistence partial. | Medium. |
+| release orchestration | usable | sequential ReleaseExecution and Postgres orchestration store. | service/migration tests. | orchestration docs. | Recovery behavior and approval resume are partial. | Medium. |
 | DevSecOps scan model | minimal | SecurityScan/Finding/noop scanner. | security tests. | security docs. | No real scanner required. | Medium. |
 | policy gates | minimal | built-in rules and allow-all placeholder. | policy/security tests. | policy docs. | OPA/Kyverno absent. | Medium. |
 | secret management | minimal | SecretProvider, builtin/external skeletons. | provider/redaction tests. | secret docs. | Production provider not validated. | High. |
@@ -202,8 +202,8 @@ Recommended next phase: **truth-aligned beta hardening**, focused on persistence
 | artifacts | inspect, resolve | covered | artifact service / OCI adapter | partial | No full artifact repository API. |
 | pipelines | placeholder collection | covered | none | placeholder | PipelineRun exists; Pipeline definition CRUD does not. |
 | pipeline-runs | create/list/get/logs/events/timeline/cancel/cancel-request | covered | pipeline service, memory or Postgres for configured PipelineStore | implemented | Shell runtime foundation. |
-| releases | create/list/get/artifacts/security, plan/deploy/executions | covered | artifact service + release orchestration memory store | partial | Release orchestration useful but persistence partial. |
-| deployments | create/list/plan/apply/get/resources/health/diff/snapshot/rollback/logs/events/timeline/security/cancel/resume/sync | covered | deployment service memory store | partial | Broad guarded foundation, not production CD. |
+| releases | create/list/get/artifacts/security, plan/deploy/executions | covered | artifact service + release orchestration memory or Postgres store when configured | partial | Release orchestration useful; recovery/idempotency still partial. |
+| deployments | create/list/plan/apply/get/resources/health/diff/snapshot/rollback/logs/events/timeline/security/cancel/resume/sync | covered | deployment service memory or Postgres store when configured | partial | Broad guarded foundation, not production CD. |
 | runners | list/get/register/heartbeat/claim/log/status/offline/token rotate/revoke | covered | pipeline store | partial | Secure runner protocol foundation; production isolation pending. |
 | approvals | CRUD lifecycle, approve/reject/cancel/expire | covered | approval memory store | partial | Governance foundation. |
 | policies | evaluate plus placeholder collection | covered | security policy service | partial | Policy CRUD missing. |
@@ -245,7 +245,7 @@ Recommended next phase: **truth-aligned beta hardening**, focused on persistence
 
 - What exists? YAML Pipeline definition parsing/validation, shell execution, StageRun/JobRun/StepRun state transitions, logs/events/audit/timeline, retry/timeout/cancel, local smoke path, runner job claim protocol, optional Postgres PipelineStore.
 - What is tested? Pipeline spec/state/service/store tests, shell executor tests, API route tests, smoke scripts.
-- What is persisted? In memory by default; optional Postgres persistence for PipelineRun, JobRun, LogChunk, Event, AuditLog, Runner, outbox.
+- What is persisted? In memory by default for local mode; optional Postgres persistence for PipelineRun, JobRun, LogChunk, Event, AuditLog, Runner, outbox, DeploymentRun, Release, ReleaseArtifact, ReleasePlan, and ReleaseExecution.
 - What is only in memory? Default local/server mode uses memory; deployment/release-adjacent state is not persisted in PipelineStore.
 - What can break in production? Restart recovery and worker/runner split need production DB validation; shell executor is not a sandbox.
 - What should be done next? Run DB-backed e2e tests with server/worker/runner processes and document operational limits.
@@ -254,19 +254,19 @@ Recommended next phase: **truth-aligned beta hardening**, focused on persistence
 
 - What exists? YAML render/validation/planning, dry-run, guarded apply/rollback, GitOps/Argo/host branches, resources/health/diff/snapshot/rollback plan, logs/events/audit/timeline.
 - What is tested? Deployment spec/renderer/state/service/API tests and smoke dry-run/host paths.
-- What is persisted? `internal/usecase/deployment/store.go` is memory store; migrations mention `deployment_runs`, but app runtime wires memory.
-- What is only in memory? Current server-created DeploymentRun records, plans, logs, events, audits, host groups.
-- What can break in production? Restart loses deployment state unless future persistence is wired; live cluster diff/health/rollback are foundations.
-- What should be done next? Add DeploymentRun Postgres repository and recovery tests before production CD claims.
+- What is persisted? `internal/usecase/deployment/store.go` still defines the store boundary; `internal/adapters/repository/postgres/deployment_store.go` persists DeploymentRun records, plans, resources, snapshots, rollback plans, logs, events, and audit when Postgres mode is configured.
+- What is only in memory? Local/dev mode remains memory-backed; some adjacent governance/security state is still memory-backed.
+- What can break in production? Without Postgres mode, restart loses deployment state; even with Postgres mode, live cluster diff/health/rollback are foundations and recovery loops need more testing.
+- What should be done next? Add real DB integration tests and worker recovery loops before production CD claims.
 
 ### ReleaseExecution lifecycle
 
 - What exists? ReleasePlan, ReleaseExecution, sequential target orchestration, aggregate status, cancel/resume, target timeline/events/audit.
 - What is tested? Release orchestration service and route tests; `make verify-release`.
 - What is persisted? Memory store only.
-- What is only in memory? Plans, executions, aggregate timelines, target links.
+- What is only in memory? Local/dev mode remains memory-backed; approval resume and some adjacent state remain shallow.
 - What can break in production? Process restart loses release execution state; duplicate target execution prevention is not production-proven.
-- What should be done next? Persist ReleasePlan/ReleaseExecution and idempotency.
+- What should be done next? Add DB-backed recovery tests and idempotent API create paths.
 
 ### Runner lifecycle
 
@@ -306,10 +306,10 @@ Recommended next phase: **truth-aligned beta hardening**, focused on persistence
 
 ### LogChunk persistence
 
-- What exists? Ordered logs for PipelineRun/JobRun and DeploymentRun memory logs.
+- What exists? Ordered logs for PipelineRun/JobRun and DeploymentRun logs, with Postgres tables for pipeline and deployment runtime logs.
 - What is tested? Ordering tests and route tests.
 - What is persisted? Pipeline logs in Postgres mode.
-- What is only in memory? Deployment/Release/security logs.
+- What is only in memory? Some security/governance logs and local/dev runtime logs.
 - What can break in production? Log retention, pagination, storage pressure, and non-pipeline durability.
 - What should be done next? Add log retention policy and persistent deployment logs.
 
@@ -354,7 +354,7 @@ Recommended next phase: **truth-aligned beta hardening**, focused on persistence
 - What exists? Runtime recovery APIs and PipelineRun-focused queries.
 - What is tested? Unit/repository tests.
 - What is persisted? Pipeline runtime recovery data if Postgres configured.
-- What is only in memory? DeploymentRun, ReleaseExecution, many governance/security states.
+- What is only in memory? Local/dev mode plus many governance/security states.
 - What can break in production? Restart can lose non-pipeline state and duplicate/skip work.
 - What should be done next? Prioritize full persistent runtime recovery.
 
@@ -386,7 +386,7 @@ What exists: tests across pipeline, deployment, artifact, approval, auth, cloud,
 
 What is missing: many domain packages and skeleton adapters have no tests; route permission matrix is incomplete.
 
-Highest priority tests: RBAC route coverage, runner race/lease contention, deployment persistence once added.
+Highest priority tests: RBAC route coverage, runner race/lease contention, deployment/release Postgres integration tests.
 
 ### Integration tests
 
@@ -485,7 +485,7 @@ Highest priority tests: local CLI commands for auth/secret/runner/release/deploy
 | Production Dimension | Score 0-5 | Evidence | Blockers |
 |---|---:|---|---|
 | runtime durability | 3 | Pipeline Postgres/outbox/recovery foundation. | Deployment/Release durability partial. |
-| persistence | 2 | Postgres PipelineStore and migrations. | Many services memory-only. |
+| persistence | 2 | Postgres PipelineStore plus DeploymentRun/Release/ReleaseExecution runtime stores and migrations. | Several governance/security stores and integration tests remain incomplete. |
 | security | 3 | threat model, redaction, secret scan. | Human review and route coverage incomplete. |
 | auth/RBAC | 2 | dev/token/OIDC foundation, middleware. | Complete enforcement not proven. |
 | secrets | 3 | SecretRef/provider/redaction. | Production Vault/KMS lifecycle not validated. |
@@ -508,11 +508,11 @@ Highest priority tests: local CLI commands for auth/secret/runner/release/deploy
 ## 14. Top Risks
 
 1. Risk: GA/version language outruns implementation maturity. Impact: users may expect production guarantees. Evidence: README says v1.0.0 GA readiness while GA checklist has open blockers. Mitigation: explicitly scope GA or rename to beta. Suggested phase/goal: release truth pass.
-2. Risk: In-memory default state for most services. Impact: restart loses DeploymentRun/Release/Approval/Security state. Evidence: `internal/app/runtime/runtime.go` wires memory stores for most services. Mitigation: persistent repositories and config validation. Suggested phase/goal: persistence hardening.
+2. Risk: In-memory default state for local mode and several services. Impact: restart can still lose approval/security/governance state. Evidence: deployment/release can use Postgres mode, while other stores remain memory-backed. Mitigation: continue persistent repositories and recovery tests. Suggested phase/goal: persistence hardening.
 3. Risk: Runner sandbox boundary incomplete. Impact: untrusted jobs can harm runner host. Evidence: shell executor and docs warn no sandbox guarantee. Mitigation: runner isolation design and policy. Suggested phase/goal: runner security hardening.
 4. Risk: RBAC coverage incomplete. Impact: sensitive routes may be underprotected. Evidence: some route groups use middleware, some implemented reads/mutations are open under auth context. Mitigation: route permission matrix tests. Suggested phase/goal: auth/RBAC audit.
 5. Risk: Kubernetes apply/rollback not production-hardened. Impact: unsafe cluster changes if misconfigured. Evidence: guarded apply exists but live cluster validation optional. Mitigation: target restrictions, dry-run first, integration profile. Suggested phase/goal: Kubernetes safety hardening.
-6. Risk: Audit evidence is not tamper-evident. Impact: compliance claims weak. Evidence: audit mostly in memory except PipelineStore. Mitigation: append-only durable audit store. Suggested phase/goal: compliance persistence.
+6. Risk: Audit evidence is not tamper-evident. Impact: compliance claims weak. Evidence: audit is durable for pipeline/deployment/release runtime stores but broader evidence/audit remains not tamper-evident. Mitigation: append-only durable audit store. Suggested phase/goal: compliance persistence.
 7. Risk: External integrations are skeleton/noop/fake. Impact: users may assume cloud/Argo/Harbor/host readiness. Evidence: `doc.go` packages and noop/fake providers. Mitigation: capability labels and provider RFCs. Suggested phase/goal: integration truth labeling.
 8. Risk: API surface is broad. Impact: maintenance burden and contract drift. Evidence: routes.go exposes many groups and OpenAPI is large. Mitigation: API inventory and contract tests. Suggested phase/goal: API stabilization.
 9. Risk: OpenAPI/AsyncAPI maturity wording stale. Impact: docs confusion. Evidence: OpenAPI says alpha/not production-ready; README says v1.0.0 GA baseline. Mitigation: align specs. Suggested phase/goal: documentation consistency.
@@ -523,8 +523,8 @@ Highest priority tests: local CLI commands for auth/secret/runner/release/deploy
 | Priority | Missing Item | Why It Matters | Suggested Phase | Estimated Effort |
 |---|---|---|---|---|
 | P0 blocker | Align GA/beta/experimental claims across README, specs, charter, release docs | Prevents misleading public release | Release truth pass | small |
-| P0 blocker | DeploymentRun persistent repository | Deployment state must survive restart | Persistence | large |
-| P0 blocker | Release/ReleaseExecution persistent repository | Release orchestration must be durable | Persistence | large |
+| P1 important | DeploymentRun DB integration tests | Repository foundation exists but needs real DB verification | Persistence | medium |
+| P1 important | ReleaseExecution recovery loop | Repository foundation exists but restart reconciliation is incomplete | Persistence | medium |
 | P0 blocker | Route-by-route RBAC coverage test | Sensitive mutation APIs need proof | Security | medium |
 | P0 blocker | Runner sandbox/trust boundary documentation and enforcement plan | Shell execution is high risk | Security | medium |
 | P1 important | DB-backed server/worker/runner e2e test | Proves cross-process runtime | Runtime | large |
@@ -555,8 +555,8 @@ Highest priority tests: local CLI commands for auth/secret/runner/release/deploy
 
 ### Goal 2: Persistent Deployment and Release Runtime
 
-- Why now: PipelineRun has a Postgres path; DeploymentRun and ReleaseExecution remain memory-backed in runtime wiring.
-- Scope: Add explicit SQL repositories for DeploymentRun, ReleasePlan, ReleaseExecution, logs/events/audit, with migration tests and restart recovery tests.
+- Why now: PipelineRun, DeploymentRun, and ReleaseExecution now have Postgres paths, but recovery behavior and DB integration coverage are still shallow.
+- Scope: Add real DB integration tests, idempotent create paths, and worker recovery loops for DeploymentRun and ReleaseExecution.
 - Non-goals: No new deployment engines; no cloud/Argo expansion.
 - Acceptance criteria: server restart does not lose deployment/release state; tests cover create/get/list/update/timeline and transaction rollback.
 - Risk: Medium-large due schema and migration complexity.
@@ -576,8 +576,8 @@ Highest priority tests: local CLI commands for auth/secret/runner/release/deploy
 | 1 | Align README, PROJECT_CHARTER, OpenAPI, AsyncAPI, release docs maturity wording | 9/10 | docs | Prevents public overclaim | Audit report |
 | 2 | Add OpenAPI-vs-router coverage test | 9/10 | API | Prevents route/spec drift | Current routes |
 | 3 | Add route permission matrix and tests | 7/10 | security | RBAC confidence | Auth service |
-| 4 | Implement DeploymentRun Postgres repository | 5/10 | code | Durable CD state | Migrations |
-| 5 | Implement ReleasePlan/ReleaseExecution Postgres repository | 5/10 | code | Durable orchestration | Migrations |
+| 4 | Add DeploymentRun Postgres integration tests | 5/10 | test | Verify durable CD state against a real database | Postgres test strategy |
+| 5 | Add ReleasePlan/ReleaseExecution recovery loop | 5/10 | code | Durable orchestration after restart | Repository foundation |
 | 6 | Add DB-backed server/worker/runner e2e profile | 5 | test | Runtime recovery proof | Postgres repos |
 | 7 | Add durable audit/evidence persistence | 7 | code | Compliance credibility | Data model |
 | 8 | Add production config validation for auth/store/secrets | 8/10 | ops | Prevents unsafe defaults | Config loader |
@@ -588,7 +588,7 @@ Highest priority tests: local CLI commands for auth/secret/runner/release/deploy
 
 Nivora today is a broad, well-structured, well-documented delivery control-plane foundation with a real Go codebase, passing local verification, and credible local demos. It can demo shell PipelineRun execution, logs/timeline, API/CLI smoke paths, YAML deployment planning/dry-run, guarded local apply/noop paths, artifact inspection, release orchestration, security policy examples, plugin/visualization foundations, Helm rendering, and a minimal web console build.
 
-It cannot safely be treated as a complete production delivery platform today. It cannot yet guarantee durable DeploymentRun/ReleaseExecution recovery, full multi-tenant isolation, production runner sandboxing, complete enterprise SSO/RBAC coverage, tamper-evident audit, production-grade Kubernetes rollback, production Argo CD automation, real cloud deployment, or full registry/scanner/provider integrations.
+It cannot safely be treated as a complete production delivery platform today. It cannot yet guarantee fully tested DeploymentRun/ReleaseExecution recovery, full multi-tenant isolation, production runner sandboxing, complete enterprise SSO/RBAC coverage, tamper-evident audit, production-grade Kubernetes rollback, production Argo CD automation, real cloud deployment, or full registry/scanner/provider integrations.
 
 The honest maturity is **beta-candidate**, not production-candidate. Before public alpha, the project needs only status cleanup and demo clarity. Before beta, it needs persistence/recovery and API/RBAC contract hardening. Before production, it needs durable state across all critical workflows, validated production install/restore, strong runner isolation policy, complete security review, and explicit scope decisions for every experimental integration.
 
@@ -608,7 +608,7 @@ The honest maturity is **beta-candidate**, not production-candidate. Before publ
     "guarded deployment foundations"
   ],
   "weakest_areas": [
-    "non-pipeline persistence",
+    "governance/security persistence",
     "production runner isolation",
     "complete RBAC coverage",
     "external integration maturity",
@@ -678,7 +678,7 @@ The honest maturity is **beta-candidate**, not production-candidate. Before publ
   ],
   "top_blockers": [
     "GA/version language exceeds several implementation guarantees",
-    "DeploymentRun and ReleaseExecution are memory-backed in default runtime wiring",
+    "DeploymentRun and ReleaseExecution Postgres paths need integration and recovery testing",
     "RBAC coverage is not proven across all critical routes",
     "Runner sandbox/trust boundary is not production-grade",
     "Audit/evidence is not tamper-evident or uniformly durable"

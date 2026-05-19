@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.1.0-dev
-  description: Early Nivora API for the DevOps delivery control plane. Phase 3.4 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, and multi-cloud inventory foundations.
+  description: Early Nivora API for the DevOps delivery control plane. Phase 3.5 supports minimal shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory foundations, and safe host deployment planning/noop execution.
 servers:
   - url: http://localhost:8080
 paths:
@@ -768,6 +768,65 @@ paths:
                 $ref: "#/components/schemas/DeploymentRunRecord"
         "400":
           description: Invalid GitOps deployment definition
+  /api/v1/host-groups:
+    get:
+      summary: List host groups
+      responses:
+        "200":
+          description: Host groups
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HostGroup"
+    post:
+      summary: Create a host group metadata record
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/HostGroup"
+      responses:
+        "200":
+          description: Host group created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostGroup"
+  /api/v1/host-groups/{id}:
+    get:
+      summary: Get a host group
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Host group
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostGroup"
+        "404":
+          description: Host group not found
+  /api/v1/deployments/host/plan:
+    post:
+      summary: Build a safe host deployment plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeploymentDefinition"
+      responses:
+        "200":
+          description: Host deployment plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HostDeploymentPlan"
+        "400":
+          description: Invalid host deployment definition
   /api/v1/integrations/argocd/applications/{name}/status:
     get:
       summary: Read modeled Argo CD application status
@@ -926,6 +985,22 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/DeploymentResource"
+        "404":
+          description: DeploymentRun not found
+  /api/v1/deployments/{id}/hosts:
+    get:
+      summary: Get host execution details for a host DeploymentRun
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Host execution details
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/HostDeploymentRunDetail"
         "404":
           description: DeploymentRun not found
   /api/v1/deployments/{id}/health:
@@ -2842,7 +2917,7 @@ components:
           $ref: "#/components/schemas/DeploymentSpec"
     DeploymentSpec:
       type: object
-      required: [application, environment, target, manifests]
+      required: [application, environment, target]
       properties:
         application:
           type: string
@@ -2854,7 +2929,7 @@ components:
           properties:
             type:
               type: string
-              enum: [kubernetes-yaml, argocd]
+              enum: [kubernetes-yaml, argocd, host]
             name:
               type: string
             context:
@@ -2879,27 +2954,12 @@ components:
               type: string
             credentialsRef:
               type: string
+        artifact:
+          $ref: "#/components/schemas/DeploymentArtifact"
         artifacts:
           type: array
           items:
-            type: object
-            required: [name, type, reference]
-            properties:
-              name:
-                type: string
-              type:
-                type: string
-              reference:
-                type: string
-              digest:
-                type: string
-              target:
-                type: object
-                properties:
-                  imageName:
-                    type: string
-                  substitute:
-                    type: boolean
+            $ref: "#/components/schemas/DeploymentArtifact"
         manifests:
           type: array
           items:
@@ -2925,6 +2985,8 @@ components:
               type: array
               items:
                 type: string
+        host:
+          $ref: "#/components/schemas/HostDeploymentSpec"
         options:
           type: object
           properties:
@@ -2964,6 +3026,12 @@ components:
           $ref: "#/components/schemas/GitOpsChangePlan"
         gitopsDiff:
           $ref: "#/components/schemas/GitOpsDiff"
+        hostPlan:
+          $ref: "#/components/schemas/HostDeploymentPlan"
+        hostDetails:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostDeploymentRunDetail"
         argocd:
           $ref: "#/components/schemas/ArgoCDApplicationStatus"
         inventory:
@@ -3045,6 +3113,166 @@ components:
             type: string
         diffSummary:
           type: string
+    DeploymentArtifact:
+      type: object
+      required: [name, type, reference]
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        reference:
+          type: string
+        digest:
+          type: string
+        target:
+          type: object
+          properties:
+            imageName:
+              type: string
+            substitute:
+              type: boolean
+    HostTarget:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        address:
+          type: string
+        environmentId:
+          type: string
+        credentialRef:
+          type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+    HostGroup:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        environmentId:
+          type: string
+        credentialRef:
+          type: string
+        hosts:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostTarget"
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    HostDeploymentSpec:
+      type: object
+      properties:
+        hosts:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostTarget"
+        deployPath:
+          type: string
+        serviceName:
+          type: string
+        healthCheck:
+          type: string
+        strategy:
+          type: string
+          enum: [symlink]
+        credentialRef:
+          type: string
+        dryRun:
+          type: boolean
+        allowRemoteHostDeploy:
+          type: boolean
+    HostDeploymentPlan:
+      type: object
+      properties:
+        deploymentRunId:
+          type: string
+        groupName:
+          type: string
+        environmentId:
+          type: string
+        artifact:
+          type: string
+        deployPath:
+          type: string
+        serviceName:
+          type: string
+        healthCheck:
+          type: string
+        strategy:
+          type: string
+        dryRun:
+          type: boolean
+        apply:
+          type: boolean
+        hosts:
+          type: array
+          items:
+            $ref: "#/components/schemas/HostDeploymentStep"
+        actions:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        rollbackPlan:
+          $ref: "#/components/schemas/RollbackPlan"
+    HostDeploymentStep:
+      type: object
+      properties:
+        hostId:
+          type: string
+        hostName:
+          type: string
+        address:
+          type: string
+        releaseDir:
+          type: string
+        currentSymlink:
+          type: string
+        previousSymlink:
+          type: string
+        nextSymlink:
+          type: string
+        actions:
+          type: array
+          items:
+            type: string
+    HostDeploymentRunDetail:
+      type: object
+      properties:
+        hostId:
+          type: string
+        hostName:
+          type: string
+        address:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
     DeploymentStep:
       type: object
       properties:

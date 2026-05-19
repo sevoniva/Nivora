@@ -27,6 +27,8 @@ type RunRecord struct {
 	Plan            DeploymentPlan                    `json:"plan"`
 	GitOpsPlan      GitOpsChangePlan                  `json:"gitopsPlan,omitempty"`
 	GitOpsDiff      GitOpsDiff                        `json:"gitopsDiff,omitempty"`
+	HostPlan        HostDeploymentPlan                `json:"hostPlan,omitempty"`
+	HostDetails     []HostDeploymentRunDetail         `json:"hostDetails,omitempty"`
 	ArgoCD          portargocd.ApplicationStatus      `json:"argocd,omitempty"`
 	ArgoCDResources []portargocd.ResourceStatus       `json:"argocdResources,omitempty"`
 	ArgoCDSync      portargocd.SyncResult             `json:"argocdSync,omitempty"`
@@ -66,6 +68,64 @@ type DeploymentPlan struct {
 	Actions         []string                    `json:"actions"`
 	Warnings        []string                    `json:"warnings,omitempty"`
 	DiffSummary     string                      `json:"diffSummary"`
+}
+
+type HostTarget struct {
+	ID            string            `json:"id,omitempty"`
+	Name          string            `json:"name"`
+	Address       string            `json:"address,omitempty"`
+	EnvironmentID string            `json:"environmentId,omitempty"`
+	CredentialRef string            `json:"credentialRef,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty"`
+}
+
+type HostGroup struct {
+	ID            string            `json:"id"`
+	Name          string            `json:"name"`
+	EnvironmentID string            `json:"environmentId,omitempty"`
+	CredentialRef string            `json:"credentialRef,omitempty"`
+	Hosts         []HostTarget      `json:"hosts"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	CreatedAt     time.Time         `json:"createdAt"`
+	UpdatedAt     time.Time         `json:"updatedAt"`
+}
+
+type HostDeploymentPlan struct {
+	DeploymentRunID string               `json:"deploymentRunId"`
+	GroupName       string               `json:"groupName"`
+	EnvironmentID   string               `json:"environmentId"`
+	Artifact        string               `json:"artifact"`
+	DeployPath      string               `json:"deployPath"`
+	ServiceName     string               `json:"serviceName,omitempty"`
+	HealthCheck     string               `json:"healthCheck,omitempty"`
+	Strategy        string               `json:"strategy"`
+	DryRun          bool                 `json:"dryRun"`
+	Apply           bool                 `json:"apply"`
+	Hosts           []HostDeploymentStep `json:"hosts"`
+	Actions         []string             `json:"actions"`
+	Warnings        []string             `json:"warnings,omitempty"`
+	RollbackPlan    RollbackPlan         `json:"rollbackPlan"`
+}
+
+type HostDeploymentStep struct {
+	HostID          string   `json:"hostId"`
+	HostName        string   `json:"hostName"`
+	Address         string   `json:"address,omitempty"`
+	ReleaseDir      string   `json:"releaseDir"`
+	CurrentSymlink  string   `json:"currentSymlink"`
+	PreviousSymlink string   `json:"previousSymlink"`
+	NextSymlink     string   `json:"nextSymlink"`
+	Actions         []string `json:"actions"`
+}
+
+type HostDeploymentRunDetail struct {
+	HostID     string    `json:"hostId"`
+	HostName   string    `json:"hostName"`
+	Address    string    `json:"address,omitempty"`
+	Status     string    `json:"status"`
+	Message    string    `json:"message,omitempty"`
+	StartedAt  time.Time `json:"startedAt,omitempty"`
+	FinishedAt time.Time `json:"finishedAt,omitempty"`
 }
 
 type ManifestImage struct {

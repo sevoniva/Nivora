@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify-security verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
+.PHONY: build test vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify-security verify-host verify run-server run-worker run-runner pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-deployment-dry-run smoke-oci-resolve-local dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -49,7 +49,11 @@ verify-security:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora security scan manifest examples/security/manifest-privileged-warning.yaml --local
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora policy evaluate --subject registry.example.com/demo/app:latest
 
-verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify-security
+verify-host:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment host plan --file examples/deployments/host-dry-run.yaml --local
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
+
+verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-runtime verify-deployment verify-release verify-security verify-host
 
 run-server:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora server --config configs/server.yaml
@@ -75,6 +79,16 @@ deployment-run-local:
 deployment-apply-local:
 	@test "$$NIVORA_ALLOW_LOCAL_APPLY" = "true" || (echo "set NIVORA_ALLOW_LOCAL_APPLY=true to run local apply" >&2; exit 1)
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --confirm
+
+host-deployment-plan-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment host plan --file examples/deployments/host-dry-run.yaml --local
+
+host-deployment-run-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
+
+host-deployment-apply-local:
+	@test "$$NIVORA_ALLOW_REMOTE_HOST_DEPLOY" = "true" || (echo "set NIVORA_ALLOW_REMOTE_HOST_DEPLOY=true to test guarded host apply" >&2; exit 1)
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local --confirm --allow-remote-host-deploy
 
 artifact-inspect-local:
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora artifact inspect registry.example.com/team/demo:1.0.0

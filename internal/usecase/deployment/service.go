@@ -18,6 +18,7 @@ import (
 	"github.com/sevoniva/nivora/internal/domain/release"
 	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
 	"github.com/sevoniva/nivora/internal/ports/eventbus"
+	portexecutor "github.com/sevoniva/nivora/internal/ports/executor"
 	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
@@ -61,6 +62,13 @@ const (
 	EventArgoCDSyncCompleted           = "devops.argocd.sync.completed"
 	EventArgoCDSyncFailed              = "devops.argocd.sync.failed"
 	EventArgoCDHealthChanged           = "devops.argocd.health.changed"
+	EventHostDeploymentPlanCreated     = "devops.host.deployment.plan.created"
+	EventHostDeploymentStarted         = "devops.host.deployment.started"
+	EventHostDeploymentHostStarted     = "devops.host.deployment.host.started"
+	EventHostDeploymentHostCompleted   = "devops.host.deployment.host.completed"
+	EventHostDeploymentHostFailed      = "devops.host.deployment.host.failed"
+	EventHostDeploymentHealthCompleted = "devops.host.deployment.health.completed"
+	EventHostRollbackPlanCreated       = "devops.host.rollback.plan.created"
 )
 
 type KubernetesManifestClient interface {
@@ -77,6 +85,7 @@ type Service struct {
 	client     ManifestClient
 	policy     policy.Engine
 	eventBus   eventbus.EventBus
+	host       portexecutor.HostExecutor
 	gitops     portgitops.WorkingTree
 	argocd     portargocd.Provider
 	security   *securityusecase.Service
@@ -106,6 +115,11 @@ func (s *Service) WithGitOps(workingTree portgitops.WorkingTree, provider portar
 	return s
 }
 
+func (s *Service) WithHostExecutor(executor portexecutor.HostExecutor) *Service {
+	s.host = executor
+	return s
+}
+
 func (s *Service) WithSecurity(securityService *securityusecase.Service) *Service {
 	s.security = securityService
 	return s
@@ -117,11 +131,20 @@ func (s *Service) WithGovernance(governance Governance) *Service {
 }
 
 func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (CreateRunResult, error) {
+	input.Definition = normalizeDefinition(input.Definition)
 	if err := input.Definition.Validate(); err != nil {
 		return CreateRunResult{}, err
 	}
 	if input.Definition.Spec.Options.Apply && !input.AllowApply {
 		return CreateRunResult{}, fmt.Errorf("deployment apply requires explicit confirmation")
+	}
+	if input.Definition.Spec.Target.Type == "host" && input.Definition.Spec.Options.Apply {
+		if !input.Confirm || !input.Definition.Spec.Host.AllowRemoteHostDeploy {
+			return CreateRunResult{}, fmt.Errorf("remote host deployment requires confirm=true and host.allowRemoteHostDeploy=true")
+		}
+		if hostCredentialRef(input.Definition) == "" {
+			return CreateRunResult{}, fmt.Errorf("remote host deployment requires host credentialRef")
+		}
 	}
 	record := s.newRecord(input.Definition)
 	if err := s.store.Save(ctx, record); err != nil {
@@ -137,6 +160,13 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 		}
 		return CreateRunResult{Record: record}, nil
 	}
+	if input.Definition.Spec.Target.Type == "host" {
+		record, err := s.processHost(ctx, record, input.ActorID, input.Confirm)
+		if err != nil {
+			return CreateRunResult{}, err
+		}
+		return CreateRunResult{Record: record}, nil
+	}
 	record, err := s.process(ctx, record, input.ActorID)
 	if err != nil {
 		return CreateRunResult{}, err
@@ -145,6 +175,7 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 }
 
 func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResult, error) {
+	input.Definition = normalizeDefinition(input.Definition)
 	if err := input.Definition.Validate(); err != nil {
 		return CreateRunResult{}, err
 	}
@@ -152,6 +183,11 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 	if input.Definition.Spec.Target.Type == "argocd" {
 		record.GitOpsPlan = s.buildGitOpsPlan(record.Run.ID, input.Definition, nil)
 		record.Plan = deploymentPlanFromGitOps(record.GitOpsPlan, input.Definition)
+		return CreateRunResult{Record: record}, nil
+	}
+	if input.Definition.Spec.Target.Type == "host" {
+		record.Plan, record.HostPlan, record.RollbackPlan = s.buildHostPlan(record.Run.ID, input.Definition)
+		record.Rollback = s.hostRollbackBaseline(record.Run.ID, input.Definition, record.HostPlan)
 		return CreateRunResult{Record: record}, nil
 	}
 	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunPlanning, s.now(), ""); err != nil {
@@ -170,6 +206,9 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 func (s *Service) process(ctx context.Context, record RunRecord, actorID string) (RunRecord, error) {
 	if record.Definition.Spec.Target.Type == "argocd" {
 		return s.processGitOps(ctx, record, actorID, false, false)
+	}
+	if record.Definition.Spec.Target.Type == "host" {
+		return s.processHost(ctx, record, actorID, false)
 	}
 	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunPlanning, s.now(), ""); err != nil {
 		return RunRecord{}, err
@@ -402,6 +441,177 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 		return RunRecord{}, err
 	}
 	return s.store.Get(ctx, record.Run.ID)
+}
+
+func (s *Service) processHost(ctx context.Context, record RunRecord, actorID string, confirm bool) (RunRecord, error) {
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunPlanning, s.now(), ""); err != nil {
+		return RunRecord{}, err
+	}
+	record.Plan, record.HostPlan, record.RollbackPlan = s.buildHostPlan(record.Run.ID, record.Definition)
+	record.Rollback = s.hostRollbackBaseline(record.Run.ID, record.Definition, record.HostPlan)
+	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("host deployment plan created for %d host(s)", len(record.HostPlan.Hosts)), int64(len(record.Logs)+1)))
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventHostDeploymentPlanCreated, "Host deployment plan created", actorID, string(record.Run.Status), "Host deployment plan created"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventHostRollbackPlanCreated, "Host rollback plan created", actorID, string(record.Run.Status), "Non-destructive host rollback plan created"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunPreChecking, s.now(), ""); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentPrecheckStarted, "Deployment policy pre-check started", actorID, string(record.Run.Status), "Host deployment policy pre-check started"); err != nil {
+		return RunRecord{}, err
+	}
+	policyResult, err := s.policy.Evaluate(ctx, policy.Request{
+		Subject: record.Run.ID,
+		Action:  "deployment.host",
+		Context: map[string]any{"targetType": record.Run.TargetType, "apply": record.HostPlan.Apply},
+	})
+	if err != nil {
+		return s.fail(ctx, record, actorID, err.Error())
+	}
+	record.Policy = policyResult
+	if !policyResult.Allowed {
+		reason := "host deployment policy denied"
+		if len(policyResult.Reasons) > 0 {
+			reason = policyResult.Reasons[0]
+		}
+		record, _ = s.recordRuntimeEvent(ctx, record, EventDeploymentPrecheckCompleted, string(domaindeployment.DeploymentRunFailed), reason)
+		return s.fail(ctx, record, actorID, reason)
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentPrecheckCompleted, "Deployment policy pre-check completed", actorID, string(record.Run.Status), "Host deployment policy pre-check allowed"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+
+	nextStatus := domaindeployment.DeploymentRunVerifying
+	if record.HostPlan.Apply {
+		nextStatus = domaindeployment.DeploymentRunDeploying
+	}
+	if err := transitionDeploymentRun(&record.Run, nextStatus, s.now(), ""); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventHostDeploymentStarted, "Host deployment started", actorID, string(record.Run.Status), "Host deployment runtime started"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+
+	for _, step := range record.HostPlan.Hosts {
+		started := s.now()
+		detail := HostDeploymentRunDetail{
+			HostID:    step.HostID,
+			HostName:  step.HostName,
+			Address:   step.Address,
+			Status:    "Running",
+			StartedAt: started,
+		}
+		record.HostDetails = append(record.HostDetails, detail)
+		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("host %s started", step.HostName), int64(len(record.Logs)+1)))
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventHostDeploymentHostStarted, "Host deployment host started", actorID, string(record.Run.Status), step.HostName); err != nil {
+			return RunRecord{}, err
+		}
+		record, _ = s.store.Get(ctx, record.Run.ID)
+
+		result, err := s.executeHostStep(ctx, record, step, confirm)
+		finished := s.now()
+		if err != nil {
+			record.HostDetails[len(record.HostDetails)-1].Status = "Failed"
+			record.HostDetails[len(record.HostDetails)-1].Message = err.Error()
+			record.HostDetails[len(record.HostDetails)-1].FinishedAt = finished
+			record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "stderr", err.Error(), int64(len(record.Logs)+1)))
+			if saveErr := s.store.Save(ctx, record); saveErr != nil {
+				return RunRecord{}, saveErr
+			}
+			record, _ = s.recordRuntimeEvent(ctx, record, EventHostDeploymentHostFailed, string(domaindeployment.DeploymentRunFailed), err.Error())
+			return s.fail(ctx, record, actorID, err.Error())
+		}
+		record.HostDetails[len(record.HostDetails)-1].Status = result.Status
+		record.HostDetails[len(record.HostDetails)-1].Message = result.Message
+		record.HostDetails[len(record.HostDetails)-1].FinishedAt = finished
+		record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", result.Message, int64(len(record.Logs)+1)))
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventHostDeploymentHostCompleted, "Host deployment host completed", actorID, string(record.Run.Status), result.Message); err != nil {
+			return RunRecord{}, err
+		}
+		record, _ = s.store.Get(ctx, record.Run.ID)
+	}
+
+	if record.HostPlan.Apply {
+		if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunVerifying, s.now(), "host health checks completed"); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		record, _ = s.store.Get(ctx, record.Run.ID)
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventHostDeploymentHealthCompleted, "Host deployment health completed", actorID, string(record.Run.Status), "Host deployment health checks completed"); err != nil {
+		return RunRecord{}, err
+	}
+	record, _ = s.store.Get(ctx, record.Run.ID)
+	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunSucceeded, s.now(), "host deployment dry-run/noop completed"); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventDeploymentSucceeded, "DeploymentRun succeeded", actorID, string(record.Run.Status), "Host DeploymentRun succeeded"); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.Get(ctx, record.Run.ID)
+}
+
+func (s *Service) executeHostStep(ctx context.Context, record RunRecord, step HostDeploymentStep, confirm bool) (portexecutor.HostDeploymentResult, error) {
+	request := portexecutor.HostDeploymentRequest{
+		DeploymentRunID: record.Run.ID,
+		HostID:          step.HostID,
+		HostName:        step.HostName,
+		Address:         step.Address,
+		Artifact:        record.HostPlan.Artifact,
+		DeployPath:      record.HostPlan.DeployPath,
+		ReleaseDir:      step.ReleaseDir,
+		ServiceName:     record.HostPlan.ServiceName,
+		HealthCheck:     record.HostPlan.HealthCheck,
+		Strategy:        record.HostPlan.Strategy,
+		DryRun:          record.HostPlan.DryRun,
+		Apply:           record.HostPlan.Apply,
+		Confirmed:       confirm,
+		AllowRemote:     record.Definition.Spec.Host.AllowRemoteHostDeploy,
+		CredentialRef:   hostCredentialRef(record.Definition),
+	}
+	if s.host == nil {
+		return portexecutor.HostDeploymentResult{HostID: step.HostID, HostName: step.HostName, Status: "Succeeded", Message: "host executor not configured; Phase 3.5 plan-only runtime completed"}, nil
+	}
+	if _, err := s.host.Prepare(ctx, request); err != nil {
+		return portexecutor.HostDeploymentResult{}, err
+	}
+	if record.HostPlan.Apply {
+		if _, err := s.host.Upload(ctx, request); err != nil {
+			return portexecutor.HostDeploymentResult{}, err
+		}
+		if _, err := s.host.Execute(ctx, request); err != nil {
+			return portexecutor.HostDeploymentResult{}, err
+		}
+	}
+	return s.host.HealthCheck(ctx, request)
 }
 
 func (s *Service) fail(ctx context.Context, record RunRecord, actorID string, reason string) (RunRecord, error) {
@@ -691,6 +901,57 @@ func (s *Service) SyncDeployment(ctx context.Context, id string, actorID string,
 	return s.processGitOps(ctx, record, actorID, allowSync, confirm)
 }
 
+func (s *Service) CreateHostGroup(ctx context.Context, group HostGroup) (HostGroup, error) {
+	if strings.TrimSpace(group.Name) == "" {
+		return HostGroup{}, fmt.Errorf("host group name is required")
+	}
+	if len(group.Hosts) == 0 {
+		return HostGroup{}, fmt.Errorf("host group requires at least one host")
+	}
+	now := s.now()
+	if group.ID == "" {
+		group.ID = newID("hostgrp")
+	}
+	if group.CreatedAt.IsZero() {
+		group.CreatedAt = now
+	}
+	group.UpdatedAt = now
+	for i := range group.Hosts {
+		if group.Hosts[i].ID == "" {
+			group.Hosts[i].ID = newID("host")
+		}
+		if group.Hosts[i].Name == "" {
+			return HostGroup{}, fmt.Errorf("host %d name is required", i)
+		}
+		if group.Hosts[i].EnvironmentID == "" {
+			group.Hosts[i].EnvironmentID = group.EnvironmentID
+		}
+		if group.Hosts[i].CredentialRef == "" {
+			group.Hosts[i].CredentialRef = group.CredentialRef
+		}
+	}
+	if err := s.store.SaveHostGroup(ctx, group); err != nil {
+		return HostGroup{}, err
+	}
+	return s.store.GetHostGroup(ctx, group.ID)
+}
+
+func (s *Service) GetHostGroup(ctx context.Context, id string) (HostGroup, error) {
+	return s.store.GetHostGroup(ctx, id)
+}
+
+func (s *Service) ListHostGroups(ctx context.Context) ([]HostGroup, error) {
+	return s.store.ListHostGroups(ctx)
+}
+
+func (s *Service) Hosts(ctx context.Context, id string) ([]HostDeploymentRunDetail, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return append([]HostDeploymentRunDetail(nil), record.HostDetails...), nil
+}
+
 func (s *Service) Timeline(ctx context.Context, id string) ([]TimelineEntry, error) {
 	events, err := s.Events(ctx, id)
 	if err != nil {
@@ -866,6 +1127,101 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 		Warnings:        warnings,
 		DiffSummary:     fmt.Sprintf("desired state contains %d manifest resource(s); live diff is not available in Phase 2.4", len(docs)),
 	}
+}
+
+func (s *Service) buildHostPlan(runID string, def Definition) (DeploymentPlan, HostDeploymentPlan, RollbackPlan) {
+	def = normalizeDefinition(def)
+	artifact := def.Spec.Artifacts[0].Reference
+	deployPath := strings.TrimRight(def.Spec.Host.DeployPath, "/")
+	if deployPath == "" {
+		deployPath = "/opt/nivora/apps/" + def.Spec.Application
+	}
+	strategy := def.Spec.Host.Strategy
+	if strategy == "" {
+		strategy = "symlink"
+	}
+	actions := []string{"validate artifact reference", "validate host targets", "prepare release directory", "plan symlink switch", "plan health check", "create rollback baseline"}
+	if def.Spec.Options.Apply {
+		actions = append(actions, "upload artifact", "execute guarded host deployment")
+	}
+	warnings := []string{"remote SSH execution is disabled by default in Phase 3.5", "host rollback execution is not implemented in Phase 3.5; rollback plan is non-destructive"}
+	if !def.Spec.Options.Apply {
+		warnings = append(warnings, "host deployment is plan/dry-run only")
+	}
+	steps := make([]HostDeploymentStep, 0, len(def.Spec.Host.Hosts))
+	resources := make([]ManifestResourceSummary, 0, len(def.Spec.Host.Hosts))
+	for _, host := range def.Spec.Host.Hosts {
+		hostID := host.ID
+		if hostID == "" {
+			hostID = host.Name
+		}
+		releaseDir := deployPath + "/releases/" + runID
+		steps = append(steps, HostDeploymentStep{
+			HostID:          hostID,
+			HostName:        host.Name,
+			Address:         host.Address,
+			ReleaseDir:      releaseDir,
+			CurrentSymlink:  deployPath + "/current",
+			PreviousSymlink: deployPath + "/previous",
+			NextSymlink:     deployPath + "/next",
+			Actions:         append([]string(nil), actions...),
+		})
+		resources = append(resources, ManifestResourceSummary{
+			APIVersion:  "nivora.io/v1alpha1",
+			Kind:        "Host",
+			Name:        host.Name,
+			Namespace:   def.Spec.Environment,
+			Labels:      cloneStringMap(host.Labels),
+			DesiredHash: stableHostHash(host, artifact, deployPath),
+			Status:      "Planned",
+			Health:      ResourceHealthUnknown,
+			CreatedAt:   s.now(),
+			UpdatedAt:   s.now(),
+		})
+	}
+	rollbackPlan := RollbackPlan{
+		DeploymentRunID:   runID,
+		CurrentSnapshotID: "memory://" + runID + "/host-release-plan",
+		TargetType:        def.Spec.Target.Type,
+		TargetName:        def.Spec.Target.Name,
+		Resources:         resources,
+		Strategy:          "symlink-restore",
+		Executable:        false,
+		Warnings:          []string{"host rollback is a plan-only baseline in Phase 3.5 and does not delete or mutate remote hosts"},
+		CreatedAt:         s.now(),
+	}
+	hostPlan := HostDeploymentPlan{
+		DeploymentRunID: runID,
+		GroupName:       def.Spec.Target.Name,
+		EnvironmentID:   def.Spec.Environment,
+		Artifact:        artifact,
+		DeployPath:      deployPath,
+		ServiceName:     def.Spec.Host.ServiceName,
+		HealthCheck:     def.Spec.Host.HealthCheck,
+		Strategy:        strategy,
+		DryRun:          !def.Spec.Options.Apply,
+		Apply:           def.Spec.Options.Apply,
+		Hosts:           steps,
+		Actions:         actions,
+		Warnings:        warnings,
+		RollbackPlan:    rollbackPlan,
+	}
+	plan := DeploymentPlan{
+		DeploymentRunID: runID,
+		TargetType:      def.Spec.Target.Type,
+		TargetContext:   def.Spec.Target.Name,
+		ManifestCount:   0,
+		Resources:       resources,
+		Artifacts:       []string{artifact},
+		DryRun:          !def.Spec.Options.Apply,
+		Apply:           def.Spec.Options.Apply,
+		Wait:            def.Spec.Options.Wait,
+		TimeoutSeconds:  def.Spec.Options.TimeoutSeconds,
+		Actions:         actions,
+		Warnings:        warnings,
+		DiffSummary:     fmt.Sprintf("host deployment plan contains %d host(s); live host diff is not implemented in Phase 3.5", len(steps)),
+	}
+	return plan, hostPlan, rollbackPlan
 }
 
 func (s *Service) attachResourceObservability(record RunRecord, def Definition, docs []ManifestDocument) RunRecord {
@@ -1187,6 +1543,66 @@ func containsDigest(reference string) bool {
 	return strings.Contains(reference, "@sha256:")
 }
 
+func normalizeDefinition(def Definition) Definition {
+	if def.Spec.Target.Type != "host" {
+		return def
+	}
+	if def.Spec.Host.Strategy == "" {
+		def.Spec.Host.Strategy = "symlink"
+	}
+	if def.Spec.Artifact.Reference != "" && len(def.Spec.Artifacts) == 0 {
+		def.Spec.Artifacts = []Artifact{def.Spec.Artifact}
+	}
+	if len(def.Spec.Host.Hosts) == 0 {
+		def.Spec.Host.Hosts = []Host{{
+			ID:            "local-noop-host",
+			Name:          def.Spec.Target.Name,
+			EnvironmentID: def.Spec.Environment,
+			CredentialRef: def.Spec.Host.CredentialRef,
+		}}
+	}
+	for i := range def.Spec.Host.Hosts {
+		if def.Spec.Host.Hosts[i].ID == "" {
+			def.Spec.Host.Hosts[i].ID = def.Spec.Host.Hosts[i].Name
+		}
+		if def.Spec.Host.Hosts[i].EnvironmentID == "" {
+			def.Spec.Host.Hosts[i].EnvironmentID = def.Spec.Environment
+		}
+		if def.Spec.Host.Hosts[i].CredentialRef == "" {
+			def.Spec.Host.Hosts[i].CredentialRef = def.Spec.Host.CredentialRef
+		}
+	}
+	return def
+}
+
+func hostCredentialRef(def Definition) string {
+	if def.Spec.Host.CredentialRef != "" {
+		return def.Spec.Host.CredentialRef
+	}
+	for _, host := range def.Spec.Host.Hosts {
+		if host.CredentialRef != "" {
+			return host.CredentialRef
+		}
+	}
+	return def.Spec.Target.CredentialsRef
+}
+
+func stableHostHash(host Host, artifact string, deployPath string) string {
+	sum := sha256.Sum256([]byte(host.ID + "\n" + host.Name + "\n" + host.Address + "\n" + artifact + "\n" + deployPath))
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func cloneStringMap(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	cloned := make(map[string]string, len(values))
+	for key, value := range values {
+		cloned[key] = value
+	}
+	return cloned
+}
+
 func (s *Service) rollbackBaseline(runID string, def Definition, resources []ManifestResourceSummary) *domaindeployment.RollbackRecord {
 	refs := make([]string, 0, len(resources))
 	for _, resource := range resources {
@@ -1203,6 +1619,27 @@ func (s *Service) rollbackBaseline(runID string, def Definition, resources []Man
 		ManifestSnapshotRef: "memory://" + runID + "/previous-manifests",
 		ResourceRefs:        refs,
 		Reason:              "rollback execution is not implemented in Phase 2.4",
+		CreatedAt:           now,
+		UpdatedAt:           now,
+	}
+}
+
+func (s *Service) hostRollbackBaseline(runID string, def Definition, plan HostDeploymentPlan) *domaindeployment.RollbackRecord {
+	refs := make([]string, 0, len(plan.Hosts))
+	for _, host := range plan.Hosts {
+		refs = append(refs, fmt.Sprintf("Host/%s/%s", def.Spec.Environment, host.HostName))
+	}
+	now := s.now()
+	return &domaindeployment.RollbackRecord{
+		ID:                  newID("rollback"),
+		DeploymentRunID:     runID,
+		Strategy:            "symlink-restore",
+		Status:              "placeholder",
+		TargetType:          def.Spec.Target.Type,
+		TargetName:          def.Spec.Target.Name,
+		ManifestSnapshotRef: "memory://" + runID + "/host-release-plan",
+		ResourceRefs:        refs,
+		Reason:              "host rollback execution is not implemented in Phase 3.5",
 		CreatedAt:           now,
 		UpdatedAt:           now,
 	}

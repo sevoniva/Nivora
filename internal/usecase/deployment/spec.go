@@ -23,9 +23,11 @@ type Spec struct {
 	Application string     `json:"application" yaml:"application"`
 	Environment string     `json:"environment" yaml:"environment"`
 	Target      Target     `json:"target" yaml:"target"`
+	Artifact    Artifact   `json:"artifact,omitempty" yaml:"artifact,omitempty"`
 	Artifacts   []Artifact `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
 	Manifests   []string   `json:"manifests" yaml:"manifests"`
 	GitOps      GitOps     `json:"gitops,omitempty" yaml:"gitops,omitempty"`
+	Host        HostSpec   `json:"host,omitempty" yaml:"host,omitempty"`
 	Options     Options    `json:"options,omitempty" yaml:"options,omitempty"`
 }
 
@@ -43,6 +45,28 @@ type Target struct {
 	ClusterName     string `json:"clusterName,omitempty" yaml:"clusterName,omitempty"`
 	SyncPolicy      string `json:"syncPolicy,omitempty" yaml:"syncPolicy,omitempty"`
 	CredentialsRef  string `json:"credentialsRef,omitempty" yaml:"credentialsRef,omitempty"`
+}
+
+type HostSpec struct {
+	Hosts                 []Host            `json:"hosts,omitempty" yaml:"hosts,omitempty"`
+	DeployPath            string            `json:"deployPath" yaml:"deployPath"`
+	ServiceName           string            `json:"serviceName,omitempty" yaml:"serviceName,omitempty"`
+	HealthCheck           string            `json:"healthCheck,omitempty" yaml:"healthCheck,omitempty"`
+	Strategy              string            `json:"strategy,omitempty" yaml:"strategy,omitempty"`
+	CredentialRef         string            `json:"credentialRef,omitempty" yaml:"credentialRef,omitempty"`
+	DryRun                bool              `json:"dryRun" yaml:"dryRun"`
+	AllowRemoteHostDeploy bool              `json:"allowRemoteHostDeploy,omitempty" yaml:"allowRemoteHostDeploy,omitempty"`
+	Labels                map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata              map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+}
+
+type Host struct {
+	ID            string            `json:"id,omitempty" yaml:"id,omitempty"`
+	Name          string            `json:"name" yaml:"name"`
+	Address       string            `json:"address,omitempty" yaml:"address,omitempty"`
+	EnvironmentID string            `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+	CredentialRef string            `json:"credentialRef,omitempty" yaml:"credentialRef,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 }
 
 type Artifact struct {
@@ -117,7 +141,7 @@ func (d Definition) Validate() error {
 	if d.Spec.Target.Type == "" {
 		return errors.New("deployment target.type is required")
 	}
-	if d.Spec.Target.Type != "kubernetes-yaml" && d.Spec.Target.Type != "argocd" {
+	if d.Spec.Target.Type != "kubernetes-yaml" && d.Spec.Target.Type != "argocd" && d.Spec.Target.Type != "host" {
 		return fmt.Errorf("deployment target.type %q is not supported in the current deployment runtime", d.Spec.Target.Type)
 	}
 	if d.Spec.Target.Name == "" {
@@ -138,6 +162,23 @@ func (d Definition) Validate() error {
 		}
 		if d.Spec.Target.Path == "" {
 			return errors.New("deployment target.path is required for argocd targets")
+		}
+	}
+	if d.Spec.Target.Type == "host" {
+		if d.Spec.Host.DeployPath == "" {
+			return errors.New("deployment host.deployPath is required for host targets")
+		}
+		if d.Spec.Host.Strategy == "" {
+			d.Spec.Host.Strategy = "symlink"
+		}
+		if len(d.Spec.Host.Hosts) == 0 {
+			d.Spec.Host.Hosts = []Host{{ID: "local-noop-host", Name: d.Spec.Target.Name, EnvironmentID: d.Spec.Environment}}
+		}
+		if d.Spec.Artifact.Reference != "" && len(d.Spec.Artifacts) == 0 {
+			d.Spec.Artifacts = []Artifact{d.Spec.Artifact}
+		}
+		if len(d.Spec.Artifacts) == 0 {
+			return errors.New("deployment artifact is required for host targets")
 		}
 	}
 	for i, path := range d.Spec.Manifests {

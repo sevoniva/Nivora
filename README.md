@@ -36,6 +36,7 @@ Nivora is early-stage and **not production-ready**. The current focus is the bac
 | AuthN/AuthZ and RBAC | Phase 3.2 foundation |
 | Approvals, change windows, notifications | Phase 3.3 foundation |
 | Multi-cloud inventory | Phase 3.4 foundation |
+| Host deployment | Phase 3.5 planning / noop execution foundation |
 | Multi-cloud adapters | Planned |
 | DevSecOps integrations | Planned |
 | Frontend visualization | Future phase |
@@ -747,6 +748,8 @@ go run ./cmd/nivora pipeline timeline <pipeline-run-id> --server http://localhos
 go run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
 go run ./cmd/nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
 go run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --confirm
+go run ./cmd/nivora deployment host plan --file examples/deployments/host-dry-run.yaml --local
+go run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
 go run ./cmd/nivora release plan --file examples/releases/multi-target-release.yaml --local
 go run ./cmd/nivora release deploy --file examples/releases/sequential-release.yaml --local
 ```
@@ -836,7 +839,18 @@ Explicit local apply requires a separate command and confirmation:
 go run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --confirm
 ```
 
-The default local apply path uses the safe no-op manifest client. Production Kubernetes apply semantics, Helm, Kustomize, Argo CD, cloud providers, host deployment, and registry integrations remain future work.
+The default local apply path uses the safe no-op manifest client. Production Kubernetes apply semantics, Helm, Kustomize, Argo CD, cloud providers, remote host deployment, and registry integrations remain future work.
+
+## Example Host Deployment Dry-Run
+
+Phase 3.5 adds a safe host deployment foundation. It can build a plan for deploying a binary package to versioned release directories, switching symlinks, checking health, and preparing a rollback baseline. The default runtime uses a noop host executor and does not execute remote SSH.
+
+```bash
+go run ./cmd/nivora deployment host plan --file examples/deployments/host-dry-run.yaml --local
+go run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
+```
+
+Remote host deployment remains disabled unless future adapters provide explicit configuration, credential references, confirmation, and allow flags.
 
 ## Example Multi-Target Release
 
@@ -949,10 +963,11 @@ flowchart LR
     P32["Phase 3.2<br/>Auth & RBAC Foundation"]
     P33["Phase 3.3<br/>Approvals & Change Windows"]
     P34["Phase 3.4<br/>Multi-cloud Inventory"]
+    P35["Phase 3.5<br/>Host Deployment Foundation"]
     P3["Future Phase 3<br/>Multi-cloud & DevSecOps"]
     P4["Phase 4<br/>Visualization"]
 
-    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P30 --> P31 --> P32 --> P33 --> P34 --> P3 --> P4
+    P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P30 --> P31 --> P32 --> P33 --> P34 --> P35 --> P3 --> P4
 ```
 
 See [ROADMAP.md](ROADMAP.md) and [docs/roadmap/overview.md](docs/roadmap/overview.md) for details.

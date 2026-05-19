@@ -71,6 +71,48 @@ func PlanGitOpsDeployment(service *deploymentusecase.Service) http.HandlerFunc {
 	}
 }
 
+func PlanHostDeployment(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var def deploymentusecase.Definition
+		if err := json.NewDecoder(r.Body).Decode(&def); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a deployment definition"})
+			return
+		}
+		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{Definition: def})
+		if err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "host_deployment_plan_failed", Message: err.Error()})
+			return
+		}
+		RespondJSON(w, http.StatusOK, result.Record.HostPlan)
+	}
+}
+
+func CreateHostGroup(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var group deploymentusecase.HostGroup
+		if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a host group"})
+			return
+		}
+		created, err := service.CreateHostGroup(r.Context(), group)
+		respondDeploymentResult(w, r, created, err)
+	}
+}
+
+func ListHostGroups(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		groups, err := service.ListHostGroups(r.Context())
+		respondDeploymentResult(w, r, groups, err)
+	}
+}
+
+func GetHostGroup(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		group, err := service.GetHostGroup(r.Context(), chi.URLParam(r, "id"))
+		respondDeploymentResult(w, r, group, err)
+	}
+}
+
 func ListDeploymentRuns(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		records, err := service.List(r.Context())
@@ -93,6 +135,13 @@ func GetDeploymentPlan(service *deploymentusecase.Service) http.HandlerFunc {
 			return
 		}
 		RespondJSON(w, http.StatusOK, record.Plan)
+	}
+}
+
+func GetDeploymentHosts(service *deploymentusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		hosts, err := service.Hosts(r.Context(), chi.URLParam(r, "id"))
+		respondDeploymentResult(w, r, hosts, err)
 	}
 }
 
@@ -266,6 +315,10 @@ func respondDeploymentResult(w http.ResponseWriter, r *http.Request, payload any
 	if errors.Is(err, deploymentusecase.ErrRunTerminal) {
 		status = http.StatusConflict
 		code = "deployment_run_terminal"
+	}
+	if errors.Is(err, deploymentusecase.ErrHostGroupNotFound) {
+		status = http.StatusNotFound
+		code = "host_group_not_found"
 	}
 	RespondError(w, r, status, dto.ErrorResponse{
 		Code:    code,

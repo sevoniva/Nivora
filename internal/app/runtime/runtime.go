@@ -10,6 +10,7 @@ import (
 	"github.com/sevoniva/nivora/internal/adapters/cloud/tencent"
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	argocdadapter "github.com/sevoniva/nivora/internal/adapters/executor/argocd"
+	hostexecutor "github.com/sevoniva/nivora/internal/adapters/executor/host"
 	shellexecutor "github.com/sevoniva/nivora/internal/adapters/executor/shell"
 	yamlapply "github.com/sevoniva/nivora/internal/adapters/executor/yaml_apply"
 	localgitops "github.com/sevoniva/nivora/internal/adapters/gitops/local"
@@ -47,7 +48,7 @@ func NewDeploymentService() *deploymentusecase.Service {
 		yamlapply.NoopManifestClient{},
 		allowAllPolicyEngine{},
 		bus,
-	).WithGitOps(localgitops.New(), argocdadapter.NoopProvider{AllowSync: true}).WithSecurity(NewSecurityService()).WithGovernance(approvalService)
+	).WithHostExecutor(hostexecutor.NewNoop()).WithGitOps(localgitops.New(), argocdadapter.NoopProvider{AllowSync: true}).WithSecurity(NewSecurityService()).WithGovernance(approvalService)
 }
 
 func NewArtifactService() *artifactusecase.Service {

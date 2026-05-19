@@ -1,0 +1,7 @@
+id: local-noop-host
+name: local-noop-host
+address: 127.0.0.1
+environmentId: dev
+credentialRef: cred-host-placeholder
+labels:
+  runtime: noop

@@ -61,6 +61,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newSecretCommand())
 	root.AddCommand(newCredentialCommand())
 	root.AddCommand(newDeploymentCommand())
+	root.AddCommand(newHostGroupsCommand())
 	root.AddCommand(newGitOpsCommand())
 	root.AddCommand(newArgoCDCommand())
 	root.AddCommand(newRunnerCommand())
@@ -1064,6 +1065,7 @@ func newDeploymentCommand() *cobra.Command {
 	cmd.AddCommand(newDeploymentRunCommand())
 	cmd.AddCommand(newDeploymentDryRunCommand())
 	cmd.AddCommand(newDeploymentApplyCommand())
+	cmd.AddCommand(newDeploymentHostCommand())
 	cmd.AddCommand(newDeploymentGetCommand())
 	cmd.AddCommand(newDeploymentLocalInspectCommand("health", "Get DeploymentRun health", "/health", func(record deploymentusecase.RunRecord) any { return record.Health }))
 	cmd.AddCommand(newDeploymentLocalInspectCommand("diff", "Get DeploymentRun diff", "/diff", func(record deploymentusecase.RunRecord) any { return record.Diff }))
@@ -1077,6 +1079,121 @@ func newDeploymentCommand() *cobra.Command {
 	cmd.AddCommand(newDeploymentInspectCommand("timeline", "Get DeploymentRun timeline", "/timeline"))
 	cmd.AddCommand(newDeploymentInspectCommand("security", "Get DeploymentRun security gate output", "/security"))
 	cmd.AddCommand(newDeploymentCancelCommand())
+	return cmd
+}
+
+func newHostGroupsCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{Use: "host-groups", Short: "Host group utilities"}
+	cmd.AddCommand(&cobra.Command{
+		Use:   "list",
+		Short: "List host groups from a Nivora server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/host-groups", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	})
+	cmd.PersistentFlags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newDeploymentHostCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "host", Short: "Host deployment foundation utilities"}
+	cmd.AddCommand(newDeploymentHostPlanCommand())
+	cmd.AddCommand(newDeploymentHostRunCommand())
+	return cmd
+}
+
+func newDeploymentHostPlanCommand() *cobra.Command {
+	var local bool
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "plan --file <deployment.yaml>",
+		Short: "Build a safe host deployment plan",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path, err := cmd.Flags().GetString("file")
+			if err != nil {
+				return err
+			}
+			if path == "" {
+				return fmt.Errorf("--file is required")
+			}
+			def, err := deploymentusecase.LoadDefinitionFile(path)
+			if err != nil {
+				return err
+			}
+			if !local {
+				body, err := json.Marshal(def)
+				if err != nil {
+					return err
+				}
+				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/host/plan", body)
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), payload)
+				return nil
+			}
+			result, err := server.NewDeploymentService().Plan(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def})
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), result.Record.HostPlan)
+			return nil
+		},
+	}
+	cmd.Flags().String("file", "", "host deployment definition file")
+	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 3.5 local runtime")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	return cmd
+}
+
+func newDeploymentHostRunCommand() *cobra.Command {
+	var local bool
+	var confirm bool
+	var allowRemote bool
+	cmd := &cobra.Command{
+		Use:   "run --file <deployment.yaml> --local",
+		Short: "Run a host DeploymentRun through the safe local/noop runtime",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !local {
+				return fmt.Errorf("server-backed host run is not implemented in the Phase 3.5 CLI; use --local")
+			}
+			path, err := cmd.Flags().GetString("file")
+			if err != nil {
+				return err
+			}
+			if path == "" {
+				return fmt.Errorf("--file is required")
+			}
+			def, err := deploymentusecase.LoadDefinitionFile(path)
+			if err != nil {
+				return err
+			}
+			if allowRemote {
+				def.Spec.Host.AllowRemoteHostDeploy = true
+			}
+			started := time.Now()
+			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, AllowApply: confirm, Confirm: confirm})
+			if err != nil {
+				return err
+			}
+			fmt.Fprintf(cmd.OutOrStdout(), "DeploymentRun: %s\n", result.Record.Run.ID)
+			fmt.Fprintf(cmd.OutOrStdout(), "Status: %s\n", result.Record.Run.Status)
+			fmt.Fprintf(cmd.OutOrStdout(), "Duration: %s\n", time.Since(started).Round(time.Millisecond))
+			fmt.Fprintf(cmd.OutOrStdout(), "Hosts: %d\n", len(result.Record.HostDetails))
+			fmt.Fprintf(cmd.OutOrStdout(), "RollbackPlan: %s\n", result.Record.RollbackPlan.Strategy)
+			return nil
+		},
+	}
+	cmd.Flags().String("file", "", "host deployment definition file")
+	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process Phase 3.5 local runtime")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm explicit host apply")
+	cmd.Flags().BoolVar(&allowRemote, "allow-remote-host-deploy", false, "allow guarded remote host deployment when the spec also opts in")
 	return cmd
 }
 

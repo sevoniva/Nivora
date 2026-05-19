@@ -12,6 +12,7 @@ import (
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
+	portexecutor "github.com/sevoniva/nivora/internal/ports/executor"
 	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 )
@@ -361,6 +362,88 @@ func TestServiceGitOpsGuardedSync(t *testing.T) {
 	assertHasDeploymentEvent(t, result.Record.Events, EventArgoCDHealthChanged)
 }
 
+func TestServicePlansHostDeployment(t *testing.T) {
+	service, def := newHostTestService()
+	result, err := service.Plan(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("plan host: %v", err)
+	}
+	if result.Record.HostPlan.DeployPath != "/opt/nivora/apps/demo" {
+		t.Fatalf("host plan = %#v", result.Record.HostPlan)
+	}
+	if len(result.Record.HostPlan.Hosts) != 1 {
+		t.Fatalf("host count = %d", len(result.Record.HostPlan.Hosts))
+	}
+	if result.Record.HostPlan.RollbackPlan.Executable {
+		t.Fatalf("rollback plan should be non-destructive: %#v", result.Record.HostPlan.RollbackPlan)
+	}
+}
+
+func TestServiceRunsHostDryRunNoop(t *testing.T) {
+	service, def := newHostTestService()
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("run host dry-run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunSucceeded {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	if len(result.Record.HostDetails) != 1 || result.Record.HostDetails[0].Status != "Succeeded" {
+		t.Fatalf("host details = %#v", result.Record.HostDetails)
+	}
+	assertHasDeploymentEvent(t, result.Record.Events, EventHostDeploymentPlanCreated)
+	assertHasDeploymentEvent(t, result.Record.Events, EventHostDeploymentStarted)
+	assertHasDeploymentEvent(t, result.Record.Events, EventHostDeploymentHostCompleted)
+	assertHasDeploymentEvent(t, result.Record.Events, EventHostDeploymentHealthCompleted)
+	assertHasDeploymentEvent(t, result.Record.Events, EventHostRollbackPlanCreated)
+}
+
+func TestServiceRejectsHostRemoteWithoutConfirmation(t *testing.T) {
+	service, def := newHostTestService()
+	def.Spec.Options = Options{Apply: true, DryRun: false}
+	def.Spec.Host.AllowRemoteHostDeploy = true
+	def.Spec.Host.CredentialRef = "cred-host"
+
+	_, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true})
+	if err == nil {
+		t.Fatal("expected remote confirmation error")
+	}
+}
+
+func TestServiceRejectsHostRemoteWithoutCredential(t *testing.T) {
+	service, def := newHostTestService()
+	def.Spec.Options = Options{Apply: true, DryRun: false}
+	def.Spec.Host.AllowRemoteHostDeploy = true
+
+	_, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, AllowApply: true, Confirm: true})
+	if err == nil {
+		t.Fatal("expected credential error")
+	}
+}
+
+func TestServiceStoresHostGroups(t *testing.T) {
+	service, _ := newHostTestService()
+	group, err := service.CreateHostGroup(context.Background(), HostGroup{
+		Name:          "local-host-group",
+		EnvironmentID: "dev",
+		CredentialRef: "cred-host",
+		Hosts:         []HostTarget{{Name: "local-noop-host", Address: "127.0.0.1"}},
+	})
+	if err != nil {
+		t.Fatalf("create host group: %v", err)
+	}
+	if group.ID == "" || group.Hosts[0].CredentialRef != "cred-host" {
+		t.Fatalf("group = %#v", group)
+	}
+	groups, err := service.ListHostGroups(context.Background())
+	if err != nil {
+		t.Fatalf("list host groups: %v", err)
+	}
+	if len(groups) != 1 {
+		t.Fatalf("groups = %#v", groups)
+	}
+}
+
 func TestMemoryStoreOrdersLogs(t *testing.T) {
 	store := NewMemoryStore()
 	record := RunRecord{Run: domaindeployment.DeploymentRun{ID: "run-logs"}}
@@ -467,6 +550,40 @@ func newGitOpsTestService(t *testing.T) (*Service, Definition) {
 	return service, def
 }
 
+func newHostTestService() (*Service, Definition) {
+	service := NewService(NewMemoryStore(), StaticManifestRenderer{}, testManifestClient{}, testPolicy{allowed: true}, testEventBus{}).
+		WithHostExecutor(testHostExecutor{})
+	def := Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Deployment",
+		Metadata:   Metadata{Name: "demo-host-release"},
+		Spec: Spec{
+			Application: "demo",
+			Environment: "dev",
+			Target:      Target{Type: "host", Name: "local-host-group"},
+			Artifact: Artifact{
+				Name:      "demo",
+				Type:      "binary",
+				Reference: "./dist/demo.tar.gz",
+			},
+			Host: HostSpec{
+				DeployPath:  "/opt/nivora/apps/demo",
+				ServiceName: "demo",
+				Strategy:    "symlink",
+				HealthCheck: "http://localhost:8080/healthz",
+				Hosts: []Host{{
+					ID:            "local-noop-host",
+					Name:          "local-noop-host",
+					Address:       "127.0.0.1",
+					EnvironmentID: "dev",
+				}},
+			},
+			Options: Options{DryRun: true, Apply: false},
+		},
+	}
+	return service, def
+}
+
 func assertHasDeploymentEvent(t *testing.T, events []event.Event, eventType string) {
 	t.Helper()
 	for _, evt := range events {
@@ -557,6 +674,34 @@ func (fakeWorkingTree) Diff(ctx context.Context, root string, path string, befor
 }
 
 var _ portgitops.WorkingTree = fakeWorkingTree{}
+
+type testHostExecutor struct{}
+
+func (testHostExecutor) Prepare(ctx context.Context, request portexecutor.HostDeploymentRequest) (portexecutor.HostDeploymentResult, error) {
+	return testHostResult(request, "prepared"), nil
+}
+
+func (testHostExecutor) Upload(ctx context.Context, request portexecutor.HostDeploymentRequest) (portexecutor.HostDeploymentResult, error) {
+	return testHostResult(request, "uploaded"), nil
+}
+
+func (testHostExecutor) Execute(ctx context.Context, request portexecutor.HostDeploymentRequest) (portexecutor.HostDeploymentResult, error) {
+	return testHostResult(request, "executed"), nil
+}
+
+func (testHostExecutor) HealthCheck(ctx context.Context, request portexecutor.HostDeploymentRequest) (portexecutor.HostDeploymentResult, error) {
+	return testHostResult(request, "health check ok"), nil
+}
+
+func (testHostExecutor) Rollback(ctx context.Context, request portexecutor.HostDeploymentRequest) (portexecutor.HostDeploymentResult, error) {
+	return testHostResult(request, "rollback skipped"), nil
+}
+
+func testHostResult(request portexecutor.HostDeploymentRequest, message string) portexecutor.HostDeploymentResult {
+	return portexecutor.HostDeploymentResult{HostID: request.HostID, HostName: request.HostName, Status: "Succeeded", Message: message}
+}
+
+var _ portexecutor.HostExecutor = testHostExecutor{}
 
 type fakeArgoCDProvider struct{}
 

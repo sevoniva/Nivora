@@ -25,6 +25,9 @@ Expand delivery targets and security controls. Phase 3.0 starts with DevSecOps f
 - Release and deployment gates can enter WaitingApproval.
 - CloudAccount, CloudProviderConfig, and CloudInventorySnapshot foundations.
 - AWS, Aliyun, Tencent, and generic cloud inventory adapter skeletons.
+- HostTarget, HostGroup, HostDeploymentPlan, and HostDeploymentRunDetail foundations.
+- HostExecutor port with noop execution and a disabled SSH skeleton.
+- Versioned release directory, symlink switch, health check, and rollback plan modeling for host targets.
 - AWS provider Adapter.
 - Aliyun provider Adapter.
 - Tencent Cloud provider Adapter.
@@ -47,6 +50,8 @@ Phase 3.3 adds backend-only human governance foundations: approvals, change wind
 
 Phase 3.4 adds multi-cloud inventory foundations for cloud accounts, regions, clusters, hosts, registries, and snapshots. It does not add cloud deployment or real provider SDK integration.
 
+Phase 3.5 adds a safe host deployment foundation for VM and bare-metal targets. It supports host planning and noop/local execution only by default; remote SSH execution is guarded and not production-ready.
+
 ## Acceptance Criteria
 
 - Cloud SDKs stay inside Adapters.
@@ -57,6 +62,8 @@ Phase 3.4 adds multi-cloud inventory foundations for cloud accounts, regions, cl
 - Approval decisions and change-window evaluations are auditable.
 - Notification delivery remains adapter-driven and external sends are not required in tests.
 - Cloud inventory can be queried through fake provider adapters without credentials.
+- Host deployment plans can be generated without remote execution.
+- Remote host deployment remains disabled unless explicit confirmation, credential references, and allow flags are present.
 
 ## Contribution Opportunities
 
@@ -66,3 +73,5 @@ Phase 3.4 adds multi-cloud inventory foundations for cloud accounts, regions, cl
 - Secret provider tests.
 - Approval and change-window policy tests.
 - Cloud provider adapter RFCs and inventory model tests.
+- Host executor adapter RFCs.
+- Host deployment dry-run examples and tests.

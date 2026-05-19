@@ -31,9 +31,9 @@ Dry-run success means Nivora successfully rendered and validated the desired man
 
 ## Deployment Modes
 
-Future deployment modes may include:
+Supported or modeled deployment modes include:
 
-- host deployment
+- host deployment foundation through `target.type=host`
 - Kubernetes YAML deployment beyond dry-run planning
 - Helm
 - Kustomize
@@ -67,6 +67,12 @@ Phase 2.7 adds ReleasePlan and ReleaseExecution as aggregate release-control-pla
 
 DeploymentRun remains the target-level execution object. ReleaseExecution does not replace target logs, health, snapshots, diff, or rollback plans; it links and summarizes them.
 
+## Phase 3.5 Host Deployment Foundation
+
+Phase 3.5 introduces `host` as a ReleaseTarget type. A host DeploymentRun builds a HostDeploymentPlan with per-host release directories, symlink switch paths, health check metadata, and a non-destructive rollback baseline. The default runtime uses a noop HostExecutor so tests and examples do not mutate local or remote machines.
+
+Remote SSH execution is not enabled by default. A future real adapter must require explicit apply confirmation, `allowRemoteHostDeploy`, and a CredentialRef or SecretRef-backed credential.
+
 ## Current State
 
-Phase 2.7 supports YAML deployment planning, dry-run, explicit local no-op apply, resource inventory, lightweight health evaluation, manifest snapshots, desired-state diff summaries, rollback plan baseline, artifact summaries, GitOps planning, guarded Argo CD status/sync modeling, manifest image verification, and sequential ReleaseExecution orchestration only. Production Kubernetes apply semantics, destructive rollback, Helm, Kustomize, production Argo CD sync, cloud providers, host deployment, registry integrations, image signing, and scanning remain future work.
+Phase 3.5 supports YAML deployment planning, dry-run, explicit local no-op apply, resource inventory, lightweight health evaluation, manifest snapshots, desired-state diff summaries, rollback plan baseline, artifact summaries, GitOps planning, guarded Argo CD status/sync modeling, manifest image verification, sequential ReleaseExecution orchestration, and host deployment planning/noop execution only. Production Kubernetes apply semantics, destructive rollback, Helm, Kustomize, production Argo CD sync, cloud provider deployment, real remote SSH deployment, registry integrations, image signing, and scanning remain future work.

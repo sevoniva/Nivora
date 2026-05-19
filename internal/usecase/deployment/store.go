@@ -17,14 +17,18 @@ import (
 )
 
 var (
-	ErrRunNotFound = errors.New("deployment run not found")
-	ErrRunTerminal = errors.New("deployment run is already terminal")
+	ErrRunNotFound       = errors.New("deployment run not found")
+	ErrRunTerminal       = errors.New("deployment run is already terminal")
+	ErrHostGroupNotFound = errors.New("host group not found")
 )
 
 type Store interface {
 	Save(ctx context.Context, record RunRecord) error
 	Get(ctx context.Context, id string) (RunRecord, error)
 	List(ctx context.Context) ([]RunRecord, error)
+	SaveHostGroup(ctx context.Context, group HostGroup) error
+	GetHostGroup(ctx context.Context, id string) (HostGroup, error)
+	ListHostGroups(ctx context.Context) ([]HostGroup, error)
 	AppendLog(ctx context.Context, runID string, log event.LogChunk) error
 	Logs(ctx context.Context, runID string) ([]event.LogChunk, error)
 	AppendEvent(ctx context.Context, runID string, evt event.Event) error
@@ -36,12 +40,14 @@ type Store interface {
 type MemoryStore struct {
 	mu      sync.RWMutex
 	runs    map[string]RunRecord
+	groups  map[string]HostGroup
 	nextSeq map[string]int64
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		runs:    make(map[string]RunRecord),
+		groups:  make(map[string]HostGroup),
 		nextSeq: make(map[string]int64),
 	}
 }
@@ -100,6 +106,49 @@ func (s *MemoryStore) List(ctx context.Context) ([]RunRecord, error) {
 		return records[i].Run.CreatedAt.Before(records[j].Run.CreatedAt)
 	})
 	return records, nil
+}
+
+func (s *MemoryStore) SaveHostGroup(ctx context.Context, group HostGroup) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.groups[group.ID] = cloneHostGroup(group)
+	return nil
+}
+
+func (s *MemoryStore) GetHostGroup(ctx context.Context, id string) (HostGroup, error) {
+	select {
+	case <-ctx.Done():
+		return HostGroup{}, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	group, ok := s.groups[id]
+	if !ok {
+		return HostGroup{}, ErrHostGroupNotFound
+	}
+	return cloneHostGroup(group), nil
+}
+
+func (s *MemoryStore) ListHostGroups(ctx context.Context) ([]HostGroup, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	groups := make([]HostGroup, 0, len(s.groups))
+	for _, group := range s.groups {
+		groups = append(groups, cloneHostGroup(group))
+	}
+	sort.Slice(groups, func(i, j int) bool { return groups[i].CreatedAt.Before(groups[j].CreatedAt) })
+	return groups, nil
 }
 
 func (s *MemoryStore) AppendLog(ctx context.Context, runID string, log event.LogChunk) error {
@@ -213,6 +262,12 @@ func cloneRecord(record RunRecord) RunRecord {
 	record.GitOpsPlan.ManifestValueChanges = append([]string(nil), record.GitOpsPlan.ManifestValueChanges...)
 	record.GitOpsPlan.Warnings = append([]string(nil), record.GitOpsPlan.Warnings...)
 	record.GitOpsDiff.Files = append([]portgitops.FileChange(nil), record.GitOpsDiff.Files...)
+	record.HostPlan.Hosts = append([]HostDeploymentStep(nil), record.HostPlan.Hosts...)
+	record.HostPlan.Actions = append([]string(nil), record.HostPlan.Actions...)
+	record.HostPlan.Warnings = append([]string(nil), record.HostPlan.Warnings...)
+	record.HostPlan.RollbackPlan.Resources = append([]ManifestResourceSummary(nil), record.HostPlan.RollbackPlan.Resources...)
+	record.HostPlan.RollbackPlan.Warnings = append([]string(nil), record.HostPlan.RollbackPlan.Warnings...)
+	record.HostDetails = append([]HostDeploymentRunDetail(nil), record.HostDetails...)
 	record.ArgoCD.Resources = append([]portargocd.ResourceStatus(nil), record.ArgoCD.Resources...)
 	record.ArgoCD.Warnings = append([]string(nil), record.ArgoCD.Warnings...)
 	record.ArgoCD.Conditions = append([]string(nil), record.ArgoCD.Conditions...)
@@ -251,6 +306,19 @@ func cloneRecord(record RunRecord) RunRecord {
 	record.Security.Audits = append([]audit.AuditLog(nil), record.Security.Audits...)
 	record.Security.Warnings = append([]string(nil), record.Security.Warnings...)
 	record.Definition.Spec.Artifacts = append([]Artifact(nil), record.Definition.Spec.Artifacts...)
+	record.Definition.Spec.Host.Hosts = append([]Host(nil), record.Definition.Spec.Host.Hosts...)
 	record.Definition.Spec.Manifests = append([]string(nil), record.Definition.Spec.Manifests...)
 	return record
+}
+
+func cloneHostGroup(group HostGroup) HostGroup {
+	group.Hosts = append([]HostTarget(nil), group.Hosts...)
+	if group.Labels != nil {
+		labels := make(map[string]string, len(group.Labels))
+		for k, v := range group.Labels {
+			labels[k] = v
+		}
+		group.Labels = labels
+	}
+	return group
 }

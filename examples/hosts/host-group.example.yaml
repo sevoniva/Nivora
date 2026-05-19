@@ -1,0 +1,11 @@
+id: hostgrp-local-example
+name: local-host-group
+environmentId: dev
+credentialRef: cred-host-placeholder
+hosts:
+  - id: local-noop-host
+    name: local-noop-host
+    address: 127.0.0.1
+    credentialRef: cred-host-placeholder
+labels:
+  example: "true"

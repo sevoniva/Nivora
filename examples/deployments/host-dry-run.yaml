@@ -1,0 +1,27 @@
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-host-release
+spec:
+  application: demo
+  environment: dev
+  target:
+    type: host
+    name: local-host-group
+  artifact:
+    name: demo
+    type: binary
+    reference: ./dist/demo.tar.gz
+  host:
+    hosts:
+      - id: local-noop-host
+        name: local-noop-host
+        address: 127.0.0.1
+    deployPath: /opt/nivora/apps/demo
+    serviceName: demo
+    strategy: symlink
+    healthCheck: http://localhost:8080/healthz
+    dryRun: true
+  options:
+    dryRun: true
+    apply: false

@@ -126,6 +126,59 @@ func TestGitOpsDeploymentRoutes(t *testing.T) {
 	}
 }
 
+func TestHostDeploymentRoutes(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	body := hostDeploymentRequestBody(t)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments/host/plan", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("host plan status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"groupName":"local-host-group"`)) {
+		t.Fatalf("host plan body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/deployments", bytes.NewReader(body))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("host create status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var created map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode host response: %v", err)
+	}
+	run := created["run"].(map[string]any)
+	runID := run["id"].(string)
+	for _, path := range []string{"/api/v1/deployments/" + runID + "/hosts", "/api/v1/deployments/" + runID + "/rollback-plan", "/api/v1/deployments/" + runID + "/timeline"} {
+		req = httptest.NewRequest(http.MethodGet, path, nil)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d body = %s", path, rec.Code, rec.Body.String())
+		}
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/host-groups", bytes.NewReader([]byte(`{"name":"local-host-group","environmentId":"dev","hosts":[{"name":"local-noop-host","address":"127.0.0.1"}]}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create host group status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/host-groups", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list host groups status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func gitOpsDeploymentRequestBody(t *testing.T) []byte {
 	t.Helper()
 	body, err := json.Marshal(map[string]any{
@@ -159,6 +212,49 @@ func gitOpsDeploymentRequestBody(t *testing.T) []byte {
 	})
 	if err != nil {
 		t.Fatalf("marshal request: %v", err)
+	}
+	return body
+}
+
+func hostDeploymentRequestBody(t *testing.T) []byte {
+	t.Helper()
+	body, err := json.Marshal(map[string]any{
+		"apiVersion": "nivora.io/v1alpha1",
+		"kind":       "Deployment",
+		"metadata": map[string]any{
+			"name": "demo-host-release",
+		},
+		"spec": map[string]any{
+			"application": "demo",
+			"environment": "dev",
+			"target": map[string]any{
+				"type": "host",
+				"name": "local-host-group",
+			},
+			"artifact": map[string]any{
+				"name":      "demo",
+				"type":      "binary",
+				"reference": "./dist/demo.tar.gz",
+			},
+			"host": map[string]any{
+				"deployPath":  "/opt/nivora/apps/demo",
+				"serviceName": "demo",
+				"strategy":    "symlink",
+				"healthCheck": "http://localhost:8080/healthz",
+				"hosts": []map[string]any{{
+					"id":      "local-noop-host",
+					"name":    "local-noop-host",
+					"address": "127.0.0.1",
+				}},
+			},
+			"options": map[string]any{
+				"dryRun": true,
+				"apply":  false,
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("marshal host request: %v", err)
 	}
 	return body
 }

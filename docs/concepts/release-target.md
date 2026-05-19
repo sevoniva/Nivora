@@ -12,8 +12,10 @@ Phase 2.1 supports the `kubernetes-yaml` target type for static manifest dry-run
 
 Phase 2.4 adds resource inventory and health output for Kubernetes YAML targets. Cluster access remains optional; the default local runtime evaluates desired resources without requiring a kubeconfig.
 
-Phase 2.7 uses ReleaseTargets in ReleasePlan and ReleaseExecution records. Supported orchestration target types are `kubernetes-yaml`, `argocd`, `noop`, and `webhook` placeholder. Host and cloud targets remain future work.
+Phase 2.7 uses ReleaseTargets in ReleasePlan and ReleaseExecution records. Supported orchestration target types are `kubernetes-yaml`, `argocd`, `noop`, and `webhook` placeholder.
+
+Phase 3.5 adds the `host` target foundation for VM and bare-metal delivery. It supports planning and noop/local execution only by default; real remote SSH deployment remains future work.
 
 ## Common Confusion
 
-A Release Target is not always a Kubernetes cluster. GitOps, host, cloud, and webhook targets remain future modes.
+A Release Target is not always a Kubernetes cluster. GitOps, host, cloud, and webhook targets are different delivery modes with different adapters and safety requirements.

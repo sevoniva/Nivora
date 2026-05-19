@@ -79,7 +79,7 @@ func (s *ReleaseStore) AppendEvent(ctx context.Context, subject string, evt even
 }
 
 func (s *ReleaseStore) AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error {
-	return s.withTx(ctx, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		record, err := s.getReleaseForUpdate(ctx, tx, subject)
 		if err != nil {
 			return err
@@ -90,6 +90,10 @@ func (s *ReleaseStore) AppendAudit(ctx context.Context, subject string, entry au
 		}
 		return s.saveRelease(ctx, tx, record)
 	})
+	if err != nil {
+		return err
+	}
+	return AppendHashChainedAudit(ctx, s.pool, "release", entry)
 }
 
 func (s *ReleaseStore) withTx(ctx context.Context, fn func(pgx.Tx) error) error {

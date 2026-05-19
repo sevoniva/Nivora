@@ -168,7 +168,7 @@ func (s *DeploymentStore) Events(ctx context.Context, runID string) ([]event.Eve
 }
 
 func (s *DeploymentStore) AppendAudit(ctx context.Context, runID string, entry audit.AuditLog) error {
-	return s.withTx(ctx, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		record, err := s.getForUpdate(ctx, tx, runID)
 		if err != nil {
 			return err
@@ -179,6 +179,10 @@ func (s *DeploymentStore) AppendAudit(ctx context.Context, runID string, entry a
 		}
 		return s.saveRecord(ctx, tx, record)
 	})
+	if err != nil {
+		return err
+	}
+	return AppendHashChainedAudit(ctx, s.pool, "deployment", entry)
 }
 
 func (s *DeploymentStore) Audits(ctx context.Context, subject string) ([]audit.AuditLog, error) {

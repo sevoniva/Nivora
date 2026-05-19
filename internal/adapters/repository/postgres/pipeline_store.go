@@ -269,7 +269,7 @@ func (s *PipelineStore) MarkOutboxFailed(ctx context.Context, id string, retryCo
 }
 
 func (s *PipelineStore) AppendAudit(ctx context.Context, runID string, entry audit.AuditLog) error {
-	return s.withTx(ctx, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		record, err := s.getForUpdate(ctx, tx, runID)
 		if err != nil {
 			return err
@@ -280,6 +280,10 @@ func (s *PipelineStore) AppendAudit(ctx context.Context, runID string, entry aud
 		}
 		return s.saveRecord(ctx, tx, record)
 	})
+	if err != nil {
+		return err
+	}
+	return AppendHashChainedAudit(ctx, s.pool, "pipeline", entry)
 }
 
 func (s *PipelineStore) AuditBySubject(ctx context.Context, subject string) ([]audit.AuditLog, error) {

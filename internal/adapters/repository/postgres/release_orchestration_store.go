@@ -116,7 +116,7 @@ func (s *ReleaseOrchestrationStore) Events(ctx context.Context, executionID stri
 }
 
 func (s *ReleaseOrchestrationStore) AppendAudit(ctx context.Context, executionID string, entry audit.AuditLog) error {
-	return s.withTx(ctx, func(tx pgx.Tx) error {
+	err := s.withTx(ctx, func(tx pgx.Tx) error {
 		record, err := s.getExecutionForUpdate(ctx, tx, executionID)
 		if err != nil {
 			return err
@@ -127,6 +127,10 @@ func (s *ReleaseOrchestrationStore) AppendAudit(ctx context.Context, executionID
 		}
 		return s.saveExecution(ctx, tx, record)
 	})
+	if err != nil {
+		return err
+	}
+	return AppendHashChainedAudit(ctx, s.pool, "release_execution", entry)
 }
 
 func (s *ReleaseOrchestrationStore) Audits(ctx context.Context, executionID string) ([]audit.AuditLog, error) {

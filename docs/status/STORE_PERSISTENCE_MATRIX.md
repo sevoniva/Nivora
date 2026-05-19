@@ -27,11 +27,13 @@ Current maturity: **hardened beta-candidate**. All 11 runtime stores have Postgr
 | Store Group | Hash-Chained | Method |
 |---|---|---|
 | Governance (auth, credential, security, approval, cloud) | ✅ | `AppendHashChainedAudit` writes to `compliance_audit_records` |
-| Runtime (pipeline, deployment, release, release orchestration) | ⚠️ | Per-store audit tables (`runtime_*_audit_logs`) without hash chaining |
+| Runtime (pipeline, deployment, release, release orchestration) | ✅ | `AppendHashChainedAudit` called after per-store audit table insert |
 | Compliance | ✅ | `AppendAuditRecord` with SHA-256 chaining |
+
+All 9 audit-producing stores now produce hash-chained `compliance_audit_records` entries. The verify API (`GET /api/v1/audit/verify`) can validate the chain for any scope.
 
 ## Key Risks
 
-1. **Runtime store audit paths not hash-chained**: Pipeline, deployment, and release audit records use dedicated per-store tables without tamper-evident hash chaining. Governance stores are fully chained.
-2. **Multi-process recovery not proven in CI**: Postgres integration tests exist but require a live database; CI job runs separately from `make verify`.
-3. **Runner sandboxing is config-level, not OS-level**: Workspace isolation, env blocklist, and process group cleanup are enforced, but no container/VM sandbox.
+1. **Multi-process recovery not proven in CI**: Postgres integration tests exist but require a live database; CI job runs separately from `make verify`.
+2. **Runner sandboxing is config-level, not OS-level**: Workspace isolation, env blocklist, and process group cleanup are enforced, but no container/VM sandbox.
+3. **Production install smoke test not automated**: Helm templates validated statically (11/11 checks) but no automated install+healthcheck test exists.

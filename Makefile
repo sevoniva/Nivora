@@ -270,6 +270,18 @@ drill-backup-restore:
 drill-migrations:
 	NIVORA_RUN_POSTGRES_INTEGRATION=true DATABASE_URL="$(DATABASE_URL)" go test -p 1 -count=1 -run "TestPostgresIntegrationMigrationUpDown" ./internal/adapters/repository/postgres
 
+runbook-check-runtime:
+	./scripts/runbook-check-runtime.sh
+
+runbook-check-runner:
+	./scripts/runbook-check-runner.sh
+
+runbook-check-database:
+	./scripts/runbook-check-database.sh
+
+runbook-check-audit:
+	./scripts/runbook-check-audit.sh
+
 smoke-multiprocess-recovery:
 	./scripts/smoke-multiprocess-recovery-postgres.sh
 

@@ -65,3 +65,34 @@ Optional local environment checks for kind, Harbor, Nexus, Gitea, or Argo CD are
 | API/CLI smoke | `make verify-api verify-cli` passes |
 | Packaging | `make verify-packaging` passes or cleanly skips unavailable Helm |
 | Full gate | `make verify` passes |
+
+## Verification Layers
+
+Nivora verification is organized into layers so contributors can choose the right depth:
+
+| Layer | Command | Requires | CI Runs |
+|---|---|---|---|
+| Core (Go only) | `make verify-core` | Go | Always |
+| Contracts | `make verify-contracts` | Go | Always |
+| Runtime smoke | `make verify-runtime verify-api verify-cli verify-deployment verify-release verify-security verify-host` | Go | Always |
+| Web | `make verify-web` | Node.js (skips gracefully without) | Yes (CI has Node) |
+| Packaging | `make verify-packaging` | Helm (skips gracefully without) | Yes (CI has Helm) |
+| Helm safety | `make verify-helm-safety` | Helm | Yes |
+| Postgres integration | `make verify-postgres` | PostgreSQL + `NIVORA_RUN_POSTGRES_INTEGRATION=true` | Yes (separate CI job) |
+| Multi-process recovery | `make smoke-multiprocess-recovery` | PostgreSQL | Yes (separate CI job) |
+| Production install | `make smoke-production-install` | Helm (skips gracefully without) | Yes |
+| Full gate | `make verify` | Go + optional Node/Helm | Yes |
+
+### Understanding `make verify`
+
+`make verify` runs ALL checks. Components that need external tools (Node.js for web, Helm for packaging) gracefully skip with a clear message when the tool is not installed. CI runs all components because it pre-installs Node.js and Helm.
+
+To run only the core backend checks (always deterministic):
+```bash
+make verify-core
+```
+
+To run everything including optional Postgres tests:
+```bash
+NIVORA_RUN_POSTGRES_INTEGRATION=true DATABASE_URL="postgres://..." make verify verify-postgres
+```

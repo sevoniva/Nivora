@@ -2,7 +2,7 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test test-race test-postgres-integration benchmark load-generate-runs load-generate-logs load-simulate-runners coverage vet lint fmt fmt-check tidy tidy-check verify-architecture verify-no-secrets verify-runtime verify-runtime-recovery verify-api verify-cli verify-examples verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-production-profiles verify-alpha verify run-server run-worker run-runner run-web docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-cli smoke-deployment-dry-run smoke-oci-resolve-local smoke-runtime-recovery-postgres smoke-multiprocess-recovery smoke-production-install smoke-helm-production-profile smoke-compose-production-profile smoke-audit-durability dev-up dev-down migrate-up migrate-down
+.PHONY: build test test-race test-postgres-integration benchmark load-generate-runs load-generate-logs load-simulate-runners coverage vet lint fmt fmt-check tidy tidy-check verify-core verify-contracts verify-architecture verify-no-secrets verify-runtime verify-runtime-recovery verify-api verify-cli verify-examples verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-production-profiles verify-alpha verify run-server run-worker run-runner run-web docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-cli smoke-deployment-dry-run smoke-oci-resolve-local smoke-runtime-recovery-postgres smoke-multiprocess-recovery smoke-production-install smoke-helm-production-profile smoke-compose-production-profile smoke-audit-durability dev-up dev-down migrate-up migrate-down
 
 build:
 	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
@@ -95,9 +95,9 @@ verify-host:
 
 verify-web:
 	@if command -v npm >/dev/null 2>&1; then \
-		cd web && npm ci && npm run typecheck && npm run build; \
+		cd web && npm ci && npm run typecheck && npm run build && echo "verify-web: passed"; \
 	else \
-		echo "npm not found; skipping web UI build (install Node.js to include web verification)"; \
+		echo "[verify-web] SKIPPED — npm not found. Install Node.js to include web verification."; \
 	fi
 
 verify-packaging:
@@ -113,7 +113,14 @@ verify-production-profiles: smoke-helm-production-profile smoke-compose-producti
 verify-alpha:
 	./scripts/verify-alpha-release-docs.sh
 
+verify-core: fmt-check tidy-check vet test build verify-architecture verify-no-secrets
+	@echo "=== verify-core passed (Go-only backend checks) ==="
+
+verify-contracts: verify-api-specs
+	@echo "=== verify-contracts passed (OpenAPI/AsyncAPI) ==="
+
 verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-examples verify-runtime verify-api verify-cli verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-helm-safety verify-alpha
+	@echo "=== verify passed ==="
 
 verify-postgres:
 	@if [ "$$NIVORA_RUN_POSTGRES_INTEGRATION" != "true" ]; then \

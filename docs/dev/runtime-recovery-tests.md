@@ -39,9 +39,29 @@ Without `NIVORA_RUN_POSTGRES_INTEGRATION=true`, the Makefile target and smoke sc
 
 Each integration test creates a unique schema and sets PostgreSQL `search_path` through the connection URL. The schema is dropped during cleanup. The tests do not require a developer-specific database name and should not store credentials in the repository.
 
+## Multi-Process Recovery Smoke
+
+A separate smoke test (`scripts/smoke-multiprocess-recovery-postgres.sh`) proves server + worker + runner + PostgreSQL can recover across process restarts:
+
+```bash
+DATABASE_URL="postgres://..." make smoke-multiprocess-recovery
+```
+
+The script:
+1. Starts server, worker, and runner with `runtime_store: postgres`
+2. Creates PipelineRun via API, verifies logs/events/audit
+3. Stops all processes, restarts them
+4. Verifies PipelineRun state survived restart
+5. Creates DeploymentRun and ReleaseExecution
+6. Stops and restarts again
+7. Verifies all three workloads survived
+
+This complements the repository-level integration tests by proving cross-process durability.
+
 ## Current Limitations
 
-- The suite proves durable repository recovery and runtime store bootstrap, not full multi-process server/worker/runner orchestration.
+- The integration suite proves durable repository recovery and bootstrap, not multi-process orchestration (covered by the multi-process smoke).
+- Runner claim/lease recovery across server restart is tested at the repository level; cross-process claim behavior is not yet smoke-tested.
 - Cancellation recovery verifies persisted state and recovery queries; executor interruption remains best-effort.
 - Timeout and lease tests use deterministic timestamps and repository queries; they do not run long sleep-based workers.
 - Memory stores remain available for local development only. Production-like runtime validation should use PostgreSQL mode.

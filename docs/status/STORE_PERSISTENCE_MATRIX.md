@@ -1,6 +1,6 @@
 # Store Persistence Matrix
 
-Current maturity: **hardened beta-candidate**. All 11 runtime stores have PostgreSQL implementations. Audit hash chaining is wired into all governance stores. Runtime store audit paths (pipeline/deployment/release) use per-store audit tables.
+Current maturity: **near-production-candidate (0.9.0-rc.1)**. All 11 runtime stores have PostgreSQL implementations. Audit hash chaining is wired into all governance stores. Runtime store audit paths (pipeline/deployment/release) use per-store audit tables.
 
 | Service | Store Interface | Memory Store | Postgres Store | Runtime Wiring | Migration | Tests | Production Risk |
 |---|---|---|---|---|---|---|---|

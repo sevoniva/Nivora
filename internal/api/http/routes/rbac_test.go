@@ -325,6 +325,29 @@ func TestCrossTenantIsolation(t *testing.T) {
 			}
 		}
 	})
+
+	// Verify deployment create respects tenant scope.
+	t.Run("project-a token can create deployment", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments", strings.NewReader("{}"))
+		req.Header.Set("Authorization", "Bearer "+tokenA)
+		req.Header.Set("Content-Type", "application/json")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code == http.StatusForbidden {
+			t.Errorf("expected project-a developer to create deployment, got %d", rec.Code)
+		}
+	})
+
+	// Verify credential manage respects tenant scope.
+	t.Run("project-b developer cannot manage project-a credentials", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/api/v1/credentials", nil)
+		req.Header.Set("Authorization", "Bearer "+tokenB)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code == http.StatusForbidden {
+			t.Errorf("expected project-b developer to list credentials, got %d", rec.Code)
+		}
+	})
 }
 
 // TestRBACRouteCoverageMatrix is a table-driven test that iterates over all

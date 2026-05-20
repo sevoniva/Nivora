@@ -162,6 +162,9 @@ smoke-helm-production-profile:
 smoke-compose-production-profile:
 	./scripts/smoke-compose-production-profile.sh
 
+smoke-compose-live:
+	./scripts/smoke-compose-live.sh
+
 smoke-production-install:
 	./scripts/smoke-production-install.sh
 

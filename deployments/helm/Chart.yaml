@@ -2,5 +2,5 @@ apiVersion: v2
 name: nivora
 description: Nivora control plane packaging foundation
 type: application
-version: 0.9.0-beta-candidate
-appVersion: "0.9.0-beta-candidate"
+version: 0.9.0-rc.1
+appVersion: "0.9.0-rc.1"

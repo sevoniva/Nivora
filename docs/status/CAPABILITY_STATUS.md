@@ -2,9 +2,9 @@
 
 This status page is the public source of truth for implemented vs. partial vs. placeholder behavior after the implementation audit in `docs/status/IMPLEMENTATION_AUDIT.md`.
 
-Current maturity: **hardened beta-candidate**.
+Current maturity: **near-production-candidate (0.9.0-rc.1)**.
 
-Nivora is **not production-ready**. All 11 core runtime stores have PostgreSQL persistence with hash-chained audit (governance stores). Enterprise-grade runner isolation (workspace, env blocklist, process group cleanup), exhaustive RBAC tests (100+ sub-tests), and Helm safety verification are in place. Remaining blockers are operational validation (multi-process recovery e2e, production install smoke tests). External integrations remain local, noop, fake, skeleton, or experimental foundations.
+Nivora is **not production-ready**. All 11 core runtime stores have PostgreSQL persistence with SHA-256 hash-chained audit across all 9 audit-producing stores. Exhaustive RBAC tests (100+ sub-tests, cross-tenant isolation), 5 runner isolation profiles with production safety gates, multi-process recovery smoke, production install smoke (17/17), and Helm safety (11/11) are in place. Remaining: OS-level runner sandbox, live deployment smoke, external adapter integrations. See `NEAR_PRODUCTION_CANDIDATE_AUDIT.md`.
 
 ## Status Legend
 

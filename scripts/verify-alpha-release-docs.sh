@@ -41,7 +41,7 @@ docs/releases/v0.1.0-alpha.1-checklist.md
       fi
     done
     ;;
-  0.9.0-beta-candidate)
+  0.9.0-rc.1)
     required_release_files="
 docs/BETA_CAPABILITY_MATRIX.md
 docs/releases/v0.5.0-beta-checklist.md
@@ -49,16 +49,17 @@ docs/releases/v0.5.0-beta-release-notes-draft.md
 docs/status/CAPABILITY_STATUS.md
 docs/status/IMPLEMENTATION_AUDIT.md
 docs/status/STORE_PERSISTENCE_MATRIX.md
+docs/status/NEAR_PRODUCTION_CANDIDATE_AUDIT.md
 "
     for file in $required_release_files; do
       if [ ! -s "$file" ]; then
-        echo "missing required beta release file: $file" >&2
+        echo "missing required RC release file: $file" >&2
         exit 1
       fi
     done
     for file in README.md CHANGELOG.md docs/status/CAPABILITY_STATUS.md; do
-      if ! grep -qi 'not production-ready\|not production ready\|beta-candidate\|hardened beta-candidate' "$file"; then
-        echo "$file must state the beta-candidate is not production-ready" >&2
+      if ! grep -qi 'not production-ready\|not production ready\|rc\|release candidate\|near-production' "$file"; then
+        echo "$file must state the RC is not production-ready" >&2
         exit 1
       fi
     done

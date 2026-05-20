@@ -80,5 +80,7 @@ jobs:
         run: go test -p 1 -count=1 -run 'TestPostgresIntegration' ./internal/adapters/repository/postgres ./internal/app/runtime
       - name: Run targeted Postgres store tests
         run: go test -p 1 -count=1 -run 'TestPostgres' ./internal/adapters/repository/postgres/...
+      - name: Audit hash chain verification
+        run: go test -p 1 -count=1 -run 'TestPostgresIntegrationAuditHashChain' ./internal/adapters/repository/postgres
       - name: Multi-process recovery smoke
         run: make smoke-multiprocess-recovery

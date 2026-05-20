@@ -8,7 +8,7 @@ type Info struct {
 }
 
 var (
-	Version = "0.9.0-beta-candidate"
+	Version = "0.9.0-rc.1"
 	Commit  = "unknown"
 	Date    = "unknown"
 )

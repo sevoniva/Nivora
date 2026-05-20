@@ -68,6 +68,9 @@ config:
     allowKubernetesApply: false
     allowArgoSync: false
     allowInsecureRegistry: false
+    runnerIsolationProfile: "container-isolated"
+    allowDockerSocketMount: false
+    allowHostPathMount: false
 
 secret:
   create: false

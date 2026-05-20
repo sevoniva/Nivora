@@ -48,6 +48,9 @@ data:
       allow_kubernetes_apply: {{ .Values.config.runtime.allowKubernetesApply }}
       allow_argo_sync: {{ .Values.config.runtime.allowArgoSync }}
       allow_insecure_registry: {{ .Values.config.runtime.allowInsecureRegistry }}
+      runner_isolation_profile: {{ .Values.config.runtime.runnerIsolationProfile | quote }}
+      allow_docker_socket_mount: {{ .Values.config.runtime.allowDockerSocketMount }}
+      allow_host_path_mount: {{ .Values.config.runtime.allowHostPathMount }}
   worker.yaml: |
     app:
       name: nivora-worker
@@ -91,6 +94,9 @@ data:
       allow_kubernetes_apply: {{ .Values.config.runtime.allowKubernetesApply }}
       allow_argo_sync: {{ .Values.config.runtime.allowArgoSync }}
       allow_insecure_registry: {{ .Values.config.runtime.allowInsecureRegistry }}
+      runner_isolation_profile: {{ .Values.config.runtime.runnerIsolationProfile | quote }}
+      allow_docker_socket_mount: {{ .Values.config.runtime.allowDockerSocketMount }}
+      allow_host_path_mount: {{ .Values.config.runtime.allowHostPathMount }}
   runner.yaml: |
     app:
       name: nivora-runner
@@ -134,3 +140,6 @@ data:
       allow_kubernetes_apply: {{ .Values.config.runtime.allowKubernetesApply }}
       allow_argo_sync: {{ .Values.config.runtime.allowArgoSync }}
       allow_insecure_registry: {{ .Values.config.runtime.allowInsecureRegistry }}
+      runner_isolation_profile: {{ .Values.config.runtime.runnerIsolationProfile | quote }}
+      allow_docker_socket_mount: {{ .Values.config.runtime.allowDockerSocketMount }}
+      allow_host_path_mount: {{ .Values.config.runtime.allowHostPathMount }}

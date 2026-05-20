@@ -1,6 +1,6 @@
 # Runner Trust Boundary
 
-Nivora runners execute delivery work outside the server process. Treat every runner as a separate trust boundary. This project is still a beta-candidate foundation and does not provide a production container sandbox by default.
+Nivora runners execute delivery work outside the server process. Treat every runner as a separate trust boundary. This project is a hardened beta-candidate and provides config-level runner isolation profiles; it does not provide OS-level sandboxing by default. The shell executor is not a sandbox.
 
 ## What A Runner Can Do
 
@@ -43,9 +43,36 @@ Runner protocol endpoints accept `X-Nivora-Runner-Token` only for heartbeat, cla
 
 Cancellation is best-effort. The server can mark cancellation requested, and runners should observe it promptly, but Nivora does not currently guarantee termination of every child process or external operation. Use OS/container-level process supervision for stronger isolation.
 
+## Runner Isolation Profiles
+
+Nivora provides config-level runner isolation profiles (`runtime.runner_isolation_profile`) that gate what execution modes are allowed per environment:
+
+| Profile | Allowed in Production | Description |
+|---|---|---|
+| `local-dev` | No | Local development only. Shell executor, inherits environment. |
+| `shell-hardened` | With explicit flag | Software-level isolation: workspace, env blocklist, process group cleanup. NOT an OS sandbox. |
+| `container-isolated` | Yes | Runner runs inside a container. Operators must configure Docker/podman isolation. |
+| `kubernetes-job` | Yes | Runner runs as a Kubernetes Job. Operators must configure pod security. |
+| `external-runner` | Yes | Runner runs on an external isolated host. Operators manage isolation. |
+
+Production validation rejects:
+- `local-dev` profile
+- `allow_docker_socket_mount: true`
+- `allow_host_path_mount: true`
+- `allow_privileged_executor: true`
+
+## Operator Responsibilities
+
+Nivora provides policy/config gates for runner safety. It does not provide runtime containment. Operators must:
+
+- Deploy runners in containers, VMs, or dedicated hosts for production workloads
+- Restrict filesystem, network, and capability access per deployment profile
+- Never mount Docker socket or host paths in production runner containers
+- Rotate runner tokens regularly
+
 ## Current Limitations
 
-- No full container sandbox is implemented in this phase.
+- No OS-level container sandbox (seccomp/AppArmor/gVisor) is enforced by Nivora.
 - No production autoscaling policy is implemented.
 - Runner group/project/environment restrictions are foundations and require continued hardening.
-- Resource limits, seccomp/AppArmor profiles, and network policy are operator responsibilities today.
+- Resource limits and network policy are operator responsibilities.

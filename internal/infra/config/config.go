@@ -78,13 +78,26 @@ type RunnerConfig struct {
 	HeartbeatInterval string `mapstructure:"heartbeat_interval" yaml:"heartbeat_interval"`
 }
 
+// RunnerIsolationProfile defines the execution isolation level for runners.
+// Shell executor is not an OS-level sandbox regardless of profile.
+const (
+	RunnerProfileLocalDev      = "local-dev"
+	RunnerProfileShellHardened = "shell-hardened"
+	RunnerProfileContainer     = "container-isolated"
+	RunnerProfileKubernetesJob = "kubernetes-job"
+	RunnerProfileExternal      = "external-runner"
+)
+
 type RuntimeConfig struct {
-	AllowLocalShellExecutor bool `mapstructure:"allow_local_shell_executor" yaml:"allow_local_shell_executor"`
-	AllowPrivilegedExecutor bool `mapstructure:"allow_privileged_executor" yaml:"allow_privileged_executor"`
-	AllowRemoteHostDeploy   bool `mapstructure:"allow_remote_host_deploy" yaml:"allow_remote_host_deploy"`
-	AllowKubernetesApply    bool `mapstructure:"allow_kubernetes_apply" yaml:"allow_kubernetes_apply"`
-	AllowArgoSync           bool `mapstructure:"allow_argo_sync" yaml:"allow_argo_sync"`
-	AllowInsecureRegistry   bool `mapstructure:"allow_insecure_registry" yaml:"allow_insecure_registry"`
+	AllowLocalShellExecutor bool   `mapstructure:"allow_local_shell_executor" yaml:"allow_local_shell_executor"`
+	AllowPrivilegedExecutor bool   `mapstructure:"allow_privileged_executor" yaml:"allow_privileged_executor"`
+	AllowRemoteHostDeploy   bool   `mapstructure:"allow_remote_host_deploy" yaml:"allow_remote_host_deploy"`
+	AllowKubernetesApply    bool   `mapstructure:"allow_kubernetes_apply" yaml:"allow_kubernetes_apply"`
+	AllowArgoSync           bool   `mapstructure:"allow_argo_sync" yaml:"allow_argo_sync"`
+	AllowInsecureRegistry   bool   `mapstructure:"allow_insecure_registry" yaml:"allow_insecure_registry"`
+	RunnerIsolationProfile  string `mapstructure:"runner_isolation_profile" yaml:"runner_isolation_profile"`
+	AllowDockerSocketMount  bool   `mapstructure:"allow_docker_socket_mount" yaml:"allow_docker_socket_mount"`
+	AllowHostPathMount      bool   `mapstructure:"allow_host_path_mount" yaml:"allow_host_path_mount"`
 }
 
 func Load(path string) (Config, error) {
@@ -144,6 +157,7 @@ func Default() Config {
 		},
 		Runtime: RuntimeConfig{
 			AllowLocalShellExecutor: true,
+			RunnerIsolationProfile:  RunnerProfileLocalDev,
 		},
 	}
 }
@@ -200,6 +214,27 @@ func (c Config) Validate() error {
 		}
 		if c.Runtime.AllowInsecureRegistry {
 			return errors.New("config runtime.allow_insecure_registry=true is not allowed in production")
+		}
+		profile := c.Runtime.RunnerIsolationProfile
+		if profile == "" {
+			profile = RunnerProfileLocalDev
+		}
+		switch profile {
+		case RunnerProfileLocalDev:
+			return errors.New("config runtime.runner_isolation_profile=local-dev is not allowed in production; use container-isolated, kubernetes-job, or external-runner")
+		case RunnerProfileShellHardened:
+			if !c.Runtime.AllowLocalShellExecutor {
+				return errors.New("config runtime.runner_isolation_profile=shell-hardened requires runtime.allow_local_shell_executor=true (must be explicitly enabled)")
+			}
+		case RunnerProfileContainer, RunnerProfileKubernetesJob, RunnerProfileExternal:
+		default:
+			return errors.New("config runtime.runner_isolation_profile must be one of: shell-hardened, container-isolated, kubernetes-job, external-runner")
+		}
+		if c.Runtime.AllowDockerSocketMount {
+			return errors.New("config runtime.allow_docker_socket_mount=true is not allowed in production")
+		}
+		if c.Runtime.AllowHostPathMount {
+			return errors.New("config runtime.allow_host_path_mount=true is not allowed in production")
 		}
 	}
 	if c.EventBus.Type == "" {

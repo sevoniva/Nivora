@@ -84,6 +84,7 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 	base.Auth.Enabled = true
 	base.Auth.Mode = "token"
 	base.Runtime.AllowLocalShellExecutor = false
+	base.Runtime.RunnerIsolationProfile = RunnerProfileContainer
 
 	tests := []struct {
 		name   string

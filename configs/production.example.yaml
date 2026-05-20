@@ -40,3 +40,6 @@ runtime:
   allow_kubernetes_apply: false
   allow_argo_sync: false
   allow_insecure_registry: false
+  runner_isolation_profile: container-isolated
+  allow_docker_socket_mount: false
+  allow_host_path_mount: false

@@ -264,6 +264,12 @@ soak-runtime-postgres:
 smoke-soak-runtime:
 	NIVORA_SOAK_DURATION_SECONDS=10 NIVORA_SOAK_RUNS=2 ./scripts/soak-runtime-postgres.sh
 
+drill-backup-restore:
+	./scripts/drill-backup-restore-postgres.sh
+
+drill-migrations:
+	NIVORA_RUN_POSTGRES_INTEGRATION=true DATABASE_URL="$(DATABASE_URL)" go test -p 1 -count=1 -run "TestPostgresIntegrationMigrationUpDown" ./internal/adapters/repository/postgres
+
 smoke-multiprocess-recovery:
 	./scripts/smoke-multiprocess-recovery-postgres.sh
 

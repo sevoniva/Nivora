@@ -79,8 +79,34 @@ func newRootCommand() *cobra.Command {
 }
 
 func newAuditCommand() *cobra.Command {
-	cmd := &cobra.Command{Use: "audit", Short: "Audit search utilities"}
+	cmd := &cobra.Command{Use: "audit", Short: "Audit search and verification utilities"}
 	cmd.AddCommand(newAuditSearchCommand())
+	cmd.AddCommand(newAuditVerifyCommand())
+	return cmd
+}
+
+func newAuditVerifyCommand() *cobra.Command {
+	var serverURL string
+	var scopeType string
+	var scopeID string
+	cmd := &cobra.Command{
+		Use:   "verify",
+		Short: "Verify tamper-evident audit hash chain",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			values.Set("scopeType", scopeType)
+			values.Set("scopeId", scopeID)
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/audit/verify?"+values.Encode(), nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server base URL")
+	cmd.Flags().StringVar(&scopeType, "scope-type", "", "Audit scope type (pipeline, deployment, release, release_execution, auth, credential, security, approval, cloud)")
+	cmd.Flags().StringVar(&scopeID, "scope-id", "", "Audit scope ID (optional)")
 	return cmd
 }
 

@@ -184,6 +184,9 @@ Current controls:
 
 - Audit, events, logs, timelines, and evidence bundle foundations exist.
 - Important lifecycle actions emit audit records.
+- SHA-256 hash-chained audit records in `compliance_audit_records` across all 9 audit-producing stores (pipeline, deployment, release, release_execution, auth, credential, security, approval, cloud).
+- Verify API (`GET /api/v1/audit/verify`) validates chain integrity and detects tampering.
+- Full audit hash chain coverage verified via integration tests (7 audit chain tests).
 - Secret values should not appear in audit records.
 
 Required hardening before GA:

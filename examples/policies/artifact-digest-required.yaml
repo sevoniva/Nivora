@@ -1,0 +1,8 @@
+# Nivora Artifact Immutability Policy Example
+# Requires digest-pinned artifact references for releases and deployments.
+# See docs/dev/artifact-immutability.md for details.
+
+denyLatestTag: true
+requireDigest: true
+warnOnLatest: true
+warnOnMissing: true

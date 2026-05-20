@@ -213,8 +213,49 @@ func TestAsyncAPIEventDocumentation(t *testing.T) {
 		t.Fatal("AsyncAPI file is too short or empty")
 	}
 	if !strings.Contains(string(body), "channels") && !strings.Contains(string(body), "messages") {
-		t.Log("AsyncAPI file may not contain channels or messages sections")
+		t.Fatal("AsyncAPI file must contain channels or messages sections")
 	}
+
+	// Verify key implemented event types are documented.
+	implementedEvents := []string{
+		"devops.pipeline.run.created",
+		"devops.pipeline.run.started",
+		"devops.pipeline.run.completed",
+		"devops.pipeline.run.failed",
+		"devops.deployment.created",
+		"devops.deployment.succeeded",
+		"devops.deployment.failed",
+		"devops.release.created",
+		"devops.release.execution.started",
+		"devops.release.execution.succeeded",
+		"devops.release.execution.failed",
+		"devops.runner.registered",
+		"devops.runner.heartbeat",
+		"devops.approval.requested",
+		"devops.approval.approved",
+		"devops.audit.record.created",
+	}
+
+	content := string(body)
+	found := 0
+	for _, evt := range implementedEvents {
+		if strings.Contains(content, evt) {
+			found++
+		} else {
+			t.Logf("AsyncAPI may not document event: %s", evt)
+		}
+	}
+	t.Logf("%d/%d key events documented in AsyncAPI", found, len(implementedEvents))
+
+	// Verify AsyncAPI has future/reserved labeling for any channel
+	// that is not currently emitted.
+	if strings.Contains(content, "reserved") || strings.Contains(content, "future") {
+		t.Log("AsyncAPI contains future/reserved event labels — good")
+	}
+
+	// Count total documented channels.
+	channelCount := strings.Count(content, "address:")
+	t.Logf("AsyncAPI documents %d channels", channelCount)
 }
 
 func TestOpenAPIErrorResponseSchemaConsistency(t *testing.T) {

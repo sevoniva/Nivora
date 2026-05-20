@@ -14,19 +14,42 @@ fi
 
 DATABASE_URL="${DATABASE_URL:-postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable}"
 
-# Test Postgres connectivity.
-if ! command -v psql >/dev/null 2>&1; then
-  echo "WARNING: psql not found; skipping Postgres connectivity check"
-elif ! psql "$DATABASE_URL" -c 'SELECT 1' >/dev/null 2>&1; then
-  echo "SKIP: cannot connect to Postgres at $DATABASE_URL"
-  echo "  Set DATABASE_URL or start a local Postgres instance."
-  echo "  Local: docker run --rm -e POSTGRES_USER=nivora -e POSTGRES_PASSWORD=nivora -p 5432:5432 postgres:16-alpine"
-  exit 0
+# Test Postgres connectivity via TCP check (no psql dependency).
+PG_HOST=$(echo "$DATABASE_URL" | sed -n 's|.*@\([^:/]*\).*|\1|p')
+PG_PORT=$(echo "$DATABASE_URL" | sed -n 's|.*:\([0-9]*\)/.*|\1|p')
+PG_HOST="${PG_HOST:-localhost}"
+PG_PORT="${PG_PORT:-5432}"
+
+if command -v timeout >/dev/null 2>&1; then
+  if ! timeout 5 sh -c "echo >/dev/tcp/${PG_HOST}/${PG_PORT}" 2>/dev/null; then
+    echo "SKIP: cannot connect to PostgreSQL at ${PG_HOST}:${PG_PORT}"
+    echo "  Set DATABASE_URL or start a local Postgres instance."
+    exit 0
+  fi
+elif command -v nc >/dev/null 2>&1; then
+  if ! nc -z -w5 "${PG_HOST}" "${PG_PORT}" 2>/dev/null; then
+    echo "SKIP: cannot connect to PostgreSQL at ${PG_HOST}:${PG_PORT}"
+    exit 0
+  fi
+else
+  echo "WARNING: cannot verify Postgres connectivity (timeout/nc not found); proceeding anyway"
 fi
 
 SERVER_PORT="${NIVORA_RECOVERY_SERVER_PORT:-18080}"
 WORKER_PORT="${NIVORA_RECOVERY_WORKER_PORT:-18081}"
 RUNNER_PORT="${NIVORA_RECOVERY_RUNNER_PORT:-18082}"
+
+# CI mode: longer timeouts for slower environments.
+CI="${CI:-false}"
+if [ "$CI" = "true" ]; then
+  SERVER_START_WAIT=40
+  WORKER_START_WAIT=5
+  RUNNER_START_WAIT=5
+else
+  SERVER_START_WAIT=15
+  WORKER_START_WAIT=2
+  RUNNER_START_WAIT=2
+fi
 
 BASE_URL="http://127.0.0.1:${SERVER_PORT}"
 CONFIG_DIR="$(mktemp -d "${TMPDIR:-/tmp}/nivora-recovery.XXXXXX")"
@@ -95,7 +118,7 @@ start_server() {
   echo "==> Starting nivora-server on ${BASE_URL}"
   go run ./cmd/nivora server --config "$SERVER_CONFIG" >"$SERVER_LOG" 2>&1 &
   SERVER_PID="$!"
-  for _ in $(seq 1 15); do
+  for _ in $(seq 1 ${SERVER_START_WAIT}); do
     if curl -fsS "${BASE_URL}/healthz" >/dev/null 2>&1; then
       echo "  Server healthy (PID ${SERVER_PID})"
       return 0
@@ -112,7 +135,7 @@ start_worker() {
   go run ./cmd/nivora worker --config "$WORKER_CONFIG" >"$WORKER_LOG" 2>&1 &
   WORKER_PID="$!"
   echo "  Worker started (PID ${WORKER_PID})"
-  sleep 2
+  sleep ${WORKER_START_WAIT}
 }
 
 start_runner() {
@@ -120,7 +143,7 @@ start_runner() {
   go run ./cmd/nivora runner --config "$RUNNER_CONFIG" >"$RUNNER_LOG" 2>&1 &
   RUNNER_PID="$!"
   echo "  Runner started (PID ${RUNNER_PID})"
-  sleep 2
+  sleep ${RUNNER_START_WAIT}
 }
 
 stop_processes() {

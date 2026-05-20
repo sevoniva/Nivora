@@ -24,8 +24,26 @@ type Registry struct {
 }
 
 type durationStats struct {
-	Count   int64 `json:"count"`
-	TotalMS int64 `json:"total_ms"`
+	Count   int64             `json:"count"`
+	TotalMS int64             `json:"total_ms"`
+	Buckets map[float64]int64 `json:"buckets,omitempty"`
+}
+
+// defaultLatencyBuckets are Prometheus-style histogram buckets in milliseconds.
+var defaultLatencyBuckets = []float64{10, 50, 100, 250, 500, 1000, 2500, 5000, 10000, 30000, 60000, 300000}
+
+func (d *durationStats) observe(ms int64) {
+	d.Count++
+	d.TotalMS += ms
+	if d.Buckets == nil {
+		d.Buckets = make(map[float64]int64)
+	}
+	for _, bound := range defaultLatencyBuckets {
+		if float64(ms) <= bound {
+			d.Buckets[bound]++
+		}
+	}
+	d.Buckets[float64(1<<60)]++ // +Inf bucket
 }
 
 type Snapshot struct {
@@ -86,29 +104,25 @@ func (r *Registry) IncPolicyDenial() {
 func (r *Registry) ObservePipelineDuration(duration time.Duration) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.pipelineDuration.Count++
-	r.pipelineDuration.TotalMS += duration.Milliseconds()
+	r.pipelineDuration.observe(duration.Milliseconds())
 }
 
 func (r *Registry) ObserveDeploymentDuration(duration time.Duration) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.deploymentDuration.Count++
-	r.deploymentDuration.TotalMS += duration.Milliseconds()
+	r.deploymentDuration.observe(duration.Milliseconds())
 }
 
 func (r *Registry) ObserveQueueTime(duration time.Duration) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.queueTime.Count++
-	r.queueTime.TotalMS += duration.Milliseconds()
+	r.queueTime.observe(duration.Milliseconds())
 }
 
 func (r *Registry) ObserveJobClaimLatency(duration time.Duration) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
-	r.jobClaimLatency.Count++
-	r.jobClaimLatency.TotalMS += duration.Milliseconds()
+	r.jobClaimLatency.observe(duration.Milliseconds())
 }
 
 func (r *Registry) Snapshot() Snapshot {
@@ -144,6 +158,11 @@ func (s Snapshot) PrometheusText() string {
 	writeCounter(&b, "nivora_queue_time_ms_total", "Total observed queue time in milliseconds.", s.QueueTime.TotalMS)
 	writeCounter(&b, "nivora_job_claim_latency_observations_total", "Job claim latency observations.", s.JobClaimLatency.Count)
 	writeCounter(&b, "nivora_job_claim_latency_ms_total", "Total observed job claim latency in milliseconds.", s.JobClaimLatency.TotalMS)
+
+	writeHistogram(&b, "nivora_pipeline_run_duration_ms", "PipelineRun duration in milliseconds.", s.PipelineDuration)
+	writeHistogram(&b, "nivora_deployment_run_duration_ms", "DeploymentRun duration in milliseconds.", s.DeploymentDuration)
+	writeHistogram(&b, "nivora_queue_time_ms", "Queue time in milliseconds.", s.QueueTime)
+	writeHistogram(&b, "nivora_job_claim_latency_ms", "Job claim latency in milliseconds.", s.JobClaimLatency)
 	return b.String()
 }
 
@@ -151,4 +170,23 @@ func writeCounter(b *strings.Builder, name string, help string, value int64) {
 	fmt.Fprintf(b, "# HELP %s %s\n", name, help)
 	fmt.Fprintf(b, "# TYPE %s counter\n", name)
 	fmt.Fprintf(b, "%s %d\n", name, value)
+}
+
+func writeHistogram(b *strings.Builder, name, help string, s durationStats) {
+	if len(s.Buckets) == 0 {
+		return
+	}
+	fmt.Fprintf(b, "# HELP %s %s\n", name, help)
+	fmt.Fprintf(b, "# TYPE %s histogram\n", name)
+	// Sort buckets by bound value.
+	bounds := defaultLatencyBuckets
+	var cum int64
+	for _, bound := range bounds {
+		cum += s.Buckets[bound]
+		fmt.Fprintf(b, "%s_bucket{le=\"%g\"} %d\n", name, bound, cum)
+	}
+	// +Inf bucket.
+	fmt.Fprintf(b, "%s_bucket{le=\"+Inf\"} %d\n", name, s.Count)
+	fmt.Fprintf(b, "%s_sum %d\n", name, s.TotalMS)
+	fmt.Fprintf(b, "%s_count %d\n", name, s.Count)
 }

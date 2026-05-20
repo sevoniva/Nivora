@@ -5828,3 +5828,461 @@ components:
         createdAt:
           type: string
           format: date-time
+    PipelineRunRequest:
+      type: object
+      required: [apiVersion, kind, spec]
+      properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
+          enum: [Pipeline]
+        metadata:
+          type: object
+          properties:
+            name:
+              type: string
+        spec:
+          type: object
+          properties:
+            stages:
+              type: array
+              items:
+                $ref: "#/components/schemas/PipelineStage"
+    PipelineStage:
+      type: object
+      properties:
+        name:
+          type: string
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/PipelineJob"
+    PipelineJob:
+      type: object
+      properties:
+        name:
+          type: string
+        executor:
+          type: string
+          enum: [shell, container]
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/PipelineStep"
+    PipelineStep:
+      type: object
+      properties:
+        name:
+          type: string
+        run:
+          type: string
+    PipelineRunResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [Pending, Queued, Running, Paused, Succeeded, Failed, Canceled, Timeout]
+        stages:
+          type: array
+          items:
+            $ref: "#/components/schemas/StageRun"
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogEntry"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        audits:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditRecord"
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    StageRun:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/JobRun"
+    JobRun:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        executor:
+          type: string
+        runnerId:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepRun"
+    StepRun:
+      type: object
+      properties:
+        name:
+          type: string
+        status:
+          type: string
+        exitCode:
+          type: integer
+        stdout:
+          type: string
+        stderr:
+          type: string
+    LogEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        stream:
+          type: string
+        content:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+    DeploymentRunRequest:
+      type: object
+      properties:
+        metadata:
+          type: object
+          properties:
+            name:
+              type: string
+        spec:
+          type: object
+          properties:
+            application:
+              type: string
+            environment:
+              type: string
+            target:
+              $ref: "#/components/schemas/TargetSpec"
+            manifests:
+              type: array
+              items:
+                type: string
+            options:
+              type: object
+              properties:
+                dryRun:
+                  type: boolean
+                apply:
+                  type: boolean
+    TargetSpec:
+      type: object
+      properties:
+        type:
+          type: string
+        name:
+          type: string
+        namespace:
+          type: string
+    DeploymentRunResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [Created, Planning, WaitingApproval, PreChecking, Deploying, Verifying, Succeeded, Failed, RollingBack, RolledBack, Canceled]
+        applicationId:
+          type: string
+        environmentId:
+          type: string
+        plan:
+          $ref: "#/components/schemas/DeploymentPlan"
+        resources:
+          type: array
+          items:
+            $ref: "#/components/schemas/DeploymentResource"
+        logs:
+          type: array
+          items:
+            $ref: "#/components/schemas/LogEntry"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        audits:
+          type: array
+          items:
+            $ref: "#/components/schemas/AuditRecord"
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+        createdAt:
+          type: string
+          format: date-time
+    DeploymentPlan:
+      type: object
+      properties:
+        deploymentRunId:
+          type: string
+        manifestCount:
+          type: integer
+        dryRun:
+          type: boolean
+        apply:
+          type: boolean
+    DeploymentResource:
+      type: object
+      properties:
+        apiVersion:
+          type: string
+        kind:
+          type: string
+        namespace:
+          type: string
+        name:
+          type: string
+        health:
+          type: string
+    ReleaseRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        versionName:
+          type: string
+        applicationId:
+          type: string
+        artifacts:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              type:
+                type: string
+              reference:
+                type: string
+              digest:
+                type: string
+    ReleaseResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        versionName:
+          type: string
+        applicationId:
+          type: string
+        status:
+          type: string
+        artifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/ArtifactReference"
+        executions:
+          type: array
+          items:
+            $ref: "#/components/schemas/ReleaseExecutionSummary"
+        createdAt:
+          type: string
+          format: date-time
+    ArtifactReference:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+        reference:
+          type: string
+        digest:
+          type: string
+        digestPinned:
+          type: boolean
+        immutable:
+          type: boolean
+    ReleaseExecutionSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+        startedAt:
+          type: string
+          format: date-time
+        finishedAt:
+          type: string
+          format: date-time
+    CredentialRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [token, username_password, ssh_key, kubeconfig, registry, cloud, argocd, webhook, generic]
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        secretRef:
+          type: object
+          properties:
+            id:
+              type: string
+            name:
+              type: string
+            provider:
+              type: string
+            key:
+              type: string
+    CredentialResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        status:
+          type: string
+        secretRef:
+          type: object
+          properties:
+            id:
+              type: string
+            provider:
+              type: string
+            key:
+              type: string
+        createdAt:
+          type: string
+          format: date-time
+    SecurityScanRequest:
+      type: object
+      properties:
+        subjectType:
+          type: string
+          enum: [artifact, manifest, deployment_plan, release]
+        subjectId:
+          type: string
+        reference:
+          type: string
+        content:
+          type: string
+        policy:
+          type: object
+          properties:
+            criticalDenyThreshold:
+              type: integer
+            requireDigest:
+              type: boolean
+    SecurityScanResponse:
+      type: object
+      properties:
+        id:
+          type: string
+        subjectType:
+          type: string
+        subjectId:
+          type: string
+        scanner:
+          type: string
+        status:
+          type: string
+          enum: [Pending, Running, Succeeded, Failed, Canceled]
+        summary:
+          type: object
+          properties:
+            total:
+              type: integer
+            low:
+              type: integer
+            medium:
+              type: integer
+            high:
+              type: integer
+            critical:
+              type: integer
+        findings:
+          type: array
+          items:
+            $ref: "#/components/schemas/SecurityFinding"
+        policy:
+          $ref: "#/components/schemas/PolicyResult"
+        createdAt:
+          type: string
+          format: date-time
+    SecurityFinding:
+      type: object
+      properties:
+        id:
+          type: string
+        severity:
+          type: string
+          enum: [Unknown, Low, Medium, High, Critical]
+        category:
+          type: string
+        target:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+    PolicyResult:
+      type: object
+      properties:
+        decision:
+          type: string
+          enum: [allow, deny, warn, require_approval]
+        reason:
+          type: string
+    AuditRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        actorId:
+          type: string
+        action:
+          type: string
+        subject:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        previousHash:
+          type: string
+        recordHash:
+          type: string
+        createdAt:
+          type: string
+          format: date-time

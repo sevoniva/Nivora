@@ -83,5 +83,7 @@ jobs:
         run: go test -p 1 -count=1 -run 'TestPostgres' ./internal/adapters/repository/postgres/...
       - name: Audit hash chain verification
         run: go test -p 1 -count=1 -run 'TestPostgresIntegrationAuditHashChain' ./internal/adapters/repository/postgres
+      - name: Live deploy smoke
+        run: make smoke-live-deploy
       - name: Multi-process recovery smoke
         run: make smoke-multiprocess-recovery

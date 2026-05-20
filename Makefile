@@ -258,6 +258,12 @@ smoke-oci-resolve-local:
 smoke-runtime-recovery-postgres:
 	./scripts/smoke-runtime-recovery-postgres.sh
 
+soak-runtime-postgres:
+	./scripts/soak-runtime-postgres.sh
+
+smoke-soak-runtime:
+	NIVORA_SOAK_DURATION_SECONDS=10 NIVORA_SOAK_RUNS=2 ./scripts/soak-runtime-postgres.sh
+
 smoke-multiprocess-recovery:
 	./scripts/smoke-multiprocess-recovery-postgres.sh
 

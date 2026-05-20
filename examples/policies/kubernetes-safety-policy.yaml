@@ -1,0 +1,27 @@
+# Nivora Kubernetes Safety Policy Example
+# This policy gates Kubernetes manifests before dry-run or apply.
+# See docs/operations/kubernetes-safety-policy.md for details.
+
+requireNamespace: true
+
+denyPrivileged: true
+denyHostPath: true
+denyHostNetwork: true
+denyHostPID: true
+denyHostIPC: true
+
+denyLatestTag: true
+requireDigest: false
+
+denyClusterScoped: true
+
+deniedNamespaces:
+  - kube-system
+  - kube-public
+  - kube-node-lease
+
+allowedNamespaces: []
+allowedKinds: []
+deniedKinds: []
+
+maxManifestBytes: 1048576

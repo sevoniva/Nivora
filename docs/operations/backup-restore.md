@@ -34,7 +34,7 @@ After restore:
 4. Check `/api/v1/system/runtime/recovery`.
 5. Run one reconciliation pass if needed.
 
-Critical runtime audit records for deployments and release executions are stored with their runtime records in PostgreSQL when `database.runtime_store: postgres`. Compliance evidence bundle and retention policy persistence now has a PostgreSQL foundation through `compliance_evidence_bundles` and `compliance_retention_policies`. Tamper-evident hash-chain enforcement is still a future hardening item; schema fields exist for compliance audit records but audit writes are not uniformly hash-chained yet.
+Runtime audit records for all 9 stores are stored in PostgreSQL when `database.runtime_store: postgres`. Compliance evidence bundle and retention policy persistence have PostgreSQL foundations through `compliance_evidence_bundles` and `compliance_retention_policies`. Tamper-evident SHA-256 hash-chain audit writes are implemented across all audit-producing stores with verification via `GET /api/v1/audit/verify`.
 
 ## Object Store
 
@@ -73,6 +73,24 @@ Do not back up raw secret values in config files. Use environment variables, Sec
 9. Reconcile pending outbox/runtime state.
 10. Start runners and verify heartbeat.
 
+## Backup/Restore Smoke Test
+
+A backup/restore drill smoke test validates the pg_dump → restore pipeline:
+
+```bash
+DATABASE_URL="postgres://..." make smoke-backup-restore
+```
+
+The script (`scripts/smoke-backup-restore-postgres.sh`):
+1. Validates migration pairs are reversible
+2. Starts a server, inserts test PipelineRun
+3. Stops the server
+4. Runs pg_dump (if available)
+5. Restarts the server
+6. Verifies PipelineRun and audit records survived
+
+Skip with `SKIP_BACKUP_RESTORE=1` or if PostgreSQL is unavailable.
+
 ## Migration Drill
 
 For a disposable database or staging environment:
@@ -80,9 +98,10 @@ For a disposable database or staging environment:
 ```sh
 NIVORA_RUN_POSTGRES_INTEGRATION=true DATABASE_URL="$NIVORA_DATABASE_URL" make test-postgres-integration
 ./scripts/smoke-audit-durability.sh
+make smoke-backup-restore
 ```
 
-The baseline unit test suite does not require PostgreSQL. Real database migration and recovery checks are opt-in so local CI remains self-contained.
+The baseline unit test suite does not require PostgreSQL. Real database migration, recovery, and backup/restore checks are opt-in so local CI remains self-contained.
 
 ## Event Outbox Recovery
 
@@ -115,6 +134,6 @@ Tested only when optional PostgreSQL integration is enabled:
 
 Not yet production-proven:
 
-- automated restore from a production backup
+- automated restore from a production backup in a live environment
 - object-store restore with large evidence payloads
-- tamper-evident hash-chain audit writes across every audit source
+- backup/restore drill automated in CI (requires PostgreSQL; runs as opt-in locally)

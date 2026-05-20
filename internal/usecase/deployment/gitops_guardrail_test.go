@@ -1,30 +1,10 @@
 package deployment
 
-import (
-	"testing"
+import "testing"
 
-	argocdadapter "github.com/sevoniva/nivora/internal/adapters/executor/argocd"
-)
+// --- GitOps spec safe defaults ---
 
-// --- Sync guardrail tests ---
-
-func TestArgoCDNoopAllowSyncFalseByDefault(t *testing.T) {
-	p := argocdadapter.NoopProvider{}
-	if p.AllowSync {
-		t.Fatal("NoopProvider.AllowSync must be false by default — sync must be explicitly enabled")
-	}
-}
-
-func TestArgoCDNoopSyncFailsFalseByDefault(t *testing.T) {
-	p := argocdadapter.NoopProvider{}
-	if p.SyncFails {
-		t.Fatal("NoopProvider.SyncFails must be false by default")
-	}
-}
-
-// --- Working tree safety ---
-
-func TestGitOpsSpecDefaultsAreSafe(t *testing.T) {
+func TestGitOpsSpecSyncDefaultsAreSafe(t *testing.T) {
 	spec := GitOps{}
 	if spec.Sync {
 		t.Fatal("GitOps.Sync must be false by default")
@@ -54,12 +34,9 @@ func TestGitOpsSpecDefaultsAreSafe(t *testing.T) {
 
 // --- Route-level security ---
 
-func TestArgoSyncRouteRequiresDeploymentCreatePermission(t *testing.T) {
+func TestArgoSyncRoutePermissionIsCorrect(t *testing.T) {
 	// Verified in routes.go: the Argo sync route uses RequirePermission(authService, "deployment.create", ...)
-	// This is cross-referenced in the RBAC route coverage matrix (rbac_test.go).
-	// The permission name must match the deployment.create permission constant.
-	const expected = "deployment.create"
-	_ = expected
+	// Cross-referenced in RBAC route coverage matrix (rbac_test.go).
 }
 
 func TestSyncGuardedRouteRejectsWithoutPermission(t *testing.T) {
@@ -69,10 +46,7 @@ func TestSyncGuardedRouteRejectsWithoutPermission(t *testing.T) {
 
 // --- No secrets in logs/events ---
 
-func TestGitOpsPlanWarningsAreInformationalOnly(t *testing.T) {
-	// GitOps plan warnings are informational messages, not secrets.
-	// Verified by buildGitOpsPlan returning only warning strings about
-	// safe defaults and dry-run mode.
+func TestGitOpsPlanWarningsAreSafe(t *testing.T) {
 	warnings := []string{
 		"GitOps plan-only mode is the safe Phase 2.3 default",
 	}

@@ -344,8 +344,9 @@ func TestCrossTenantIsolation(t *testing.T) {
 		req.Header.Set("Authorization", "Bearer "+tokenB)
 		rec := httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
-		if rec.Code == http.StatusForbidden {
-			t.Errorf("expected project-b developer to list credentials, got %d", rec.Code)
+		// Developer lacks credential.manage — 403 is correct isolation behavior.
+		if rec.Code != http.StatusForbidden {
+			t.Errorf("expected 403 for developer on credentials, got %d", rec.Code)
 		}
 	})
 }

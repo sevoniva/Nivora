@@ -92,6 +92,7 @@ func TestProductionValidConfigPasses(t *testing.T) {
 	cfg.Runtime.AllowKubernetesApply = false
 	cfg.Runtime.AllowArgoSync = false
 	cfg.Runtime.AllowInsecureRegistry = false
+	cfg.Runtime.RunnerIsolationProfile = "container-isolated"
 	err := cfg.Validate()
 	if err != nil {
 		t.Fatalf("expected valid production config to pass, got: %v", err)

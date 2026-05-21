@@ -1,0 +1,8 @@
+FROM alpine:3.20
+RUN apk add --no-cache ca-certificates
+COPY nivora-server /usr/local/bin/nivora-server
+COPY nivora-worker /usr/local/bin/nivora-worker
+COPY nivora-runner /usr/local/bin/nivora-runner
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+ENTRYPOINT ["/entrypoint.sh"]

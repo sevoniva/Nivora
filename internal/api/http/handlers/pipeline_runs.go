@@ -61,7 +61,8 @@ func GetPipelineRun(service *pipelineusecase.Service) http.HandlerFunc {
 
 func ListPipelineRuns(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		records, err := service.List(r.Context())
+		scopeType, scopeID := TenantScopeFilter(r)
+		records, err := service.ListFiltered(r.Context(), scopeType, scopeID)
 		if err != nil {
 			respondPipelineResult(w, r, nil, err)
 			return

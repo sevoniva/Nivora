@@ -229,6 +229,10 @@ func (s *Service) List(ctx context.Context) ([]RunRecord, error) {
 	return s.store.List(ctx)
 }
 
+func (s *Service) ListFiltered(ctx context.Context, scopeType, scopeID string) ([]RunRecord, error) {
+	return s.store.ListFiltered(ctx, scopeType, scopeID)
+}
+
 func (s *Service) Logs(ctx context.Context, id string) ([]event.LogChunk, error) {
 	return s.store.LogsByPipelineRun(ctx, id)
 }

@@ -198,14 +198,34 @@ func TestTenantIsolationListPipelineRuns(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 
-	// List pipeline runs as project-A — should return results.
+	// List pipeline runs as project-A — should return results (scoped).
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs", nil)
 	req.Header.Set("Authorization", "Bearer "+tokenA)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	t.Logf("project-A list pipeline-runs: %d", rec.Code)
+	// With scope filtering, project-A should only see its own runs.
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for project-A list, got %d", rec.Code)
+	}
+	t.Logf("project-A scoped list pipeline-runs: %d", rec.Code)
 
-	// List as unscoped admin — should also return results.
+	// List as project-B — should NOT see project-A runs (scope filtering).
+	tokenB := createScopedToken(t, auth, "list-proj-b", domainauth.RoleDeveloper, "project", "project-b")
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	// project-B's list response should not include project-A's pipeline run data.
+	if rec.Code != http.StatusOK {
+		t.Errorf("expected 200 for project-B list, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, "list-pipe-a") || strings.Contains(body, "list-a") {
+		t.Errorf("project-B list should NOT contain project-A data, got body containing project-A reference")
+	}
+	t.Logf("project-B scoped list (should be empty/filtered): %d", rec.Code)
+
+	// List as unscoped admin — should see all.
 	adminToken := createScopedToken(t, auth, "admin-list", domainauth.RoleAdmin, "", "")
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs", nil)
 	req.Header.Set("Authorization", "Bearer "+adminToken)

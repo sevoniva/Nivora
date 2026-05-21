@@ -31,6 +31,7 @@ type PipelineRepository interface {
 type PipelineRunRepository interface {
 	Get(ctx context.Context, id string) (RunRecord, error)
 	List(ctx context.Context) ([]RunRecord, error)
+	ListFiltered(ctx context.Context, scopeType, scopeID string) ([]RunRecord, error)
 	ListByStatus(ctx context.Context, status domainpipeline.PipelineRunStatus) ([]RunRecord, error)
 }
 
@@ -161,6 +162,23 @@ func (s *MemoryStore) List(ctx context.Context) ([]RunRecord, error) {
 		return records[i].Run.CreatedAt.Before(records[j].Run.CreatedAt)
 	})
 	return records, nil
+}
+
+func (s *MemoryStore) ListFiltered(ctx context.Context, scopeType, scopeID string) ([]RunRecord, error) {
+	all, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if scopeType == "" {
+		return all, nil
+	}
+	var filtered []RunRecord
+	for _, r := range all {
+		if scopeType == "project" && r.Pipeline.ProjectID == scopeID {
+			filtered = append(filtered, r)
+		}
+	}
+	return filtered, nil
 }
 
 func (s *MemoryStore) ListByStatus(ctx context.Context, status domainpipeline.PipelineRunStatus) ([]RunRecord, error) {

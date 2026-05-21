@@ -72,6 +72,24 @@ func (s *PipelineStore) List(ctx context.Context) ([]pipelineusecase.RunRecord, 
 	return scanRunRecords(rows)
 }
 
+func (s *PipelineStore) ListFiltered(ctx context.Context, scopeType, scopeID string) ([]pipelineusecase.RunRecord, error) {
+	if scopeType == "" {
+		return s.List(ctx)
+	}
+	var rows pgx.Rows
+	var err error
+	if scopeType == "project" {
+		rows, err = s.pool.Query(ctx, `SELECT record FROM runtime_pipeline_runs WHERE record->'pipeline'->>'projectId' = $1 ORDER BY created_at, id`, scopeID)
+	} else {
+		rows, err = s.pool.Query(ctx, `SELECT record FROM runtime_pipeline_runs ORDER BY created_at, id`)
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanRunRecords(rows)
+}
+
 func (s *PipelineStore) ListByStatus(ctx context.Context, status domainpipeline.PipelineRunStatus) ([]pipelineusecase.RunRecord, error) {
 	rows, err := s.pool.Query(ctx, `SELECT record FROM runtime_pipeline_runs WHERE status = $1 ORDER BY created_at, id`, string(status))
 	if err != nil {

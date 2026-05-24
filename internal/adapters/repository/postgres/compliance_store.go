@@ -138,6 +138,9 @@ type AuditRecord struct {
 }
 
 func (s *ComplianceStore) AppendAuditRecord(ctx context.Context, record AuditRecord) error {
+	if len(record.Payload) == 0 {
+		record.Payload = []byte("{}")
+	}
 	prevHash, err := s.latestAuditHash(ctx, record.ScopeType, record.ScopeID)
 	if err != nil {
 		return err
@@ -145,7 +148,7 @@ func (s *ComplianceStore) AppendAuditRecord(ctx context.Context, record AuditRec
 	record.PreviousHash = prevHash
 
 	canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
-		prevHash, record.ActorID, record.Action, record.SubjectType, record.SubjectID, record.ScopeType, record.ScopeID, record.CreatedAt.Format(time.RFC3339Nano))
+		prevHash, record.ActorID, record.Action, record.SubjectType, record.SubjectID, record.ScopeType, record.ScopeID, record.CreatedAt.UTC().Format(time.RFC3339Nano))
 	hash := sha256.Sum256([]byte(canonical))
 	record.RecordHash = hex.EncodeToString(hash[:])
 
@@ -194,7 +197,7 @@ func (s *ComplianceStore) VerifyAuditChain(ctx context.Context, scopeType, scope
 			return false, r.ID, nil
 		}
 		canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
-			r.PreviousHash, r.ActorID, r.Action, r.SubjectType, r.SubjectID, r.ScopeType, r.ScopeID, r.CreatedAt.Format(time.RFC3339Nano))
+			r.PreviousHash, r.ActorID, r.Action, r.SubjectType, r.SubjectID, r.ScopeType, r.ScopeID, r.CreatedAt.UTC().Format(time.RFC3339Nano))
 		hash := sha256.Sum256([]byte(canonical))
 		expectedHash := hex.EncodeToString(hash[:])
 		if r.RecordHash != expectedHash {

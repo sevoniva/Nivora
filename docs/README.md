@@ -18,7 +18,7 @@ This index helps new contributors understand where to start. Nivora is currently
 - [API Inventory](API_INVENTORY.md): implemented, partial, and placeholder HTTP API groups.
 - [Alpha Demo Guide](demo/alpha-demo.md): self-contained demo path that does not require external services.
 - [Contribution Guide](../CONTRIBUTING.md): development setup and contribution rules.
-- [AI Agent Rules](../AGENTS.md): canonical coding instructions for AI agents.
+- [Contributor Automation Rules](../AGENTS.md): canonical coding instructions for automated and human-assisted changes.
 
 ## What To Read First
 
@@ -213,7 +213,6 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 - [Web Console](dev/web-console.md)
 - [Writing Adapters](dev/writing-adapters.md)
 - [Plugin Authoring](dev/plugin-authoring.md)
-- [AI Change Policy](engineering/ai-change-policy.md)
 - [Dependency Policy](engineering/dependency-policy.md)
 - [Testing Policy](engineering/testing-policy.md)
 - [Security Baseline](engineering/security-baseline.md)

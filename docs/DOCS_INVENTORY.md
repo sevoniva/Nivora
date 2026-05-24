@@ -6,7 +6,7 @@ This inventory lists the main documentation areas and their purpose.
 - `README.md`: concise entry point for users and contributors.
 - `ROADMAP.md`: concise phase summary with a link to detailed roadmap docs.
 - `CHANGELOG.md`: public release history and alpha release notes.
-- `AGENTS.md`: canonical AI coding instructions.
+- `AGENTS.md`: canonical automation and contribution instructions.
 - `docs/README.md`: documentation landing page.
 - `docs/ALPHA_CAPABILITY_MATRIX.md`: implemented, partial, planned, and unsupported alpha capabilities.
 - `docs/demo/`: self-contained demo guides.
@@ -20,4 +20,4 @@ This inventory lists the main documentation areas and their purpose.
 - `docs/operations/`: install, configuration, database, observability, and troubleshooting notes.
 - `docs/rfcs/`: RFC process and template for large proposals.
 - `docs/adr/`: accepted architecture decision records.
-- `docs/engineering/`: guardrails for dependencies, testing, security, release scope, and AI changes.
+- `docs/engineering/`: guardrails for dependencies, testing, security, and release scope.

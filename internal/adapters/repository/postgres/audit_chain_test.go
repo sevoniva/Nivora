@@ -10,6 +10,8 @@ import (
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
+	domainrelease "github.com/sevoniva/nivora/internal/domain/release"
+	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 )
@@ -109,6 +111,11 @@ func TestPostgresIntegrationAuditHashChainRelease(t *testing.T) {
 	store := NewReleaseStore(db.pool)
 	compliance := NewComplianceStore(db.pool)
 
+	releaseRecord := artifactReleaseRecord("audit-chain-release", now)
+	if err := store.SaveRelease(ctx, releaseRecord); err != nil {
+		t.Fatalf("save release: %v", err)
+	}
+
 	audit1 := audit.AuditLog{ID: "ac-rel-1", ActorID: "user-1", Action: "release.created", Subject: "audit-chain-release", CreatedAt: now}
 	audit2 := audit.AuditLog{ID: "ac-rel-2", ActorID: "user-2", Action: "release.artifact.bound", Subject: "audit-chain-release", CreatedAt: now.Add(time.Second)}
 
@@ -127,6 +134,21 @@ func TestPostgresIntegrationAuditHashChainRelease(t *testing.T) {
 		t.Fatalf("audit chain invalid, broken at %s", broken)
 	}
 	t.Log("release audit hash chain verified")
+}
+
+func artifactReleaseRecord(id string, now time.Time) artifactusecase.ReleaseRecord {
+	return artifactusecase.ReleaseRecord{
+		Release: domainrelease.Release{
+			ID:            id,
+			Name:          id,
+			Version:       "1.0.0",
+			ApplicationID: "app-1",
+			EnvironmentID: "env-1",
+			Status:        "Created",
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		},
+	}
 }
 
 func TestPostgresIntegrationAuditHashChainReleaseExecution(t *testing.T) {

@@ -5,7 +5,7 @@ Nivora sits between users, delivery systems, execution targets, and observabilit
 ```mermaid
 flowchart LR
   Users["Platform engineers\nDevOps engineers\nSREs\nBackend teams\nSecurity reviewers"] --> Nivora["Nivora Control Plane"]
-  Contributors["Open-source contributors\nAI coding agents"] --> Repo["sevoniva/nivora repository"]
+  Contributors["Open-source contributors\nmaintainer automation"] --> Repo["sevoniva/nivora repository"]
   Repo --> Nivora
   Git["Git providers"] --> Nivora
   Nivora --> Registry["Artifact registries"]
@@ -29,4 +29,3 @@ Nivora should integrate with Git providers, Artifact Registries, cloud providers
 ## Current State
 
 Phase 0 / Phase 0.6 does not implement real external integrations. It reserves interfaces, package boundaries, API specs, and documentation for future phases.
-

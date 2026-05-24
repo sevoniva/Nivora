@@ -1,6 +1,6 @@
 # Documentation Style Guide
 
-Nivora documentation should help platform engineers, DevOps engineers, SREs, infrastructure architects, security reviewers, contributors, and AI coding agents make accurate decisions.
+Nivora documentation should help platform engineers, DevOps engineers, SREs, infrastructure architects, security reviewers, and contributors make accurate decisions.
 
 ## Language
 
@@ -63,4 +63,3 @@ Use Mermaid for simple architecture diagrams. Keep diagrams readable in plain Ma
 ## Linking
 
 Prefer relative links within `docs/`. Link to the most authoritative source rather than repeating long explanations. Root-level documents should stay concise and point to detailed docs.
-

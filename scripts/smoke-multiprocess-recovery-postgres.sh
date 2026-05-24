@@ -208,6 +208,9 @@ verify_state() {
 echo "=== Multi-Process Recovery Smoke Test ==="
 echo "Database: ${DATABASE_URL}"
 
+echo "==> Applying migrations"
+DATABASE_URL="$DATABASE_URL" go run ./scripts/apply-postgres-migrations.go >/dev/null
+
 make_config "nivora-server" "$SERVER_PORT" "$SERVER_CONFIG"
 make_config "nivora-worker" "$WORKER_PORT" "$WORKER_CONFIG"
 make_config "nivora-runner" "$RUNNER_PORT" "$RUNNER_CONFIG"
@@ -275,9 +278,21 @@ echo "==> Creating Release with artifact binding"
 release_response="$(curl -fsS -X POST "${BASE_URL}/api/v1/releases" \
   -H 'Content-Type: application/json' \
   -d '{
-    "name": "smoke-recovery-release",
-    "versionName": "1.0.0",
-    "applicationId": "smoke-app"
+    "apiVersion": "nivora.io/v1alpha1",
+    "kind": "Release",
+    "metadata": {"name": "smoke-recovery-release"},
+    "spec": {
+      "version": "1.0.0",
+      "application": "smoke-app",
+      "environment": "dev",
+      "artifacts": [{
+        "name": "smoke-app",
+        "type": "image",
+        "role": "primary",
+        "required": true,
+        "reference": "registry.example.com/smoke/app:1.0.0"
+      }]
+    }
   }')"
 
 release_id="$(printf '%s\n' "$release_response" | sed -n 's/.*"id":"\(rel-[^"]*\)".*/\1/p' | head -1)"
@@ -285,23 +300,41 @@ if [ -n "$release_id" ]; then
   echo "  Release created: ${release_id}"
 
   echo "==> Creating Release plan"
+  release_orchestration_payload='{
+      "apiVersion": "nivora.io/v1alpha1",
+      "kind": "ReleaseOrchestration",
+      "metadata": {"name": "smoke-recovery-orchestration"},
+      "spec": {
+        "environment": "dev",
+        "strategy": "sequential",
+        "targets": [{
+          "name": "smoke-yaml",
+          "type": "kubernetes-yaml",
+          "order": 1,
+          "deployment": {
+            "apiVersion": "nivora.io/v1alpha1",
+            "kind": "Deployment",
+            "metadata": {"name": "smoke-recovery-release-deployment"},
+            "spec": {
+              "application": "smoke-app",
+              "environment": "dev",
+              "target": {"type": "kubernetes-yaml", "name": "smoke-yaml", "namespace": "default"},
+              "manifests": ["examples/yaml/configmap.yaml"],
+              "options": {"dryRun": true, "apply": false}
+            }
+          }
+        }]
+      }
+    }'
   curl -fsS -X POST "${BASE_URL}/api/v1/releases/${release_id}/plan" \
     -H 'Content-Type: application/json' \
-    -d '{
-      "environmentId": "dev",
-      "strategy": "sequential",
-      "targets": [{
-        "name": "k8s-dev",
-        "type": "kubernetes-yaml",
-        "manifests": ["examples/yaml/configmap.yaml"]
-      }]
-    }' >/dev/null || echo "  WARN: Release plan may have failed (expected for noop executors)"
+    -d "$release_orchestration_payload" >/dev/null || echo "  WARN: Release plan may have failed (expected for noop executors)"
 
   echo "==> Deploying Release"
   deploy_release_response="$(curl -fsS -X POST "${BASE_URL}/api/v1/releases/${release_id}/deploy" \
     -H 'Content-Type: application/json' \
-    -d '{}')"
-  execution_id="$(printf '%s\n' "$deploy_release_response" | sed -n 's/.*"executionId":"\(rex-[^"]*\)".*/\1/p' | head -1)"
+    -d "$release_orchestration_payload" || true)"
+  execution_id="$(printf '%s\n' "$deploy_release_response" | sed -n 's/.*"id":"\(rexec-[^"]*\)".*/\1/p' | head -1)"
   if [ -n "$execution_id" ]; then
     echo "  ReleaseExecution created: ${execution_id}"
   else

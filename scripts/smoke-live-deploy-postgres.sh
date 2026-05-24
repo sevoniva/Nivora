@@ -81,6 +81,14 @@ FAIL=0
 pass() { echo "PASS: $*"; PASS=$((PASS + 1)); }
 fail() { echo "FAIL: $*" >&2; FAIL=$((FAIL + 1)); }
 
+echo "  Applying migrations..."
+if DATABASE_URL="$DATABASE_URL" go run ./scripts/apply-postgres-migrations.go >/dev/null; then
+  pass "migrations applied"
+else
+  fail "migrations failed"
+  exit 1
+fi
+
 echo "  Starting server..."
 go run ./cmd/nivora server --config "$CONFIG_FILE" >"$LOG_FILE" 2>&1 &
 SERVER_PID="$!"

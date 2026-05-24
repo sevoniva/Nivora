@@ -29,7 +29,7 @@ func AppendHashChainedAudit(ctx context.Context, pool *pgxpool.Pool, source stri
 	if err != nil {
 		return err
 	}
-	recordHash := computeAuditHash(prevHash, entry.ActorID, entry.Action, source, entry.Subject, entry.CreatedAt)
+	recordHash := computeAuditHash(prevHash, entry.ActorID, entry.Action, source, entry.Subject, source, "", entry.CreatedAt)
 
 	_, err = pool.Exec(ctx, `INSERT INTO compliance_audit_records
 		(id, actor_id, action, subject_type, subject_id, subject, scope_type, scope_id, correlation_id, request_id, previous_hash, record_hash, payload, created_at)
@@ -48,9 +48,9 @@ func latestComplianceAuditHash(ctx context.Context, pool *pgxpool.Pool, scopeTyp
 	return hash, nil
 }
 
-func computeAuditHash(prevHash, actorID, action, subjectType, subjectID string, createdAt time.Time) string {
-	canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s",
-		prevHash, actorID, action, subjectType, subjectID, createdAt.Format(time.RFC3339Nano))
+func computeAuditHash(prevHash, actorID, action, subjectType, subjectID, scopeType, scopeID string, createdAt time.Time) string {
+	canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+		prevHash, actorID, action, subjectType, subjectID, scopeType, scopeID, createdAt.UTC().Format(time.RFC3339Nano))
 	hash := sha256.Sum256([]byte(canonical))
 	return hex.EncodeToString(hash[:])
 }

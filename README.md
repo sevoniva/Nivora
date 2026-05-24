@@ -1,19 +1,14 @@
 # Nivora
 
-> Open-source DevOps delivery control plane for CI/CD, GitOps, multi-target deployment, artifact orchestration, policy gates, runners, approvals, release audit, and future visualization APIs.
+> Open-source DevOps delivery control plane for pipelines, releases, deployments, runners, policy gates, approvals, and audit records.
 
 **Nivora** is an open-source DevOps delivery control plane under the `sevoniva` organization.
 
-It is designed to coordinate fragmented delivery systems across Git providers, CI runners, artifact registries, host deployments, Kubernetes deployments, Argo CD / GitOps releases, cloud delivery targets, policy gates, approvals, audit trails, and future visualization APIs.
+Nivora models delivery work across Git providers, CI runners, artifact registries, host deployments, Kubernetes deployments, Argo CD / GitOps releases, cloud targets, policy gates, approvals, and audit trails.
 
-Nivora is **not** trying to replace every DevOps tool. It integrates mature systems through stable ports and adapters while providing a unified model for delivery intent, execution state, policy, artifact traceability, audit, and future visualization.
+Nivora is **not** a replacement for Jenkins, Argo CD, Kubernetes, Harbor, cloud control planes, or security scanners. The project defines a control-plane model around those systems: delivery intent, execution state, artifact identity, policy decisions, approval records, logs, events, and audit data.
 
-```text
-Nivora turns fragmented delivery tools into an auditable, extensible,
-multi-target delivery control plane.
-```
-
-Nivora is currently a **beta-candidate foundation**, not a production-ready platform. The implementation audit found strong architecture guardrails, documentation, local verification, API/spec discipline, secure-default review, and release operations, while major runtime, persistence, runner, Kubernetes, GitOps, cloud, host, security, and audit capabilities still require hardening before production use.
+Nivora is currently a **beta-candidate foundation**, not a production-ready platform. The current codebase has useful backend foundations and verification checks, but several runtime, persistence, runner, Kubernetes, GitOps, cloud, host, security, and audit paths still need hardening before production use.
 
 The repository keeps future `v1.0.0` readiness documents as planning checklists only. They do not mean GA has been achieved. See [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md) and [Capability Status](docs/status/CAPABILITY_STATUS.md) for the current source of truth.
 
@@ -22,7 +17,7 @@ The repository keeps future `v1.0.0` readiness documents as planning checklists 
 | Area | Status |
 |---|---|
 | Backend skeleton | Completed |
-| AI / architecture guardrails | Completed |
+| Contributor / architecture guardrails | Completed |
 | Public planning docs | Completed |
 | Minimal shell PipelineRun runtime | Completed |
 | Durable runtime foundation | Initial shell-only foundation completed |
@@ -42,7 +37,7 @@ The repository keeps future `v1.0.0` readiness documents as planning checklists 
 | Durable runner runtime | Phase 3.6 protocol / outbox foundation |
 | Visualization backend APIs | Phase 4.0 read-model foundation |
 | Web UI foundation | Phase 4.1 minimal Vite / React app |
-| Observability and operations | Phase 8.4 request/correlation IDs, diagnostics, metrics, SLO docs, alerts, runbooks, benchmarks, load scripts, and API pagination/limits |
+| Observability and operations | Request/correlation IDs, diagnostics, metrics, SLO docs, alerts, runbooks, benchmarks, load scripts, and API pagination/limits |
 | Plugin and extension registry | Phase 4.3 manifest / capability registry foundation |
 | Packaging and deployment foundation | Phase 4.4 Docker Compose / Helm / Kubernetes manifests |
 | Alpha release hardening | Phase 5.0 foundation for `v0.1.0-alpha.1` |
@@ -94,7 +89,7 @@ Alpha release references:
 
 ## Why Nivora Exists
 
-Modern delivery systems are powerful but fragmented.
+Delivery state is often split across several systems.
 
 | Area | Common Tools |
 |---|---|
@@ -109,9 +104,9 @@ Modern delivery systems are powerful but fragmented.
 | Observability | OpenTelemetry, Prometheus, logs |
 | Human process | approvals, change windows, release audit |
 
-The problem is not that these tools are bad. The problem is that delivery intent, execution state, audit, policy, artifact traceability, and rollback context are often spread across different systems.
+The issue is not the individual tools. The issue is that delivery intent, execution state, audit, policy, artifact traceability, and rollback context are often stored separately.
 
-Nivora provides a control plane that coordinates them.
+Nivora provides a backend control-plane model for that state.
 
 ## Product Positioning
 
@@ -132,7 +127,7 @@ source code
 -> timeline
 ```
 
-Nivora aims to answer questions that are difficult to answer when delivery systems are fragmented:
+Nivora aims to answer operational questions such as:
 
 - Which commit produced this release?
 - Which artifact was deployed?
@@ -147,11 +142,11 @@ Nivora aims to answer questions that are difficult to answer when delivery syste
 
 ## Nivora Value Map
 
-This is the main value map of Nivora. It shows how fragmented delivery tools become a unified, auditable, extensible delivery control plane.
+This diagram shows the intended boundaries between external systems, Nivora's control plane, execution mechanisms, and delivery records.
 
 ```mermaid
 flowchart LR
-    subgraph A["Fragmented Delivery World"]
+    subgraph A["External Delivery Systems"]
         A1["Git Providers<br/>GitHub / GitLab / Gitea"]
         A2["Artifact Registries<br/>Harbor / Nexus / OCI / S3"]
         A3["Delivery Targets<br/>Hosts / Kubernetes / Argo CD / Cloud"]
@@ -177,7 +172,7 @@ flowchart LR
         C5["Local / Dev Runner"]
     end
 
-    subgraph D["Unified Delivery Outcomes"]
+    subgraph D["Delivery Records"]
         D1["Repeatable PipelineRun"]
         D2["Auditable DeploymentRun"]
         D3["Immutable Artifact Release"]
@@ -211,7 +206,7 @@ Nivora is a delivery control plane. It coordinates:
 - Audit records
 - Runtime events
 - Delivery timeline
-- Future visualization APIs
+- Visualization API read models
 
 Nivora starts as a **modular monolith** with multiple binaries:
 
@@ -222,7 +217,7 @@ nivora-runner
 nivora CLI
 ```
 
-This keeps the early project understandable while preserving a path toward future service extraction.
+This keeps the project understandable while preserving a path toward future service extraction.
 
 ## What Nivora Is Not
 
@@ -236,7 +231,7 @@ Nivora is not:
 - a black-box automation tool
 - a claim that every modeled integration is production-ready
 
-Nivora should integrate with existing systems rather than hide everything behind opaque magic.
+Nivora should integrate with existing systems through explicit ports and adapters.
 
 ## Target Architecture
 
@@ -1110,11 +1105,11 @@ Basic expectations:
 - update OpenAPI / AsyncAPI when public behavior changes
 - add tests for behavior changes
 
-## AI Coding Agents
+## Contributor Automation
 
-Nivora expects AI coding agents to participate in development. The canonical instruction file is [AGENTS.md](AGENTS.md).
+Automated coding tools and human contributors use the same repository rules. The canonical instruction file is [AGENTS.md](AGENTS.md).
 
-Other tool-specific files should point to `AGENTS.md` rather than creating conflicting rules. AI-generated changes must follow architecture boundaries, phase boundaries, dependency policy, testing policy, security baseline, and documentation consistency.
+Tool-specific instruction files should point to `AGENTS.md` instead of defining conflicting behavior. All changes must preserve architecture boundaries, phase boundaries, dependency policy, testing policy, security baseline, and documentation consistency.
 
 ## Verification
 
@@ -1209,7 +1204,7 @@ Evidence bundles collect safe release, artifact, approval, policy, security, dep
 | [docs/community/](docs/community/governance.md) | Contribution and governance |
 | [docs/rfcs/](docs/rfcs/README.md) | RFC process |
 | [docs/adr/](docs/adr/0001-use-go-as-primary-language.md) | Architecture decision records |
-| [AGENTS.md](AGENTS.md) | AI coding agent rules |
+| [AGENTS.md](AGENTS.md) | Automation and contribution rules |
 
 ## Design North Star
 

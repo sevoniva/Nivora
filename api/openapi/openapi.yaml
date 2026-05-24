@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Nivora API
-  version: 0.5.0-beta-candidate
+  version: 0.9.0-rc.1
   description: Beta-candidate Nivora API for the DevOps delivery control plane. This surface includes foundation-level shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory skeletons, safe host deployment planning/noop execution, durable runner protocol foundations, backend visualization read models, lightweight observability/operations endpoints, plugin capability registry metadata, and packaging assets. Nivora is not production-ready; some endpoints are experimental, foundation-only, or structured placeholders.
 servers:
   - url: http://localhost:8080

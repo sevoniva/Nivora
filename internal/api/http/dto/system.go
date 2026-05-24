@@ -40,9 +40,12 @@ type TelemetryStatus struct {
 }
 
 type SystemDiagnosticsResponse struct {
-	Runtime SystemRuntimeResponse `json:"runtime"`
-	Metrics any                   `json:"metrics"`
-	Checks  []DiagnosticCheck     `json:"checks"`
+	Runtime       SystemRuntimeResponse `json:"runtime"`
+	Metrics       any                   `json:"metrics"`
+	Checks        []DiagnosticCheck     `json:"checks"`
+	RequestID     string                `json:"request_id,omitempty"`
+	CorrelationID string                `json:"correlation_id,omitempty"`
+	TraceID       string                `json:"trace_id,omitempty"`
 }
 
 type DiagnosticCheck struct {

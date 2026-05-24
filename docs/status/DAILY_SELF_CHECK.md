@@ -6,7 +6,7 @@ Date: 2026-05-20
 
 **What changed today:** The second phase of enterprise hardening completed. Three additional commits fixed the verify-helm-safety.sh false positives (11/11 pass now), updated the stale STORE_PERSISTENCE_MATRIX.md (all 11 stores now show Postgres), updated CAPABILITY_STATUS.md maturity label from "beta-candidate foundation" to "hardened beta-candidate", and updated capability descriptions for shell executor, persistence, and auth/RBAC. The store persistence matrix was corrected from showing 5 stores as "MISSING" to showing all 11 with Postgres implementations.
 
-**Current honest maturity label: hardened beta-candidate.** Code quality, test coverage (34 packages, 0 failures), security controls, and persistence are at enterprise production-candidate level. Remaining blockers are operational validation, not code gaps.
+**Current honest maturity label: hardened beta-candidate.** Code quality, test coverage (34 packages, 0 failures), security controls, and persistence are at enterprise near-production-candidate level. Remaining blockers include operational validation and remaining implementation/verification gaps.
 
 **Did this move Nivora closer to production-candidate? Yes.** All 11 stores have PostgreSQL persistence. RBAC is exhaustively tested (100+ sub-tests). Helm safety verification passes cleanly. Shell executor has enterprise isolation controls. Audit hash chaining is wired into all governance stores.
 
@@ -155,7 +155,7 @@ Comparison against the plan in `/Users/carson/Downloads/123.txt`:
 ```json
 {
   "overall_maturity": "hardened beta-candidate",
-  "production_candidate": "conditional",
+  "production_candidate": "no",
   "completed_today": [
     "Fixed verify-helm-safety.sh false positives (11/11 pass)",
     "Updated STORE_PERSISTENCE_MATRIX.md (all 11 stores show Postgres)",

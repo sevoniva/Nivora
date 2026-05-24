@@ -4,15 +4,15 @@ Date: 2026-05-20
 
 ## 1. Executive Summary
 
-**Current honest maturity: production-candidate.**
+**Current honest maturity: near-production-candidate (0.9.0-rc.1), not production-ready.**
 
-After a 51-commit enterprise hardening queue, Nivora meets production-candidate criteria: all 11 runtime stores are PostgreSQL-backed with SHA-256 hash-chained audit, RBAC is exhaustively tested (100+ sub-tests), runner isolation profiles gate production safety, multi-process recovery is scripted and CI-integrated, production install smoke passes 17/17, Helm safety passes 11/11, Kubernetes safety policy has 14 rules with 16 tests, artifact immutability is enforceable, tenant isolation covers 9 resource types, observability defines 6 SLOs and 9 alerts, operational runbooks have 4 automated check scripts, backup/restore and soak drills exist, and 35 Go packages pass with 0 test failures.
+After a 51-commit enterprise hardening queue, Nivora approaches production-candidate criteria: all 11 runtime stores are PostgreSQL-backed with SHA-256 hash-chained audit, RBAC is exhaustively tested (100+ sub-tests), runner isolation profiles gate production safety, multi-process recovery is scripted and CI-integrated, production install smoke passes 17/17, Helm safety passes 11/11, Kubernetes safety policy has 14 rules with 16 tests, artifact immutability is enforceable, tenant isolation covers 9 resource types, observability defines 6 SLOs and 9 alerts, operational runbooks have 4 automated check scripts, backup/restore and soak drills exist, and 35 Go packages pass with 0 test failures.
 
 | Decision | Verdict |
 |---|---|
 | Public beta | **Yes** |
 | Near production-candidate | **Yes** |
-| Production-candidate | **Yes** |
+| Production-candidate | **No** |
 | Production-ready / GA | **No** |
 
 **GA blockers:** Real external adapter integrations, OS-level runner sandbox, live deployment smoke, Prometheus metrics export, and production-scale data testing are not proven. These are explicitly out of scope for the current phase.
@@ -183,7 +183,7 @@ After a 51-commit enterprise hardening queue, Nivora meets production-candidate 
 |---|---|---|
 | Public beta | **Yes** | 35 packages, 0 failures, clear docs, Helm packaging |
 | Near production-candidate | **Yes** | All structural blockers resolved |
-| Production-candidate | **Yes** | 17/17 blocker categories resolved; code + tests at enterprise level |
+| Production-candidate | **No** | External integrations, OS-level runner sandboxing, live deployment smoke, and production-scale validation remain unproven. |
 | Production-ready / GA | **No** | OS sandbox, real adapters, live deploy, Prometheus not proven |
 | Feature expansion | **Conditional** | Only if it supports the remaining GA blockers |
 | Continue hardening | **Yes** | 10 remaining risks identified |
@@ -220,10 +220,10 @@ After a 51-commit enterprise hardening queue, Nivora meets production-candidate 
 
 ```json
 {
-  "overall_maturity": "production-candidate",
+  "overall_maturity": "near-production-candidate",
   "public_beta": "yes",
   "near_production_candidate": "yes",
-  "production_candidate": "yes",
+  "production_candidate": "no",
   "production_ready": "no",
   "version": "0.9.0-rc.1",
   "production_readiness_score": 3.4,

@@ -14,7 +14,7 @@ This report documents the gap closure work across 11 commits targeting the highe
 
 **Current honest maturity label: beta-candidate-enterprise-hardened** — production-candidate remains conditional on live DB restore drills and production install smoke tests.
 
-**Production-candidate go/no-go: Conditional.** Code quality, test coverage, and security controls are at enterprise production-candidate level. Remaining blockers are operational validation (restore drills, production install smoke tests) rather than code gaps.
+**Production-candidate go/no-go: Not yet.** Code quality, test coverage, and security controls are at enterprise near-production-candidate level. Remaining blockers include operational validation, live restore/install evidence, and remaining implementation/verification gaps.
 
 ## 2. Commits Created
 
@@ -217,7 +217,7 @@ record_hash = SHA256(canonical)
 ```json
 {
   "overall_maturity": "beta-candidate-enterprise-hardened",
-  "production_candidate": "conditional",
+  "production_candidate": "no",
   "production_readiness_score": 3.0,
   "resolved_p0_blockers": [
     "All 10 core runtime stores have PostgreSQL implementations with runtime wiring",

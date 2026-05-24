@@ -4,7 +4,7 @@ Date: 2026-05-20
 
 ## 1. Executive Summary
 
-**Current honest maturity: production-candidate.**
+**Current honest maturity: near-production-candidate (0.9.0-rc.1), not production-ready.**
 
 Nivora has completed a 50-commit enterprise hardening queue spanning persistence, audit hash chains, RBAC, runner isolation, Kubernetes safety, GitOps guardrails, artifact immutability, tenant isolation, observability, operational runbooks, backup/restore drills, multi-process recovery smoke, production install smoke, soak testing, API contract verification, and comprehensive documentation.
 
@@ -15,7 +15,7 @@ All 11 runtime stores have PostgreSQL persistence with SHA-256 hash-chained audi
 | Decision | Verdict | Rationale |
 |---|---|---|
 | Public beta | **Yes** | Code quality, test coverage, security controls, Helm packaging, and documentation are sufficient for public beta with clear limitation disclosures. |
-| Production-candidate | **Yes** | All 17 blocker categories resolved. Operational smoke tests pass. Enterprise safety gates active. Remaining gaps are documented honestly. |
+| Production-candidate | **No** | Enterprise safety gates and smoke tests improved, but external integrations, OS-level runner sandboxing, live deployment validation, and production-scale data testing remain unproven. |
 | GA (v1.0) | **No** | Requires real external adapter integrations, live cluster deployment validation, OS-level runner sandboxing, and production-scale data testing. These are explicitly out of scope for the current phase. |
 
 ## 2. Verification Results
@@ -121,9 +121,9 @@ All 11 runtime stores have PostgreSQL persistence with SHA-256 hash-chained audi
 
 ```json
 {
-  "overall_maturity": "production-candidate",
+  "overall_maturity": "near-production-candidate",
   "public_beta": "yes",
-  "production_candidate": "yes",
+  "production_candidate": "no",
   "ga": "no",
   "version": "0.9.0-rc.1",
   "production_readiness_score": 3.5,

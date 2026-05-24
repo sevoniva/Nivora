@@ -1,6 +1,7 @@
 package telemetry
 
 import (
+	"encoding/json"
 	"strings"
 	"testing"
 	"time"
@@ -30,6 +31,21 @@ func TestRegistrySnapshotAndPrometheusText(t *testing.T) {
 	for _, want := range []string{"nivora_pipeline_run_total 1", "nivora_deployment_run_total 1", "nivora_runner_heartbeat_total 1", "nivora_job_claim_total 1", "nivora_policy_denial_total 1", "nivora_queue_time_ms_total 15", "nivora_job_claim_latency_ms_total 5"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("missing %q in metrics text:\n%s", want, text)
+		}
+	}
+}
+
+func TestSnapshotJSONEncodesHistogramBuckets(t *testing.T) {
+	registry := &Registry{}
+	registry.ObservePipelineDuration(25 * time.Millisecond)
+
+	body, err := json.Marshal(registry.Snapshot())
+	if err != nil {
+		t.Fatalf("marshal snapshot: %v", err)
+	}
+	for _, want := range []string{`"pipeline_duration"`, `"buckets"`, `"+Inf"`} {
+		if !strings.Contains(string(body), want) {
+			t.Fatalf("missing %q in snapshot JSON: %s", want, string(body))
 		}
 	}
 }

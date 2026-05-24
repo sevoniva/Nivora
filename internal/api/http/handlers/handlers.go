@@ -61,10 +61,14 @@ func SystemRuntime(cfg config.Config) http.HandlerFunc {
 
 func SystemDiagnostics(cfg config.Config) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		runtime := systemRuntimeResponse(r, cfg)
 		RespondJSON(w, http.StatusOK, dto.SystemDiagnosticsResponse{
-			Runtime: systemRuntimeResponse(r, cfg),
-			Metrics: telemetry.DefaultMetrics().Snapshot(),
-			Checks:  dependencyChecks(cfg),
+			Runtime:       runtime,
+			Metrics:       telemetry.DefaultMetrics().Snapshot(),
+			Checks:        dependencyChecks(cfg),
+			RequestID:     runtime.RequestID,
+			CorrelationID: runtime.CorrelationID,
+			TraceID:       runtime.TraceID,
 		})
 	}
 }

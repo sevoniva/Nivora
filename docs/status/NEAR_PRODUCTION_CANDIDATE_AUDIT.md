@@ -122,7 +122,7 @@ GA requires live deployment validation against real cloud/Argo/registry targets,
 ```json
 {
   "overall_maturity": "near-production-candidate",
-  "production_candidate": "conditional",
+  "production_candidate": "no",
   "public_beta": "conditional-yes",
   "ga": "no",
   "production_readiness_score": 3.3,

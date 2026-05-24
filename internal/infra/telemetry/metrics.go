@@ -1,7 +1,9 @@
 package telemetry
 
 import (
+	"encoding/json"
 	"fmt"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -27,6 +29,30 @@ type durationStats struct {
 	Count   int64             `json:"count"`
 	TotalMS int64             `json:"total_ms"`
 	Buckets map[float64]int64 `json:"buckets,omitempty"`
+}
+
+func (d durationStats) MarshalJSON() ([]byte, error) {
+	type durationStatsJSON struct {
+		Count   int64            `json:"count"`
+		TotalMS int64            `json:"total_ms"`
+		Buckets map[string]int64 `json:"buckets,omitempty"`
+	}
+	buckets := make(map[string]int64, len(d.Buckets))
+	for bound, count := range d.Buckets {
+		key := strconv.FormatFloat(bound, 'f', -1, 64)
+		if bound == float64(1<<60) {
+			key = "+Inf"
+		}
+		buckets[key] = count
+	}
+	if len(buckets) == 0 {
+		buckets = nil
+	}
+	return json.Marshal(durationStatsJSON{
+		Count:   d.Count,
+		TotalMS: d.TotalMS,
+		Buckets: buckets,
+	})
 }
 
 // defaultLatencyBuckets are Prometheus-style histogram buckets in milliseconds.

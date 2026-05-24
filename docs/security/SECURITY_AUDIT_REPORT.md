@@ -1,12 +1,12 @@
 # Nivora Security Audit Report
 
 Date: 2026-05-21
-Scope: Automated self-audit of production-candidate security posture.
+Scope: Automated self-audit of near-production-candidate security posture.
 Auditor: Carson (automated checks + manual review)
 
 ## 1. Executive Summary
 
-**Overall security posture: Production-Candidate ready.** All automated checks pass. Two areas require operator configuration (runner sandbox, OIDC provider). No critical vulnerabilities found.
+**Overall security posture: near-production-candidate, not production-ready.** All automated checks pass. Two areas require operator configuration (runner sandbox, OIDC provider). No critical vulnerabilities found.
 
 ## 2. Audit Checklist
 
@@ -126,7 +126,7 @@ These items require operator action, not code changes:
 
 ## 6. Audit Verdict
 
-**Production-Candidate: PASSED.**
+**Near-production-candidate: conditionally supported; production-ready/GA: not passed.**
 
 Nivora demonstrates enterprise security posture in:
 - Access control (100+ RBAC tests, cross-tenant isolation)
@@ -135,4 +135,4 @@ Nivora demonstrates enterprise security posture in:
 - Production safety gates (config validation, K8s safety policy, artifact immutability)
 - Real K8s deployment verified (kind cluster, PostgreSQL runtime)
 
-Remaining items are operator responsibilities, not code gaps.
+Remaining items include operator responsibilities and code/validation gaps that must close before production-ready or GA claims.

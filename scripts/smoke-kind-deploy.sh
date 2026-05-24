@@ -157,7 +157,8 @@ PF_PID=$!
 sleep 3
 
 BASE_URL="http://127.0.0.1:18080"
-AUTH_HEADER="Authorization: Bearer kind-smoke-test-token"
+SMOKE_TOKEN="${NIVORA_KIND_SMOKE_TOKEN:-kind-smoke-test-token}"
+AUTH_HEADER="Authorization: Bearer ${SMOKE_TOKEN}"
 
 # Health check.
 if curl -fsS "${BASE_URL}/healthz" >/dev/null 2>&1; then

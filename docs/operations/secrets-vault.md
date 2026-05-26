@@ -20,4 +20,4 @@ Provider validation reports whether a Vault address was configured. It does not 
 - Lease and renewal handling.
 - Provider-specific integration tests that are optional and never required by baseline CI.
 
-Nivora remains early-stage and not production-ready.
+Nivora remains a hardened beta-candidate foundation and is not production-ready.

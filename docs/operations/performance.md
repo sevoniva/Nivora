@@ -116,4 +116,4 @@ Avoid adding queues, caches, or new infrastructure until the measurements show a
 - Load scripts are local developer tools, not a distributed load test platform.
 - PostgreSQL performance validation still needs a realistic integration environment.
 - Metrics are process-local unless connected to external scraping/storage.
-- Nivora remains early-stage and not production-ready.
+- Nivora remains a hardened beta-candidate foundation and is not production-ready.

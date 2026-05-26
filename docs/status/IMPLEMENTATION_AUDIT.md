@@ -1,5 +1,7 @@
 # Nivora Implementation Audit
 
+Historical note: this report is an earlier implementation audit. Some blockers called out here have since been addressed. Use `docs/status/CAPABILITY_STATUS.md` for the current maturity label and `docs/status/STORE_PERSISTENCE_MATRIX.md` for current persistence coverage.
+
 ## 1. Executive Summary
 
 Current overall maturity label: **beta-candidate**.

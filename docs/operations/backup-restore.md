@@ -1,6 +1,6 @@
 # Backup and Restore
 
-Nivora Phase 8.2 documents backup and restore procedures for production-direction operations. Nivora is still early-stage and not production-ready; operators remain responsible for backup scheduling, encryption, retention, and restore drills.
+Nivora Phase 8.2 documents backup and restore procedures for production-direction operations. Nivora is a hardened beta-candidate foundation and is not production-ready; operators remain responsible for backup scheduling, encryption, retention, and restore drills.
 
 ## What to Back Up
 

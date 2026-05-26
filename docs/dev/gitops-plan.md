@@ -39,4 +39,4 @@ go run ./cmd/nivora gitops rollback --local examples/deployments/argocd-local-wo
 - No remote push by default.
 - No Helm or Kustomize engine.
 - No credentials in examples.
-- The project remains early-stage and not production-ready.
+- The project remains a hardened beta-candidate foundation and is not production-ready.

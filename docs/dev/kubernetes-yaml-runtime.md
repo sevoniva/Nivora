@@ -24,7 +24,7 @@ Phase 2.1 extends the YAML deployment foundation into a controlled Kubernetes YA
 - Host SSH deployment.
 - Registry integration.
 
-Nivora remains early-stage and not production-ready.
+Nivora remains a hardened beta-candidate foundation and is not production-ready.
 
 ## Safety Rules
 

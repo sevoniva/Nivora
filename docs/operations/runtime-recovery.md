@@ -54,4 +54,4 @@ This test runs in CI as part of the `postgres-integration` job.
 - Runner offline detection is part of reconciliation and uses heartbeat age.
 - DeploymentRun and ReleaseExecution persistence survives repository/service restart in PostgreSQL mode; complete multi-process worker orchestration remains future hardening.
 
-Nivora is still early-stage and not production-ready.
+Nivora is a hardened beta-candidate foundation and is not production-ready.

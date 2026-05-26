@@ -25,7 +25,7 @@ Create a public documentation foundation for product vision, concepts, architect
 
 ## Expected Deliverables
 
-Documentation that helps platform engineers, DevOps engineers, SREs, infrastructure architects, security reviewers, contributors, and AI agents understand the project.
+Documentation that helps platform engineers, DevOps engineers, SREs, infrastructure architects, security reviewers, and contributors understand the project.
 
 ## Acceptance Criteria
 
@@ -40,4 +40,3 @@ Documentation that helps platform engineers, DevOps engineers, SREs, infrastruct
 - Add diagrams.
 - Review docs for contradictions.
 - Propose RFCs for Phase 1 design.
-

@@ -1,12 +1,14 @@
-# Nivora Production-Candidate Readiness Audit
+# Nivora Historical Production-Candidate Readiness Audit
 
 Date: 2026-05-20
 
+Historical note: this report records a hardening review snapshot. The current public maturity label is **hardened beta-candidate, not production-ready**. Use `docs/status/CAPABILITY_STATUS.md` for the current source of truth.
+
 ## 1. Executive Summary
 
-**Current honest maturity: near-production-candidate (0.9.0-rc.1), not production-ready.**
+**Current honest maturity at the time of this report: hardened beta-candidate (0.9.0-rc.1), not production-ready.**
 
-Nivora has completed a 50-commit enterprise hardening queue spanning persistence, audit hash chains, RBAC, runner isolation, Kubernetes safety, GitOps guardrails, artifact immutability, tenant isolation, observability, operational runbooks, backup/restore drills, multi-process recovery smoke, production install smoke, soak testing, API contract verification, and comprehensive documentation.
+Nivora completed a broad hardening pass spanning persistence, audit hash chains, RBAC, runner isolation, Kubernetes safety, GitOps guardrails, artifact immutability, tenant isolation, observability, runbooks, backup/restore drills, recovery smoke scripts, install smoke checks, soak testing, API contract verification, and documentation.
 
 All 11 runtime stores have PostgreSQL persistence with SHA-256 hash-chained audit across all 9 audit-producing stores. 33 Go packages pass with 0 test failures. 100+ RBAC sub-tests cover 31 critical routes with cross-tenant isolation. 5 runner isolation profiles gate production safety. Helm safety passes 11/11. Production install smoke passes 17/17. Architecture boundaries are clean. No committed secrets.
 
@@ -121,15 +123,15 @@ All 11 runtime stores have PostgreSQL persistence with SHA-256 hash-chained audi
 
 ```json
 {
-  "overall_maturity": "near-production-candidate",
+  "overall_maturity": "hardened-beta-candidate",
   "public_beta": "yes",
   "production_candidate": "no",
   "ga": "no",
   "version": "0.9.0-rc.1",
   "production_readiness_score": 3.5,
   "total_commits_audited": 50,
-  "bloaters_resolved": 17,
-  "bloaters_remaining": 0,
+  "blocking_items_reduced": 17,
+  "blocking_items_remaining_in_this_snapshot": 0,
   "test_packages": 33,
   "test_failures": 0,
   "strongest_areas": [

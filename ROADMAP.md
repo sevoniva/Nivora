@@ -2,7 +2,7 @@
 
 This is the concise project roadmap. Detailed phase docs live in [docs/roadmap/overview.md](docs/roadmap/overview.md).
 
-Current maturity: **beta-candidate foundation**. Nivora is **not production-ready**. Future `v1.0.0` documents are readiness checklists and should not be read as evidence that GA has been achieved.
+Current maturity: **hardened beta-candidate foundation**. Nivora is **not production-ready**. Future `v1.0.0` documents are readiness checklists and should not be read as evidence that GA has been achieved.
 
 ## Phase 0: Skeleton
 
@@ -12,7 +12,7 @@ Current maturity: **beta-candidate foundation**. Nivora is **not production-read
 
 ## Phase 0.5: Guardrails and Validation
 
-- Harden AI and contributor guardrails.
+- Harden automated-change and contributor guardrails.
 - Keep GOPROXY configurable for global contributors and China-based development.
 - Enforce formatting, tidy, vet, tests, builds, architecture checks, and secret checks in CI.
 - Polish local development verification scripts and Makefile targets.

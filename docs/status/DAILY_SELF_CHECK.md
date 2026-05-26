@@ -4,11 +4,11 @@ Date: 2026-05-20
 
 ## 1. Executive Summary
 
-**What changed today:** The second phase of enterprise hardening completed. Three additional commits fixed the verify-helm-safety.sh false positives (11/11 pass now), updated the stale STORE_PERSISTENCE_MATRIX.md (all 11 stores now show Postgres), updated CAPABILITY_STATUS.md maturity label from "beta-candidate foundation" to "hardened beta-candidate", and updated capability descriptions for shell executor, persistence, and auth/RBAC. The store persistence matrix was corrected from showing 5 stores as "MISSING" to showing all 11 with Postgres implementations.
+**What changed today:** A hardening pass fixed `verify-helm-safety.sh` false positives, updated the stale `STORE_PERSISTENCE_MATRIX.md`, aligned `CAPABILITY_STATUS.md` with the hardened beta-candidate status, and updated capability descriptions for shell executor, persistence, and auth/RBAC.
 
-**Current honest maturity label: hardened beta-candidate.** Code quality, test coverage (34 packages, 0 failures), security controls, and persistence are at enterprise near-production-candidate level. Remaining blockers include operational validation and remaining implementation/verification gaps.
+**Current honest maturity label: hardened beta-candidate.** Runtime persistence, security controls, and packaging checks improved, but operational validation and implementation gaps remain.
 
-**Did this move Nivora closer to production-candidate? Yes.** All 11 stores have PostgreSQL persistence. RBAC is exhaustively tested (100+ sub-tests). Helm safety verification passes cleanly. Shell executor has enterprise isolation controls. Audit hash chaining is wired into all governance stores.
+**Did this move Nivora closer to production-candidate? Yes, but not enough to claim it.** All 11 stores have PostgreSQL implementations, RBAC route coverage improved, Helm safety verification passes, shell executor controls were tightened, and audit hash chaining is wired through the audit-producing store paths.
 
 **Should hardening continue? Yes.** The next phase should focus on operational validation: multi-process recovery e2e tests, production install smoke tests, and wiring hash chains into runtime store audit paths.
 
@@ -24,9 +24,9 @@ Date: 2026-05-20
 | `ba63d5f` | docs: add audit verify path to openapi spec | OpenAPI /audit/verify path | OpenAPI contract test pass |
 | `8e3c7f5` | style: gofmt compliance store files | 2 files | fmt-check pass |
 | `275373e` | feat: wire hash-chained audit into all governance store paths | Shared audit_chain.go, 5 governance stores | go build, go test pass |
-| `8feb7e7` | feat: harden runner isolation with workspace, env filter, process group mgmt | Workspace isolation, 20+ env blocklist, Setpgid+SIGKILL, 8 enterprise tests | 18 shell tests pass |
+| `8feb7e7` | feat: harden runner isolation with workspace, env filter, process group mgmt | Workspace isolation, env blocklist, Setpgid+SIGKILL, safety tests | Shell tests pass |
 | `4b92c7a` | test: add exhaustive RBAC, runtime assembly, config, and API contract tests | 6 RBAC functions (100+ sub-tests), 8 runtime tests, 4 config tests, API contract | All tests pass |
-| `ec82469` | docs: update gap closure report with enterprise hardening results | Scores 2.8→3.0, risks 10→5, maturity updated | Report updated |
+| `ec82469` | docs: update gap closure report with hardening results | Scores and risks updated | Report updated |
 | `8f7931b` | feat: complete Sections M, F, L - artifact store cleanup, tenancy, API depth | Store.go refactor, TenancyStore, 3 new OpenAPI tests | go build, go test pass |
 | `338d9b0` | docs: update store persistence matrix with tenancy store | Matrix updated | Verified |
 
@@ -134,7 +134,7 @@ Comparison against the plan in `/Users/carson/Downloads/123.txt`:
 
 3. **Production install not operationally validated:** Helm templates render correctly and pass safety checks (11/11), but no automated install+healthcheck smoke test exists.
 
-4. **No OS-level runner sandbox:** Shell executor has comprehensive software-level isolation (workspace, env blocklist, process group cleanup, output limits) but no container, VM, seccomp, or namespace enforcement.
+4. **No OS-level runner sandbox:** Shell executor has software-level controls (workspace, env blocklist, process group cleanup, output limits) but no container, VM, seccomp, or namespace enforcement.
 
 5. **External integrations remain skeleton/noop/fake:** AWS, Aliyun, Tencent Cloud, Argo CD, Harbor/Nexus, Trivy/Cosign integrations are all placeholder/noop/fake adapters. This is by design but means the project cannot orchestrate real multi-cloud deployments.
 

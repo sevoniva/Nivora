@@ -2,11 +2,11 @@
 
 ## Objective
 
-Harden the repository for future contributors and AI coding agents.
+Harden the repository for future contributors and automated changes.
 
 ## Scope
 
-- AI coding rules.
+- Automated-change rules.
 - Architecture verification.
 - Secret checks.
 - CI hardening.
@@ -35,4 +35,3 @@ Guardrails that make unsafe architecture drift easier to catch early.
 - Improve conservative scripts.
 - Improve docs around contribution flow.
 - Add focused tests for existing behavior.
-

@@ -8,7 +8,7 @@ English is the primary documentation language for open-source readability. Keep 
 
 ## Tone
 
-Use precise infrastructure-engineering wording. Avoid marketing claims, exaggerated maturity, and vague phrases such as "enterprise-grade" unless backed by implemented capabilities.
+Use precise infrastructure-engineering wording. Avoid marketing claims, exaggerated maturity, and vague phrases such as "enterprise-grade", "near production-candidate", "seamless", or "production-ready" unless the claim is explicitly approved and backed by tests, docs, and release evidence.
 
 ## Current vs Target Wording
 
@@ -25,6 +25,7 @@ Avoid:
 - "Nivora supports..." for unimplemented features.
 - "Production-ready" in early phases.
 - "Seamless" or "automatic" when behavior is not implemented.
+- Self-congratulatory status language such as "all blockers resolved" when important limitations remain.
 
 ## Describing Unimplemented Features
 

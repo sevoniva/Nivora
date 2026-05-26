@@ -1,10 +1,10 @@
 # Nivora Capability Status
 
-This status page is the public source of truth for implemented vs. partial vs. placeholder behavior after the implementation audit in `docs/status/IMPLEMENTATION_AUDIT.md`.
+This status page is the public source of truth for implemented vs. partial vs. placeholder behavior. Historical audit reports in this directory are useful context, but this page should be treated as the current summary.
 
-Current maturity: **near-production-candidate (0.9.0-rc.1), not production-ready**.
+Current maturity: **hardened beta-candidate (0.9.0-rc.1), not production-ready**.
 
-Nivora is **not production-ready**. All 11 core runtime stores have PostgreSQL persistence with SHA-256 hash-chained audit across all 9 audit-producing stores. Exhaustive RBAC tests (100+ sub-tests, cross-tenant isolation), 5 runner isolation profiles with production safety gates, multi-process recovery smoke, production install smoke (17/17), and Helm safety (11/11) are in place. Remaining: OS-level runner sandbox, live deployment smoke, external adapter integrations. See `NEAR_PRODUCTION_CANDIDATE_AUDIT.md`.
+Nivora is **not production-ready**. All 11 core runtime stores have PostgreSQL implementations, audit hash chaining is wired through the audit-producing store paths, route/RBAC tests cover critical cases, runner isolation profiles and production config gates exist, and packaging smoke checks cover Helm and Docker Compose profiles. Remaining blockers include OS-level runner sandboxing, live install and restore drills at production scale, complete external adapter integrations, and final API/operation hardening. See `STORE_PERSISTENCE_MATRIX.md` and the historical audit reports for evidence and limitations.
 
 ## Status Legend
 
@@ -33,7 +33,7 @@ Nivora is **not production-ready**. All 11 core runtime stores have PostgreSQL p
 | DevSecOps scanner | foundation | `internal/usecase/security`, `internal/adapters/security/noop` | Noop/fake scanner and built-in manifest checks; Trivy/Cosign/SBOM integrations remain future work. |
 | Policy gates | foundation | `internal/usecase/security`, `internal/ports/policy` | Built-in simple rules and allow-all placeholders exist; no OPA/Kyverno integration. |
 | Secret management | partial | `internal/ports/secret`, builtin/Vault/Kubernetes/KMS adapters | SecretRef model, redaction, and provider skeletons exist; production provider lifecycle is not validated. |
-| Auth/RBAC | partial | `internal/usecase/auth`, auth middleware tests, 100+ RBAC sub-tests (6 test functions covering 31 critical routes × 3 roles + cross-tenant isolation), `docs/security/ROUTE_PERMISSION_MATRIX.md` | Dev/token/OIDC foundation, route permission matrix, exhaustive route coverage tests, and cross-tenant isolation tests exist. Auth store has PostgreSQL persistence. Full enterprise SSO remains future work. |
+| Auth/RBAC | partial | `internal/usecase/auth`, auth middleware tests, table-driven RBAC tests, cross-tenant isolation tests, `docs/security/ROUTE_PERMISSION_MATRIX.md` | Dev/token/OIDC foundation, route permission matrix, route coverage tests, and cross-tenant isolation tests exist. Auth store has PostgreSQL persistence. Full enterprise SSO remains future work. |
 | Approval/change window | foundation | `internal/usecase/approval`, approval/change-window API routes | Backend lifecycle foundation only; no full ITSM/workflow integration. |
 | Multi-cloud | placeholder | cloud domain, provider ports, fake/AWS/Aliyun/Tencent skeletons | Inventory skeleton/fake behavior only; no cloud deployment or complete provider inventory. |
 | Host deployment | experimental | host target models, noop host executor, SSH skeleton | Plan/dry-run/noop foundation; remote execution is disabled by default and guarded. |
@@ -49,5 +49,5 @@ Nivora is **not production-ready**. All 11 core runtime stores have PostgreSQL p
 
 - Placeholder route groups must return structured `not_implemented` responses.
 - OpenAPI paths must match registered HTTP routes at route/path level.
-- OpenAPI and AsyncAPI describe a beta-candidate foundation, not a production-ready platform.
+- OpenAPI and AsyncAPI describe a hardened beta-candidate foundation, not a production-ready platform.
 - External adapters labeled noop, fake, skeleton, placeholder, or experimental must not be described as complete integrations.

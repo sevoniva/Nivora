@@ -1,66 +1,48 @@
 # Nivora
 
-> Open-source DevOps delivery control plane for pipelines, releases, deployments, runners, policy gates, approvals, and audit records.
+> Backend-first delivery control plane for pipelines, releases, deployments, runners, policy gates, approvals, and audit records.
 
 **Nivora** is an open-source DevOps delivery control plane under the `sevoniva` organization.
 
-Nivora models delivery work across Git providers, CI runners, artifact registries, host deployments, Kubernetes deployments, Argo CD / GitOps releases, cloud targets, policy gates, approvals, and audit trails.
+The project records delivery intent and state across pipelines, releases, artifacts, deployments, runners, policy decisions, approvals, logs, events, and audit records. It is designed to sit around existing tools, not replace them.
 
-Nivora is **not** a replacement for Jenkins, Argo CD, Kubernetes, Harbor, cloud control planes, or security scanners. The project defines a control-plane model around those systems: delivery intent, execution state, artifact identity, policy decisions, approval records, logs, events, and audit data.
+Nivora is **not** Jenkins, Argo CD, Kubernetes, Harbor, a cloud control plane, or a scanner. Those systems remain separate; Nivora models and audits how delivery work moves through them.
 
-Nivora is currently a **beta-candidate foundation**, not a production-ready platform. The current codebase has useful backend foundations and verification checks, but several runtime, persistence, runner, Kubernetes, GitOps, cloud, host, security, and audit paths still need hardening before production use.
+Current maturity: **hardened beta-candidate foundation**. Nivora is **not production-ready**. The repository has working backend foundations, PostgreSQL-backed stores for core runtime areas, guarded deployment operations, RBAC tests, packaging assets, and verification scripts. Production use still needs more validation around runner isolation, live install/restore drills, external integrations, and production-scale operations.
 
-The repository keeps future `v1.0.0` readiness documents as planning checklists only. They do not mean GA has been achieved. See [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md) and [Capability Status](docs/status/CAPABILITY_STATUS.md) for the current source of truth.
+Future `v1.0.0` documents are planning checklists, not proof that GA has been reached. The current source of truth is [Capability Status](docs/status/CAPABILITY_STATUS.md), with historical audit context in [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md).
 
 ## Current Status
 
 | Area | Status |
 |---|---|
-| Backend skeleton | Completed |
-| Contributor / architecture guardrails | Completed |
-| Public planning docs | Completed |
-| Minimal shell PipelineRun runtime | Completed |
-| Durable runtime foundation | Initial shell-only foundation completed |
-| Kubernetes YAML planning / dry-run / explicit local apply | Phase 2.1 foundation |
-| Artifact and ReleaseArtifact binding | Phase 2.2 foundation |
-| Argo CD GitOps | Phase 2.3 planning / adapter foundation |
-| Kubernetes inventory / health / rollback plan | Phase 2.4 foundation |
-| OCI / Harbor-compatible digest resolution | Phase 2.5 foundation |
-| Argo CD status / guarded sync | Phase 2.6 foundation |
-| Multi-target release orchestration | Phase 2.7 foundation |
-| DevSecOps policy gates | Phase 3.0 foundation |
-| Secret and credential foundation | Phase 3.1 foundation |
-| AuthN/AuthZ and RBAC | Phase 3.2 foundation |
-| Approvals, change windows, notifications | Phase 3.3 foundation |
-| Multi-cloud inventory | Phase 3.4 foundation |
-| Host deployment | Phase 3.5 planning / noop execution foundation |
-| Durable runner runtime | Phase 3.6 protocol / outbox foundation |
-| Visualization backend APIs | Phase 4.0 read-model foundation |
-| Web UI foundation | Phase 4.1 minimal Vite / React app |
-| Observability and operations | Request/correlation IDs, diagnostics, metrics, SLO docs, alerts, runbooks, benchmarks, load scripts, and API pagination/limits |
-| Plugin and extension registry | Phase 4.3 manifest / capability registry foundation |
-| Packaging and deployment foundation | Phase 4.4 Docker Compose / Helm / Kubernetes manifests |
-| Alpha release hardening | Phase 5.0 foundation for `v0.1.0-alpha.1` |
-| Beta freeze | Phase 9.0 consistency/API/docs/examples/security baseline for `v0.5.0-beta` |
-| Release candidate hardening | Phase 9.1 API/migration/install/security/release baseline for `v1.0.0-rc.1` |
-| Security threat model | Phase 9.2 pre-GA threat model and security review checklist |
-| Future GA readiness | Phase 10.0 future `v1.0.0` capability matrix, checklist, release notes, versioning, and final verification |
-| Production multi-cloud adapters | Planned |
-| Production DevSecOps integrations | Planned |
-| Complete frontend visualization product | Future phase |
+| PipelineRun runtime | Implemented for local shell execution; not a full workflow engine |
+| DeploymentRun runtime | Partial; YAML dry-run, guarded apply, inventory, health, diff, audit, and PostgreSQL persistence foundations exist |
+| Release and ReleaseExecution | Partial; sequential orchestration and PostgreSQL persistence foundations exist |
+| Runner protocol | Partial; tokens, heartbeat, claim, logs, status, and isolation profiles exist; OS-level sandboxing is still operator work |
+| Kubernetes YAML | Experimental guarded apply/rollback foundation; no default destructive behavior |
+| GitOps / Argo CD | Experimental planning/status/guarded sync foundation; no production Argo automation |
+| Artifact / OCI | Partial; OCI parsing and digest foundation; no full registry product integration |
+| DevSecOps / policy | Foundation; noop/fake scanner paths and built-in rules; no Trivy/Cosign/SBOM production integration |
+| Secrets / credentials | Partial; metadata, redaction, provider skeletons; production provider lifecycle remains future work |
+| Auth / RBAC | Partial; local/token/OIDC foundation and route tests; complete enterprise SSO remains future work |
+| Approvals / change windows / notifications | Foundation; backend-only, no ITSM workflow |
+| Multi-cloud | Placeholder/foundation inventory only; no cloud deployment |
+| Host deployment | Experimental plan/dry-run/noop and guarded SSH surface |
+| Web console | Experimental minimal UI that consumes backend APIs |
+| Packaging | Partial; Docker Compose, Helm, production-like values, and smoke checks exist |
+| Observability / audit | Partial; diagnostics, metrics, runbooks, audit/evidence foundations; production retention/export still needs hardening |
 
 Current focus:
 
 ```text
-beta-candidate foundation truth alignment
-honest capability boundaries
-self-contained demo path
-runtime, install, and packaging verification
-security threat model and secure-defaults review
-logs / events / audit consistency
+keep public status accurate
+keep examples and docs aligned with implemented behavior
+stabilize CI, packaging, and local demo paths
+continue runtime, install, restore, runner, and audit hardening
 ```
 
-Alpha release references:
+Status references:
 
 - [Alpha Capability Matrix](docs/ALPHA_CAPABILITY_MATRIX.md)
 - [Beta Capability Matrix](docs/BETA_CAPABILITY_MATRIX.md)

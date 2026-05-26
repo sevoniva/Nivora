@@ -1,6 +1,6 @@
 # Route Permission Matrix
 
-Nivora is a beta-candidate foundation, not production-ready. This matrix records the intended backend authorization contract for critical API groups. It is route-contract guidance for maintainers and should be kept in sync with `internal/api/http/routes/routes.go` and OpenAPI.
+Nivora is a hardened beta-candidate foundation, not production-ready. This matrix records the intended backend authorization contract for critical API groups. It is route-contract guidance for maintainers and should be kept in sync with `internal/api/http/routes/routes.go` and OpenAPI.
 
 Auth modes:
 

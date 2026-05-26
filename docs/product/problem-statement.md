@@ -22,7 +22,7 @@ The result is a delivery process where no single system can answer simple questi
 - CI runners: job execution, cancellation, and logs are often CI-specific.
 - Artifact Registries: tags are mutable, digests are not always modeled, and metadata is inconsistent.
 - Kubernetes release methods: YAML apply, Helm, Kustomize, operators, and custom scripts all expose different state.
-- Argo CD and GitOps: GitOps is powerful but not the only delivery mode.
+- Argo CD and GitOps: GitOps is useful, but it is not the only delivery mode.
 - Host deployment: many teams still deploy to host groups, systemd services, or SSH targets.
 - Cloud providers: regions, clusters, hosts, and registries vary by provider.
 - Approvals: approval gates are often external to the actual deployment record.
@@ -32,4 +32,3 @@ The result is a delivery process where no single system can answer simple questi
 ## Why a Unified Control Plane Helps
 
 A unified Control Plane can normalize delivery intent and lifecycle state while leaving execution details to specialized tools. Nivora should make the core questions explicit: what is being delivered, where it is going, who approved it, which policies applied, which Runner executed it, and what happened.
-

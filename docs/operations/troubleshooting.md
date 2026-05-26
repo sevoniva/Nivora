@@ -1,6 +1,6 @@
 # Troubleshooting
 
-This guide covers Nivora backend diagnostics. Runbook check scripts provide automated health assessments for runtime, runners, database, and audit. Nivora is near-production-candidate (0.9.0-rc.1) and is not production-ready.
+This guide covers Nivora backend diagnostics. Runbook check scripts provide health assessments for runtime, runners, database, and audit. Nivora is a hardened beta-candidate (0.9.0-rc.1) and is not production-ready.
 
 ## API Is Not Responding
 

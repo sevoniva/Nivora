@@ -2,7 +2,7 @@
 
 Target: `v0.5.0-beta.1` readiness baseline
 
-This matrix is the Phase 9.0 beta-freeze view of Nivora. It freezes feature expansion for review and separates beta-ready foundations from partial capabilities and future work. Nivora remains early-stage and is not production-ready or GA.
+This matrix is the Phase 9.0 beta-freeze view of Nivora. It freezes feature expansion for review and separates beta-ready foundations from partial capabilities and future work. Nivora is a hardened beta-candidate foundation and is not production-ready or GA.
 
 ## Capability Status
 

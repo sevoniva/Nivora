@@ -16,7 +16,7 @@ The visualization API is a projection layer over existing Control Plane records:
 - Responses should be stable DTOs, not internal domain objects leaked wholesale.
 - Timeline ordering should be deterministic.
 - Frontend-specific rendering choices remain outside the backend.
-- The project remains early-stage and not production-ready.
+- The project remains a hardened beta-candidate foundation and is not production-ready.
 
 ## DTO Families
 

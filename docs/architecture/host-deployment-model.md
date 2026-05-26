@@ -54,4 +54,4 @@ The default examples use dry-run/noop behavior and do not mutate a host.
 - No cloud host discovery is implemented.
 - Rollback is guarded and does not delete release directories.
 - Health checks are modeled through the HostExecutor contract, but the default noop executor returns deterministic local results.
-- Nivora is still early-stage and not production-ready.
+- Nivora is a hardened beta-candidate foundation and is not production-ready.

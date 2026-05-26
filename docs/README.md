@@ -1,6 +1,6 @@
 # Nivora Documentation
 
-This index helps new contributors understand where to start. Nivora is currently a **beta-candidate foundation**, not a production-ready platform. Future `v1.0.0` documents are readiness checklists only until maintainers close the release blockers.
+This index helps new contributors understand where to start. Nivora is currently a **hardened beta-candidate foundation**, not a production-ready platform. Future `v1.0.0` documents are readiness checklists only until maintainers close the release blockers.
 
 ## Start Here
 

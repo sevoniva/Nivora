@@ -52,4 +52,4 @@ curl -X POST 'http://localhost:8080/api/v1/runners/offline-detect?timeoutSeconds
 - No autoscaling is implemented.
 - No privileged execution is enabled by default.
 - Runner isolation, sandboxing, and production credential distribution remain future hardening work.
-- Nivora remains early-stage and not production-ready.
+- Nivora remains a hardened beta-candidate foundation and is not production-ready.

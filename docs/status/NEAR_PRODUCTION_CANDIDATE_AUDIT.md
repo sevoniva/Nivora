@@ -1,23 +1,25 @@
-# Nivora Near-Production-Candidate Audit
+# Nivora Historical Hardening Audit
 
 Date: 2026-05-20
 
+Historical note: this report was written during a production-candidate hardening pass. The current public maturity label is **hardened beta-candidate, not production-ready**. Use `docs/status/CAPABILITY_STATUS.md` for the current source of truth.
+
 ## 1. Executive Summary
 
-**Current honest maturity: near production-candidate.**
+**Current honest maturity at the time of this report: hardened beta-candidate.**
 
-Nivora has completed its enterprise hardening queue across 30 commits. All 11 runtime stores have PostgreSQL persistence with SHA-256 hash-chained audit. RBAC is exhaustively tested (100+ sub-tests across 31 critical routes). Runner isolation profiles are defined with production safety gates rejecting unsafe profiles. Multi-process recovery (server + worker + runner + PostgreSQL) is scripted and CI-integrated. Production install smoke validates Helm and Docker Compose profiles (17/17 checks). Backup/restore drill script exists. Shell executor has enterprise software-level isolation (workspace, env blocklist, process group cleanup) with clear documentation that it is not an OS-level sandbox.
+Nivora completed a focused hardening pass across runtime persistence, audit hash chaining, RBAC coverage, runner isolation profiles, recovery scripts, install smoke checks, and backup/restore drills. These changes improved beta readiness, but they did not make Nivora production-ready.
 
-### Production-Candidate: Conditional
+### Production-Candidate
 
-**Yes** — with the following conditions:
+**No.** The following areas still require validation before production-candidate labeling:
 1. Multi-process recovery smoke is scripted and CI-integrated but not yet run with a real PostgreSQL instance in CI validation.
 2. Runner isolation is config-gate level, not OS-level (container/VM sandbox is operator responsibility).
 3. External integrations (AWS, Aliyun, Tencent, Argo CD, Harbor/Nexus, Trivy/Cosign) remain skeleton/noop/fake foundations. This is by design; Nivora is not trying to replace those tools.
 
-### Public Beta: Conditional Yes
+### Public Beta
 
-The project is credible as a public beta if materials clearly state foundation/experimental limits and not-production-ready status. Helm chart defaults to development-safe profile with clear warnings. CI verification passes.
+The project is credible as a public beta if materials clearly state foundation/experimental limits and not-production-ready status.
 
 ### GA: No
 
@@ -121,13 +123,13 @@ GA requires live deployment validation against real cloud/Argo/registry targets,
 
 ```json
 {
-  "overall_maturity": "near-production-candidate",
+  "overall_maturity": "hardened-beta-candidate",
   "production_candidate": "no",
   "public_beta": "conditional-yes",
   "ga": "no",
   "production_readiness_score": 3.3,
-  "bloaters_resolved": 17,
-  "bloaters_remaining": 0,
+  "blocking_items_reduced": 17,
+  "blocking_items_remaining_in_this_snapshot": 0,
   "risks_top_10": [
     "CI multiprocess recovery not green with real PostgreSQL",
     "Runner not OS-level sandboxed",

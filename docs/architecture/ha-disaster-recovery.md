@@ -29,7 +29,7 @@ flowchart LR
   W1 --> Outbox
 ```
 
-The alpha repository includes the API and runtime foundations for this shape, but default local deployments still use in-memory stores in many paths. Production-direction installs should configure PostgreSQL-backed runtime state before relying on restart recovery.
+The current repository includes the API and runtime foundations for this shape, but default local deployments still use in-memory stores in many paths. Production-direction installs should configure PostgreSQL-backed runtime state before relying on restart recovery.
 
 ## Dependency Checks
 

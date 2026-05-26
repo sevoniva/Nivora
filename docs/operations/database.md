@@ -12,7 +12,7 @@ Current migration groups:
 
 - `000001_init`: initial relational skeleton for projects, applications, pipelines, releases, deployments, events, audit, logs, and related concepts.
 - `000002_runtime_protocol`: event outbox and runner protocol fields on the initial skeleton.
-- `000003_persistence_foundation`: alpha runtime tables for PipelineRun snapshots, JobRun claim state, ordered logs, events, audit, runners, outbox, and idempotency keys.
+- `000003_persistence_foundation`: beta-candidate runtime tables for PipelineRun snapshots, JobRun claim state, ordered logs, events, audit, runners, outbox, and idempotency keys.
 - `000004_runtime_recovery`: PipelineRun and DeploymentRun lease fields plus outbox retry metadata and recovery indexes.
 - `000005_runner_fleet`: runner token metadata, capabilities, max concurrency, last seen time, and runner fleet indexes.
 - `000006_performance_indexes`: query-shape indexes for list, log, event, audit, runner, lease, and outbox paths.
@@ -44,7 +44,7 @@ Local demos keep `runtime_store: memory` by default. Production/prod configs are
 
 ## Runtime Tables
 
-The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to match existing alpha runtime identifiers:
+The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to match existing beta-candidate runtime identifiers:
 
 - `runtime_pipeline_runs`
 - `runtime_job_runs`

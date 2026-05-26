@@ -50,4 +50,4 @@ The audit timeline aggregates audit records already held by runtime services. It
 - No charting or layout engine is included.
 - No live environment discovery is performed.
 - In-memory runtime mode only shows records created in the current process.
-- Nivora remains early-stage and not production-ready.
+- Nivora remains a hardened beta-candidate foundation and is not production-ready.

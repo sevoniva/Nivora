@@ -2,7 +2,7 @@
 
 ## Subsequent Hardening Note
 
-As of 2026-05-19, production install and audit durability hardening added `deployments/helm/values-production.yaml`, `deployments/docker-compose/docker-compose.production.example.yaml`, optional production-profile smoke scripts, stricter production config validation, and a PostgreSQL-backed compliance evidence/retention store foundation. This improves the packaging/audit blockers called out below, but Nivora remains **not production-ready** because full restore drills, exhaustive governance/security persistence, and uniform tamper-evident audit writes are still incomplete.
+This is a historical delta audit. Later hardening added production-like Helm and Compose profiles, production-profile smoke scripts, stricter production config validation, PostgreSQL-backed governance/runtime stores, and broader audit hash-chain wiring. Nivora remains **not production-ready** because production-scale restore drills, OS-level runner sandboxing, live install validation, and real external adapter integrations are still incomplete. Use `CAPABILITY_STATUS.md` for the current summary.
 
 ## 1. Executive Summary
 
@@ -10,7 +10,7 @@ The three recent hardening goals materially improved Nivora's production directi
 
 Resolved or mostly resolved blockers:
 
-- Public maturity language is now mostly aligned around **beta-candidate foundation** and **not production-ready** in `README.md`, `PROJECT_CHARTER.md`, `ROADMAP.md`, `api/openapi/openapi.yaml`, `api/asyncapi/asyncapi.yaml`, and `docs/status/CAPABILITY_STATUS.md`.
+- Public maturity language is now mostly aligned around **hardened beta-candidate foundation** and **not production-ready** in `README.md`, `PROJECT_CHARTER.md`, `ROADMAP.md`, `api/openapi/openapi.yaml`, `api/asyncapi/asyncapi.yaml`, and `docs/status/CAPABILITY_STATUS.md`.
 - OpenAPI route coverage and placeholder route behavior now have automated tests in `internal/api/http/routes/openapi_contract_test.go`.
 - DeploymentRun, DeploymentPlan, deployment resources, snapshots, rollback plans, deployment logs/events/audit, Release, ReleaseArtifact, ReleasePlan, and ReleaseExecution now have PostgreSQL repository foundations and migration coverage.
 - Route permission intent is documented in `docs/security/ROUTE_PERMISSION_MATRIX.md`.
@@ -26,7 +26,7 @@ Remaining blockers:
 - Audit/evidence is not yet uniformly durable or tamper-evident.
 - Helm/package metadata still carries `1.0.0` scaffolding, so public release messaging needs continued care.
 
-Current honest maturity label: **beta-candidate**.
+Current honest maturity label: **hardened beta-candidate**.
 
 Recommendation: continue hardening before broad feature expansion. The next work should focus on DB-backed recovery tests, exhaustive RBAC/tenant coverage, runner isolation policy, and durable audit/evidence rather than new integrations.
 
@@ -206,7 +206,7 @@ Recommendation: continue hardening before broad feature expansion. The next work
   "overall_maturity": "beta-candidate",
   "production_readiness_score": 2.8,
   "resolved_blockers": [
-    "maturity language mostly aligned to beta-candidate foundation",
+    "maturity language mostly aligned to hardened beta-candidate foundation",
     "OpenAPI and AsyncAPI status drift resolved",
     "OpenAPI route coverage check added",
     "placeholder route clarity tested",

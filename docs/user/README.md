@@ -1,6 +1,6 @@
 # User Guide
 
-This guide is for people using Nivora's current backend and CLI foundations. Nivora is still early-stage and not production-ready. The examples here are local, guarded, and self-contained unless marked otherwise.
+This guide is for people using Nivora's current backend and CLI foundations. Nivora is a hardened beta-candidate foundation and is not production-ready. The examples here are local, guarded, and self-contained unless marked otherwise.
 
 ## Core Workflows
 

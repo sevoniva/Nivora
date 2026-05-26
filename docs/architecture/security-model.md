@@ -24,7 +24,7 @@ Policy is an enforceable gate. PolicyResults should record outcomes and reasons 
 
 Phase 3.0 adds SecurityScan, SecurityFinding, SignatureCheck, SBOMRef, and PolicyResult models. Scanners are accessed through a SecurityScanner port and the default local runtime uses noop/fake scanners so CI does not require external tools.
 
-The built-in policy gate can allow, deny, warn, or require approval based on finding severity and simple artifact/manifest checks. Trivy, Cosign, SBOM generation, OPA, Kyverno, Gatekeeper, and enterprise security workflows remain future adapter work.
+The built-in policy gate can allow, deny, warn, or require approval based on finding severity and simple artifact/manifest checks. Trivy, Cosign, SBOM generation, OPA, Kyverno, Gatekeeper, and production security workflows remain future adapter work.
 
 ## Runner Trust Boundary
 

@@ -27,7 +27,7 @@ auth:
 - No frontend login flow is implemented in this phase.
 - No provider is hardcoded; Keycloak, Okta, Entra ID, and other providers require configuration and future adapter hardening.
 - Refresh tokens, browser sessions, SSO logout, and group synchronization remain future work.
-- The project remains early-stage and not production-ready.
+- The project remains a hardened beta-candidate foundation and is not production-ready.
 
 ## Secret Handling
 

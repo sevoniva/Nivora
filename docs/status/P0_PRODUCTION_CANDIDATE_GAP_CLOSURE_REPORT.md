@@ -1,20 +1,22 @@
-# Nivora P0 Production-Candidate Gap Closure Report
+# Nivora P0 Hardening Gap Closure Report
 
 Date: 2026-05-19
+
+Historical note: this report records a gap-closure snapshot. The current public maturity label is **hardened beta-candidate, not production-ready**. Use `docs/status/CAPABILITY_STATUS.md` for the current source of truth.
 
 ## 1. Executive Summary
 
 This report documents the gap closure work across 11 commits targeting the highest-priority P0/P1 blockers identified in the `IMPLEMENTATION_AUDIT.md` and `POST_HARDENING_DELTA_AUDIT.md`.
 
-**What changed:** Five new PostgreSQL store implementations, audit hash chain wiring into all governance stores, enterprise-grade runner isolation (workspace sandboxing, env blocklist, process group cleanup), Helm default safety hardening, full RBAC route coverage with 100+ sub-tests including cross-tenant isolation, runtime assembly + config production validation tests, API security contract tests, tamper-evident audit hash chaining with verify API, CI Postgres integration job, and version/maturity alignment.
+**What changed:** Five new PostgreSQL store implementations, audit hash chain wiring into governance stores, runner controls (workspace sandboxing, env blocklist, process group cleanup), Helm default safety hardening, RBAC route coverage tests, runtime assembly and production config validation tests, API security contract tests, tamper-evident audit hash chaining with verify API, CI Postgres integration job, and version/maturity alignment.
 
 **P0 blockers resolved:** 3 of 3 core P0 blockers addressed (persistence, Helm safety, CI integration).
 
-**P1 blockers resolved:** All P1 blockers addressed — RBAC gaps closed with 6 test functions (100+ sub-tests), route duplication documented, shell executor has enterprise isolation controls, audit hash chain wired into all governance stores, runtime assembly fully tested, Helm version aligned, API contract tests deepened with security scheme + route duplicate detection.
+**P1 blockers addressed:** RBAC gaps were covered by table-driven tests, route duplication was documented, shell executor controls were tightened, audit hash chain wiring was added to governance stores, runtime assembly tests were added, Helm version was aligned, and API contract tests were deepened with security scheme and route duplicate detection checks.
 
-**Current honest maturity label: beta-candidate-enterprise-hardened** — production-candidate remains conditional on live DB restore drills and production install smoke tests.
+**Current honest maturity label at the time of this report: hardened beta-candidate** — production-candidate remains blocked by live DB restore drills, production install smoke tests, and runner sandbox validation.
 
-**Production-candidate go/no-go: Not yet.** Code quality, test coverage, and security controls are at enterprise near-production-candidate level. Remaining blockers include operational validation, live restore/install evidence, and remaining implementation/verification gaps.
+**Production-candidate go/no-go: Not yet.** Remaining blockers include operational validation, live restore/install evidence, runner isolation evidence, and remaining implementation/verification gaps.
 
 ## 2. Commits Created
 
@@ -28,7 +30,7 @@ This report documents the gap closure work across 11 commits targeting the highe
 | `ba63d5f` | docs: add audit verify path to openapi spec | 1 file, 26+ lines: OpenAPI /audit/verify path | OpenAPI contract test passes |
 | `8e3c7f5` | style: gofmt compliance store files | 2 files | fmt-check passes |
 | `275373e` | feat: wire hash-chained audit into all governance store paths | 6 files, 61+ lines: shared audit_chain.go helper, all 5 governance stores | go build, go test all pass |
-| `8feb7e7` | feat: harden runner isolation with workspace, env filter, process group mgmt | 2 files, 318+ lines: workspace isolation, env blocklist, Setpgid, 8 enterprise tests | 18 shell tests pass |
+| `8feb7e7` | feat: harden runner isolation with workspace, env filter, process group mgmt | workspace isolation, env blocklist, Setpgid, safety tests | Shell tests pass |
 | `4b92c7a` | test: add exhaustive RBAC, runtime assembly, config, and API contract tests | 4 files, 648+ lines: 6 RBAC test functions (100+ sub-tests), 8 runtime tests, 4 config tests, API security contract tests | All tests pass |
 
 ## 3. Verification Results
@@ -216,7 +218,7 @@ record_hash = SHA256(canonical)
 
 ```json
 {
-  "overall_maturity": "beta-candidate-enterprise-hardened",
+  "overall_maturity": "hardened-beta-candidate",
   "production_candidate": "no",
   "production_readiness_score": 3.0,
   "resolved_p0_blockers": [

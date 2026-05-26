@@ -20,12 +20,14 @@ make run-web
 
 The Vite development server listens on `http://localhost:5173` and proxies `/api` requests to `http://localhost:8080`.
 
-To point the console at another backend:
+To point the proxy at another backend port, keep browser requests on `/api` and change the proxy target:
 
 ```sh
 cd web
-VITE_NIVORA_API_BASE_URL=http://localhost:8080/api/v1 npm run dev
+NIVORA_WEB_PROXY_TARGET=http://localhost:18080 npm run dev
 ```
+
+Avoid setting `VITE_NIVORA_API_BASE_URL` to a different origin unless the backend is configured for CORS. The local development path uses the Vite proxy to avoid cross-origin browser failures.
 
 ## Pages
 
@@ -67,4 +69,4 @@ This runs:
 - This is a web console foundation, not a complete product UI.
 - Detail pages still require known IDs from existing backend records.
 - Authentication UI, write workflows, charts, and advanced filtering remain future work.
-- The project remains early-stage and not production-ready.
+- The project remains a hardened beta-candidate foundation and is not production-ready.

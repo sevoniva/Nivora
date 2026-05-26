@@ -41,7 +41,7 @@ nivora runner token revoke local-runner --server http://localhost:8080
 ## Current Limits
 
 - The default repository remains in-memory.
-- Runner tokens are hashed at rest and returned only once, but the broader alpha runtime is still not production-ready.
+- Runner tokens are hashed at rest and returned only once, but the broader beta-candidate runtime is still not production-ready.
 - The worker loop is polling-based and intentionally simple.
 - No Temporal, Tekton, Argo Workflows, NATS, or Redis dependency is introduced.
 - Autoscaling and privileged execution are not implemented.

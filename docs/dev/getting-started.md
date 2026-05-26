@@ -1,6 +1,6 @@
 # Developer Getting Started
 
-Nivora is early-stage and not production-ready. The current runtime is a shell-only PipelineRun foundation for local development and tests.
+Nivora is a hardened beta-candidate foundation and is not production-ready. The current runtime is a shell-only PipelineRun foundation for local development and tests.
 
 ## Prerequisites
 

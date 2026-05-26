@@ -44,4 +44,4 @@ The foundation includes default limits for:
 - Quota state is in-memory in the default local runtime.
 - Rate limits are modeled but not enforced by a distributed limiter.
 - Production tenant provisioning, persistent usage aggregation, and billing are future work.
-- Nivora remains early-stage and not production-ready.
+- Nivora remains a hardened beta-candidate foundation and is not production-ready.

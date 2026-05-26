@@ -40,7 +40,7 @@ Artifact records should prefer immutable digests. Release history should not dep
 
 Phase 5.1 started with a focused PostgreSQL persistence foundation for the PipelineRun runtime path. The current runtime hardening pass extends that direction to DeploymentRun, release artifact binding, ReleasePlan, and ReleaseExecution state while preserving the in-memory stores for local development and unit tests.
 
-The runtime persistence tables use text IDs because alpha runtime IDs are domain-generated values such as `prun-*`, `job-*`, and `runner-*`. The earlier relational skeleton remains useful for future normalized models, while the `runtime_*` tables provide a reversible foundation for current runtime state.
+The runtime persistence tables use text IDs because runtime IDs are domain-generated values such as `prun-*`, `job-*`, and `runner-*`. The earlier relational skeleton remains useful for future normalized models, while the `runtime_*` tables provide a reversible foundation for current runtime state.
 
 Persisted in Phase 5.1:
 

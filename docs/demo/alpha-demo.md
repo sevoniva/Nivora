@@ -33,7 +33,7 @@ make run-worker
 make run-runner
 ```
 
-The alpha runtime still uses local/in-memory foundations for many workflows. Cross-process durability is a foundation, not a production scheduler.
+This historical alpha demo still uses local/in-memory defaults for many workflows. Cross-process durability is a foundation, not a production scheduler.
 
 ## 3. Run A Simple Pipeline
 

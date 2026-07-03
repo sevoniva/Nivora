@@ -2,6 +2,14 @@
 
 Current MCP maturity: local stdio foundation, beta-readiness hardening in progress. Nivora is not production-ready.
 
+Current scenario evidence:
+
+- 21 validated MCP operator scenarios in `examples/mcp/scenarios/`
+- 21 matching golden answers in `examples/mcp/golden-answers/`
+- fixture-backed scenario tests in `internal/api/mcp/scenario_test.go`
+- validation script: `scripts/validate-mcp-scenarios.sh`
+- broader status: `docs/status/AI_CONTROL_PLANE_DEEP_AUDIT.md`, `docs/status/AI_OPERATOR_JOURNEYS.md`, `docs/status/AI_CONTROL_PLANE_GO_NO_GO.md`
+
 ## What AI Can Safely Do
 
 - Read current capability status.
@@ -42,6 +50,7 @@ Current MCP maturity: local stdio foundation, beta-readiness hardening in progre
 - Remote read-only design: `docs/rfcs/remote-mcp-read-only.md`
 - Operator review: `docs/status/AI_CONTROL_PLANE_PRODUCT_REVIEW.md`
 - Golden scenarios: `examples/mcp/scenarios/`
+- Golden answers: `examples/mcp/golden-answers/`
 - Scenario tests: `internal/api/mcp/scenario_test.go`
 - Smoke script: `scripts/smoke-mcp-local.sh`
 
@@ -63,4 +72,3 @@ Proceed with **Remote Read-Only MCP Design Validation** before any action-tier w
 - add response-size/rate-limit design and tests
 - add Postgres MCP audit-chain integration proof
 - expand adversarial log/prompt-injection fixtures
-

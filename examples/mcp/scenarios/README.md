@@ -13,7 +13,13 @@ Each scenario records:
 - forbidden claims
 - safe next checks
 - blocked action-shaped tools
+- redaction samples
+- minimum required permissions
+- expected answer sections
+- test expectations
 
-The scenarios are validated by `internal/api/mcp/scenario_test.go` and `scripts/validate-mcp-scenarios.sh`.
+Every scenario must have a matching markdown answer in `examples/mcp/golden-answers/`.
+
+The scenarios and golden answers are validated by `internal/api/mcp/scenario_test.go` and `scripts/validate-mcp-scenarios.sh`.
 
 They are not live production evidence. They are deterministic local fixtures for keeping MCP behavior, documentation, and safety prompts aligned.

@@ -22,6 +22,14 @@ Local stdio MCP can be used by maintainers today for read-only and plan-only wor
 - Do not support anonymous remote MCP.
 - OIDC/OAuth should be provider-neutral and configured through existing auth config.
 
+Suggested flow:
+
+1. Client authenticates with an existing bearer or service-account token.
+2. Server resolves the subject through the normal auth service.
+3. MCP request handling evaluates the same permissions used by local MCP.
+4. Runner-token subjects are rejected before resource/tool dispatch.
+5. Every response records an audit event with subject, auth mode, resource/tool/prompt name, decision, request ID, and correlation ID when available.
+
 ## Scope And Permission Mapping
 
 Remote MCP resources must map to existing Nivora permissions:
@@ -44,6 +52,8 @@ Required before implementation:
 - per-subject audit correlation
 - timeout per MCP call
 - pagination or capped result sets for audit/log/event resources
+
+Initial limits should be conservative. Logs and audit search should require pagination from the first remote release; unbounded list responses should not be remote-exposed.
 
 ## Redaction And Audit
 
@@ -90,3 +100,4 @@ Remote MCP should be disabled by default. Operators should enable it only with:
 5. Golden scenario prompt-injection tests.
 6. Operator docs and threat-model update.
 
+Current audit status is tracked in `docs/status/REMOTE_MCP_READINESS_AUDIT.md`. The current decision remains no-go for remote MCP until those blockers are resolved.

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"path/filepath"
 	"strings"
 
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
@@ -204,7 +205,7 @@ func (s *Server) GetPrompt(ctx context.Context, name string, args map[string]str
 func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, error) {
 	switch {
 	case uri == "nivora://capabilities/current":
-		body, err := os.ReadFile("docs/status/CAPABILITY_STATUS.md")
+		body, err := readProjectFile("docs/status/CAPABILITY_STATUS.md")
 		if err != nil {
 			return nil, err
 		}
@@ -216,7 +217,7 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 		}
 		return map[string]any{"config": s.runtimeConfigSummary(), "runtime": runtimeStatus}, nil
 	case uri == "nivora://api/inventory":
-		body, err := os.ReadFile("docs/API_INVENTORY.md")
+		body, err := readProjectFile("docs/API_INVENTORY.md")
 		if err != nil {
 			return nil, err
 		}
@@ -245,6 +246,31 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 	default:
 		return nil, OperationError{Code: "mcp_resource_not_found", Message: "unknown MCP resource " + uri}
 	}
+}
+
+func readProjectFile(path string) ([]byte, error) {
+	if body, err := os.ReadFile(path); err == nil {
+		return body, nil
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return nil, err
+	}
+	for {
+		candidate := filepath.Join(cwd, path)
+		if body, err := os.ReadFile(candidate); err == nil {
+			return body, nil
+		}
+		if _, err := os.Stat(filepath.Join(cwd, "go.mod")); err == nil {
+			break
+		}
+		parent := filepath.Dir(cwd)
+		if parent == cwd {
+			break
+		}
+		cwd = parent
+	}
+	return os.ReadFile(path)
 }
 
 func (s *Server) pipelineResource(ctx context.Context, rest string) (any, error) {

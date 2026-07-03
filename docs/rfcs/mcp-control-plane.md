@@ -95,7 +95,7 @@ Remote MCP with OAuth/OIDC is future work. The proposed next step is remote read
 
 MCP records operation-level audit/log events for resource reads, tool calls, denied tool calls, and rendered prompts. Local tests can use an in-memory recorder. Runtime wiring uses the compliance service recorder, so PostgreSQL runtime mode persists MCP audit through the existing hash-chained compliance audit path. Audit/log payloads must not contain raw tokens, token hashes, secret values, private keys, kubeconfigs, cloud keys, or Authorization headers.
 
-Golden operator scenarios live in `examples/mcp/scenarios/` and are validated by MCP scenario tests. They cover current useful workflows and the claims AI must not make.
+Golden operator scenarios live in `examples/mcp/scenarios/`; matching golden answers live in `examples/mcp/golden-answers/`. They are validated by `scripts/validate-mcp-scenarios.sh` and MCP scenario tests. They cover current useful workflows, blocked actions, required permissions, prompt-injection handling, redaction samples, and the claims AI must not make.
 
 ## Dependency Decision
 

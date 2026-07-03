@@ -106,6 +106,10 @@ Start with:
 - [MCP threat model](../security/mcp-threat-model.md)
 - [MCP control-plane review](../status/MCP_CONTROL_PLANE_REVIEW.md)
 - [AI control-plane product review](../status/AI_CONTROL_PLANE_PRODUCT_REVIEW.md)
+- [AI control-plane deep audit](../status/AI_CONTROL_PLANE_DEEP_AUDIT.md)
+- [AI operator journeys](../status/AI_OPERATOR_JOURNEYS.md)
+- [AI control-plane go/no-go](../status/AI_CONTROL_PLANE_GO_NO_GO.md)
+- [Remote MCP readiness audit](../status/REMOTE_MCP_READINESS_AUDIT.md)
 - [Remote read-only MCP RFC](../rfcs/remote-mcp-read-only.md)
 
 Remote MCP is not implemented. Action MCP is blocked.

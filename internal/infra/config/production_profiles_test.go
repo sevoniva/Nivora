@@ -28,6 +28,16 @@ func TestHelmProductionValuesAvoidUnsafeDefaults(t *testing.T) {
 	if got := boolValue(authValues, "enabled"); !got {
 		t.Fatal("auth must be enabled in production values")
 	}
+	mcpValues := nestedMap(t, configValues, "mcp")
+	if boolValue(mcpValues, "enabled") {
+		t.Fatal("MCP should be disabled by default in production values")
+	}
+	if boolValue(mcpValues, "allowActionTools") {
+		t.Fatal("MCP action tools must be disabled in production values")
+	}
+	if got := stringValue(mcpValues, "mode"); got != "stdio" {
+		t.Fatalf("MCP mode = %q, want stdio", got)
+	}
 	runtimeValues := nestedMap(t, configValues, "runtime")
 	for _, key := range []string{
 		"allowLocalShellExecutor",

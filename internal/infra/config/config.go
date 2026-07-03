@@ -13,6 +13,7 @@ type Config struct {
 	App         AppConfig         `mapstructure:"app" yaml:"app"`
 	Env         string            `mapstructure:"environment" yaml:"environment"`
 	HTTP        HTTPConfig        `mapstructure:"http" yaml:"http"`
+	MCP         MCPConfig         `mapstructure:"mcp" yaml:"mcp"`
 	Database    DatabaseConfig    `mapstructure:"database" yaml:"database"`
 	EventBus    EventBusConfig    `mapstructure:"event_bus" yaml:"event_bus"`
 	ObjectStore ObjectStoreConfig `mapstructure:"object_store" yaml:"object_store"`
@@ -29,6 +30,17 @@ type AppConfig struct {
 
 type HTTPConfig struct {
 	BindAddress string `mapstructure:"bind_address" yaml:"bind_address"`
+}
+
+type MCPConfig struct {
+	Enabled          bool   `mapstructure:"enabled" yaml:"enabled"`
+	Mode             string `mapstructure:"mode" yaml:"mode"`
+	ReadOnly         bool   `mapstructure:"readonly" yaml:"readonly"`
+	AllowPlanTools   bool   `mapstructure:"allow_plan_tools" yaml:"allow_plan_tools"`
+	AllowActionTools bool   `mapstructure:"allow_action_tools" yaml:"allow_action_tools"`
+	SubjectID        string `mapstructure:"subject_id" yaml:"subject_id"`
+	SubjectRole      string `mapstructure:"subject_role" yaml:"subject_role"`
+	TokenEnv         string `mapstructure:"token_env" yaml:"token_env"`
 }
 
 type DatabaseConfig struct {
@@ -127,6 +139,14 @@ func Default() Config {
 		HTTP: HTTPConfig{
 			BindAddress: ":8080",
 		},
+		MCP: MCPConfig{
+			Enabled:        false,
+			Mode:           "stdio",
+			ReadOnly:       true,
+			AllowPlanTools: true,
+			SubjectRole:    "viewer",
+			TokenEnv:       "NIVORA_MCP_TOKEN",
+		},
 		Database: DatabaseConfig{
 			URL:          "postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable",
 			RuntimeStore: "memory",
@@ -172,6 +192,12 @@ func (c Config) Validate() error {
 	if c.HTTP.BindAddress == "" {
 		return errors.New("config http.bind_address is required")
 	}
+	if c.MCP.Mode == "" {
+		c.MCP.Mode = "stdio"
+	}
+	if c.MCP.Mode != "stdio" {
+		return errors.New("config mcp.mode must be stdio in this foundation phase")
+	}
 	if c.Database.URL == "" {
 		return errors.New("config database.url is required")
 	}
@@ -193,6 +219,17 @@ func (c Config) Validate() error {
 		}
 		if c.Auth.Mode == "token" && c.Auth.StaticTokenEnv == "" {
 			return errors.New("config auth.static_token_env is required when auth.mode=token in production")
+		}
+		if c.MCP.Enabled {
+			if c.MCP.Mode != "stdio" {
+				return errors.New("config mcp.mode must be stdio in production for this foundation phase")
+			}
+			if c.MCP.AllowActionTools {
+				return errors.New("config mcp.allow_action_tools=true is not allowed in this foundation phase")
+			}
+			if c.MCP.TokenEnv == "" {
+				return errors.New("config mcp.token_env is required when mcp.enabled=true in production")
+			}
 		}
 		if hasInlineDatabasePassword(c.Database.URL) {
 			return errors.New("config database.url must not include an inline password in production; inject credentials through a secret or environment-specific config")

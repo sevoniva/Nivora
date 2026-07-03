@@ -49,6 +49,12 @@ Auth modes:
 | GET/POST | `/api/v1/plugins*` | authenticated foundation routes | system | user/service account | yes | no | yes | Registry/capability metadata only; no unsafe dynamic loading. |
 | GET/POST | `/api/v1/tenancy/*` | authenticated read; `project.write` for quota mutation | org/project | user/service account | yes | no | yes | Quotas are foundation-level. |
 
+## Non-HTTP Control-Plane Surfaces
+
+| Surface | Entry Point | Required Permission | Runner Token Allowed? | Notes |
+|---|---|---|---|---|
+| MCP stdio | `cmd/nivora-mcp`, `nivora mcp *` | existing RBAC by MCP resource/tool | no | MCP is not an HTTP route. It exposes read-only and plan-only operations; runner tokens and action tools are denied. |
+
 ## Required Negative Tests
 
 The route suite must keep tests for these behaviors:

@@ -102,6 +102,18 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 		{"kubernetes apply", func(c *Config) { c.Runtime.AllowKubernetesApply = true }},
 		{"argo sync", func(c *Config) { c.Runtime.AllowArgoSync = true }},
 		{"insecure registry", func(c *Config) { c.Runtime.AllowInsecureRegistry = true }},
+		{"mcp action tools", func(c *Config) {
+			c.MCP.Enabled = true
+			c.MCP.AllowActionTools = true
+		}},
+		{"mcp unsupported mode", func(c *Config) {
+			c.MCP.Enabled = true
+			c.MCP.Mode = "http"
+		}},
+		{"mcp missing token env", func(c *Config) {
+			c.MCP.Enabled = true
+			c.MCP.TokenEnv = ""
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

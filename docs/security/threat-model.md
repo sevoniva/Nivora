@@ -19,6 +19,7 @@ This threat model is the Phase 9.2 pre-GA security review baseline. It is intent
 | Server to database | Repository layer and migrations | Database transport/configuration | Data tampering, weak backup, migration rollback risk |
 | Server to secret provider | Trusted internal use cases through `SecretProvider` | Secret backend, operator config | Secret exposure or unauthorized use |
 | Server to runner | Runner protocol and token validation | Runner host/process and executed jobs | Runner compromise or malicious job logs/status |
+| MCP client to control plane | MCP adapter, auth/RBAC evaluation, redaction, audit | AI clients and prompts over stdio or future remote transport | Oversharing state, leaking secrets, or turning planning into unsafe action |
 | Runner to executor | Runner process | Shell, SSH, host, Kubernetes, future executors | Privilege escalation and command injection |
 | Deployment plan to target | Deployment use cases and guarded adapters | Kubernetes, Argo CD, GitOps repos, hosts, cloud targets | Unsafe mutation or rollback |
 | Artifact reference to registry | Artifact provider port | OCI/Harbor-compatible registries | Mutable tags, poisoned artifacts, credential leaks |
@@ -77,6 +78,31 @@ Required hardening before GA:
 - Scope runner groups by project/environment where configured.
 - Rotate runner tokens after host compromise.
 - Treat runner logs and status updates as untrusted input.
+
+### MCP Client Misuse
+
+Threat:
+
+- An AI client connected through MCP asks for too much context, requests unsafe operations, or attempts to obtain secret material.
+
+Impact:
+
+- Oversharing control-plane state could expose operational details. If MCP gained action authority too early, an AI client could become an unsafe deployment actor.
+
+Current controls:
+
+- MCP is disabled by default and local stdio-only in the foundation phase.
+- MCP exposes read-only resources and plan-only tools.
+- Action-shaped tools return `mcp_action_not_allowed`.
+- Runner tokens cannot authenticate to MCP.
+- MCP output redacts secret-like keys and strings.
+
+Required hardening before remote MCP:
+
+- Add remote MCP OAuth/OIDC design.
+- Add tenant-aware scope filters to every resource URI.
+- Persist MCP audit records through the durable compliance store.
+- Keep apply, sync, rollback, approve/reject, token mutation, secret retrieval, and runner registration behind a separate future guarded-action design.
 
 ### Credential Leakage
 

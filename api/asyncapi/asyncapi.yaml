@@ -706,6 +706,26 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  mcp.resource.read:
+    address: mcp.resource.read
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  mcp.tool.called:
+    address: mcp.tool.called
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  mcp.tool.denied:
+    address: mcp.tool.denied
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  mcp.prompt.rendered:
+    address: mcp.prompt.rendered
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
 components:
   messages:
     Event:

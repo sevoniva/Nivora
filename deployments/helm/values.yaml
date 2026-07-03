@@ -46,6 +46,14 @@ config:
   logLevel: info
   telemetryEnabled: false
   telemetryEndpoint: ""
+  mcp:
+    enabled: false
+    mode: stdio
+    readonly: true
+    allowPlanTools: true
+    allowActionTools: false
+    subjectRole: viewer
+    tokenEnv: NIVORA_MCP_TOKEN
   auth:
     enabled: true
     mode: token

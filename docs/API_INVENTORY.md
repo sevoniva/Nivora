@@ -25,6 +25,12 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | Visualization | pipeline/deployment/release visualization, environment topology, runner/security/audit summaries | backend read models for future UI |
 | Tenancy | quota, usage | scope and quota foundation |
 
+## Non-HTTP Control-Plane Surfaces
+
+| Surface | Entry Point | Notes |
+|---|---|---|
+| MCP stdio foundation | `cmd/nivora-mcp`, `nivora mcp serve --stdio` | Local read-only and plan-only MCP resources/tools/prompts over stdio JSON-RPC. It is not an HTTP API and does not expose action tools. |
+
 ## Partial Or Guarded
 
 | Group | Routes | Reason |

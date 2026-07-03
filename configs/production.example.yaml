@@ -16,6 +16,13 @@ log:
 telemetry:
   enabled: false
   endpoint: ""
+mcp:
+  enabled: false
+  mode: stdio
+  readonly: true
+  allow_plan_tools: true
+  allow_action_tools: false
+  token_env: NIVORA_MCP_TOKEN
 auth:
   enabled: true
   mode: token

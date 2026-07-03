@@ -65,6 +65,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newSecretCommand())
 	root.AddCommand(newCredentialCommand())
 	root.AddCommand(newPluginsCommand())
+	root.AddCommand(newMCPCommand())
 	root.AddCommand(newDeploymentCommand())
 	root.AddCommand(newHostGroupsCommand())
 	root.AddCommand(newGitOpsCommand())

@@ -2,10 +2,10 @@ GO ?= go
 GOPROXY ?= https://proxy.golang.org,direct
 DATABASE_URL ?= postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable
 
-.PHONY: build test test-race test-postgres-integration benchmark load-generate-runs load-generate-logs load-simulate-runners coverage vet lint fmt fmt-check tidy tidy-check verify-core verify-contracts verify-architecture verify-no-secrets verify-runtime verify-runtime-recovery verify-api verify-cli verify-examples verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-production-profiles verify-alpha verify run-server run-worker run-runner run-web docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-cli smoke-deployment-dry-run smoke-oci-resolve-local smoke-runtime-recovery-postgres smoke-multiprocess-recovery smoke-live-deploy verify-multiprocess-recovery smoke-production-install verify-production-install smoke-backup-restore smoke-helm-production-profile smoke-compose-production-profile smoke-audit-durability dev-up dev-down migrate-up migrate-down
+.PHONY: build test test-race test-postgres-integration benchmark load-generate-runs load-generate-logs load-simulate-runners coverage vet lint fmt fmt-check tidy tidy-check verify-core verify-contracts verify-architecture verify-no-secrets verify-runtime verify-runtime-recovery verify-api verify-cli verify-examples verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-production-profiles verify-alpha verify-mcp verify run-server run-worker run-runner run-web mcp-serve-local docker-build docker-run helm-template helm-lint kind-install pipeline-run-local deployment-plan-local deployment-dry-run-local deployment-run-local deployment-apply-local host-deployment-plan-local host-deployment-run-local host-deployment-apply-local artifact-inspect-local oci-resolve-local release-plan-local release-deploy-local security-scan-local policy-evaluate-local gitops-plan-local gitops-deploy-local gitops-diff-local gitops-write-local argocd-status-local argocd-resources-local smoke-local smoke-api smoke-cli smoke-deployment-dry-run smoke-oci-resolve-local smoke-runtime-recovery-postgres smoke-multiprocess-recovery smoke-live-deploy verify-multiprocess-recovery smoke-production-install verify-production-install smoke-backup-restore smoke-helm-production-profile smoke-compose-production-profile smoke-audit-durability dev-up dev-down migrate-up migrate-down
 
 build:
-	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora
+	GOPROXY=$(GOPROXY) $(GO) build ./cmd/nivora-server ./cmd/nivora-worker ./cmd/nivora-runner ./cmd/nivora ./cmd/nivora-mcp
 
 test:
 	GOPROXY=$(GOPROXY) $(GO) test ./...
@@ -113,13 +113,20 @@ verify-production-profiles: smoke-helm-production-profile smoke-compose-producti
 verify-alpha:
 	./scripts/verify-alpha-release-docs.sh
 
+verify-mcp:
+	GOPROXY=$(GOPROXY) $(GO) test ./internal/api/mcp ./internal/app/mcp
+	GOPROXY=$(GOPROXY) $(GO) build -o /tmp/nivora-mcp ./cmd/nivora-mcp
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora mcp list-tools --local >/tmp/nivora-mcp-tools.json
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora mcp list-resources --local >/tmp/nivora-mcp-resources.json
+	@echo "=== verify-mcp passed ==="
+
 verify-core: fmt-check tidy-check vet test build verify-architecture verify-no-secrets
 	@echo "=== verify-core passed (Go-only backend checks) ==="
 
 verify-contracts: verify-api-specs
 	@echo "=== verify-contracts passed (OpenAPI/AsyncAPI) ==="
 
-verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-examples verify-runtime verify-api verify-cli verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-helm-safety verify-alpha
+verify: fmt-check tidy-check vet test build verify-architecture verify-no-secrets verify-examples verify-runtime verify-api verify-cli verify-api-specs verify-deployment verify-release verify-security verify-host verify-web verify-packaging verify-helm-safety verify-alpha verify-mcp
 	@echo "=== verify passed ==="
 
 verify-postgres:
@@ -143,6 +150,9 @@ run-runner:
 
 run-web:
 	cd web && npm install && npm run dev
+
+mcp-serve-local:
+	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora-mcp --config configs/server.yaml --stdio
 
 docker-build:
 	docker build -t nivora:local .

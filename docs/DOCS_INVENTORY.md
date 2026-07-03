@@ -18,8 +18,9 @@ This inventory lists the main documentation areas and their purpose.
 - `docs/architecture/`: architecture contract, current boundaries, target architecture, and model docs.
 - `docs/roadmap/`: phase-by-phase planning, deliverables, and contribution opportunities.
 - `docs/community/`: governance, contribution areas, decision-making, and maintainer review guidance.
-- `docs/dev/`: local development, web console, runtime, API, and adapter notes.
+- `docs/dev/`: local development, web console, runtime, API, MCP, and adapter notes.
 - `docs/operations/`: install, configuration, database, observability, and troubleshooting notes.
-- `docs/rfcs/`: RFC process and template for large proposals.
+- `docs/rfcs/`: RFC process, template for large proposals, and MCP control-plane foundation rationale.
+- `docs/security/mcp-security.md`: MCP trust boundary, RBAC, redaction, and blocked action rules.
 - `docs/adr/`: accepted architecture decision records.
 - `docs/engineering/`: guardrails for dependencies, testing, security, and release scope.

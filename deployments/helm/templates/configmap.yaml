@@ -24,6 +24,14 @@ data:
     telemetry:
       enabled: {{ .Values.config.telemetryEnabled }}
       endpoint: {{ .Values.config.telemetryEndpoint | quote }}
+    mcp:
+      enabled: {{ .Values.config.mcp.enabled }}
+      mode: {{ .Values.config.mcp.mode | quote }}
+      readonly: {{ .Values.config.mcp.readonly }}
+      allow_plan_tools: {{ .Values.config.mcp.allowPlanTools }}
+      allow_action_tools: {{ .Values.config.mcp.allowActionTools }}
+      subject_role: {{ .Values.config.mcp.subjectRole | quote }}
+      token_env: {{ .Values.config.mcp.tokenEnv | quote }}
     auth:
       enabled: {{ .Values.config.auth.enabled }}
       mode: {{ .Values.config.auth.mode | quote }}
@@ -70,6 +78,14 @@ data:
     telemetry:
       enabled: {{ .Values.config.telemetryEnabled }}
       endpoint: {{ .Values.config.telemetryEndpoint | quote }}
+    mcp:
+      enabled: {{ .Values.config.mcp.enabled }}
+      mode: {{ .Values.config.mcp.mode | quote }}
+      readonly: {{ .Values.config.mcp.readonly }}
+      allow_plan_tools: {{ .Values.config.mcp.allowPlanTools }}
+      allow_action_tools: {{ .Values.config.mcp.allowActionTools }}
+      subject_role: {{ .Values.config.mcp.subjectRole | quote }}
+      token_env: {{ .Values.config.mcp.tokenEnv | quote }}
     auth:
       enabled: {{ .Values.config.auth.enabled }}
       mode: {{ .Values.config.auth.mode | quote }}
@@ -116,6 +132,14 @@ data:
     telemetry:
       enabled: {{ .Values.config.telemetryEnabled }}
       endpoint: {{ .Values.config.telemetryEndpoint | quote }}
+    mcp:
+      enabled: {{ .Values.config.mcp.enabled }}
+      mode: {{ .Values.config.mcp.mode | quote }}
+      readonly: {{ .Values.config.mcp.readonly }}
+      allow_plan_tools: {{ .Values.config.mcp.allowPlanTools }}
+      allow_action_tools: {{ .Values.config.mcp.allowActionTools }}
+      subject_role: {{ .Values.config.mcp.subjectRole | quote }}
+      token_env: {{ .Values.config.mcp.tokenEnv | quote }}
     auth:
       enabled: {{ .Values.config.auth.enabled }}
       mode: {{ .Values.config.auth.mode | quote }}

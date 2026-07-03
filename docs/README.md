@@ -89,6 +89,7 @@ For a quick path through the project:
 - [Cloud Provider Model](architecture/cloud-provider-model.md)
 - [Secret Model](architecture/secret-model.md)
 - [Plugin System](architecture/plugin-system.md)
+- [MCP Control Plane](architecture/mcp-control-plane.md)
 - [Visualization API](architecture/visualization-api.md)
 - [Policy Gates](architecture/policy-gates.md)
 - [Observability Model](architecture/observability-model.md)
@@ -155,6 +156,7 @@ For a quick path through the project:
 
 - [Threat Model](security/threat-model.md)
 - [Security Review Checklist](security/security-review-checklist.md)
+- [MCP Security](security/mcp-security.md)
 - [Security Baseline](engineering/security-baseline.md)
 
 ## Community and Governance

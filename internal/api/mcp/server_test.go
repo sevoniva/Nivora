@@ -1,0 +1,368 @@
+package mcp
+
+import (
+	"context"
+	"encoding/json"
+	"strings"
+	"testing"
+
+	"github.com/sevoniva/nivora/internal/app/runtime"
+	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
+	"github.com/sevoniva/nivora/internal/infra/config"
+	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+)
+
+func TestMCPInitializeJSONRPC(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	response := server.HandleJSONRPC(context.Background(), []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`))
+	if response.Error != nil {
+		t.Fatalf("initialize error = %#v", response.Error)
+	}
+	body := mustMarshal(t, response.Result)
+	if !strings.Contains(body, ProtocolVersion) || !strings.Contains(body, "nivora-mcp") {
+		t.Fatalf("initialize result = %s", body)
+	}
+}
+
+func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	resources, err := server.ListResources(context.Background())
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://deployments/{id}/health", "nivora://plugins/capabilities"} {
+		if !hasResource(resources, want) {
+			t.Fatalf("resource %s missing from %#v", want, resources)
+		}
+	}
+	tools, err := server.ListTools(context.Background())
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	for _, blocked := range []string{"nivora_apply_deployment", "nivora_get_secret", "nivora_rotate_token"} {
+		if hasTool(tools, blocked) {
+			t.Fatalf("blocked action tool %s was exposed", blocked)
+		}
+	}
+	for _, want := range []string{"nivora_status", "nivora_get_deployment_health", "nivora_plan_deployment_local"} {
+		if !hasTool(tools, want) {
+			t.Fatalf("tool %s missing from %#v", want, tools)
+		}
+	}
+	prompts, err := server.ListPrompts(context.Background())
+	if err != nil {
+		t.Fatalf("ListPrompts: %v", err)
+	}
+	for _, want := range []string{"diagnose_pipeline_run", "release_readiness_review", "mcp_safe_operation_check"} {
+		if !hasPrompt(prompts, want) {
+			t.Fatalf("prompt %s missing from %#v", want, prompts)
+		}
+	}
+}
+
+func TestMCPBlockedActionToolDenied(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleAdmin, "mcp-local")
+	result, err := server.CallTool(context.Background(), "nivora_apply_deployment", map[string]any{"id": "dep-1"})
+	if err != nil {
+		t.Fatalf("CallTool returned transport error: %v", err)
+	}
+	if !result.IsError {
+		t.Fatalf("expected blocked action error, got %#v", result)
+	}
+	body := result.Content[0].Text
+	if !strings.Contains(body, "mcp_action_not_allowed") || !strings.Contains(body, "future") {
+		t.Fatalf("blocked action body = %s", body)
+	}
+}
+
+func TestMCPRunnerTokenCannotUseControlPlane(t *testing.T) {
+	server := newTestMCPServerWithSubject(t, domainauth.Subject{ID: "runner:runner-a", Username: "runner-a", AuthMode: "runner_token"})
+	if _, err := server.ListResources(context.Background()); err == nil || !strings.Contains(err.Error(), "runner tokens cannot use MCP") {
+		t.Fatalf("expected runner token denial, got %v", err)
+	}
+	result, err := server.CallTool(context.Background(), "nivora_status", nil)
+	if err != nil {
+		t.Fatalf("CallTool transport error = %v", err)
+	}
+	if !result.IsError || !strings.Contains(result.Content[0].Text, "mcp_runner_token_denied") {
+		t.Fatalf("runner token tool result = %#v", result)
+	}
+}
+
+func TestMCPRBACReadAuditAndPlanBoundaries(t *testing.T) {
+	ctx := context.Background()
+	viewer := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	if _, err := viewer.ReadResource(ctx, "nivora://system/runtime"); err != nil {
+		t.Fatalf("viewer read resource: %v", err)
+	}
+	planResult, err := viewer.CallTool(ctx, "nivora_plan_deployment_local", map[string]any{"content": deploymentDefinitionYAML()})
+	if err != nil {
+		t.Fatalf("viewer plan transport error: %v", err)
+	}
+	if !planResult.IsError || !strings.Contains(planResult.Content[0].Text, "mcp_forbidden") {
+		t.Fatalf("viewer plan result = %#v", planResult)
+	}
+	if _, err := viewer.ReadResource(ctx, "nivora://audit/search"); err == nil {
+		t.Fatalf("viewer read audit unexpectedly allowed")
+	}
+
+	auditor := newTestMCPServer(t, domainauth.RoleAuditor, "mcp-local")
+	if _, err := auditor.ReadResource(ctx, "nivora://audit/search"); err != nil {
+		t.Fatalf("auditor read audit: %v", err)
+	}
+	planResult, err = auditor.CallTool(ctx, "nivora_plan_deployment_local", map[string]any{"content": deploymentDefinitionYAML()})
+	if err != nil {
+		t.Fatalf("auditor plan transport error: %v", err)
+	}
+	if !planResult.IsError {
+		t.Fatalf("auditor plan unexpectedly allowed: %#v", planResult)
+	}
+
+	developer := newTestMCPServer(t, domainauth.RoleDeveloper, "token")
+	planResult, err = developer.CallTool(ctx, "nivora_plan_deployment_local", map[string]any{"content": deploymentDefinitionYAML()})
+	if err != nil {
+		t.Fatalf("developer plan transport error: %v", err)
+	}
+	if planResult.IsError || !strings.Contains(planResult.Content[0].Text, `"mutated": false`) {
+		t.Fatalf("developer plan result = %#v", planResult)
+	}
+}
+
+func TestMCPPlanDeploymentLocalDoesNotMutateDeploymentRuns(t *testing.T) {
+	ctx := context.Background()
+	server, deployments := newTestMCPServerAndDeploymentService(t, domainauth.RoleDeveloper, "token")
+	before, err := deployments.List(ctx)
+	if err != nil {
+		t.Fatalf("list before: %v", err)
+	}
+	result, err := server.CallTool(ctx, "nivora_plan_deployment_local", map[string]any{"content": deploymentDefinitionYAML()})
+	if err != nil {
+		t.Fatalf("plan tool transport error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("plan tool error = %#v", result)
+	}
+	after, err := deployments.List(ctx)
+	if err != nil {
+		t.Fatalf("list after: %v", err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("plan-only tool mutated deployments: before=%d after=%d", len(before), len(after))
+	}
+}
+
+func TestMCPRedactsSecretLikeData(t *testing.T) {
+	body := mustJSON(map[string]any{
+		"token":         "raw-token-value",
+		"tokenHash":     "hashed-token-value",
+		"password":      "password-value",
+		"authorization": "Bearer raw-token-value",
+		"kubeconfig":    "apiVersion: v1\nclusters: []",
+		"nested": map[string]any{
+			"private_key": "-----BEGIN PRIVATE KEY-----\nvalue\n-----END PRIVATE KEY-----",
+			"message":     "Authorization: Bearer raw-token-value",
+		},
+	})
+	for _, forbidden := range []string{"raw-token-value", "hashed-token-value", "password-value", "BEGIN PRIVATE KEY", "apiVersion: v1"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("secret-like value leaked in %s", body)
+		}
+	}
+	if !strings.Contains(body, "[REDACTED]") {
+		t.Fatalf("expected redaction marker in %s", body)
+	}
+}
+
+func TestMCPMissingDeploymentHealthReturnsStructuredError(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	_, err := server.ReadResource(context.Background(), "nivora://deployments/missing/health")
+	if err == nil {
+		t.Fatalf("expected missing deployment error")
+	}
+}
+
+func TestMCPJSONRPCErrorsAreStructured(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	bad := server.HandleJSONRPC(context.Background(), []byte(`{`))
+	if bad.Error == nil || bad.Error.Code != rpcParseError {
+		t.Fatalf("bad JSON response = %#v", bad)
+	}
+	unknown := server.HandleJSONRPC(context.Background(), []byte(`{"jsonrpc":"2.0","id":2,"method":"not/a-method"}`))
+	if unknown.Error == nil || unknown.Error.Code != rpcMethodNotFound {
+		t.Fatalf("unknown method response = %#v", unknown)
+	}
+	missingArg := server.HandleJSONRPC(context.Background(), []byte(`{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"nivora_get_pipeline_run","arguments":{}}}`))
+	if missingArg.Result == nil {
+		t.Fatalf("missing argument should return tool error result, got %#v", missingArg)
+	}
+	body := mustMarshal(t, missingArg.Result)
+	if !strings.Contains(body, "mcp_invalid_arguments") {
+		t.Fatalf("missing argument result = %s", body)
+	}
+}
+
+func TestMCPPromptTextIncludesSafetyRules(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	result, err := server.GetPrompt(context.Background(), "diagnose_deployment_run", map[string]string{"id": "dep-1"})
+	if err != nil {
+		t.Fatalf("GetPrompt: %v", err)
+	}
+	text := result.Messages[0].Content.Text
+	for _, want := range []string{"Cite the Nivora resources", "Separate facts from inference", "not production-ready", "Never request"} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("prompt missing %q: %s", want, text)
+		}
+	}
+}
+
+func TestMCPRecordsAuditForOperations(t *testing.T) {
+	recorder := &MemoryAuditRecorder{}
+	server := newTestMCPServerWithRecorder(t, domainauth.Subject{
+		ID:       "auditor",
+		Username: "auditor",
+		Roles:    []string{domainauth.RoleAuditor},
+		AuthMode: "token",
+	}, recorder)
+	if _, err := server.ReadResource(context.Background(), "nivora://audit/search"); err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+	if _, err := server.CallTool(context.Background(), "nivora_apply_deployment", nil); err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if _, err := server.GetPrompt(context.Background(), "mcp_safe_operation_check", map[string]string{"requestedAction": "apply"}); err != nil {
+		t.Fatalf("GetPrompt: %v", err)
+	}
+	entries := recorder.Entries()
+	if len(entries) < 3 {
+		t.Fatalf("expected audit entries, got %#v", entries)
+	}
+	seen := map[string]bool{}
+	for _, entry := range entries {
+		seen[entry.Action] = true
+		body := mustMarshal(t, entry)
+		for _, forbidden := range []string{"raw-token-value", "tokenHash", "BEGIN PRIVATE KEY", "Authorization: Bearer"} {
+			if strings.Contains(body, forbidden) {
+				t.Fatalf("audit leaked sensitive value: %s", body)
+			}
+		}
+	}
+	for _, want := range []string{EventResourceRead, EventToolDenied, EventPromptRendered} {
+		if !seen[want] {
+			t.Fatalf("missing audit action %s in %#v", want, entries)
+		}
+	}
+}
+
+func newTestMCPServer(t *testing.T, role string, authMode string) *Server {
+	t.Helper()
+	server, _ := newTestMCPServerAndDeploymentService(t, role, authMode)
+	return server
+}
+
+func newTestMCPServerAndDeploymentService(t *testing.T, role string, authMode string) (*Server, *deploymentusecase.Service) {
+	t.Helper()
+	deployments := runtime.NewDeploymentService()
+	server := newTestMCPServerWithServices(t, domainauth.Subject{
+		ID:          "subject-" + role,
+		Username:    "subject-" + role,
+		DisplayName: "subject-" + role,
+		Roles:       []string{role},
+		AuthMode:    authMode,
+	}, deployments)
+	return server, deployments
+}
+
+func newTestMCPServerWithSubject(t *testing.T, subject domainauth.Subject) *Server {
+	t.Helper()
+	return newTestMCPServerWithServices(t, subject, runtime.NewDeploymentService())
+}
+
+func newTestMCPServerWithServices(t *testing.T, subject domainauth.Subject, deploymentSvc *deploymentusecase.Service) *Server {
+	t.Helper()
+	return newTestMCPServerWithRecorderAndServices(t, subject, &MemoryAuditRecorder{}, deploymentSvc)
+}
+
+func newTestMCPServerWithRecorder(t *testing.T, subject domainauth.Subject, recorder *MemoryAuditRecorder) *Server {
+	t.Helper()
+	return newTestMCPServerWithRecorderAndServices(t, subject, recorder, runtime.NewDeploymentService())
+}
+
+func newTestMCPServerWithRecorderAndServices(t *testing.T, subject domainauth.Subject, recorder *MemoryAuditRecorder, deploymentSvc *deploymentusecase.Service) *Server {
+	t.Helper()
+	cfg := config.Default()
+	cfg.MCP.AllowPlanTools = true
+	pipelines := runtime.NewPipelineService()
+	artifacts := runtime.NewArtifactService()
+	releases := runtime.NewReleaseOrchestrationServiceWith(artifacts, deploymentSvc)
+	security := runtime.NewSecurityService()
+	approval := runtime.NewApprovalService()
+	return NewServer(Services{
+		Config:      cfg,
+		Subject:     subject,
+		Auth:        runtime.NewAuthService(),
+		Pipelines:   pipelines,
+		Deployments: deploymentSvc,
+		Artifacts:   artifacts,
+		Releases:    releases,
+		Security:    security,
+		Compliance:  runtime.NewComplianceService(pipelines, deploymentSvc, artifacts, releases, security, approval),
+		Plugins:     runtime.NewPluginRegistry(),
+		Audit:       recorder,
+	}, nil)
+}
+
+func hasResource(resources []Resource, uri string) bool {
+	for _, resource := range resources {
+		if resource.URI == uri {
+			return true
+		}
+	}
+	return false
+}
+
+func hasTool(tools []Tool, name string) bool {
+	for _, tool := range tools {
+		if tool.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func hasPrompt(prompts []Prompt, name string) bool {
+	for _, prompt := range prompts {
+		if prompt.Name == name {
+			return true
+		}
+	}
+	return false
+}
+
+func mustMarshal(t *testing.T, value any) string {
+	t.Helper()
+	body, err := json.Marshal(value)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	return string(body)
+}
+
+func deploymentDefinitionYAML() string {
+	return `apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: mcp-plan-only
+spec:
+  application: demo
+  environment: dev
+  target:
+    type: kubernetes-yaml
+    name: local
+    namespace: default
+  manifests:
+    - examples/yaml/deployment.yaml
+  options:
+    dryRun: true
+    apply: false
+`
+}

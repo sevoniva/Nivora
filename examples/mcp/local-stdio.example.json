@@ -1,0 +1,17 @@
+{
+  "mcpServers": {
+    "nivora-local": {
+      "command": "go",
+      "args": [
+        "run",
+        "./cmd/nivora-mcp",
+        "--config",
+        "configs/server.yaml",
+        "--stdio"
+      ],
+      "env": {
+        "NIVORA_MCP_TOKEN": "<optional-local-service-account-token>"
+      }
+    }
+  }
+}

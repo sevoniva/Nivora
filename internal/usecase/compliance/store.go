@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"strings"
 	"sync"
 
+	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaincompliance "github.com/sevoniva/nivora/internal/domain/compliance"
 )
 
@@ -15,6 +17,8 @@ var (
 )
 
 type Store interface {
+	AppendAuditLog(ctx context.Context, entry audit.AuditLog) error
+	SearchAuditLogs(ctx context.Context, input AuditSearchInput) ([]audit.AuditLog, error)
 	SaveEvidenceBundle(ctx context.Context, bundle domaincompliance.EvidenceBundle) error
 	GetEvidenceBundle(ctx context.Context, id string) (domaincompliance.EvidenceBundle, error)
 	SearchEvidenceBundles(ctx context.Context, subjectType string, subjectID string) ([]domaincompliance.EvidenceBundle, error)
@@ -25,6 +29,7 @@ type Store interface {
 
 type MemoryStore struct {
 	mu        sync.RWMutex
+	audits    []audit.AuditLog
 	evidence  map[string]domaincompliance.EvidenceBundle
 	retention map[string]domaincompliance.RetentionPolicy
 }
@@ -34,6 +39,32 @@ func NewMemoryStore() *MemoryStore {
 		evidence:  make(map[string]domaincompliance.EvidenceBundle),
 		retention: make(map[string]domaincompliance.RetentionPolicy),
 	}
+}
+
+func (s *MemoryStore) AppendAuditLog(ctx context.Context, entry audit.AuditLog) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.audits = append(s.audits, entry)
+	return nil
+}
+
+func (s *MemoryStore) SearchAuditLogs(ctx context.Context, input AuditSearchInput) ([]audit.AuditLog, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]audit.AuditLog, 0, len(s.audits))
+	for _, entry := range s.audits {
+		if !auditMatches(entry, input) {
+			continue
+		}
+		out = append(out, entry)
+	}
+	return out, nil
 }
 
 func (s *MemoryStore) SaveEvidenceBundle(ctx context.Context, bundle domaincompliance.EvidenceBundle) error {
@@ -115,4 +146,26 @@ func cloneEvidenceBundle(bundle domaincompliance.EvidenceBundle) domaincomplianc
 		return bundle
 	}
 	return cloned
+}
+
+func auditMatches(entry audit.AuditLog, input AuditSearchInput) bool {
+	if input.Subject != "" && !strings.Contains(entry.Subject, input.Subject) && !strings.Contains(entry.SubjectID, input.Subject) && !strings.Contains(entry.SubjectType, input.Subject) {
+		return false
+	}
+	if input.ActorID != "" && entry.ActorID != input.ActorID {
+		return false
+	}
+	if input.Action != "" && !strings.Contains(strings.ToLower(entry.Action), strings.ToLower(input.Action)) {
+		return false
+	}
+	if input.ScopeType != "" && entry.ScopeType != input.ScopeType {
+		return false
+	}
+	if input.ScopeID != "" && entry.ScopeID != input.ScopeID {
+		return false
+	}
+	if input.CorrelationID != "" && entry.CorrelationID != input.CorrelationID {
+		return false
+	}
+	return true
 }

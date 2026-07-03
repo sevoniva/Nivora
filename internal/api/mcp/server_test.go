@@ -7,8 +7,10 @@ import (
 	"testing"
 
 	"github.com/sevoniva/nivora/internal/app/runtime"
+	"github.com/sevoniva/nivora/internal/domain/audit"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 )
 
@@ -62,16 +64,21 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 
 func TestMCPBlockedActionToolDenied(t *testing.T) {
 	server := newTestMCPServer(t, domainauth.RoleAdmin, "mcp-local")
-	result, err := server.CallTool(context.Background(), "nivora_apply_deployment", map[string]any{"id": "dep-1"})
-	if err != nil {
-		t.Fatalf("CallTool returned transport error: %v", err)
-	}
-	if !result.IsError {
-		t.Fatalf("expected blocked action error, got %#v", result)
-	}
-	body := result.Content[0].Text
-	if !strings.Contains(body, "mcp_action_not_allowed") || !strings.Contains(body, "future") {
-		t.Fatalf("blocked action body = %s", body)
+	for name := range blockedActionTools {
+		result, err := server.CallTool(context.Background(), name, map[string]any{"id": "dep-1", "authorization": "Bearer should-not-leak"})
+		if err != nil {
+			t.Fatalf("%s: CallTool returned transport error: %v", name, err)
+		}
+		if !result.IsError {
+			t.Fatalf("%s: expected blocked action error, got %#v", name, result)
+		}
+		body := result.Content[0].Text
+		if !strings.Contains(body, "mcp_action_not_allowed") || !strings.Contains(body, "requiredFutureGate") {
+			t.Fatalf("%s: blocked action body = %s", name, body)
+		}
+		if strings.Contains(body, "should-not-leak") {
+			t.Fatalf("%s: blocked action leaked arguments: %s", name, body)
+		}
 	}
 }
 
@@ -199,6 +206,41 @@ func TestMCPJSONRPCErrorsAreStructured(t *testing.T) {
 	if !strings.Contains(body, "mcp_invalid_arguments") {
 		t.Fatalf("missing argument result = %s", body)
 	}
+	invalidParams := server.HandleJSONRPC(context.Background(), []byte(`{"jsonrpc":"2.0","id":4,"method":"resources/read","params":"bad"}`))
+	if invalidParams.Error == nil || invalidParams.Error.Code != rpcInvalidParams {
+		t.Fatalf("invalid params response = %#v", invalidParams)
+	}
+}
+
+func TestMCPJSONRPCMethods(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleAuditor, "mcp-local")
+	cases := []struct {
+		name   string
+		method string
+		params string
+		want   string
+	}{
+		{name: "initialize", method: "initialize", params: `{}`, want: ProtocolVersion},
+		{name: "resources list", method: "resources/list", params: `{}`, want: "nivora://capabilities/current"},
+		{name: "resources read", method: "resources/read", params: `{"uri":"nivora://system/runtime"}`, want: "runtime"},
+		{name: "tools list", method: "tools/list", params: `{}`, want: "nivora_status"},
+		{name: "tools call", method: "tools/call", params: `{"name":"nivora_status","arguments":{}}`, want: "productionReady"},
+		{name: "prompts list", method: "prompts/list", params: `{}`, want: "diagnose_pipeline_run"},
+		{name: "prompts get", method: "prompts/get", params: `{"name":"mcp_safe_operation_check","arguments":{"requestedAction":"apply"}}`, want: "Blocked actions"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			body := `{"jsonrpc":"2.0","id":1,"method":"` + tc.method + `","params":` + tc.params + `}`
+			response := server.HandleJSONRPC(context.Background(), []byte(body))
+			if response.Error != nil {
+				t.Fatalf("error = %#v", response.Error)
+			}
+			got := mustMarshal(t, response.Result)
+			if !strings.Contains(got, tc.want) {
+				t.Fatalf("response missing %q: %s", tc.want, got)
+			}
+		})
+	}
 }
 
 func TestMCPPromptTextIncludesSafetyRules(t *testing.T) {
@@ -208,9 +250,49 @@ func TestMCPPromptTextIncludesSafetyRules(t *testing.T) {
 		t.Fatalf("GetPrompt: %v", err)
 	}
 	text := result.Messages[0].Content.Text
-	for _, want := range []string{"Cite the Nivora resources", "Separate facts from inference", "not production-ready", "Never request"} {
+	for _, want := range []string{"Cite the Nivora resources", "Separate facts from inference", "List unknowns", "safe read-only checks", "not production-ready", "Never request"} {
 		if !strings.Contains(text, want) {
 			t.Fatalf("prompt missing %q: %s", want, text)
+		}
+	}
+}
+
+func TestMCPComplianceAuditRecorderPersistsToComplianceSearch(t *testing.T) {
+	pipelines := runtime.NewPipelineService()
+	deployments := runtime.NewDeploymentService()
+	artifacts := runtime.NewArtifactService()
+	releases := runtime.NewReleaseOrchestrationServiceWith(artifacts, deployments)
+	security := runtime.NewSecurityService()
+	approval := runtime.NewApprovalService()
+	compliance := runtime.NewComplianceService(pipelines, deployments, artifacts, releases, security, approval)
+	server := NewServer(Services{
+		Config:      config.Default(),
+		Subject:     domainauth.Subject{ID: "mcp-auditor", Username: "mcp-auditor", Roles: []string{domainauth.RoleAuditor}, AuthMode: "token"},
+		Auth:        runtime.NewAuthService(),
+		Pipelines:   pipelines,
+		Deployments: deployments,
+		Artifacts:   artifacts,
+		Releases:    releases,
+		Security:    security,
+		Compliance:  compliance,
+		Plugins:     runtime.NewPluginRegistry(),
+		Audit:       NewComplianceAuditRecorder(compliance),
+	}, nil)
+
+	if _, err := server.ReadResource(context.Background(), "nivora://audit/search"); err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+	result, err := compliance.SearchAudit(context.Background(), complianceusecase.AuditSearchInput{Action: EventResourceRead, ActorID: "mcp-auditor"})
+	if err != nil {
+		t.Fatalf("SearchAudit: %v", err)
+	}
+	if result.Count != 1 {
+		t.Fatalf("expected persisted MCP audit, got %#v", result)
+	}
+	body := mustMarshal(t, result.Items[0])
+	for _, forbidden := range []string{"Bearer should-not-leak", "tokenHash", "BEGIN PRIVATE KEY"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("persisted audit leaked sensitive value: %s", body)
 		}
 	}
 }
@@ -249,6 +331,45 @@ func TestMCPRecordsAuditForOperations(t *testing.T) {
 	for _, want := range []string{EventResourceRead, EventToolDenied, EventPromptRendered} {
 		if !seen[want] {
 			t.Fatalf("missing audit action %s in %#v", want, entries)
+		}
+	}
+}
+
+func TestMCPAuditSanitizesReasonAndSubject(t *testing.T) {
+	entry := newMCPAudit(domainauth.Subject{ID: "actor", AuthMode: "token"}, auditDecision{
+		Event:    EventToolDenied,
+		Subject:  "nivora_get_secret?token=raw-token-value",
+		Scope:    "tool",
+		Decision: "denied",
+		Reason:   "Authorization: Bearer raw-token-value",
+	})
+	body := mustMarshal(t, entry)
+	if strings.Contains(body, "raw-token-value") || strings.Contains(body, "Authorization: Bearer") {
+		t.Fatalf("audit entry leaked sensitive data: %s", body)
+	}
+	if entry.Metadata["auth_mode"] != "token" || entry.Metadata["decision"] != "denied" {
+		t.Fatalf("audit metadata missing: %#v", entry.Metadata)
+	}
+}
+
+func TestMCPRedactionAcrossOutputs(t *testing.T) {
+	sensitive := audit.AuditLog{
+		ID:        "audit-sensitive",
+		ActorID:   "actor",
+		Action:    EventToolDenied,
+		Subject:   "subject",
+		Reason:    "password=secret-password-value",
+		Metadata:  map[string]string{"token_hash": "hash-should-not-leak", "private_key": "-----BEGIN PRIVATE KEY-----"},
+		CreatedAt: newMCPAudit(domainauth.Subject{ID: "actor"}, auditDecision{Event: EventToolDenied}).CreatedAt,
+	}
+	body := mustJSON(map[string]any{
+		"resource": sensitive,
+		"tool":     errorToolResult(OperationError{Code: "mcp_invalid_arguments", Message: "Bearer raw-token-value"}),
+		"prompt":   "Never print kubeconfig: apiVersion: v1",
+	})
+	for _, forbidden := range []string{"secret-password-value", "hash-should-not-leak", "BEGIN PRIVATE KEY", "raw-token-value", "apiVersion: v1"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("sensitive output leaked %q in %s", forbidden, body)
 		}
 	}
 }

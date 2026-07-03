@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaincompliance "github.com/sevoniva/nivora/internal/domain/compliance"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 )
@@ -24,6 +25,46 @@ var _ complianceusecase.Store = (*ComplianceStore)(nil)
 
 func NewComplianceStore(pool *pgxpool.Pool) *ComplianceStore {
 	return &ComplianceStore{pool: pool}
+}
+
+func (s *ComplianceStore) AppendAuditLog(ctx context.Context, entry audit.AuditLog) error {
+	return AppendHashChainedAudit(ctx, s.pool, "mcp", entry)
+}
+
+func (s *ComplianceStore) SearchAuditLogs(ctx context.Context, input complianceusecase.AuditSearchInput) ([]audit.AuditLog, error) {
+	rows, err := s.pool.Query(ctx, `SELECT payload FROM governance_audit_logs
+		WHERE source = 'mcp'
+		  AND ($1 = '' OR actor_id = $1)
+		  AND ($2 = '' OR action ILIKE '%' || $2 || '%')
+		  AND ($3 = '' OR subject ILIKE '%' || $3 || '%')
+		ORDER BY created_at ASC, id ASC`, input.ActorID, input.Action, input.Subject)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var entries []audit.AuditLog
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		var entry audit.AuditLog
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			return nil, err
+		}
+		if input.ScopeType != "" && entry.ScopeType != input.ScopeType {
+			continue
+		}
+		if input.ScopeID != "" && entry.ScopeID != input.ScopeID {
+			continue
+		}
+		if input.CorrelationID != "" && entry.CorrelationID != input.CorrelationID {
+			continue
+		}
+		entries = append(entries, entry)
+	}
+	return entries, rows.Err()
 }
 
 func (s *ComplianceStore) SaveEvidenceBundle(ctx context.Context, bundle domaincompliance.EvidenceBundle) error {

@@ -1,12 +1,14 @@
 package mcp
 
 import (
+	"context"
 	"encoding/json"
 	"time"
 
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	"github.com/sevoniva/nivora/internal/infra/crypto"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
@@ -41,19 +43,38 @@ type Services struct {
 }
 
 type AuditRecorder interface {
-	RecordMCPAudit(entry audit.AuditLog)
+	RecordMCPAudit(ctx context.Context, entry audit.AuditLog) error
 }
 
 type MemoryAuditRecorder struct {
 	entries []audit.AuditLog
 }
 
-func (r *MemoryAuditRecorder) RecordMCPAudit(entry audit.AuditLog) {
+func (r *MemoryAuditRecorder) RecordMCPAudit(ctx context.Context, entry audit.AuditLog) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	r.entries = append(r.entries, entry)
+	return nil
 }
 
 func (r *MemoryAuditRecorder) Entries() []audit.AuditLog {
 	return append([]audit.AuditLog(nil), r.entries...)
+}
+
+type ComplianceAuditRecorder struct {
+	service *complianceusecase.Service
+}
+
+func NewComplianceAuditRecorder(service *complianceusecase.Service) *ComplianceAuditRecorder {
+	return &ComplianceAuditRecorder{service: service}
+}
+
+func (r *ComplianceAuditRecorder) RecordMCPAudit(ctx context.Context, entry audit.AuditLog) error {
+	if r == nil || r.service == nil {
+		return nil
+	}
+	return r.service.RecordAudit(ctx, entry)
 }
 
 type Resource struct {
@@ -152,17 +173,22 @@ type auditDecision struct {
 
 func newMCPAudit(subject domainauth.Subject, decision auditDecision) audit.AuditLog {
 	now := time.Now().UTC()
+	safeSubject := crypto.RedactString(decision.Subject)
+	safeReason := crypto.RedactString(decision.Reason)
 	return audit.AuditLog{
 		ID:          "mcp-audit-" + now.Format("20060102150405.000000000"),
 		ActorID:     subject.ID,
 		Action:      decision.Event,
-		Subject:     decision.Subject,
+		Subject:     safeSubject,
 		SubjectType: "mcp",
-		SubjectID:   decision.Subject,
+		SubjectID:   safeSubject,
 		ScopeType:   decision.Scope,
-		Reason:      decision.Reason,
+		ScopeID:     decision.Scope,
+		Reason:      safeReason,
 		Metadata: map[string]string{
-			"decision": decision.Decision,
+			"auth_mode": subject.AuthMode,
+			"decision":  decision.Decision,
+			"operation": safeSubject,
 		},
 		CreatedAt: now,
 	}

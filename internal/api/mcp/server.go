@@ -27,6 +27,8 @@ var blockedActionTools = map[string]string{
 	"nivora_execute_rollback":    "rollback execution is not exposed through MCP in this phase",
 	"nivora_approve":             "approval decisions must use guarded control-plane APIs",
 	"nivora_reject":              "approval decisions must use guarded control-plane APIs",
+	"nivora_approve_request":     "approval decisions must use guarded control-plane APIs",
+	"nivora_reject_request":      "approval decisions must use guarded control-plane APIs",
 	"nivora_rotate_token":        "token rotation is intentionally excluded from MCP tools",
 	"nivora_get_secret":          "secret value retrieval is never exposed by normal MCP tools",
 	"nivora_register_runner":     "runner registration requires control-plane RBAC and one-time token handling",
@@ -80,15 +82,15 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 
 func (s *Server) ReadResource(ctx context.Context, uri string) (ResourceContent, error) {
 	if err := s.checkResourcePermission(ctx, uri); err != nil {
-		s.record(EventResourceRead, uri, "system", "denied", err.Error())
+		s.record(ctx, EventResourceRead, uri, "system", "denied", err.Error())
 		return ResourceContent{}, err
 	}
 	payload, err := s.readResourcePayload(ctx, uri)
 	if err != nil {
-		s.record(EventResourceRead, uri, "system", "failed", err.Error())
+		s.record(ctx, EventResourceRead, uri, "system", "failed", err.Error())
 		return ResourceContent{}, err
 	}
-	s.record(EventResourceRead, uri, "system", "allowed", "resource read")
+	s.record(ctx, EventResourceRead, uri, "system", "allowed", "resource read")
 	return ResourceContent{URI: uri, MimeType: jsonMime, Text: mustJSON(payload)}, nil
 }
 
@@ -118,7 +120,9 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 	if s.services.Config.MCP.AllowPlanTools {
 		tools = append(tools,
 			tool("nivora_explain_pipeline_failure", "Explain PipelineRun failure facts and likely next checks", idSchema("id")),
+			tool("nivora_explain_deployment", "Explain DeploymentRun risk from health, diff, warnings, and resources", idSchema("id")),
 			tool("nivora_explain_deployment_risk", "Explain DeploymentRun risk from health, diff, warnings, and resources", idSchema("id")),
+			tool("nivora_explain_release", "Generate a ReleaseExecution readiness summary", idSchema("id")),
 			tool("nivora_generate_release_readiness_summary", "Generate a ReleaseExecution readiness summary", idSchema("id")),
 			tool("nivora_evaluate_policy_local", "Evaluate local policy inputs without storing a result", objectSchema(map[string]any{
 				"subjectType": stringProperty("artifact, manifest, deployment_plan, or release"),
@@ -126,6 +130,10 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 				"reference":   stringProperty("artifact reference"),
 				"content":     stringProperty("manifest content"),
 			}, []string{"subjectType", "subjectId"})),
+			tool("nivora_inspect_artifact", "Inspect an artifact reference without registry network access", objectSchema(map[string]any{
+				"reference": stringProperty("artifact reference"),
+				"type":      stringProperty("artifact type, defaults to image"),
+			}, []string{"reference"})),
 			tool("nivora_inspect_artifact_reference", "Inspect an artifact reference without registry network access", objectSchema(map[string]any{
 				"reference": stringProperty("artifact reference"),
 				"type":      stringProperty("artifact type, defaults to image"),
@@ -142,25 +150,25 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 func (s *Server) CallTool(ctx context.Context, name string, arguments map[string]any) (ToolResult, error) {
 	if gate, ok := blockedActionTools[name]; ok {
 		err := OperationError{Code: "mcp_action_not_allowed", Message: name + " is not exposed by the MCP foundation", RequiredFutureGate: gate}
-		s.record(EventToolDenied, name, "system", "denied", err.Message)
+		s.record(ctx, EventToolDenied, name, "system", "denied", err.Message)
 		return errorToolResult(err), nil
 	}
 	permission := s.toolPermission(name)
 	if permission == "" {
 		err := OperationError{Code: "mcp_tool_not_found", Message: "unknown MCP tool " + name}
-		s.record(EventToolDenied, name, "system", "denied", err.Message)
+		s.record(ctx, EventToolDenied, name, "system", "denied", err.Message)
 		return errorToolResult(err), nil
 	}
 	if err := s.require(ctx, permission, "mcp.tool", name); err != nil {
-		s.record(EventToolDenied, name, "system", "denied", err.Error())
+		s.record(ctx, EventToolDenied, name, "system", "denied", err.Error())
 		return errorToolResult(err), nil
 	}
 	payload, err := s.callToolPayload(ctx, name, arguments)
 	if err != nil {
-		s.record(EventToolCalled, name, "system", "failed", err.Error())
+		s.record(ctx, EventToolCalled, name, "system", "failed", err.Error())
 		return errorToolResult(err), nil
 	}
-	s.record(EventToolCalled, name, "system", "allowed", "tool called")
+	s.record(ctx, EventToolCalled, name, "system", "allowed", "tool called")
 	return textToolResult(mustJSON(payload)), nil
 }
 
@@ -173,14 +181,14 @@ func (s *Server) ListPrompts(ctx context.Context) ([]Prompt, error) {
 
 func (s *Server) GetPrompt(ctx context.Context, name string, args map[string]string) (PromptResult, error) {
 	if err := s.require(ctx, domainauth.PermissionProjectRead, "mcp.prompt", name); err != nil {
-		s.record(EventPromptRendered, name, "system", "denied", err.Error())
+		s.record(ctx, EventPromptRendered, name, "system", "denied", err.Error())
 		return PromptResult{}, err
 	}
 	text, ok := promptText(name, args)
 	if !ok {
 		return PromptResult{}, OperationError{Code: "mcp_prompt_not_found", Message: "unknown MCP prompt " + name}
 	}
-	s.record(EventPromptRendered, name, "system", "allowed", "prompt rendered")
+	s.record(ctx, EventPromptRendered, name, "system", "allowed", "prompt rendered")
 	return PromptResult{
 		Description: "Nivora " + name + " prompt",
 		Messages: []PromptMessage{{
@@ -338,13 +346,13 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return s.explainPipeline(ctx, id)
-	case "nivora_explain_deployment_risk":
+	case "nivora_explain_deployment", "nivora_explain_deployment_risk":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
 			return nil, err
 		}
 		return s.explainDeploymentRisk(ctx, id)
-	case "nivora_generate_release_readiness_summary":
+	case "nivora_explain_release", "nivora_generate_release_readiness_summary":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
 			return nil, err
@@ -358,7 +366,7 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			Findings:    manifestFindings(stringArg(arguments, "content")),
 			ActorID:     s.services.Subject.ID,
 		}), nil
-	case "nivora_inspect_artifact_reference":
+	case "nivora_inspect_artifact", "nivora_inspect_artifact_reference":
 		artifactType := domainartifact.ArtifactType(firstNonEmpty(stringArg(arguments, "type"), string(domainartifact.ArtifactTypeImage)))
 		reference, err := requiredString(arguments, "reference")
 		if err != nil {
@@ -500,9 +508,12 @@ func (s *Server) toolPermission(name string) string {
 	case "nivora_search_audit":
 		return domainauth.PermissionAuditRead
 	case "nivora_explain_pipeline_failure",
+		"nivora_explain_deployment",
 		"nivora_explain_deployment_risk",
+		"nivora_explain_release",
 		"nivora_generate_release_readiness_summary",
 		"nivora_evaluate_policy_local",
+		"nivora_inspect_artifact",
 		"nivora_inspect_artifact_reference",
 		"nivora_plan_deployment_local":
 		return domainauth.PermissionDeploymentCreate
@@ -543,9 +554,11 @@ func (s *Server) require(_ context.Context, permission string, resourceType stri
 	return nil
 }
 
-func (s *Server) record(event string, subject string, scope string, decision string, reason string) {
+func (s *Server) record(ctx context.Context, event string, subject string, scope string, decision string, reason string) {
 	if s.services.Audit != nil {
-		s.services.Audit.RecordMCPAudit(newMCPAudit(s.services.Subject, auditDecision{Event: event, Subject: subject, Scope: scope, Decision: decision, Reason: reason}))
+		if err := s.services.Audit.RecordMCPAudit(ctx, newMCPAudit(s.services.Subject, auditDecision{Event: event, Subject: subject, Scope: scope, Decision: decision, Reason: reason})); err != nil {
+			s.logger.Warn("mcp audit record failed", "event", event, "subject", subject, "error", err)
+		}
 	}
 	s.logger.Info("mcp operation", "event", event, "subject", subject, "decision", decision, "reason", reason)
 }

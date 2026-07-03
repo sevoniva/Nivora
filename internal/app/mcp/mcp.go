@@ -112,7 +112,7 @@ func BuildServer(ctx context.Context, cfg config.Config, logger *slog.Logger) (*
 		Security:    security,
 		Compliance:  compliance,
 		Plugins:     runtime.NewPluginRegistry(),
-		Audit:       &apimcp.MemoryAuditRecorder{},
+		Audit:       apimcp.NewComplianceAuditRecorder(compliance),
 	}, logger)
 	return server, cleanup, nil
 }

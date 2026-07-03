@@ -15,6 +15,7 @@ This index helps new contributors understand where to start. Nivora is currently
 - [Beta Capability Matrix](BETA_CAPABILITY_MATRIX.md): beta-freeze capability boundaries.
 - [Implementation Audit](status/IMPLEMENTATION_AUDIT.md): evidence-based maturity audit.
 - [Capability Status](status/CAPABILITY_STATUS.md): implemented, partial, foundation, placeholder, experimental, documented-only, and missing capability labels.
+- [MCP Control Plane Review](status/MCP_CONTROL_PLANE_REVIEW.md): safe AI-control-plane capability review and remote MCP go/no-go.
 - [API Inventory](API_INVENTORY.md): implemented, partial, and placeholder HTTP API groups.
 - [Alpha Demo Guide](demo/alpha-demo.md): self-contained demo path that does not require external services.
 - [Contribution Guide](../CONTRIBUTING.md): development setup and contribution rules.
@@ -156,6 +157,7 @@ For a quick path through the project:
 
 - [Threat Model](security/threat-model.md)
 - [Security Review Checklist](security/security-review-checklist.md)
+- [MCP Permission Matrix](security/MCP_PERMISSION_MATRIX.md)
 - [MCP Security](security/mcp-security.md)
 - [Security Baseline](engineering/security-baseline.md)
 

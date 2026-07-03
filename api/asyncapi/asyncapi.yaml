@@ -708,21 +708,25 @@ channels:
         $ref: "#/components/messages/Event"
   mcp.resource.read:
     address: mcp.resource.read
+    description: Emitted when the local stdio MCP control plane reads a resource; persisted through compliance audit when configured with durable stores.
     messages:
       event:
         $ref: "#/components/messages/Event"
   mcp.tool.called:
     address: mcp.tool.called
+    description: Emitted when a read-only or plan-only MCP tool completes or fails without mutating delivery state.
     messages:
       event:
         $ref: "#/components/messages/Event"
   mcp.tool.denied:
     address: mcp.tool.denied
+    description: Emitted when an action-shaped or unauthorized MCP tool request is blocked.
     messages:
       event:
         $ref: "#/components/messages/Event"
   mcp.prompt.rendered:
     address: mcp.prompt.rendered
+    description: Emitted when a safe MCP workflow prompt is rendered for AI-assisted analysis.
     messages:
       event:
         $ref: "#/components/messages/Event"

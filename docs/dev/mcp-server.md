@@ -48,7 +48,7 @@ Send one JSON-RPC object per line:
 make verify-mcp
 ```
 
-This target runs deterministic local MCP tests, builds `cmd/nivora-mcp`, and checks local tool/resource listing. It does not require Kubernetes, Argo CD, Harbor, cloud credentials, external registries, or external scanners.
+This target runs deterministic local MCP tests, builds `cmd/nivora-mcp`, checks local tool/resource listing, and runs `scripts/smoke-mcp-local.sh`. It does not require Kubernetes, Argo CD, Harbor, cloud credentials, external registries, or external scanners.
 
 ## Configuration
 
@@ -67,9 +67,20 @@ mcp:
 
 Production mode requires explicit token-backed identity. Runner tokens are rejected.
 
+## Audit
+
+MCP records:
+
+- `mcp.resource.read`
+- `mcp.tool.called`
+- `mcp.tool.denied`
+- `mcp.prompt.rendered`
+
+Local tests can use the in-memory recorder. Runtime wiring uses the compliance service recorder, so PostgreSQL runtime mode persists MCP audit through the existing compliance audit path and hash-chain tables.
+
 ## Limitations
 
 - The transport is a minimal stdio JSON-RPC foundation.
 - Remote MCP/OAuth is not implemented.
-- Durable MCP-specific audit persistence is future hardening.
+- Remote MCP-specific OAuth, rate limiting, and per-client scoping are future hardening.
 - MCP does not make Nivora production-ready.

@@ -56,6 +56,11 @@ func (s *Service) SearchAudit(ctx context.Context, input AuditSearchInput) (doma
 	if err != nil {
 		return domaincompliance.AuditSearchResult{}, err
 	}
+	storedEntries, err := s.store.SearchAuditLogs(ctx, input)
+	if err != nil {
+		return domaincompliance.AuditSearchResult{}, err
+	}
+	entries = append(entries, storedEntries...)
 	filtered := make([]audit.AuditLog, 0, len(entries))
 	for _, entry := range entries {
 		if input.Subject != "" && !strings.Contains(entry.Subject, input.Subject) {
@@ -80,6 +85,23 @@ func (s *Service) SearchAudit(ctx context.Context, input AuditSearchInput) (doma
 	}
 	sort.Slice(filtered, func(i, j int) bool { return filtered[i].CreatedAt.Before(filtered[j].CreatedAt) })
 	return domaincompliance.AuditSearchResult{Items: filtered, Count: len(filtered)}, nil
+}
+
+func (s *Service) RecordAudit(ctx context.Context, entry audit.AuditLog) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if entry.ID == "" {
+		entry.ID = "audit-" + time.Now().UTC().Format("20060102150405.000000000")
+	}
+	if entry.CreatedAt.IsZero() {
+		entry.CreatedAt = s.now()
+	}
+	if entry.SubjectType == "" {
+		entry.SubjectType = "control-plane"
+	}
+	entry = sanitizeAudit(entry)
+	return s.store.AppendAuditLog(ctx, entry)
 }
 
 func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (domaincompliance.EvidenceBundle, error) {

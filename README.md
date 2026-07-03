@@ -30,7 +30,7 @@ Future `v1.0.0` documents are planning checklists, not proof that GA has been re
 | Multi-cloud | Placeholder/foundation inventory only; no cloud deployment |
 | Host deployment | Experimental plan/dry-run/noop and guarded SSH surface |
 | Web console | Experimental minimal UI that consumes backend APIs |
-| MCP control plane | Foundation; local stdio read-only and plan-only AI access, no action tools |
+| MCP control plane | Foundation; local stdio read-only and plan-only AI access, denied action tools, compliance-backed audit |
 | Packaging | Partial; Docker Compose, Helm, production-like values, and smoke checks exist |
 | Observability / audit | Partial; diagnostics, metrics, runbooks, audit/evidence foundations; production retention/export still needs hardening |
 

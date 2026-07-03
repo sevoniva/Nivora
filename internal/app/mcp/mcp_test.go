@@ -71,6 +71,27 @@ func TestBuildServerLocalConfig(t *testing.T) {
 	}
 }
 
+func TestBuildServerRecordsMCPAuditThroughComplianceService(t *testing.T) {
+	cfg := config.Default()
+	cfg.MCP.SubjectRole = domainauth.RoleAuditor
+	server, cleanup, err := BuildServer(context.Background(), cfg, nil)
+	if err != nil {
+		t.Fatalf("BuildServer: %v", err)
+	}
+	defer cleanup()
+
+	if _, err := server.ReadResource(context.Background(), "nivora://audit/search"); err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+	result, err := server.CallTool(context.Background(), "nivora_search_audit", map[string]any{"action": "mcp.resource.read"})
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if result.IsError || !strings.Contains(result.Content[0].Text, "mcp.resource.read") {
+		t.Fatalf("audit search result = %#v", result)
+	}
+}
+
 func productionMCPConfig() config.Config {
 	cfg := config.Default()
 	cfg.Env = "production"

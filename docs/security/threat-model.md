@@ -96,12 +96,12 @@ Current controls:
 - Action-shaped tools return `mcp_action_not_allowed`.
 - Runner tokens cannot authenticate to MCP.
 - MCP output redacts secret-like keys and strings.
+- MCP audit records are routed through the compliance service; PostgreSQL mode persists them through the existing hash-chained audit path.
 
 Required hardening before remote MCP:
 
 - Add remote MCP OAuth/OIDC design.
 - Add tenant-aware scope filters to every resource URI.
-- Persist MCP audit records through the durable compliance store.
 - Keep apply, sync, rollback, approve/reject, token mutation, secret retrieval, and runner registration behind a separate future guarded-action design.
 
 ### Credential Leakage

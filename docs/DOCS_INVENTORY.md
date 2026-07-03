@@ -11,6 +11,7 @@ This inventory lists the main documentation areas and their purpose.
 - `docs/ALPHA_CAPABILITY_MATRIX.md`: historical alpha capability view.
 - `docs/BETA_CAPABILITY_MATRIX.md`: beta-freeze capability view.
 - `docs/status/CAPABILITY_STATUS.md`: current implemented/partial/foundation/placeholder/experimental capability source of truth.
+- `docs/status/MCP_CONTROL_PLANE_REVIEW.md`: AI control-plane capability review, safe-answer boundaries, and remote MCP go/no-go.
 - `docs/demo/`: self-contained demo guides.
 - `docs/releases/`: release checklists and validation notes.
 - `docs/product/`: vision, problem framing, users, use cases, non-goals, and product principles.
@@ -21,6 +22,7 @@ This inventory lists the main documentation areas and their purpose.
 - `docs/dev/`: local development, web console, runtime, API, MCP, and adapter notes.
 - `docs/operations/`: install, configuration, database, observability, and troubleshooting notes.
 - `docs/rfcs/`: RFC process, template for large proposals, and MCP control-plane foundation rationale.
-- `docs/security/mcp-security.md`: MCP trust boundary, RBAC, redaction, and blocked action rules.
+- `docs/security/MCP_PERMISSION_MATRIX.md`: MCP resource/tool/prompt permissions, runner-token denial, audit events, and action-tool status.
+- `docs/security/mcp-security.md`: MCP trust boundary, RBAC, redaction, compliance-backed audit, and blocked action rules.
 - `docs/adr/`: accepted architecture decision records.
 - `docs/engineering/`: guardrails for dependencies, testing, security, and release scope.

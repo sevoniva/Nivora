@@ -71,4 +71,4 @@ MCP emits operation-level audit/log decisions:
 - `mcp.tool.denied`
 - `mcp.prompt.rendered`
 
-The current foundation records these decisions through the MCP server audit recorder and structured logs. Wider durable MCP audit persistence can be added later without changing domain models.
+Local tests can use the in-memory MCP audit recorder. Runtime wiring uses a compliance-backed recorder, so PostgreSQL runtime mode persists MCP audit through the existing compliance audit path and hash-chain tables. This keeps MCP audit outside the domain layer while preserving durable evidence for production-like runtime configurations.

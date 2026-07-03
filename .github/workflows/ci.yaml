@@ -44,6 +44,8 @@ jobs:
         run: make verify-runtime verify-api verify-cli verify-deployment verify-release verify-security verify-host
       - name: Verify API specs
         run: make verify-api-specs
+      - name: Verify MCP control plane
+        run: make verify-mcp
       - name: Verify packaging templates
         run: make verify-packaging
       - name: Verify Helm safety

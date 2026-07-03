@@ -94,3 +94,18 @@ Start with:
 - [Runbook: DB unavailable](../operations/runbooks/db-unavailable.md)
 - [Runbook: object store unavailable](../operations/runbooks/object-store-unavailable.md)
 - [Runbook: policy gate denied](../operations/runbooks/policy-gate-denied.md)
+
+## AI / MCP
+
+Local stdio MCP can help maintainers inspect Nivora state with AI tools. It is read-only and plan-only, records MCP audit events, rejects runner tokens, redacts secret-like output, and denies destructive action-shaped calls.
+
+Start with:
+
+- [MCP server](../dev/mcp-server.md)
+- [MCP security](../security/mcp-security.md)
+- [MCP threat model](../security/mcp-threat-model.md)
+- [MCP control-plane review](../status/MCP_CONTROL_PLANE_REVIEW.md)
+- [AI control-plane product review](../status/AI_CONTROL_PLANE_PRODUCT_REVIEW.md)
+- [Remote read-only MCP RFC](../rfcs/remote-mcp-read-only.md)
+
+Remote MCP is not implemented. Action MCP is blocked.

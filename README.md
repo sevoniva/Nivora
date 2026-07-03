@@ -30,7 +30,7 @@ Future `v1.0.0` documents are planning checklists, not proof that GA has been re
 | Multi-cloud | Placeholder/foundation inventory only; no cloud deployment |
 | Host deployment | Experimental plan/dry-run/noop and guarded SSH surface |
 | Web console | Experimental minimal UI that consumes backend APIs |
-| MCP control plane | Foundation; local stdio read-only and plan-only AI access, denied action tools, compliance-backed audit |
+| MCP control plane | Foundation; local stdio read-only and plan-only AI access, denied action tools, compliance-backed audit, and golden operator scenarios |
 | Packaging | Partial; Docker Compose, Helm, production-like values, and smoke checks exist |
 | Observability / audit | Partial; diagnostics, metrics, runbooks, audit/evidence foundations; production retention/export still needs hardening |
 
@@ -58,7 +58,10 @@ Status references:
 - [Future v1.0.0 Release Notes Draft](docs/releases/v1.0.0-release-notes.md)
 - [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md)
 - [Capability Status](docs/status/CAPABILITY_STATUS.md)
+- [AI Control Plane Product Review](docs/status/AI_CONTROL_PLANE_PRODUCT_REVIEW.md)
+- [AI Control Plane Beta Readiness](docs/status/AI_CONTROL_PLANE_BETA_READINESS.md)
 - [Security Threat Model](docs/security/threat-model.md)
+- [MCP Threat Model](docs/security/mcp-threat-model.md)
 - [Security Review Checklist](docs/security/security-review-checklist.md)
 - [User Guide](docs/user/README.md)
 - [Operator Guide](docs/operator/README.md)

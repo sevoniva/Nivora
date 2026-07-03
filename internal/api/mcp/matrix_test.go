@@ -50,9 +50,24 @@ func TestMCPPermissionMatrixDocumentsAuditResources(t *testing.T) {
 	if auditResource["Required Permission"] != domainauth.PermissionAuditRead {
 		t.Fatalf("audit resource permission = %#v", auditResource)
 	}
+	if auditResource["Tenant Scope"] != "audit scope" || auditResource["Future Remote Classification"] == "" {
+		t.Fatalf("audit resource missing scope/remote classification = %#v", auditResource)
+	}
 	auditTool := matrix["nivora_search_audit"]
 	if auditTool["Required Permission"] != domainauth.PermissionAuditRead {
 		t.Fatalf("audit tool permission = %#v", auditTool)
+	}
+}
+
+func TestMCPPermissionMatrixIncludesReadinessFields(t *testing.T) {
+	matrix := loadMCPPermissionMatrix(t)
+	required := []string{"Tenant Scope", "Redaction Risk", "Confidence Level", "Remaining Tests", "Future Remote Classification"}
+	for name, row := range matrix {
+		for _, field := range required {
+			if row[field] == "" {
+				t.Fatalf("%s missing %s in matrix row %#v", name, field, row)
+			}
+		}
 	}
 }
 

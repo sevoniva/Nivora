@@ -51,13 +51,16 @@ Read-only tools:
 Plan-only tools:
 
 - `nivora_explain_pipeline_failure`
+- `nivora_explain_deployment`
 - `nivora_explain_deployment_risk`
+- `nivora_explain_release`
 - `nivora_generate_release_readiness_summary`
 - `nivora_evaluate_policy_local`
+- `nivora_inspect_artifact`
 - `nivora_inspect_artifact_reference`
 - `nivora_plan_deployment_local`
 
-Plan-only tools must return `mutated=false` when they produce planning or explanation output.
+Plan-only tools must return `mutated=false` when they produce planning, explanation, local policy evaluation, local artifact inspection, or local deployment-plan output.
 
 ## Blocked Actions
 
@@ -74,7 +77,7 @@ These operations are deliberately not MCP tools in this phase:
 - Git push
 - Kubernetes prune/delete
 
-Requests for action-shaped tool names return `mcp_action_not_allowed` with a future gate explanation.
+Requests for action-shaped tool names, including common aliases such as `nivora_approve_request`, `nivora_reject_request`, and `nivora_rollback_deployment`, return `mcp_action_not_allowed` with a future gate explanation.
 
 ## Auth And Scope
 
@@ -86,11 +89,13 @@ MCP does not bypass Nivora RBAC.
 - Audit resources require `audit.read`.
 - Plan-only tools require existing delivery permissions such as `deployment.create`.
 
-Remote MCP with OAuth/OIDC is future work.
+Remote MCP with OAuth/OIDC is future work. The proposed next step is remote read-only MCP, documented in `remote-mcp-read-only.md`. Remote action MCP remains blocked.
 
 ## Audit And Redaction
 
 MCP records operation-level audit/log events for resource reads, tool calls, denied tool calls, and rendered prompts. Local tests can use an in-memory recorder. Runtime wiring uses the compliance service recorder, so PostgreSQL runtime mode persists MCP audit through the existing hash-chained compliance audit path. Audit/log payloads must not contain raw tokens, token hashes, secret values, private keys, kubeconfigs, cloud keys, or Authorization headers.
+
+Golden operator scenarios live in `examples/mcp/scenarios/` and are validated by MCP scenario tests. They cover current useful workflows and the claims AI must not make.
 
 ## Dependency Decision
 

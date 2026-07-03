@@ -60,6 +60,8 @@ The current prompt pack is useful because it forces:
 - no destructive action requests
 - no production-ready claims
 
+Golden operator scenarios now live under `examples/mcp/scenarios/`. They cover failed pipelines, degraded deployments, release approval waits, runner fleet issues, policy denial, mutable artifact references, audit incident search, and production config posture review. `internal/api/mcp/scenario_test.go` validates that the scenario resources, tools, prompts, blocked actions, redaction behavior, and plan-only `mutated=false` contract stay aligned with the MCP catalog.
+
 The next improvement should be smaller, more task-shaped prompts for:
 
 - "deployment failed after apply"
@@ -70,7 +72,9 @@ The next improvement should be smaller, more task-shaped prompts for:
 
 ## Remote MCP Decision
 
-Remote MCP should **not** be opened yet.
+Remote MCP should **not** be opened yet as a deployed capability.
+
+The next acceptable design step is remote **read-only** MCP. The proposed boundary is documented in `docs/rfcs/remote-mcp-read-only.md`. Remote action MCP remains blocked.
 
 Required before remote MCP:
 
@@ -86,11 +90,12 @@ Required before remote MCP:
 
 MCP 1.1 should stay local stdio and harden:
 
-- durable MCP audit through compliance stores
-- MCP permission matrix tests
+- golden scenario fixtures and prompt-injection-style log examples
+- Postgres-backed MCP audit-chain verification
+- tenant-scope tests for every future remote resource
 - broader redaction tests
 - local smoke scripts
 - workflow examples
 - CI coverage
 
-MCP 1.2 can design remote read-only MCP, but should still exclude action tools.
+MCP 1.2 can implement remote read-only MCP only after OAuth/OIDC, scoped service accounts, response limits, rate limits, and remote audit tests exist. It should still exclude action tools.

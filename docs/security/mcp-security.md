@@ -56,8 +56,10 @@ Runtime wiring records MCP audit through the compliance service. In PostgreSQL r
 
 See [MCP Permission Matrix](MCP_PERMISSION_MATRIX.md) for the resource, tool, prompt, permission, and audit-event mapping.
 
+See [MCP Threat Model](mcp-threat-model.md) for the current trust-boundary review. Golden scenarios in `examples/mcp/scenarios/` are validated by `internal/api/mcp/scenario_test.go` and are intended to keep AI answers grounded in facts, inference, unknowns, and forbidden claims.
+
 ## Future Work
 
-- Remote MCP with OAuth/OIDC.
+- Remote read-only MCP with OAuth/OIDC and tenant scoping.
 - Tenant-aware scope filters for every resource URI.
 - Guarded action tier with explicit confirmation, policy gates, and independent audit evidence.

@@ -359,20 +359,25 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		}
 		return s.releaseReadiness(ctx, id)
 	case "nivora_evaluate_policy_local":
-		return s.services.Security.Evaluate(securityusecase.EvaluateInput{
+		result := s.services.Security.Evaluate(securityusecase.EvaluateInput{
 			SubjectType: domainsecurity.SubjectType(firstNonEmpty(stringArg(arguments, "subjectType"), "artifact")),
 			SubjectID:   firstNonEmpty(stringArg(arguments, "subjectId"), "mcp-local"),
 			Reference:   stringArg(arguments, "reference"),
 			Findings:    manifestFindings(stringArg(arguments, "content")),
 			ActorID:     s.services.Subject.ID,
-		}), nil
+		})
+		return map[string]any{"policyResult": result, "mutated": false}, nil
 	case "nivora_inspect_artifact", "nivora_inspect_artifact_reference":
 		artifactType := domainartifact.ArtifactType(firstNonEmpty(stringArg(arguments, "type"), string(domainartifact.ArtifactTypeImage)))
 		reference, err := requiredString(arguments, "reference")
 		if err != nil {
 			return nil, err
 		}
-		return s.services.Artifacts.Inspect(ctx, reference, artifactType)
+		inspection, err := s.services.Artifacts.Inspect(ctx, reference, artifactType)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"inspection": inspection, "mutated": false}, nil
 	case "nivora_plan_deployment_local":
 		return s.planDeploymentLocal(arguments)
 	default:

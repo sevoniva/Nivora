@@ -118,6 +118,7 @@ verify-mcp:
 	GOPROXY=$(GOPROXY) $(GO) build -o /tmp/nivora-mcp ./cmd/nivora-mcp
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora mcp list-tools --local >/tmp/nivora-mcp-tools.json
 	GOPROXY=$(GOPROXY) $(GO) run ./cmd/nivora mcp list-resources --local >/tmp/nivora-mcp-resources.json
+	./scripts/validate-mcp-scenarios.sh
 	./scripts/smoke-mcp-local.sh
 	@echo "=== verify-mcp passed ==="
 

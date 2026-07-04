@@ -103,8 +103,13 @@ func EvaluatePolicyDefinition(policyService *policyusecase.Service, securityServ
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_policy_evaluation", Message: "subjectId or reference is required"})
 			return
 		}
+		input.ProjectID, input.EnvironmentID = constrainSecurityScope(r, input.ProjectID, input.EnvironmentID)
 		securityusecase.ApplyPolicyDefinitionToEvaluation(policy, &input)
-		result := securityService.Evaluate(input)
+		result, err := securityService.EvaluateAndStore(r.Context(), input)
+		if err != nil {
+			respondSecurityResult(w, r, nil, err)
+			return
+		}
 		RespondJSON(w, http.StatusOK, result)
 	}
 }

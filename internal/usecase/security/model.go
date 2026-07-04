@@ -74,19 +74,36 @@ type ListFindingsInput struct {
 	Category      domainsecurity.FindingCategory `json:"category,omitempty" yaml:"category,omitempty"`
 }
 
+type ListPolicyResultsInput struct {
+	PolicyID      string                      `json:"policyId,omitempty" yaml:"policyId,omitempty"`
+	SubjectType   domainsecurity.SubjectType  `json:"subjectType,omitempty" yaml:"subjectType,omitempty"`
+	SubjectID     string                      `json:"subjectId,omitempty" yaml:"subjectId,omitempty"`
+	ProjectID     string                      `json:"projectId,omitempty" yaml:"projectId,omitempty"`
+	EnvironmentID string                      `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+	Decision      domainsecurity.GateDecision `json:"decision,omitempty" yaml:"decision,omitempty"`
+}
+
 type GetFindingInput struct {
 	FindingID     string `json:"findingId,omitempty" yaml:"findingId,omitempty"`
 	ProjectID     string `json:"projectId,omitempty" yaml:"projectId,omitempty"`
 	EnvironmentID string `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
 }
 
+type GetPolicyResultInput struct {
+	ResultID      string `json:"resultId,omitempty" yaml:"resultId,omitempty"`
+	ProjectID     string `json:"projectId,omitempty" yaml:"projectId,omitempty"`
+	EnvironmentID string `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+}
+
 type EvaluateInput struct {
-	SubjectType domainsecurity.SubjectType       `json:"subjectType" yaml:"subjectType"`
-	SubjectID   string                           `json:"subjectId" yaml:"subjectId"`
-	Reference   string                           `json:"reference,omitempty" yaml:"reference,omitempty"`
-	Findings    []domainsecurity.SecurityFinding `json:"findings,omitempty" yaml:"findings,omitempty"`
-	PolicyID    string                           `json:"-" yaml:"-"`
-	PolicyMode  string                           `json:"-" yaml:"-"`
-	Policy      PolicyConfig                     `json:"policy,omitempty" yaml:"policy,omitempty"`
-	ActorID     string                           `json:"actorId,omitempty" yaml:"actorId,omitempty"`
+	SubjectType   domainsecurity.SubjectType       `json:"subjectType" yaml:"subjectType"`
+	SubjectID     string                           `json:"subjectId" yaml:"subjectId"`
+	ProjectID     string                           `json:"projectId,omitempty" yaml:"projectId,omitempty"`
+	EnvironmentID string                           `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+	Reference     string                           `json:"reference,omitempty" yaml:"reference,omitempty"`
+	Findings      []domainsecurity.SecurityFinding `json:"findings,omitempty" yaml:"findings,omitempty"`
+	PolicyID      string                           `json:"-" yaml:"-"`
+	PolicyMode    string                           `json:"-" yaml:"-"`
+	Policy        PolicyConfig                     `json:"policy,omitempty" yaml:"policy,omitempty"`
+	ActorID       string                           `json:"actorId,omitempty" yaml:"actorId,omitempty"`
 }

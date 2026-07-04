@@ -1621,6 +1621,66 @@ paths:
                 $ref: "#/components/schemas/PolicyResult"
         "400":
           description: Invalid policy evaluation request
+  /api/v1/policies/results:
+    get:
+      summary: List stored policy evaluation results
+      description: Requires project.read permission. Returns stored built-in policy evaluation results with optional filters and pagination.
+      parameters:
+        - name: policyId
+          in: query
+          schema:
+            type: string
+        - name: subjectType
+          in: query
+          schema:
+            type: string
+        - name: subjectId
+          in: query
+          schema:
+            type: string
+        - name: projectId
+          in: query
+          schema:
+            type: string
+        - name: environmentId
+          in: query
+          schema:
+            type: string
+        - name: decision
+          in: query
+          schema:
+            $ref: "#/components/schemas/GateDecision"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Policy result list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  results:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PolicyResult"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
+  /api/v1/policies/results/{id}:
+    get:
+      summary: Get stored policy evaluation result
+      description: Requires project.read permission. Scoped callers receive not found for policy results outside their visible scope.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Policy result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyResult"
+        "404":
+          description: Policy result not found
   /api/v1/policies/{id}/evaluate:
     post:
       summary: Evaluate a saved policy definition
@@ -8001,6 +8061,10 @@ components:
           type: string
         subjectId:
           type: string
+        projectId:
+          type: string
+        environmentId:
+          type: string
         decision:
           $ref: "#/components/schemas/GateDecision"
         reason:
@@ -8772,30 +8836,6 @@ components:
         createdAt:
           type: string
           format: date-time
-    SecurityFinding:
-      type: object
-      properties:
-        id:
-          type: string
-        severity:
-          type: string
-          enum: [Unknown, Low, Medium, High, Critical]
-        category:
-          type: string
-        target:
-          type: string
-        title:
-          type: string
-        description:
-          type: string
-    PolicyResult:
-      type: object
-      properties:
-        decision:
-          type: string
-          enum: [allow, deny, warn, require_approval]
-        reason:
-          type: string
     AuditRecord:
       type: object
       properties:

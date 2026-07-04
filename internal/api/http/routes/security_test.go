@@ -38,6 +38,30 @@ func TestSecurityRoutes(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("evaluate status = %d body = %s", rec.Code, rec.Body.String())
 	}
+	var policyResult struct {
+		ID       string `json:"id"`
+		Decision string `json:"decision"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &policyResult); err != nil {
+		t.Fatalf("decode policy result: %v", err)
+	}
+	if policyResult.ID == "" || policyResult.Decision != "warn" {
+		t.Fatalf("policy result = %#v, body = %s", policyResult, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/policies/results?decision=warn&limit=1", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"results"`) || !strings.Contains(rec.Body.String(), `"pagination"`) {
+		t.Fatalf("list policy results status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/policies/results/"+policyResult.ID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), policyResult.ID) {
+		t.Fatalf("get policy result status = %d body = %s", rec.Code, rec.Body.String())
+	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/security/scans", strings.NewReader(`{"subjectType":"manifest","subjectId":"manifest-demo","content":"securityContext:\n  privileged: true\n"}`))
 	rec = httptest.NewRecorder()
@@ -94,6 +118,8 @@ func TestSecurityRoutesRespectTenantScope(t *testing.T) {
 
 	scanA := createScopedSecurityScan(t, router, tokenA, "manifest-project-a")
 	scanB := createScopedSecurityScan(t, router, tokenB, "manifest-project-b")
+	policyA := createScopedPolicyResult(t, router, tokenA, "artifact-project-a")
+	policyB := createScopedPolicyResult(t, router, tokenB, "artifact-project-b")
 
 	req := httptest.NewRequest(http.MethodGet, "/api/v1/security/scans", nil)
 	req.Header.Set("Authorization", "Bearer "+tokenA)
@@ -137,12 +163,36 @@ func TestSecurityRoutesRespectTenantScope(t *testing.T) {
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("cross-project scan findings get status = %d body = %s", rec.Code, rec.Body.String())
 	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/policies/results", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list scoped policy results status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), policyA.ID) || strings.Contains(rec.Body.String(), policyB.ID) || strings.Contains(rec.Body.String(), "artifact-project-b") {
+		t.Fatalf("list scoped policy results leaked cross-project data: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/policies/results/"+policyB.ID, nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-project policy result get status = %d body = %s", rec.Code, rec.Body.String())
+	}
 }
 
 type scopedSecurityScan struct {
 	ID        string
 	FindingID string
 	ProjectID string
+}
+
+type scopedPolicyResult struct {
+	ID        string `json:"id"`
+	ProjectID string `json:"projectId"`
 }
 
 func createScopedSecurityScan(t *testing.T, router http.Handler, token string, subjectID string) scopedSecurityScan {
@@ -181,4 +231,24 @@ func createScopedSecurityScan(t *testing.T, router http.Handler, token string, s
 		t.Fatalf("scoped scan has no finding id: %s", rec.Body.String())
 	}
 	return scopedSecurityScan{ID: created.Scan.ID, ProjectID: created.Scan.ProjectID, FindingID: listed[0].ID}
+}
+
+func createScopedPolicyResult(t *testing.T, router http.Handler, token string, subjectID string) scopedPolicyResult {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/policies/evaluate", strings.NewReader(`{"subjectType":"artifact","subjectId":"`+subjectID+`","reference":"`+subjectID+`:latest"}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create scoped policy result status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var created scopedPolicyResult
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode scoped policy result: %v", err)
+	}
+	if created.ID == "" || created.ProjectID == "" {
+		t.Fatalf("scoped policy result missing id or project id: %s", rec.Body.String())
+	}
+	return created
 }

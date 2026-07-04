@@ -177,10 +177,55 @@ func EvaluatePolicy(service *securityusecase.Service) http.HandlerFunc {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a policy evaluation request"})
 			return
 		}
+		input.ProjectID, input.EnvironmentID = constrainSecurityScope(r, input.ProjectID, input.EnvironmentID)
 		result, err := service.EvaluateAndStore(r.Context(), input)
 		if err == nil && result.Decision == domainsecurity.GateDeny {
 			telemetry.DefaultMetrics().IncPolicyDenial()
 		}
+		respondSecurityResult(w, r, result, err)
+	}
+}
+
+func ListPolicyResults(service *securityusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		projectID, environmentID := constrainSecurityScope(r, query.Get("projectId"), query.Get("environmentId"))
+		results, err := service.ListPolicyResults(r.Context(), securityusecase.ListPolicyResultsInput{
+			PolicyID:      query.Get("policyId"),
+			SubjectType:   domainsecurity.SubjectType(query.Get("subjectType")),
+			SubjectID:     query.Get("subjectId"),
+			ProjectID:     projectID,
+			EnvironmentID: environmentID,
+			Decision:      domainsecurity.GateDecision(query.Get("decision")),
+		})
+		if err != nil {
+			respondSecurityResult(w, r, nil, err)
+			return
+		}
+		page, pageErr := parsePagination(r)
+		if pageErr != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_pagination", Message: pageErr.Error()})
+			return
+		}
+		payload := map[string]any{"results": results}
+		if page.Enabled {
+			page.Total = len(results)
+			paged := paginatedPayload(results, page).(map[string]any)
+			payload["results"] = paged["items"]
+			payload["pagination"] = paged["pagination"]
+		}
+		RespondJSON(w, http.StatusOK, payload)
+	}
+}
+
+func GetPolicyResult(service *securityusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		projectID, environmentID := constrainSecurityScope(r, "", "")
+		result, err := service.GetPolicyResult(r.Context(), securityusecase.GetPolicyResultInput{
+			ResultID:      chi.URLParam(r, "id"),
+			ProjectID:     projectID,
+			EnvironmentID: environmentID,
+		})
 		respondSecurityResult(w, r, result, err)
 	}
 }
@@ -198,6 +243,9 @@ func respondSecurityResult(w http.ResponseWriter, r *http.Request, payload any, 
 	} else if errors.Is(err, securityusecase.ErrFindingNotFound) {
 		status = http.StatusNotFound
 		code = "security_finding_not_found"
+	} else if errors.Is(err, securityusecase.ErrPolicyResultNotFound) {
+		status = http.StatusNotFound
+		code = "security_policy_result_not_found"
 	}
 	RespondError(w, r, status, dto.ErrorResponse{Code: code, Message: err.Error()})
 }

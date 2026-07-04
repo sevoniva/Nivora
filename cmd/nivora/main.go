@@ -2856,6 +2856,14 @@ func newPolicyCommand() *cobra.Command {
 	cmd.AddCommand(newPolicyAttachCommand())
 	cmd.AddCommand(newPolicyAttachmentsCommand())
 	cmd.AddCommand(newPolicyEvaluateCommand())
+	cmd.AddCommand(newPolicyResultsCommand())
+	return cmd
+}
+
+func newPolicyResultsCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "results", Short: "Query stored policy evaluation results"}
+	cmd.AddCommand(newPolicyResultsListCommand())
+	cmd.AddCommand(newPolicyResultGetCommand())
 	return cmd
 }
 
@@ -2914,6 +2922,82 @@ func newPolicyEvaluateCommand() *cobra.Command {
 
 func securitySubjectType(input string) domainsecurity.SubjectType {
 	return domainsecurity.SubjectType(input)
+}
+
+func newPolicyResultsListCommand() *cobra.Command {
+	var policyID string
+	var subjectType string
+	var subjectID string
+	var decision string
+	var serverURL string
+	var tokenEnv string
+	var limit int
+	var offset int
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List stored policy evaluation results from the Nivora API",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			if policyID != "" {
+				values.Set("policyId", policyID)
+			}
+			if subjectType != "" {
+				values.Set("subjectType", subjectType)
+			}
+			if subjectID != "" {
+				values.Set("subjectId", subjectID)
+			}
+			if decision != "" {
+				values.Set("decision", decision)
+			}
+			if cmd.Flags().Changed("limit") {
+				values.Set("limit", fmt.Sprintf("%d", limit))
+			}
+			if cmd.Flags().Changed("offset") {
+				values.Set("offset", fmt.Sprintf("%d", offset))
+			}
+			query := ""
+			if len(values) > 0 {
+				query = "?" + values.Encode()
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/policies/results"+query, nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&policyID, "policy-id", "", "filter by policy id")
+	cmd.Flags().StringVar(&subjectType, "subject-type", "", "filter by subject type")
+	cmd.Flags().StringVar(&subjectID, "subject-id", "", "filter by subject id")
+	cmd.Flags().StringVar(&decision, "decision", "", "filter by gate decision")
+	cmd.Flags().IntVar(&limit, "limit", 0, "maximum rows to return")
+	cmd.Flags().IntVar(&offset, "offset", 0, "rows to skip")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newPolicyResultGetCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "get <result-id>",
+		Short: "Get a stored policy evaluation result from the Nivora API",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/policies/results/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
 }
 
 func newPolicyAttachCommand() *cobra.Command {

@@ -263,6 +263,8 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/security/scans/{id}/findings", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetSecurityFindings(securityService)))
 		api.Get("/policies", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListPolicies(policyCatalog)))
 		api.Post("/policies", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.CreatePolicy(policyCatalog)))
+		api.Get("/policies/results", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListPolicyResults(securityService)))
+		api.Get("/policies/results/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPolicyResult(securityService)))
 		api.Get("/policies/{id}/attachments", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListPolicyAttachments(policyCatalog)))
 		api.Post("/policies/{id}/attachments", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.AttachPolicy(policyCatalog)))
 		api.Post("/policies/{id}/evaluate", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.EvaluatePolicyDefinition(policyCatalog, securityService)))

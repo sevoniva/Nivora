@@ -89,6 +89,51 @@ func TestEvaluateRecordsPolicyIDAndAppliesPolicyMode(t *testing.T) {
 	}
 }
 
+func TestEvaluateAndStorePolicyResultCatalog(t *testing.T) {
+	ctx := context.Background()
+	service := NewService(NewMemoryStore(), fakeScanner{}, nil, nil)
+	result, err := service.EvaluateAndStore(ctx, EvaluateInput{
+		SubjectType:   domainsecurity.SubjectArtifact,
+		SubjectID:     "registry.example.invalid/team/app:latest",
+		ProjectID:     "project-a",
+		EnvironmentID: "env-prod",
+		Reference:     "registry.example.invalid/team/app:latest",
+		PolicyID:      "policy-latest",
+	})
+	if err != nil {
+		t.Fatalf("EvaluateAndStore() error = %v", err)
+	}
+	if result.ID == "" || result.ProjectID != "project-a" || result.EnvironmentID != "env-prod" {
+		t.Fatalf("stored policy result missing scope metadata: %#v", result)
+	}
+
+	loaded, err := service.GetPolicyResult(ctx, GetPolicyResultInput{ResultID: result.ID, ProjectID: "project-a"})
+	if err != nil {
+		t.Fatalf("GetPolicyResult() error = %v", err)
+	}
+	if loaded.ID != result.ID || loaded.PolicyID != "policy-latest" || loaded.Decision != domainsecurity.GateWarn {
+		t.Fatalf("loaded policy result = %#v, want %#v", loaded, result)
+	}
+	if _, err := service.GetPolicyResult(ctx, GetPolicyResultInput{ResultID: result.ID, ProjectID: "project-b"}); err != ErrPolicyResultNotFound {
+		t.Fatalf("cross-project GetPolicyResult() error = %v, want ErrPolicyResultNotFound", err)
+	}
+
+	results, err := service.ListPolicyResults(ctx, ListPolicyResultsInput{PolicyID: "policy-latest", ProjectID: "project-a", Decision: domainsecurity.GateWarn})
+	if err != nil {
+		t.Fatalf("ListPolicyResults() error = %v", err)
+	}
+	if len(results) != 1 || results[0].ID != result.ID {
+		t.Fatalf("policy results = %#v, want result %s", results, result.ID)
+	}
+	results, err = service.ListPolicyResults(ctx, ListPolicyResultsInput{ProjectID: "project-b"})
+	if err != nil {
+		t.Fatalf("ListPolicyResults(project-b) error = %v", err)
+	}
+	if len(results) != 0 {
+		t.Fatalf("cross-project results leaked: %#v", results)
+	}
+}
+
 func TestManifestPrivilegedWarning(t *testing.T) {
 	service := NewService(NewMemoryStore(), fakeScanner{}, nil, nil)
 	record, err := service.Scan(context.Background(), ScanInput{SubjectType: domainsecurity.SubjectManifest, SubjectID: "manifest", Content: "securityContext:\n  privileged: true\n"})

@@ -81,14 +81,16 @@ func (s *Service) Scan(ctx context.Context, input ScanInput) (ScanRecord, error)
 	record.Scan.Summary = domainsecurity.Summarize(record.Scan.Findings)
 	record.Warnings = append(record.Warnings, result.Warnings...)
 	record.Policy = s.Evaluate(EvaluateInput{
-		SubjectType: input.SubjectType,
-		SubjectID:   input.SubjectID,
-		Reference:   input.Reference,
-		Findings:    record.Scan.Findings,
-		PolicyID:    input.PolicyID,
-		PolicyMode:  input.PolicyMode,
-		Policy:      input.Policy,
-		ActorID:     input.ActorID,
+		SubjectType:   input.SubjectType,
+		SubjectID:     input.SubjectID,
+		ProjectID:     input.ProjectID,
+		EnvironmentID: input.EnvironmentID,
+		Reference:     input.Reference,
+		Findings:      record.Scan.Findings,
+		PolicyID:      input.PolicyID,
+		PolicyMode:    input.PolicyMode,
+		Policy:        input.Policy,
+		ActorID:       input.ActorID,
 	})
 	if input.SubjectType == domainsecurity.SubjectArtifact && s.verifier != nil {
 		signature, err := s.verifier.VerifyArtifactSignature(ctx, input.SubjectID)
@@ -160,14 +162,16 @@ func (s *Service) Evaluate(input EvaluateInput) domainsecurity.PolicyResult {
 		reason = "artifact digest is required"
 	}
 	result := domainsecurity.PolicyResult{
-		ID:          newID("policy"),
-		PolicyID:    strings.TrimSpace(input.PolicyID),
-		SubjectType: input.SubjectType,
-		SubjectID:   input.SubjectID,
-		Decision:    decision,
-		Reason:      reason,
-		Findings:    append([]domainsecurity.SecurityFinding(nil), input.Findings...),
-		EvaluatedAt: s.now(),
+		ID:            newID("policy"),
+		PolicyID:      strings.TrimSpace(input.PolicyID),
+		SubjectType:   input.SubjectType,
+		SubjectID:     input.SubjectID,
+		ProjectID:     strings.TrimSpace(input.ProjectID),
+		EnvironmentID: strings.TrimSpace(input.EnvironmentID),
+		Decision:      decision,
+		Reason:        reason,
+		Findings:      append([]domainsecurity.SecurityFinding(nil), input.Findings...),
+		EvaluatedAt:   s.now(),
 	}
 	return applyPolicyMode(input.PolicyMode, result)
 }
@@ -292,7 +296,38 @@ func (s *Service) ListFindings(ctx context.Context, input ListFindingsInput) ([]
 
 func (s *Service) EvaluateAndStore(ctx context.Context, input EvaluateInput) (domainsecurity.PolicyResult, error) {
 	result := s.Evaluate(input)
+	if err := s.store.SavePolicyResult(ctx, result); err != nil {
+		return domainsecurity.PolicyResult{}, err
+	}
 	return result, nil
+}
+
+func (s *Service) GetPolicyResult(ctx context.Context, input GetPolicyResultInput) (domainsecurity.PolicyResult, error) {
+	resultID := strings.TrimSpace(input.ResultID)
+	if resultID == "" {
+		return domainsecurity.PolicyResult{}, ErrPolicyResultNotFound
+	}
+	result, err := s.store.GetPolicyResult(ctx, resultID)
+	if err != nil {
+		return domainsecurity.PolicyResult{}, err
+	}
+	projectID := strings.TrimSpace(input.ProjectID)
+	environmentID := strings.TrimSpace(input.EnvironmentID)
+	if projectID != "" && result.ProjectID != projectID {
+		return domainsecurity.PolicyResult{}, ErrPolicyResultNotFound
+	}
+	if environmentID != "" && result.EnvironmentID != environmentID {
+		return domainsecurity.PolicyResult{}, ErrPolicyResultNotFound
+	}
+	return result, nil
+}
+
+func (s *Service) ListPolicyResults(ctx context.Context, input ListPolicyResultsInput) ([]domainsecurity.PolicyResult, error) {
+	input.PolicyID = strings.TrimSpace(input.PolicyID)
+	input.SubjectID = strings.TrimSpace(input.SubjectID)
+	input.ProjectID = strings.TrimSpace(input.ProjectID)
+	input.EnvironmentID = strings.TrimSpace(input.EnvironmentID)
+	return s.store.ListPolicyResults(ctx, input)
 }
 
 func (s *Service) dispatchScan(ctx context.Context, input ScanInput) (portsecurity.ScanResult, error) {

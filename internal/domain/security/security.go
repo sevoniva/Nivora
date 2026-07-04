@@ -90,14 +90,16 @@ type SecurityFinding struct {
 }
 
 type PolicyResult struct {
-	ID          string            `json:"id"`
-	PolicyID    string            `json:"policyId,omitempty"`
-	SubjectType SubjectType       `json:"subjectType"`
-	SubjectID   string            `json:"subjectId"`
-	Decision    GateDecision      `json:"decision"`
-	Reason      string            `json:"reason,omitempty"`
-	Findings    []SecurityFinding `json:"findings,omitempty"`
-	EvaluatedAt time.Time         `json:"evaluatedAt"`
+	ID            string            `json:"id"`
+	PolicyID      string            `json:"policyId,omitempty"`
+	SubjectType   SubjectType       `json:"subjectType"`
+	SubjectID     string            `json:"subjectId"`
+	ProjectID     string            `json:"projectId,omitempty"`
+	EnvironmentID string            `json:"environmentId,omitempty"`
+	Decision      GateDecision      `json:"decision"`
+	Reason        string            `json:"reason,omitempty"`
+	Findings      []SecurityFinding `json:"findings,omitempty"`
+	EvaluatedAt   time.Time         `json:"evaluatedAt"`
 }
 
 type SignatureCheck struct {

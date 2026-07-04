@@ -12,8 +12,9 @@ import (
 )
 
 var (
-	ErrScanNotFound    = errors.New("security scan not found")
-	ErrFindingNotFound = errors.New("security finding not found")
+	ErrScanNotFound         = errors.New("security scan not found")
+	ErrFindingNotFound      = errors.New("security finding not found")
+	ErrPolicyResultNotFound = errors.New("security policy result not found")
 )
 
 type Store interface {
@@ -23,15 +24,19 @@ type Store interface {
 	AppendEvent(ctx context.Context, scanID string, evt event.Event) error
 	Events(ctx context.Context, scanID string) ([]event.Event, error)
 	AppendAudit(ctx context.Context, scanID string, entry audit.AuditLog) error
+	SavePolicyResult(ctx context.Context, result domainsecurity.PolicyResult) error
+	GetPolicyResult(ctx context.Context, id string) (domainsecurity.PolicyResult, error)
+	ListPolicyResults(ctx context.Context, input ListPolicyResultsInput) ([]domainsecurity.PolicyResult, error)
 }
 
 type MemoryStore struct {
-	mu    sync.RWMutex
-	scans map[string]ScanRecord
+	mu            sync.RWMutex
+	scans         map[string]ScanRecord
+	policyResults map[string]domainsecurity.PolicyResult
 }
 
 func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{scans: make(map[string]ScanRecord)}
+	return &MemoryStore{scans: make(map[string]ScanRecord), policyResults: make(map[string]domainsecurity.PolicyResult)}
 }
 
 func (s *MemoryStore) Save(ctx context.Context, record ScanRecord) error {
@@ -51,6 +56,9 @@ func (s *MemoryStore) Save(ctx context.Context, record ScanRecord) error {
 		}
 	}
 	s.scans[record.Scan.ID] = cloneRecord(record)
+	if record.Policy.ID != "" {
+		s.policyResults[record.Policy.ID] = clonePolicyResult(record.Policy)
+	}
 	return nil
 }
 
@@ -121,13 +129,82 @@ func (s *MemoryStore) AppendAudit(ctx context.Context, scanID string, entry audi
 	return nil
 }
 
+func (s *MemoryStore) SavePolicyResult(ctx context.Context, result domainsecurity.PolicyResult) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if result.ID == "" {
+		return ErrPolicyResultNotFound
+	}
+	s.policyResults[result.ID] = clonePolicyResult(result)
+	return nil
+}
+
+func (s *MemoryStore) GetPolicyResult(ctx context.Context, id string) (domainsecurity.PolicyResult, error) {
+	select {
+	case <-ctx.Done():
+		return domainsecurity.PolicyResult{}, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	result, ok := s.policyResults[id]
+	if !ok {
+		return domainsecurity.PolicyResult{}, ErrPolicyResultNotFound
+	}
+	return clonePolicyResult(result), nil
+}
+
+func (s *MemoryStore) ListPolicyResults(ctx context.Context, input ListPolicyResultsInput) ([]domainsecurity.PolicyResult, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	results := make([]domainsecurity.PolicyResult, 0, len(s.policyResults))
+	for _, result := range s.policyResults {
+		if input.PolicyID != "" && result.PolicyID != input.PolicyID {
+			continue
+		}
+		if input.SubjectType != "" && result.SubjectType != input.SubjectType {
+			continue
+		}
+		if input.SubjectID != "" && result.SubjectID != input.SubjectID {
+			continue
+		}
+		if input.ProjectID != "" && result.ProjectID != input.ProjectID {
+			continue
+		}
+		if input.EnvironmentID != "" && result.EnvironmentID != input.EnvironmentID {
+			continue
+		}
+		if input.Decision != "" && result.Decision != input.Decision {
+			continue
+		}
+		results = append(results, clonePolicyResult(result))
+	}
+	sort.Slice(results, func(i, j int) bool { return results[i].EvaluatedAt.Before(results[j].EvaluatedAt) })
+	return results, nil
+}
+
 func cloneRecord(record ScanRecord) ScanRecord {
 	record.Scan.Findings = cloneFindings(record.Scan.Findings)
-	record.Policy.Findings = cloneFindings(record.Policy.Findings)
+	record.Policy = clonePolicyResult(record.Policy)
 	record.Events = append([]event.Event(nil), record.Events...)
 	record.Audits = append([]audit.AuditLog(nil), record.Audits...)
 	record.Warnings = append([]string(nil), record.Warnings...)
 	return record
+}
+
+func clonePolicyResult(result domainsecurity.PolicyResult) domainsecurity.PolicyResult {
+	result.Findings = cloneFindings(result.Findings)
+	return result
 }
 
 func cloneFindings(findings []domainsecurity.SecurityFinding) []domainsecurity.SecurityFinding {

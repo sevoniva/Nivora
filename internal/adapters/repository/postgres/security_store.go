@@ -9,6 +9,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	"github.com/sevoniva/nivora/internal/domain/event"
+	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
@@ -33,7 +34,13 @@ func (s *SecurityStore) Save(ctx context.Context, record securityusecase.ScanRec
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,$20,$21,$22,$23,$24,$25,$26,$27,$28,$29)
 		ON CONFLICT (id) DO UPDATE SET project_id=EXCLUDED.project_id, environment_id=EXCLUDED.environment_id, status=EXCLUDED.status, summary_total=EXCLUDED.summary_total, summary_low=EXCLUDED.summary_low, summary_medium=EXCLUDED.summary_medium, summary_high=EXCLUDED.summary_high, summary_critical=EXCLUDED.summary_critical, findings=EXCLUDED.findings, policy_decision=EXCLUDED.policy_decision, policy_reason=EXCLUDED.policy_reason, policy_findings=EXCLUDED.policy_findings, finished_at=EXCLUDED.finished_at`,
 		record.Scan.ID, record.Scan.SubjectType, record.Scan.SubjectID, record.Scan.ProjectID, record.Scan.EnvironmentID, record.Scan.Scanner, record.Scan.Status, record.Scan.Summary.Total, record.Scan.Summary.Low, record.Scan.Summary.Medium, record.Scan.Summary.High, record.Scan.Summary.Critical, findingsJSON, record.Policy.Decision, record.Policy.Reason, policyFindingsJSON, record.Signature.Subject, record.Signature.Status, record.Signature.Result, record.Signature.KeyRef, record.Signature.CertificateIdentity, record.Signature.Issuer, record.SBOM.Format, record.SBOM.StorageRef, record.SBOM.Digest, warningsJSON, record.Scan.StartedAt, record.Scan.FinishedAt, record.Scan.CreatedAt)
-	return err
+	if err != nil {
+		return err
+	}
+	if record.Policy.ID != "" {
+		return s.SavePolicyResult(ctx, record.Policy)
+	}
+	return nil
 }
 
 func (s *SecurityStore) Get(ctx context.Context, id string) (securityusecase.ScanRecord, error) {
@@ -108,4 +115,63 @@ func (s *SecurityStore) Events(ctx context.Context, scanID string) ([]event.Even
 
 func (s *SecurityStore) AppendAudit(ctx context.Context, scanID string, entry audit.AuditLog) error {
 	return AppendHashChainedAudit(ctx, s.pool, "security", entry)
+}
+
+func (s *SecurityStore) SavePolicyResult(ctx context.Context, result domainsecurity.PolicyResult) error {
+	if result.ID == "" {
+		return securityusecase.ErrPolicyResultNotFound
+	}
+	findingsJSON, _ := json.Marshal(result.Findings)
+	_, err := s.pool.Exec(ctx, `INSERT INTO security_policy_results (id, policy_id, subject_type, subject_id, project_id, environment_id, decision, reason, findings, evaluated_at, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$10,$10)
+		ON CONFLICT (id) DO UPDATE SET policy_id=EXCLUDED.policy_id, subject_type=EXCLUDED.subject_type, subject_id=EXCLUDED.subject_id, project_id=EXCLUDED.project_id, environment_id=EXCLUDED.environment_id, decision=EXCLUDED.decision, reason=EXCLUDED.reason, findings=EXCLUDED.findings, evaluated_at=EXCLUDED.evaluated_at, updated_at=now()`,
+		result.ID, result.PolicyID, result.SubjectType, result.SubjectID, result.ProjectID, result.EnvironmentID, result.Decision, result.Reason, findingsJSON, result.EvaluatedAt)
+	return err
+}
+
+func (s *SecurityStore) GetPolicyResult(ctx context.Context, id string) (domainsecurity.PolicyResult, error) {
+	result, err := scanSecurityPolicyResult(s.pool.QueryRow(ctx, `SELECT id, policy_id, subject_type, subject_id, project_id, environment_id, decision, reason, findings, evaluated_at FROM security_policy_results WHERE id=$1`, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainsecurity.PolicyResult{}, securityusecase.ErrPolicyResultNotFound
+	}
+	return result, err
+}
+
+func (s *SecurityStore) ListPolicyResults(ctx context.Context, input securityusecase.ListPolicyResultsInput) ([]domainsecurity.PolicyResult, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, policy_id, subject_type, subject_id, project_id, environment_id, decision, reason, findings, evaluated_at
+		FROM security_policy_results
+		WHERE ($1='' OR policy_id=$1)
+		  AND ($2='' OR subject_type=$2)
+		  AND ($3='' OR subject_id=$3)
+		  AND ($4='' OR project_id=$4)
+		  AND ($5='' OR environment_id=$5)
+		  AND ($6='' OR decision=$6)
+		ORDER BY evaluated_at`,
+		input.PolicyID, input.SubjectType, input.SubjectID, input.ProjectID, input.EnvironmentID, input.Decision)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []domainsecurity.PolicyResult
+	for rows.Next() {
+		result, err := scanSecurityPolicyResult(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, result)
+	}
+	if out == nil {
+		out = []domainsecurity.PolicyResult{}
+	}
+	return out, rows.Err()
+}
+
+func scanSecurityPolicyResult(row scanner) (domainsecurity.PolicyResult, error) {
+	var result domainsecurity.PolicyResult
+	var findingsJSON []byte
+	if err := row.Scan(&result.ID, &result.PolicyID, &result.SubjectType, &result.SubjectID, &result.ProjectID, &result.EnvironmentID, &result.Decision, &result.Reason, &findingsJSON, &result.EvaluatedAt); err != nil {
+		return domainsecurity.PolicyResult{}, err
+	}
+	json.Unmarshal(findingsJSON, &result.Findings)
+	return result, nil
 }

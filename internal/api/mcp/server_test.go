@@ -11,8 +11,10 @@ import (
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
 func TestMCPInitializeJSONRPC(t *testing.T) {
@@ -33,7 +35,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://deployments/{id}/health", "nivora://artifacts/{id}/releases", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://artifacts/{id}/releases", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
 		if !hasResource(resources, want) {
 			t.Fatalf("resource %s missing from %#v", want, resources)
 		}
@@ -47,7 +49,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 			t.Fatalf("blocked action tool %s was exposed", blocked)
 		}
 	}
-	for _, want := range []string{"nivora_status", "nivora_get_deployment_health", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
+	for _, want := range []string{"nivora_status", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
 		if !hasTool(tools, want) {
 			t.Fatalf("tool %s missing from %#v", want, tools)
 		}
@@ -184,6 +186,58 @@ func TestMCPArtifactInventoryReadOnly(t *testing.T) {
 	for _, forbidden := range []string{"should-not-leak", "tokenHash", "BEGIN PRIVATE KEY", "password"} {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("artifact MCP output leaked sensitive value %q: %s", forbidden, body)
+		}
+	}
+}
+
+func TestMCPCatalogAndPipelineDefinitionsReadOnly(t *testing.T) {
+	ctx := context.Background()
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	projectID, pipelineID := createMCPCatalogAndPipelineFixture(t, server)
+
+	resource, err := server.ReadResource(ctx, "nivora://catalog/summary")
+	if err != nil {
+		t.Fatalf("read catalog summary: %v", err)
+	}
+	if !strings.Contains(resource.Text, projectID) || !strings.Contains(resource.Text, "demo-api") || !strings.Contains(resource.Text, `"mutated": false`) {
+		t.Fatalf("catalog summary body = %s", resource.Text)
+	}
+
+	resource, err = server.ReadResource(ctx, "nivora://pipelines/definitions")
+	if err != nil {
+		t.Fatalf("read pipeline definition catalog: %v", err)
+	}
+	if !strings.Contains(resource.Text, pipelineID) || !strings.Contains(resource.Text, "mcp-demo-pipeline") {
+		t.Fatalf("pipeline definition catalog body = %s", resource.Text)
+	}
+
+	summaryResult, err := server.CallTool(ctx, "nivora_get_catalog_summary", map[string]any{"projectId": projectID})
+	if err != nil {
+		t.Fatalf("catalog summary tool transport error: %v", err)
+	}
+	if summaryResult.IsError || !strings.Contains(summaryResult.Content[0].Text, projectID) || !strings.Contains(summaryResult.Content[0].Text, `"mutated": false`) {
+		t.Fatalf("catalog summary tool result = %#v", summaryResult)
+	}
+
+	listResult, err := server.CallTool(ctx, "nivora_list_pipeline_definitions", map[string]any{"projectId": projectID})
+	if err != nil {
+		t.Fatalf("list pipeline definitions tool transport error: %v", err)
+	}
+	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, pipelineID) || !strings.Contains(listResult.Content[0].Text, `"mutated": false`) {
+		t.Fatalf("list pipeline definitions result = %#v", listResult)
+	}
+
+	getResult, err := server.CallTool(ctx, "nivora_get_pipeline_definition", map[string]any{"id": pipelineID, "token": "should-not-leak"})
+	if err != nil {
+		t.Fatalf("get pipeline definition tool transport error: %v", err)
+	}
+	body := getResult.Content[0].Text
+	if getResult.IsError || !strings.Contains(body, pipelineID) || !strings.Contains(body, `"mutated": false`) {
+		t.Fatalf("get pipeline definition result = %#v", getResult)
+	}
+	for _, forbidden := range []string{"should-not-leak", "tokenHash", "BEGIN PRIVATE KEY"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("pipeline definition MCP output leaked sensitive value %q: %s", forbidden, body)
 		}
 	}
 }
@@ -373,17 +427,19 @@ func TestMCPComplianceAuditRecorderPersistsToComplianceSearch(t *testing.T) {
 	approval := runtime.NewApprovalService()
 	compliance := runtime.NewComplianceService(pipelines, deployments, artifacts, releases, security, approval)
 	server := NewServer(Services{
-		Config:      config.Default(),
-		Subject:     domainauth.Subject{ID: "mcp-auditor", Username: "mcp-auditor", Roles: []string{domainauth.RoleAuditor}, AuthMode: "token"},
-		Auth:        runtime.NewAuthService(),
-		Pipelines:   pipelines,
-		Deployments: deployments,
-		Artifacts:   artifacts,
-		Releases:    releases,
-		Security:    security,
-		Compliance:  compliance,
-		Plugins:     runtime.NewPluginRegistry(),
-		Audit:       NewComplianceAuditRecorder(compliance),
+		Config:       config.Default(),
+		Subject:      domainauth.Subject{ID: "mcp-auditor", Username: "mcp-auditor", Roles: []string{domainauth.RoleAuditor}, AuthMode: "token"},
+		Auth:         runtime.NewAuthService(),
+		Pipelines:    pipelines,
+		PipelineDefs: pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore()),
+		Deployments:  deployments,
+		Catalog:      catalogusecase.NewService(catalogusecase.NewMemoryStore()),
+		Artifacts:    artifacts,
+		Releases:     releases,
+		Security:     security,
+		Compliance:   compliance,
+		Plugins:      runtime.NewPluginRegistry(),
+		Audit:        NewComplianceAuditRecorder(compliance),
 	}, nil)
 
 	if _, err := server.ReadResource(context.Background(), "nivora://audit/search"); err != nil {
@@ -525,18 +581,66 @@ func newTestMCPServerWithRecorderAndServices(t *testing.T, subject domainauth.Su
 	security := runtime.NewSecurityService()
 	approval := runtime.NewApprovalService()
 	return NewServer(Services{
-		Config:      cfg,
-		Subject:     subject,
-		Auth:        runtime.NewAuthService(),
-		Pipelines:   pipelines,
-		Deployments: deploymentSvc,
-		Artifacts:   artifacts,
-		Releases:    releases,
-		Security:    security,
-		Compliance:  runtime.NewComplianceService(pipelines, deploymentSvc, artifacts, releases, security, approval),
-		Plugins:     runtime.NewPluginRegistry(),
-		Audit:       recorder,
+		Config:       cfg,
+		Subject:      subject,
+		Auth:         runtime.NewAuthService(),
+		Pipelines:    pipelines,
+		PipelineDefs: pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore()),
+		Deployments:  deploymentSvc,
+		Catalog:      catalogusecase.NewService(catalogusecase.NewMemoryStore()),
+		Artifacts:    artifacts,
+		Releases:     releases,
+		Security:     security,
+		Compliance:   runtime.NewComplianceService(pipelines, deploymentSvc, artifacts, releases, security, approval),
+		Plugins:      runtime.NewPluginRegistry(),
+		Audit:        recorder,
 	}, nil)
+}
+
+func createMCPCatalogAndPipelineFixture(t *testing.T, server *Server) (string, string) {
+	t.Helper()
+	ctx := context.Background()
+	org, err := server.services.Catalog.CreateOrg(ctx, catalogusecase.CreateOrgInput{Name: "Sevoniva"})
+	if err != nil {
+		t.Fatalf("create org fixture: %v", err)
+	}
+	project, err := server.services.Catalog.CreateProject(ctx, catalogusecase.CreateProjectInput{OrgID: org.ID, Name: "Nivora"})
+	if err != nil {
+		t.Fatalf("create project fixture: %v", err)
+	}
+	if _, err := server.services.Catalog.CreateApplication(ctx, catalogusecase.CreateApplicationInput{ProjectID: project.ID, Name: "demo-api"}); err != nil {
+		t.Fatalf("create application fixture: %v", err)
+	}
+	environment, err := server.services.Catalog.CreateEnvironment(ctx, catalogusecase.CreateEnvironmentInput{ProjectID: project.ID, Name: "staging"})
+	if err != nil {
+		t.Fatalf("create environment fixture: %v", err)
+	}
+	if _, err := server.services.Catalog.CreateRepository(ctx, catalogusecase.CreateRepositoryInput{ProjectID: project.ID, Name: "demo-repo", URL: "https://example.invalid/sevoniva/demo.git", CredentialRef: "credential-ref-placeholder"}); err != nil {
+		t.Fatalf("create repository fixture: %v", err)
+	}
+	if _, err := server.services.Catalog.CreateReleaseTarget(ctx, catalogusecase.CreateReleaseTargetInput{ProjectID: project.ID, EnvironmentID: environment.ID, Name: "noop-staging", TargetType: "noop"}); err != nil {
+		t.Fatalf("create target fixture: %v", err)
+	}
+	definition, err := server.services.PipelineDefs.Create(ctx, pipelineusecase.DefinitionCreateInput{
+		ProjectID: project.ID,
+		Definition: pipelineusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Pipeline",
+			Metadata:   pipelineusecase.Metadata{Name: "mcp-demo-pipeline"},
+			Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+				Name: "build",
+				Jobs: []pipelineusecase.Job{{
+					Name:     "echo",
+					Executor: "shell",
+					Steps:    []pipelineusecase.Step{{Name: "hello", Run: "echo hello"}},
+				}},
+			}}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create pipeline definition fixture: %v", err)
+	}
+	return project.ID, definition.Pipeline.ID
 }
 
 func createMCPArtifactFixture(t *testing.T, server *Server) (string, string) {

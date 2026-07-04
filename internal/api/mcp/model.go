@@ -11,6 +11,7 @@ import (
 	"github.com/sevoniva/nivora/internal/infra/crypto"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
+	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -29,17 +30,19 @@ const (
 )
 
 type Services struct {
-	Config      config.Config
-	Subject     domainauth.Subject
-	Auth        *authusecase.Service
-	Pipelines   *pipelineusecase.Service
-	Deployments *deploymentusecase.Service
-	Artifacts   *artifactusecase.Service
-	Releases    *releaseusecase.Service
-	Security    *securityusecase.Service
-	Compliance  *complianceusecase.Service
-	Plugins     *pluginusecase.Registry
-	Audit       AuditRecorder
+	Config       config.Config
+	Subject      domainauth.Subject
+	Auth         *authusecase.Service
+	Pipelines    *pipelineusecase.Service
+	PipelineDefs *pipelineusecase.DefinitionCatalog
+	Deployments  *deploymentusecase.Service
+	Catalog      *catalogusecase.Service
+	Artifacts    *artifactusecase.Service
+	Releases     *releaseusecase.Service
+	Security     *securityusecase.Service
+	Compliance   *complianceusecase.Service
+	Plugins      *pluginusecase.Registry
+	Audit        AuditRecorder
 }
 
 type AuditRecorder interface {

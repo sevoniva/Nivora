@@ -7,6 +7,8 @@ Nivora's MCP server is a local stdio foundation for AI-assisted inspection and p
 Read-only tools and resources expose control-plane state such as:
 
 - system status and runtime recovery status
+- organization, project, application, environment, repository, and release-target catalog summaries
+- pipeline definition catalog reads
 - runner summaries
 - DeploymentRun and ReleaseExecution inspection
 - release-bound artifact inventory and artifact-to-release bindings

@@ -16,8 +16,10 @@ import (
 	"github.com/sevoniva/nivora/internal/infra/crypto"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
+	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
@@ -53,6 +55,12 @@ func NewServer(services Services, logger *slog.Logger) *Server {
 	if services.Audit == nil {
 		services.Audit = &MemoryAuditRecorder{}
 	}
+	if services.Catalog == nil {
+		services.Catalog = catalogusecase.NewService(catalogusecase.NewMemoryStore())
+	}
+	if services.PipelineDefs == nil {
+		services.PipelineDefs = pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore())
+	}
 	return &Server{services: services, logger: logger}
 }
 
@@ -64,6 +72,9 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://capabilities/current", "Capability status", "Current implemented/partial/foundation capability status"),
 		resource("nivora://system/runtime", "Runtime status", "Runtime configuration and recovery summary"),
 		resource("nivora://api/inventory", "API inventory", "Current public API inventory"),
+		resource("nivora://catalog/summary", "Catalog summary", "Organization, project, application, environment, repository, and target summary"),
+		resource("nivora://pipelines/definitions", "Pipeline definitions", "Pipeline definition catalog"),
+		resource("nivora://pipelines/definitions/{id}", "Pipeline definition", "Pipeline definition record by id"),
 		resource("nivora://pipelines/runs/{id}", "PipelineRun", "PipelineRun record by id"),
 		resource("nivora://pipelines/runs/{id}/timeline", "PipelineRun timeline", "PipelineRun timeline by id"),
 		resource("nivora://pipelines/runs/{id}/logs", "PipelineRun logs", "PipelineRun logs by id"),
@@ -106,6 +117,14 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 	}
 	tools := []Tool{
 		tool("nivora_status", "Read current Nivora runtime and capability status", nil),
+		tool("nivora_get_catalog_summary", "Read organization, project, application, environment, repository, and target catalog summary", objectSchema(map[string]any{
+			"orgId":     stringProperty("optional org id filter"),
+			"projectId": stringProperty("optional project id filter"),
+		}, nil)),
+		tool("nivora_list_pipeline_definitions", "List pipeline definitions", objectSchema(map[string]any{
+			"projectId": stringProperty("optional project id filter"),
+		}, nil)),
+		tool("nivora_get_pipeline_definition", "Read a pipeline definition by id", idSchema("id")),
 		tool("nivora_get_pipeline_run", "Read a PipelineRun by id", idSchema("id")),
 		tool("nivora_get_pipeline_timeline", "Read a PipelineRun timeline by id", idSchema("id")),
 		tool("nivora_get_deployment", "Read a DeploymentRun by id", idSchema("id")),
@@ -238,6 +257,17 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 			return nil, err
 		}
 		return map[string]any{"content": string(body)}, nil
+	case uri == "nivora://catalog/summary":
+		return s.catalogSummary(ctx, "", "")
+	case uri == "nivora://pipelines/definitions":
+		definitions, err := s.services.PipelineDefs.List(ctx, "")
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"definitions": definitions}, nil
+	case strings.HasPrefix(uri, "nivora://pipelines/definitions/"):
+		id := strings.TrimPrefix(uri, "nivora://pipelines/definitions/")
+		return s.services.PipelineDefs.Get(ctx, id)
 	case strings.HasPrefix(uri, "nivora://pipelines/runs/"):
 		return s.pipelineResource(ctx, strings.TrimPrefix(uri, "nivora://pipelines/runs/"))
 	case strings.HasPrefix(uri, "nivora://deployments/"):
@@ -357,6 +387,24 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return map[string]any{"maturity": "hardened beta-candidate", "productionReady": false, "runtime": status}, nil
+	case "nivora_get_catalog_summary":
+		return s.catalogSummary(ctx, stringArg(arguments, "orgId"), stringArg(arguments, "projectId"))
+	case "nivora_list_pipeline_definitions":
+		definitions, err := s.services.PipelineDefs.List(ctx, stringArg(arguments, "projectId"))
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"definitions": definitions, "mutated": false}, nil
+	case "nivora_get_pipeline_definition":
+		id, err := requiredString(arguments, "id")
+		if err != nil {
+			return nil, err
+		}
+		definition, err := s.services.PipelineDefs.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"definition": definition, "mutated": false}, nil
 	case "nivora_get_pipeline_run":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
@@ -606,6 +654,54 @@ func (s *Server) securitySummary(ctx context.Context) (any, error) {
 	return map[string]any{"scanCount": len(scans), "findingCount": totalFindings, "scans": scans}, nil
 }
 
+func (s *Server) catalogSummary(ctx context.Context, orgID string, projectID string) (any, error) {
+	orgs, err := s.services.Catalog.ListOrgs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	projects, err := s.services.Catalog.ListProjects(ctx, orgID)
+	if err != nil {
+		return nil, err
+	}
+	applications, err := s.services.Catalog.ListApplications(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	environments, err := s.services.Catalog.ListEnvironments(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	repositories, err := s.services.Catalog.ListRepositories(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	targets, err := s.services.Catalog.ListReleaseTargets(ctx, projectID, "")
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"filters": map[string]string{
+			"orgId":     orgID,
+			"projectId": projectID,
+		},
+		"counts": map[string]int{
+			"orgs":           len(orgs),
+			"projects":       len(projects),
+			"applications":   len(applications),
+			"environments":   len(environments),
+			"repositories":   len(repositories),
+			"releaseTargets": len(targets),
+		},
+		"orgs":           orgs,
+		"projects":       projects,
+		"applications":   applications,
+		"environments":   environments,
+		"repositories":   repositories,
+		"releaseTargets": targets,
+		"mutated":        false,
+	}, nil
+}
+
 func (s *Server) checkResourcePermission(ctx context.Context, uri string) error {
 	if uri == "nivora://audit/search" || strings.HasPrefix(uri, "nivora://evidence/bundles/") {
 		return s.require(ctx, domainauth.PermissionAuditRead, "mcp.resource", uri)
@@ -628,6 +724,9 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_plan_deployment_local":
 		return domainauth.PermissionDeploymentCreate
 	case "nivora_status",
+		"nivora_get_catalog_summary",
+		"nivora_list_pipeline_definitions",
+		"nivora_get_pipeline_definition",
 		"nivora_get_pipeline_run",
 		"nivora_get_pipeline_timeline",
 		"nivora_get_deployment",

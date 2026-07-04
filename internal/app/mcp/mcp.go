@@ -14,6 +14,8 @@ import (
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
+	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
+	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
 func RunStdio(ctx context.Context, configPath string, in io.Reader, out io.Writer, logger *slog.Logger) error {
@@ -102,17 +104,19 @@ func BuildServer(ctx context.Context, cfg config.Config, logger *slog.Logger) (*
 		return nil, nil, err
 	}
 	server := apimcp.NewServer(apimcp.Services{
-		Config:      cfg,
-		Subject:     subject,
-		Auth:        authService,
-		Pipelines:   pipelines,
-		Deployments: deployments,
-		Artifacts:   artifacts,
-		Releases:    releases,
-		Security:    security,
-		Compliance:  compliance,
-		Plugins:     runtime.NewPluginRegistry(),
-		Audit:       apimcp.NewComplianceAuditRecorder(compliance),
+		Config:       cfg,
+		Subject:      subject,
+		Auth:         authService,
+		Pipelines:    pipelines,
+		PipelineDefs: pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore()),
+		Deployments:  deployments,
+		Catalog:      catalogusecase.NewService(catalogusecase.NewMemoryStore()),
+		Artifacts:    artifacts,
+		Releases:     releases,
+		Security:     security,
+		Compliance:   compliance,
+		Plugins:      runtime.NewPluginRegistry(),
+		Audit:        apimcp.NewComplianceAuditRecorder(compliance),
 	}, logger)
 	return server, cleanup, nil
 }

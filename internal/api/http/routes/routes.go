@@ -124,6 +124,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/evidence/{subject_type}/{id}", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetEvidenceBundle(complianceService)))
 		api.Get("/retention-policy", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetRetentionPolicy(complianceService)))
 		api.Post("/retention-policy", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.SetRetentionPolicy(complianceService)))
+		api.Post("/retention-policy/run", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.RunRetentionPolicy(complianceService)))
 		api.Get("/plugins", handlers.ListPlugins(pluginRegistry))
 		api.Get("/plugins/{name}", handlers.GetPlugin(pluginRegistry))
 		api.Get("/plugins/{name}/capabilities", handlers.GetPluginCapabilities(pluginRegistry))

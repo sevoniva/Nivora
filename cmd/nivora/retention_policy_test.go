@@ -18,7 +18,7 @@ func TestRetentionPolicyCommandIncludesGetAndSet(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("retention-policy help failed: %v", err)
 	}
-	for _, want := range []string{"get", "set"} {
+	for _, want := range []string{"get", "set", "run"} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("retention-policy help missing %q: %s", want, out.String())
 		}
@@ -105,5 +105,69 @@ func TestRetentionPolicySetPostsMetadataOnly(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "immutableAudit") {
 		t.Fatalf("retention-policy set output missing payload: %s", out.String())
+	}
+}
+
+func TestRetentionPolicyRunUsesGuardedRoute(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "retention-token")
+	var called bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/retention-policy/run" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer retention-token" {
+			t.Fatalf("Authorization header = %q", got)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if body["scopeType"] != "project" || body["scopeId"] != "demo" || body["dryRun"] != false || body["confirm"] != true {
+			t.Fatalf("unexpected retention run body: %#v", body)
+		}
+		raw, _ := json.Marshal(body)
+		for _, forbidden := range []string{"token", "password", "secret", "privateKey", "kubeconfig"} {
+			if strings.Contains(string(raw), forbidden) {
+				t.Fatalf("retention run request leaked forbidden marker %q: %s", forbidden, raw)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"retention-project-demo","scopeType":"project","scopeId":"demo","dryRun":false,"confirmed":true,"targets":[{"target":"evidence","supported":true,"candidates":1,"deleted":1}]}`))
+	}))
+	defer server.Close()
+
+	cmd := newRetentionPolicyRunCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{
+		"--server", server.URL,
+		"--token-env", "NIVORA_TEST_TOKEN",
+		"--scope-type", "project",
+		"--scope-id", "demo",
+		"--dry-run=false",
+		"--confirm",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("retention-policy run failed: %v output=%s", err, out.String())
+	}
+	if !called {
+		t.Fatal("expected retention-policy run to call server")
+	}
+	if !strings.Contains(out.String(), "deleted") {
+		t.Fatalf("retention-policy run output missing result: %s", out.String())
+	}
+}
+
+func TestRetentionPolicyRunRequiresConfirmForEnforcement(t *testing.T) {
+	cmd := newRetentionPolicyRunCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--dry-run=false"})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "requires --confirm") {
+		t.Fatalf("expected confirm guard, got err=%v output=%s", err, out.String())
 	}
 }

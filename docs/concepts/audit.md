@@ -16,9 +16,9 @@ Delivery systems affect production systems and sensitive credentials. Nivora mus
 
 Phase 1.5 creates in-memory AuditLog records for important PipelineRun lifecycle actions: created, queued, started, completed, failed, and canceled. Heartbeats are emitted as events but are not treated as high-value audit records by default because they may become high-frequency.
 
-Phase 7.3 adds structured audit fields for actor, action, subject, scope, reason, request ID, correlation ID, and safe metadata. It also adds audit search, evidence bundle export, and retention policy metadata.
+Phase 7.3 adds structured audit fields for actor, action, subject, scope, reason, request ID, correlation ID, and safe metadata. It also adds audit search, evidence bundle export, retention policy metadata, and guarded retention runs for evidence bundle cleanup.
 
-Durable external audit storage and retention enforcement jobs are future work.
+Durable external audit storage and scheduled retention jobs are future work. Audit records remain immutable in the current foundation; retention runs report old audit candidates but do not delete audit records.
 
 ## Common Confusion
 

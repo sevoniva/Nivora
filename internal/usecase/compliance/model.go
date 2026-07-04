@@ -26,3 +26,11 @@ type RetentionInput struct {
 	EvidenceDays   int    `json:"evidenceDays,omitempty"`
 	ImmutableAudit bool   `json:"immutableAudit"`
 }
+
+type RetentionRunInput struct {
+	ScopeType string `json:"scopeType,omitempty"`
+	ScopeID   string `json:"scopeId,omitempty"`
+	DryRun    bool   `json:"dryRun,omitempty"`
+	Confirm   bool   `json:"confirm,omitempty"`
+	ActorID   string `json:"actorId,omitempty"`
+}

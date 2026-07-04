@@ -178,6 +178,19 @@ func SetRetentionPolicy(service *complianceusecase.Service) http.HandlerFunc {
 	}
 }
 
+func RunRetentionPolicy(service *complianceusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input complianceusecase.RetentionRunInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a retention run request"})
+			return
+		}
+		input.ScopeType, input.ScopeID = ConstrainScopeToRequest(r, input.ScopeType, input.ScopeID)
+		result, err := service.RunRetention(r.Context(), input)
+		respondComplianceResult(w, r, result, err)
+	}
+}
+
 func VerifyAuditChain(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		scopeType, scopeID := ConstrainScopeToRequest(r, r.URL.Query().Get("scopeType"), r.URL.Query().Get("scopeId"))

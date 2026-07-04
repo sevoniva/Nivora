@@ -493,6 +493,58 @@ func (s *Service) SetRetentionPolicy(ctx context.Context, input RetentionInput) 
 	return policy, nil
 }
 
+func (s *Service) RunRetention(ctx context.Context, input RetentionRunInput) (domaincompliance.RetentionRunResult, error) {
+	if err := ctx.Err(); err != nil {
+		return domaincompliance.RetentionRunResult{}, err
+	}
+	policy, err := s.RetentionPolicy(ctx, input.ScopeType, input.ScopeID)
+	if err != nil {
+		return domaincompliance.RetentionRunResult{}, err
+	}
+	now := s.now()
+	dryRun := !input.Confirm || input.DryRun
+	var targets []domaincompliance.RetentionTargetResult
+	if dryRun {
+		targets, err = s.store.PreviewRetention(ctx, policy, now)
+	} else {
+		targets, err = s.store.ApplyRetention(ctx, policy, now)
+	}
+	if err != nil {
+		return domaincompliance.RetentionRunResult{}, err
+	}
+	result := domaincompliance.RetentionRunResult{
+		ID:        retentionRunID(policy, now),
+		ScopeType: policy.ScopeType,
+		ScopeID:   policy.ScopeID,
+		DryRun:    dryRun,
+		Confirmed: input.Confirm,
+		Policy:    policy,
+		Targets:   targets,
+		Warnings:  retentionWarnings(targets),
+		RanAt:     now,
+	}
+	actorID := strings.TrimSpace(input.ActorID)
+	if actorID == "" {
+		actorID = "retention-system"
+	}
+	_ = s.RecordAudit(ctx, audit.AuditLog{
+		ActorID:     actorID,
+		Action:      retentionAction(dryRun),
+		Subject:     "retention-policy:" + policy.ScopeType + ":" + policy.ScopeID,
+		SubjectType: "retention_policy",
+		SubjectID:   policy.ID,
+		ScopeType:   policy.ScopeType,
+		ScopeID:     policy.ScopeID,
+		Reason:      "retention run requested",
+		Metadata: map[string]string{
+			"dryRun":    fmt.Sprintf("%t", dryRun),
+			"confirmed": fmt.Sprintf("%t", input.Confirm),
+		},
+		CreatedAt: now,
+	})
+	return result, nil
+}
+
 type AuditChainVerifyResult struct {
 	Valid         bool   `json:"valid"`
 	FirstBrokenID string `json:"firstBrokenId,omitempty"`
@@ -744,4 +796,32 @@ func override(current int, next int) int {
 		return current
 	}
 	return next
+}
+
+func retentionRunID(policy domaincompliance.RetentionPolicy, now time.Time) string {
+	scopeType := strings.TrimSpace(policy.ScopeType)
+	if scopeType == "" {
+		scopeType = "global"
+	}
+	scopeID := strings.TrimSpace(policy.ScopeID)
+	if scopeID == "" {
+		scopeID = "all"
+	}
+	return fmt.Sprintf("retention-%s-%s-%s", scopeType, scopeID, now.UTC().Format("20060102150405"))
+}
+
+func retentionAction(dryRun bool) string {
+	if dryRun {
+		return "retention previewed"
+	}
+	return "retention enforced"
+}
+
+func retentionWarnings(targets []domaincompliance.RetentionTargetResult) []string {
+	var warnings []string
+	for _, target := range targets {
+		warnings = append(warnings, target.Warnings...)
+	}
+	sort.Strings(warnings)
+	return warnings
 }

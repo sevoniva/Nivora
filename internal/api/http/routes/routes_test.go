@@ -312,6 +312,15 @@ func TestComplianceEvidenceRoutes(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("retention status = %d body = %s", rec.Code, rec.Body.String())
 	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/retention-policy/run", strings.NewReader(`{"scopeType":"project","scopeId":"project-a","dryRun":true}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("retention run status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"dryRun":true`) || !strings.Contains(rec.Body.String(), `"evidence"`) {
+		t.Fatalf("retention run body = %s", rec.Body.String())
+	}
 }
 
 func TestAuthWhoamiDevMode(t *testing.T) {

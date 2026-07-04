@@ -1,6 +1,6 @@
 # Audit Evidence And Retention
 
-Phase 7.3 adds a backend foundation for compliance-oriented audit search, evidence bundles, and retention policy metadata.
+Phase 7.3 adds a backend foundation for compliance-oriented audit search, evidence bundles, retention policy metadata, and guarded retention runs for evidence bundle cleanup.
 
 ## Audit Search
 
@@ -88,9 +88,18 @@ CLI:
 ```bash
 go run ./cmd/nivora retention-policy get --scope-type project --scope-id demo
 go run ./cmd/nivora retention-policy set --scope-type project --scope-id demo --log-days 30 --audit-days 365 --event-days 90 --evidence-days 730
+go run ./cmd/nivora retention-policy run --scope-type project --scope-id demo --dry-run
+go run ./cmd/nivora retention-policy run --scope-type project --scope-id demo --dry-run=false --confirm
 ```
 
-The CLI sends only retention metadata. It does not accept secret material and does not perform background deletion by itself. Actual cleanup enforcement and automated retention jobs remain production hardening work.
+The CLI sends only retention metadata. It does not accept secret material. Retention runs are guarded:
+
+- `run --dry-run` previews candidates and is the default.
+- `run --dry-run=false --confirm` can delete expired evidence bundles for the selected scope.
+- audit records remain immutable; retention reports old audit candidates but does not delete them.
+- log and event retention are reported as preview-only in this foundation because those records span runtime stores.
+
+Automated scheduled retention jobs remain future production hardening work.
 
 ## Tamper-Evident Audit Hash Chain
 

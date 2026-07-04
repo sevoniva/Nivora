@@ -307,6 +307,7 @@ func newRetentionPolicyCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "retention-policy", Short: "Retention policy metadata utilities"}
 	cmd.AddCommand(newRetentionPolicyGetCommand())
 	cmd.AddCommand(newRetentionPolicySetCommand())
+	cmd.AddCommand(newRetentionPolicyRunCommand())
 	return cmd
 }
 
@@ -379,6 +380,50 @@ func newRetentionPolicySetCommand() *cobra.Command {
 	cmd.Flags().IntVar(&auditDays, "audit-days", 0, "audit retention days; omit or set 0 to use server default")
 	cmd.Flags().IntVar(&eventDays, "event-days", 0, "event retention days; omit or set 0 to use server default")
 	cmd.Flags().IntVar(&evidenceDays, "evidence-days", 0, "evidence retention days; omit or set 0 to use server default")
+	return cmd
+}
+
+func newRetentionPolicyRunCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var scopeType string
+	var scopeID string
+	var dryRun bool
+	var confirm bool
+	var actorID string
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Preview or enforce retention policy for a scope",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if !dryRun && !confirm {
+				return fmt.Errorf("retention-policy run without --dry-run requires --confirm")
+			}
+			bodyMap := map[string]any{
+				"scopeType": scopeType,
+				"scopeId":   scopeID,
+				"dryRun":    dryRun,
+				"confirm":   confirm,
+			}
+			setBodyString(bodyMap, "actorId", actorID)
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/retention-policy/run", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&scopeType, "scope-type", "global", "retention scope type")
+	cmd.Flags().StringVar(&scopeID, "scope-id", "", "retention scope id")
+	cmd.Flags().BoolVar(&dryRun, "dry-run", true, "preview retention candidates without deleting evidence bundles")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm guarded retention enforcement when --dry-run=false")
+	cmd.Flags().StringVar(&actorID, "actor-id", "", "optional actor id for retention audit")
 	return cmd
 }
 

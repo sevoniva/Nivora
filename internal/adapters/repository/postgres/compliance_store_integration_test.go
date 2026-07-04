@@ -70,4 +70,50 @@ func TestPostgresIntegrationComplianceEvidenceAndRetentionRecovery(t *testing.T)
 	if loadedPolicy.AuditDays != 730 || !loadedPolicy.ImmutableAudit {
 		t.Fatalf("loaded retention mismatch: %#v", loadedPolicy)
 	}
+
+	oldEvidence := domaincompliance.EvidenceBundle{ID: "evb-retention-old", SubjectType: "release", SubjectID: "rel-old", ScopeType: "project", ScopeID: "project-a", Summary: "old evidence", GeneratedAt: now.AddDate(0, 0, -60)}
+	newEvidence := domaincompliance.EvidenceBundle{ID: "evb-retention-new", SubjectType: "release", SubjectID: "rel-new", ScopeType: "project", ScopeID: "project-a", Summary: "new evidence", GeneratedAt: now.AddDate(0, 0, -5)}
+	for _, bundle := range []domaincompliance.EvidenceBundle{oldEvidence, newEvidence} {
+		if err := store.SaveEvidenceBundle(ctx, bundle); err != nil {
+			t.Fatalf("save retention evidence %s: %v", bundle.ID, err)
+		}
+	}
+	if err := store.AppendAuditRecord(ctx, AuditRecord{ID: "audit-retention-old", ActorID: "ops", Action: "old audit", SubjectType: "release", SubjectID: "rel-old", Subject: "release/rel-old", ScopeType: "project", ScopeID: "project-a", CreatedAt: now.AddDate(0, 0, -60)}); err != nil {
+		t.Fatalf("append retention audit record: %v", err)
+	}
+	retentionRunPolicy := domaincompliance.RetentionPolicy{ScopeType: "project", ScopeID: "project-a", AuditDays: 30, EvidenceDays: 30, LogDays: 30, EventDays: 30, ImmutableAudit: true}
+	preview, err := store.PreviewRetention(ctx, retentionRunPolicy, now)
+	if err != nil {
+		t.Fatalf("preview retention: %v", err)
+	}
+	if got := postgresRetentionTarget(t, preview, domaincompliance.RetentionTargetEvidence); got.Candidates != 1 || got.Deleted != 0 {
+		t.Fatalf("evidence preview = %#v", got)
+	}
+	if got := postgresRetentionTarget(t, preview, domaincompliance.RetentionTargetAudit); !got.Immutable || got.Candidates == 0 || got.Deleted != 0 {
+		t.Fatalf("audit preview = %#v", got)
+	}
+	applied, err := store.ApplyRetention(ctx, retentionRunPolicy, now)
+	if err != nil {
+		t.Fatalf("apply retention: %v", err)
+	}
+	if got := postgresRetentionTarget(t, applied, domaincompliance.RetentionTargetEvidence); got.Candidates != 1 || got.Deleted != 1 {
+		t.Fatalf("evidence apply = %#v", got)
+	}
+	if _, err := store.GetEvidenceBundle(ctx, oldEvidence.ID); err == nil {
+		t.Fatalf("expected old evidence to be deleted")
+	}
+	if _, err := store.GetEvidenceBundle(ctx, newEvidence.ID); err != nil {
+		t.Fatalf("new evidence should remain: %v", err)
+	}
+}
+
+func postgresRetentionTarget(t *testing.T, targets []domaincompliance.RetentionTargetResult, name string) domaincompliance.RetentionTargetResult {
+	t.Helper()
+	for _, target := range targets {
+		if target.Target == name {
+			return target
+		}
+	}
+	t.Fatalf("retention target %s not found in %#v", name, targets)
+	return domaincompliance.RetentionTargetResult{}
 }

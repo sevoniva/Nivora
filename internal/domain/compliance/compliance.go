@@ -59,6 +59,29 @@ type RetentionPolicy struct {
 	UpdatedAt      time.Time `json:"updatedAt" yaml:"updatedAt"`
 }
 
+type RetentionRunResult struct {
+	ID        string                  `json:"id" yaml:"id"`
+	ScopeType string                  `json:"scopeType,omitempty" yaml:"scopeType,omitempty"`
+	ScopeID   string                  `json:"scopeId,omitempty" yaml:"scopeId,omitempty"`
+	DryRun    bool                    `json:"dryRun" yaml:"dryRun"`
+	Confirmed bool                    `json:"confirmed" yaml:"confirmed"`
+	Policy    RetentionPolicy         `json:"policy" yaml:"policy"`
+	Targets   []RetentionTargetResult `json:"targets" yaml:"targets"`
+	Warnings  []string                `json:"warnings,omitempty" yaml:"warnings,omitempty"`
+	RanAt     time.Time               `json:"ranAt" yaml:"ranAt"`
+}
+
+type RetentionTargetResult struct {
+	Target        string    `json:"target" yaml:"target"`
+	Supported     bool      `json:"supported" yaml:"supported"`
+	Immutable     bool      `json:"immutable,omitempty" yaml:"immutable,omitempty"`
+	RetentionDays int       `json:"retentionDays" yaml:"retentionDays"`
+	Cutoff        time.Time `json:"cutoff,omitempty" yaml:"cutoff,omitempty"`
+	Candidates    int       `json:"candidates" yaml:"candidates"`
+	Deleted       int       `json:"deleted" yaml:"deleted"`
+	Warnings      []string  `json:"warnings,omitempty" yaml:"warnings,omitempty"`
+}
+
 type AuditSearchResult struct {
 	Items []audit.AuditLog `json:"items" yaml:"items"`
 	Count int              `json:"count" yaml:"count"`

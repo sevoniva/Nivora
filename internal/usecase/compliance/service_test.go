@@ -9,6 +9,8 @@ import (
 
 	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
+	"github.com/sevoniva/nivora/internal/domain/audit"
+	domaincompliance "github.com/sevoniva/nivora/internal/domain/compliance"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	domainnotification "github.com/sevoniva/nivora/internal/domain/notification"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
@@ -88,6 +90,59 @@ func TestRetentionPolicy(t *testing.T) {
 	}
 }
 
+func TestRetentionRunPreviewAndEnforceEvidenceOnly(t *testing.T) {
+	service := newTestComplianceService(nil)
+	now := time.Date(2026, 7, 4, 12, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return now }
+	if _, err := service.SetRetentionPolicy(context.Background(), RetentionInput{ScopeType: "project", ScopeID: "project-a", EvidenceDays: 30, AuditDays: 30}); err != nil {
+		t.Fatalf("set retention: %v", err)
+	}
+	oldBundle := domaincompliance.EvidenceBundle{ID: "evb-old", SubjectType: "release", SubjectID: "rel-old", ScopeType: "project", ScopeID: "project-a", Summary: "old", GeneratedAt: now.AddDate(0, 0, -60)}
+	newBundle := domaincompliance.EvidenceBundle{ID: "evb-new", SubjectType: "release", SubjectID: "rel-new", ScopeType: "project", ScopeID: "project-a", Summary: "new", GeneratedAt: now.AddDate(0, 0, -5)}
+	otherScope := domaincompliance.EvidenceBundle{ID: "evb-other", SubjectType: "release", SubjectID: "rel-other", ScopeType: "project", ScopeID: "project-b", Summary: "other", GeneratedAt: now.AddDate(0, 0, -60)}
+	for _, bundle := range []domaincompliance.EvidenceBundle{oldBundle, newBundle, otherScope} {
+		if err := service.store.SaveEvidenceBundle(context.Background(), bundle); err != nil {
+			t.Fatalf("save evidence %s: %v", bundle.ID, err)
+		}
+	}
+	if err := service.store.AppendAuditLog(context.Background(), audit.AuditLog{ID: "audit-old", ActorID: "ops", Action: "old", Subject: "release/rel-old", ScopeType: "project", ScopeID: "project-a", CreatedAt: now.AddDate(0, 0, -60)}); err != nil {
+		t.Fatalf("append audit: %v", err)
+	}
+
+	preview, err := service.RunRetention(context.Background(), RetentionRunInput{ScopeType: "project", ScopeID: "project-a", DryRun: true, ActorID: "ops"})
+	if err != nil {
+		t.Fatalf("preview retention: %v", err)
+	}
+	evidencePreview := retentionTarget(t, preview.Targets, domaincompliance.RetentionTargetEvidence)
+	if !preview.DryRun || evidencePreview.Candidates != 1 || evidencePreview.Deleted != 0 {
+		t.Fatalf("unexpected evidence preview: result=%#v target=%#v", preview, evidencePreview)
+	}
+	auditPreview := retentionTarget(t, preview.Targets, domaincompliance.RetentionTargetAudit)
+	if !auditPreview.Immutable || auditPreview.Candidates != 1 || auditPreview.Deleted != 0 {
+		t.Fatalf("unexpected audit preview: %#v", auditPreview)
+	}
+	if _, err := service.store.GetEvidenceBundle(context.Background(), oldBundle.ID); err != nil {
+		t.Fatalf("dry-run should not delete old evidence: %v", err)
+	}
+
+	enforced, err := service.RunRetention(context.Background(), RetentionRunInput{ScopeType: "project", ScopeID: "project-a", Confirm: true, ActorID: "ops"})
+	if err != nil {
+		t.Fatalf("enforce retention: %v", err)
+	}
+	evidenceEnforced := retentionTarget(t, enforced.Targets, domaincompliance.RetentionTargetEvidence)
+	if enforced.DryRun || evidenceEnforced.Candidates != 1 || evidenceEnforced.Deleted != 1 {
+		t.Fatalf("unexpected evidence enforcement: result=%#v target=%#v", enforced, evidenceEnforced)
+	}
+	if _, err := service.store.GetEvidenceBundle(context.Background(), oldBundle.ID); err != ErrEvidenceBundleNotFound {
+		t.Fatalf("old evidence lookup err = %v, want not found", err)
+	}
+	for _, id := range []string{newBundle.ID, otherScope.ID} {
+		if _, err := service.store.GetEvidenceBundle(context.Background(), id); err != nil {
+			t.Fatalf("evidence %s should remain: %v", id, err)
+		}
+	}
+}
+
 func TestEvidenceBundleRedactsSecrets(t *testing.T) {
 	artifacts := artifactusecase.NewService(artifactusecase.NewMemoryStore(), fakeArtifactProvider{}, fakeEventBus{})
 	record, err := artifacts.CreateRelease(context.Background(), artifactusecase.CreateReleaseInput{Definition: artifactusecase.ReleaseDefinition{
@@ -119,6 +174,17 @@ func TestEvidenceBundleRedactsSecrets(t *testing.T) {
 	if strings.Contains(string(body), "placeholder-sensitive-token") {
 		t.Fatalf("evidence leaked secret-like value: %s", string(body))
 	}
+}
+
+func retentionTarget(t *testing.T, targets []domaincompliance.RetentionTargetResult, name string) domaincompliance.RetentionTargetResult {
+	t.Helper()
+	for _, target := range targets {
+		if target.Target == name {
+			return target
+		}
+	}
+	t.Fatalf("retention target %s not found in %#v", name, targets)
+	return domaincompliance.RetentionTargetResult{}
 }
 
 func TestReleaseEvidenceBundleIncludesExecutionDeploymentAndDigest(t *testing.T) {

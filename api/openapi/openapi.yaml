@@ -362,6 +362,23 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RetentionPolicy"
+  /api/v1/retention-policy/run:
+    post:
+      summary: Preview or enforce retention policy for a scope
+      description: Requires `policy.manage`. Defaults to dry-run behavior; evidence bundle cleanup requires `confirm=true` and `dryRun=false`. Audit records remain immutable and are only reported as candidates.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RetentionRunRequest"
+      responses:
+        "200":
+          description: Retention preview or guarded enforcement result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RetentionRunResult"
   /api/v1/plugins:
     get:
       summary: List plugin manifests
@@ -5171,6 +5188,70 @@ components:
         immutableAudit:
           type: boolean
         updatedAt:
+          type: string
+          format: date-time
+    RetentionRunRequest:
+      type: object
+      properties:
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        dryRun:
+          type: boolean
+          description: Defaults to true when confirm is false.
+        confirm:
+          type: boolean
+          description: Required with dryRun=false before evidence cleanup is enforced.
+        actorId:
+          type: string
+    RetentionTargetResult:
+      type: object
+      properties:
+        target:
+          type: string
+          enum: [logs, audit, events, evidence]
+        supported:
+          type: boolean
+        immutable:
+          type: boolean
+        retentionDays:
+          type: integer
+        cutoff:
+          type: string
+          format: date-time
+        candidates:
+          type: integer
+        deleted:
+          type: integer
+        warnings:
+          type: array
+          items:
+            type: string
+    RetentionRunResult:
+      type: object
+      properties:
+        id:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
+        dryRun:
+          type: boolean
+        confirmed:
+          type: boolean
+        policy:
+          $ref: "#/components/schemas/RetentionPolicy"
+        targets:
+          type: array
+          items:
+            $ref: "#/components/schemas/RetentionTargetResult"
+        warnings:
+          type: array
+          items:
+            type: string
+        ranAt:
           type: string
           format: date-time
     AuditSearchResult:

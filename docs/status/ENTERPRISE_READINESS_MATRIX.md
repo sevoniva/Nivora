@@ -70,7 +70,7 @@ No row in this matrix should be read as a GA production claim.
 | Redaction | beta | redaction helpers/tests | API/MCP/secret tests | security docs | New fields can drift | Central sensitive-key corpus gate | Security |
 | Route permission coverage | beta | route matrix + tests | `rbac_matrix_test.go` | matrix docs | Test logs some expected failures softly | Convert more soft logs to hard assertions | Security |
 | Tenant isolation | foundation | tenant tests, scoped MCP artifact/security/runner filters | route tenant tests and MCP scope tests | tenancy docs | Runner ownership is still label-based and broad metadata surfaces need remote-safe profiles | First-class runner group ownership and remote-safe metadata profile | Security |
-| Audit evidence | foundation | compliance store/evidence | hash-chain tests | audit docs | Enterprise export/retention incomplete | Evidence bundle release e2e | Compliance |
+| Audit evidence | foundation | compliance store/evidence/retention run | hash-chain, evidence, retention preview/enforce tests | audit docs | Scheduled retention and external evidence collection incomplete | Evidence bundle release e2e and retention drill | Compliance |
 | Threat model | beta | security docs | review checklists | threat model docs | Needs recurring release review | Threat model release gate | Security |
 | Policy gates | foundation | built-in rules | policy tests | policy docs | OPA/Kyverno not integrated | Policy decision persistence e2e | Security |
 | Approval gates | foundation | approval usecase/routes | approval tests | approval docs | Resume workflow incomplete | Approval resume/reject e2e | Governance |

@@ -170,6 +170,74 @@ func (s *ComplianceStore) GetRetentionPolicy(ctx context.Context, scopeType stri
 	return policy, nil
 }
 
+func (s *ComplianceStore) PreviewRetention(ctx context.Context, policy domaincompliance.RetentionPolicy, now time.Time) ([]domaincompliance.RetentionTargetResult, error) {
+	return s.retentionTargets(ctx, policy, now, false)
+}
+
+func (s *ComplianceStore) ApplyRetention(ctx context.Context, policy domaincompliance.RetentionPolicy, now time.Time) ([]domaincompliance.RetentionTargetResult, error) {
+	return s.retentionTargets(ctx, policy, now, true)
+}
+
+func (s *ComplianceStore) retentionTargets(ctx context.Context, policy domaincompliance.RetentionPolicy, now time.Time, apply bool) ([]domaincompliance.RetentionTargetResult, error) {
+	logs := postgresUnsupportedRetentionTarget(domaincompliance.RetentionTargetLogs, policy.LogDays, now, "log retention spans runtime stores and is preview-only in this foundation")
+	audit := postgresSupportedRetentionTarget(domaincompliance.RetentionTargetAudit, policy.AuditDays, now)
+	audit.Immutable = true
+	audit.Warnings = append(audit.Warnings, "audit records are immutable in this foundation; retention reports candidates but does not delete them")
+	if !audit.Cutoff.IsZero() {
+		count, err := s.countExpiredAudit(ctx, policy, audit.Cutoff)
+		if err != nil {
+			return nil, err
+		}
+		audit.Candidates = count
+	}
+	events := postgresUnsupportedRetentionTarget(domaincompliance.RetentionTargetEvents, policy.EventDays, now, "event retention spans runtime stores and is preview-only in this foundation")
+	evidence := postgresSupportedRetentionTarget(domaincompliance.RetentionTargetEvidence, policy.EvidenceDays, now)
+	if !evidence.Cutoff.IsZero() {
+		count, err := s.countExpiredEvidence(ctx, policy, evidence.Cutoff)
+		if err != nil {
+			return nil, err
+		}
+		evidence.Candidates = count
+		if apply && count > 0 {
+			deleted, err := s.deleteExpiredEvidence(ctx, policy, evidence.Cutoff)
+			if err != nil {
+				return nil, err
+			}
+			evidence.Deleted = deleted
+		}
+	}
+	return []domaincompliance.RetentionTargetResult{logs, audit, events, evidence}, nil
+}
+
+func (s *ComplianceStore) countExpiredEvidence(ctx context.Context, policy domaincompliance.RetentionPolicy, cutoff time.Time) (int, error) {
+	var count int
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM compliance_evidence_bundles
+		WHERE ($1 = '' OR $1 = 'global' OR scope_type = $1)
+		  AND ($2 = '' OR scope_id = $2)
+		  AND generated_at < $3`, policy.ScopeType, policy.ScopeID, cutoff).Scan(&count)
+	return count, err
+}
+
+func (s *ComplianceStore) deleteExpiredEvidence(ctx context.Context, policy domaincompliance.RetentionPolicy, cutoff time.Time) (int, error) {
+	tag, err := s.pool.Exec(ctx, `DELETE FROM compliance_evidence_bundles
+		WHERE ($1 = '' OR $1 = 'global' OR scope_type = $1)
+		  AND ($2 = '' OR scope_id = $2)
+		  AND generated_at < $3`, policy.ScopeType, policy.ScopeID, cutoff)
+	if err != nil {
+		return 0, err
+	}
+	return int(tag.RowsAffected()), nil
+}
+
+func (s *ComplianceStore) countExpiredAudit(ctx context.Context, policy domaincompliance.RetentionPolicy, cutoff time.Time) (int, error) {
+	var count int
+	err := s.pool.QueryRow(ctx, `SELECT count(*) FROM compliance_audit_records
+		WHERE ($1 = '' OR $1 = 'global' OR scope_type = $1)
+		  AND ($2 = '' OR scope_id = $2)
+		  AND created_at < $3`, policy.ScopeType, policy.ScopeID, cutoff).Scan(&count)
+	return count, err
+}
+
 type AuditRecord struct {
 	ID            string    `json:"id"`
 	ActorID       string    `json:"actor_id"`
@@ -273,4 +341,26 @@ func decodeEvidenceBundle(raw []byte) (domaincompliance.EvidenceBundle, error) {
 		return domaincompliance.EvidenceBundle{}, err
 	}
 	return bundle, nil
+}
+
+func postgresRetentionCutoff(days int, now time.Time) time.Time {
+	if days <= 0 {
+		return time.Time{}
+	}
+	return now.AddDate(0, 0, -days)
+}
+
+func postgresSupportedRetentionTarget(target string, days int, now time.Time) domaincompliance.RetentionTargetResult {
+	result := domaincompliance.RetentionTargetResult{Target: target, Supported: true, RetentionDays: days, Cutoff: postgresRetentionCutoff(days, now)}
+	if days <= 0 {
+		result.Warnings = append(result.Warnings, "retention is disabled for this target because retentionDays is zero")
+	}
+	return result
+}
+
+func postgresUnsupportedRetentionTarget(target string, days int, now time.Time, warning string) domaincompliance.RetentionTargetResult {
+	result := postgresSupportedRetentionTarget(target, days, now)
+	result.Supported = false
+	result.Warnings = append(result.Warnings, warning)
+	return result
 }

@@ -124,6 +124,7 @@ var criticalRoutes = []struct {
 	{"GET", "/api/v1/audit-logs", domainauth.PermissionAuditRead, false},
 	{"GET", "/api/v1/evidence/bundles", domainauth.PermissionAuditRead, false},
 	{"GET", "/api/v1/evidence/bundles/evb-1", domainauth.PermissionAuditRead, false},
+	{"POST", "/api/v1/retention-policy/run", domainauth.PermissionPolicyManage, true},
 	{"GET", "/api/v1/events", domainauth.PermissionProjectRead, false},
 	{"GET", "/api/v1/logs", domainauth.PermissionProjectRead, false},
 	{"GET", "/api/v1/integrations", domainauth.PermissionProjectRead, false},

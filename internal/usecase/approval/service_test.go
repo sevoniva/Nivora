@@ -45,6 +45,13 @@ func TestApprovalRequestAndDecision(t *testing.T) {
 	if len(audits) < 2 {
 		t.Fatalf("audit count = %d", len(audits))
 	}
+
+	notifications, err := service.ListNotifications(context.Background())
+	if err != nil {
+		t.Fatalf("notifications: %v", err)
+	}
+	assertApprovalNotification(t, notifications, request.ID, domainapproval.StatusPending)
+	assertApprovalNotification(t, notifications, request.ID, domainapproval.StatusApproved)
 }
 
 func TestApprovalReject(t *testing.T) {
@@ -59,6 +66,17 @@ func TestApprovalReject(t *testing.T) {
 	}
 	if rejected.Status != domainapproval.StatusRejected {
 		t.Fatalf("status = %s", rejected.Status)
+	}
+	notifications, err := service.ListNotifications(context.Background())
+	if err != nil {
+		t.Fatalf("notifications: %v", err)
+	}
+	rejectNotification := assertApprovalNotification(t, notifications, request.ID, domainapproval.StatusRejected)
+	if rejectNotification.Body != "" {
+		t.Fatalf("approval decision notification should not duplicate comment body: %#v", rejectNotification)
+	}
+	if rejectNotification.Metadata["subjectType"] != domainapproval.SubjectRelease || rejectNotification.Metadata["subjectId"] != "rexec-1" {
+		t.Fatalf("reject notification metadata = %#v", rejectNotification.Metadata)
 	}
 }
 
@@ -105,6 +123,13 @@ func TestApprovalCancelAndExpireLifecycle(t *testing.T) {
 	}
 	assertApprovalEvent(t, events, EventApprovalCanceled)
 	assertApprovalEvent(t, events, EventApprovalExpired)
+
+	notifications, err := service.ListNotifications(context.Background())
+	if err != nil {
+		t.Fatalf("notifications: %v", err)
+	}
+	assertApprovalNotification(t, notifications, request.ID, domainapproval.StatusCanceled)
+	assertApprovalNotification(t, notifications, expiring.ID, domainapproval.StatusExpired)
 }
 
 func TestChangeWindowEvaluation(t *testing.T) {
@@ -196,6 +221,22 @@ func assertApprovalEvent(t *testing.T, events []event.Event, eventType string) {
 		}
 	}
 	t.Fatalf("missing event %s in %#v", eventType, events)
+}
+
+func assertApprovalNotification(t *testing.T, notifications []domainnotification.Notification, approvalID string, status string) domainnotification.Notification {
+	t.Helper()
+	for _, notification := range notifications {
+		if notification.Type == "approval" &&
+			notification.Metadata["approvalId"] == approvalID &&
+			notification.Metadata["status"] == status {
+			if notification.Metadata["subjectId"] == "" {
+				t.Fatalf("approval notification missing subject id: %#v", notification)
+			}
+			return notification
+		}
+	}
+	t.Fatalf("missing approval notification approval=%s status=%s in %#v", approvalID, status, notifications)
+	return domainnotification.Notification{}
 }
 
 func ptrTime(value time.Time) *time.Time {

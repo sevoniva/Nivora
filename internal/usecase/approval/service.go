@@ -57,7 +57,7 @@ func (s *Service) CreateApprovalRequest(ctx context.Context, input ApprovalCreat
 		return domainapproval.ApprovalRequest{}, err
 	}
 	_ = s.record(ctx, EventApprovalRequested, "Approval requested", input.RequestedBy, request.ID, map[string]any{"subjectType": request.SubjectType, "subjectId": request.SubjectID, "status": request.Status})
-	_, _ = s.SendNotification(ctx, domainnotification.Notification{Type: "approval", Channel: "noop", Subject: "Approval requested", Body: request.Reason, Recipients: []string{"approvers"}, Metadata: map[string]string{"approvalId": request.ID}})
+	_, _ = s.SendNotification(ctx, domainnotification.Notification{Type: "approval", Channel: "noop", Subject: "Approval requested", Recipients: []string{"approvers"}, Metadata: approvalNotificationMetadata(request, domainapproval.StatusPending)})
 	return request, nil
 }
 
@@ -114,6 +114,7 @@ func (s *Service) Cancel(ctx context.Context, id string, input DecisionInput) (d
 		return domainapproval.ApprovalRequest{}, err
 	}
 	_ = s.record(ctx, EventApprovalCanceled, "Approval canceled", input.Approver, request.ID, map[string]any{"status": request.Status, "comment": input.Comment})
+	_, _ = s.SendNotification(ctx, approvalDecisionNotification(request, domainapproval.DecisionCancel))
 	return request, nil
 }
 
@@ -132,6 +133,7 @@ func (s *Service) Expire(ctx context.Context, id string, input DecisionInput) (d
 		return domainapproval.ApprovalRequest{}, err
 	}
 	_ = s.record(ctx, EventApprovalExpired, "Approval expired", input.Approver, request.ID, map[string]any{"status": request.Status, "comment": input.Comment})
+	_, _ = s.SendNotification(ctx, approvalDecisionNotification(request, domainapproval.DecisionExpire))
 	return request, nil
 }
 
@@ -273,6 +275,7 @@ func (s *Service) decide(ctx context.Context, id string, decision string, input 
 		return domainapproval.ApprovalRequest{}, err
 	}
 	_ = s.record(ctx, eventType, action, input.Approver, request.ID, map[string]any{"status": request.Status, "comment": input.Comment})
+	_, _ = s.SendNotification(ctx, approvalDecisionNotification(request, decision))
 	return request, nil
 }
 
@@ -286,7 +289,42 @@ func (s *Service) expireIfNeeded(ctx context.Context, request domainapproval.App
 		return true, err
 	}
 	_ = s.record(ctx, EventApprovalExpired, "Approval expired", actorID, request.ID, map[string]any{"status": request.Status})
+	_, _ = s.SendNotification(ctx, approvalDecisionNotification(request, domainapproval.DecisionExpire))
 	return true, fmt.Errorf("approval request is already %s", request.Status)
+}
+
+func approvalDecisionNotification(request domainapproval.ApprovalRequest, decision string) domainnotification.Notification {
+	subject := "Approval " + strings.ToLower(request.Status)
+	return domainnotification.Notification{
+		Type:       "approval",
+		Channel:    "noop",
+		Subject:    subject,
+		Recipients: []string{"approvers"},
+		Metadata:   approvalNotificationMetadata(request, decision),
+	}
+}
+
+func approvalNotificationMetadata(request domainapproval.ApprovalRequest, decision string) map[string]string {
+	metadata := map[string]string{
+		"approvalId":  request.ID,
+		"subjectType": request.SubjectType,
+		"subjectId":   request.SubjectID,
+		"status":      request.Status,
+		"decision":    decision,
+	}
+	if request.EnvironmentID != "" {
+		metadata["environmentId"] = request.EnvironmentID
+	}
+	if request.TargetType != "" {
+		metadata["targetType"] = request.TargetType
+	}
+	if request.TargetID != "" {
+		metadata["targetId"] = request.TargetID
+	}
+	if request.PolicyResultID != "" {
+		metadata["policyResultId"] = request.PolicyResultID
+	}
+	return metadata
 }
 
 func windowMatches(window domainapproval.ChangeWindow, at time.Time) (bool, string, error) {

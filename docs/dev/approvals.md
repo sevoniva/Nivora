@@ -66,4 +66,4 @@ nivora release execution resume <execution-id> --approval-status Approved --toke
 
 ## Notes
 
-Approval decisions are audited, and approval events are emitted through the local EventBus. This is not production-ready approval orchestration.
+Approval requests and terminal decisions are audited, emit local events, and create metadata-only notification records through the configured notification provider. Decision notifications do not copy the approver comment into the notification body. This is not production-ready approval orchestration.

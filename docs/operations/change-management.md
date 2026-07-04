@@ -10,11 +10,13 @@ Delivery flows can use three governance gates:
 - Change window: environment-scoped timezone/day/time evaluation.
 - Approval request: pending, approved, rejected, expired, or canceled.
 
-Release and deployment flows may stop in `WaitingApproval` when approval is required. Approved requests can resume the waiting execution. Rejection and expiration fail the waiting release/deployment; cancellation cancels it. All decisions are auditable.
+Release and deployment flows may stop in `WaitingApproval` when approval is required. Approved requests can resume the waiting execution. Rejection and expiration fail the waiting release/deployment; cancellation cancels it. All decisions are auditable and produce local metadata-only notification records.
 
 ## Notifications
 
 Notification delivery is behind a `NotificationProvider` port. The default behavior is safe local recording. External providers must be explicitly configured and must use `SecretRef` or `CredentialRef` for sensitive values.
+
+Approval request and terminal decision notifications include approval id, subject, status, and scope metadata. They do not copy approver comments into notification bodies, which keeps the local notification catalog from becoming an extra place for sensitive review text.
 
 The guarded webhook adapter refuses to send unless `AllowSend=true`. Slack, Feishu, DingTalk, email, and ITSM integrations remain future work.
 

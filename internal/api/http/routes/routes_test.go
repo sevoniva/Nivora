@@ -696,6 +696,7 @@ func TestApprovalRoutes(t *testing.T) {
 	if created.ID == "" || created.Status != "Pending" {
 		t.Fatalf("created approval = %#v", created)
 	}
+	approvedID := created.ID
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+created.ID+"/approve", strings.NewReader(`{"approver":"reviewer","comment":"ok"}`))
 	rec = httptest.NewRecorder()
@@ -716,6 +717,7 @@ func TestApprovalRoutes(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
 		t.Fatalf("decode approval for expire: %v", err)
 	}
+	expiredID := created.ID
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+created.ID+"/expire", strings.NewReader(`{"approver":"system","comment":"expired"}`))
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -724,6 +726,33 @@ func TestApprovalRoutes(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), "Expired") {
 		t.Fatalf("expire body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/notifications", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("notifications status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var notifications []struct {
+		Type     string            `json:"type"`
+		Subject  string            `json:"subject"`
+		Body     string            `json:"body"`
+		Metadata map[string]string `json:"metadata"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &notifications); err != nil {
+		t.Fatalf("decode notifications: %v", err)
+	}
+	if !hasApprovalNotification(notifications, approvedID, "Approved") {
+		t.Fatalf("missing approved notification in %#v", notifications)
+	}
+	if !hasApprovalNotification(notifications, expiredID, "Expired") {
+		t.Fatalf("missing expired notification in %#v", notifications)
+	}
+	for _, notification := range notifications {
+		if notification.Metadata["approvalId"] == approvedID && notification.Body == "ok" {
+			t.Fatalf("decision comment leaked into notification body: %#v", notification)
+		}
 	}
 }
 
@@ -1123,6 +1152,23 @@ func (securityOIDCProvider) Validate(ctx context.Context, token string, issuer s
 	default:
 		return authusecase.OIDCClaims{}, authusecase.ErrUnauthorized
 	}
+}
+
+func hasApprovalNotification(notifications []struct {
+	Type     string            `json:"type"`
+	Subject  string            `json:"subject"`
+	Body     string            `json:"body"`
+	Metadata map[string]string `json:"metadata"`
+}, approvalID string, status string) bool {
+	for _, notification := range notifications {
+		if notification.Type == "approval" &&
+			notification.Metadata["approvalId"] == approvalID &&
+			notification.Metadata["status"] == status &&
+			notification.Metadata["subjectId"] != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func TestCloudRoutes(t *testing.T) {

@@ -73,7 +73,7 @@ No row in this matrix should be read as a GA production claim.
 | Audit evidence | foundation | compliance store/evidence/retention run | hash-chain, evidence, retention preview/enforce tests | audit docs | Scheduled retention and external evidence collection incomplete | Evidence bundle release e2e and retention drill | Compliance |
 | Threat model | beta | security docs | review checklists | threat model docs | Needs recurring release review | Threat model release gate | Security |
 | Policy gates | foundation | built-in rules | policy tests | policy docs | OPA/Kyverno not integrated | Policy decision persistence e2e | Security |
-| Approval gates | foundation | approval usecase/routes | approval tests | approval docs | Resume workflow incomplete | Approval resume/reject e2e | Governance |
+| Approval gates | foundation | approval usecase/routes and subject resume helpers | approval decision, notification, and resume tests | approval docs | External ITSM/escalation/frontend approval queue incomplete | Approval resume/reject HTTP integration and external workflow contract tests | Governance |
 | Change windows | foundation | evaluator/routes | evaluator tests | change window docs | Timezone/holiday rules basic | Window boundary tests | Governance |
 | PostgreSQL persistence | beta | Runtime/governance/catalog stores + migrations | Postgres integration | database docs | Full live recovery still expanding | Mandatory release gate for integration job | Database |
 | Migrations | beta | migrations 000001-000011 | up/down tests | persistence docs | Backward compatibility not fully proven | Migration compatibility matrix | Database |

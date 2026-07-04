@@ -67,6 +67,13 @@ type ListArtifactsInput struct {
 	EnvironmentID string
 }
 
+type ListReleasesInput struct {
+	ProjectID     string
+	EnvironmentID string
+	ApplicationID string
+	Status        string
+}
+
 type ArtifactReleaseBinding struct {
 	Release release.Release         `json:"release"`
 	Binding release.ReleaseArtifact `json:"binding"`

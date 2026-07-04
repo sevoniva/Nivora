@@ -31,6 +31,21 @@ nivora release create \
 
 The matching API is `POST /api/v1/releases?projectId=project-a`. If the caller is already project-scoped, Nivora uses the token scope instead of the query value. Project ownership is copied to the Release and bound artifact metadata without exposing CredentialRef or secret values.
 
+## List Server-Backed Releases
+
+Server-backed releases can be listed with optional project, environment, application, and status filters:
+
+```bash
+nivora release list \
+  --project-id project-a \
+  --environment-id env-a \
+  --application-id demo-app \
+  --status Ready \
+  --token-env NIVORA_AUTH_TOKEN
+```
+
+The matching API is `GET /api/v1/releases?projectId=project-a&environmentId=env-a&applicationId=demo-app&status=Ready`. Project- and environment-scoped callers are still constrained by their token scope; the query filters narrow the inventory view and do not bypass RBAC. The response contains stored Release records only. It does not query external artifact registries or deployment targets.
+
 ## Generate Release Evidence
 
 For server-backed release records:

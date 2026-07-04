@@ -187,6 +187,15 @@ func TestReleaseServerCommandsUseBearerToken(t *testing.T) {
 			response:   `{"id":"rel-1"}`,
 		},
 		{
+			name:       "list",
+			cmd:        newReleaseListCommand(),
+			args:       []string{"--project-id", "project-a", "--environment-id", "env-a", "--application-id", "app-a", "--status", "Ready", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/v1/releases",
+			wantQuery:  "applicationId=app-a&environmentId=env-a&projectId=project-a&status=Ready",
+			response:   `[{"release":{"id":"rel-1"}}]`,
+		},
+		{
 			name:       "artifacts",
 			cmd:        newReleaseArtifactsCommand(),
 			args:       []string{"rel-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},

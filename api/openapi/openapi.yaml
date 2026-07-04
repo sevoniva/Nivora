@@ -2131,6 +2131,27 @@ paths:
   /api/v1/releases:
     get:
       summary: List Releases tracked by the configured runtime store
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: applicationId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: status
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
         "200":
           description: Release records

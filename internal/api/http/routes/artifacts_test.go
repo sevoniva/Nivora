@@ -106,6 +106,19 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 		t.Fatalf("artifact metadata missing explicit project id: %#v", artifactMetadata)
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/releases?projectId=project-explicit&status=Ready&applicationId=demo-app", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !bytes.Contains(rec.Body.Bytes(), []byte(releaseID)) {
+		t.Fatalf("filtered releases should include project release, status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/releases?projectId=project-missing", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || bytes.Contains(rec.Body.Bytes(), []byte(releaseID)) {
+		t.Fatalf("filtered releases should exclude other projects, status=%d body=%s", rec.Code, rec.Body.String())
+	}
+
 	deployBody := []byte(`{
 		"apiVersion": "nivora.io/v1alpha1",
 		"kind": "ReleaseOrchestration",

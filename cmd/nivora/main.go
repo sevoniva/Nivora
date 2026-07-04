@@ -3738,6 +3738,7 @@ func bindArtifactRegistryCreateFlags(cmd *cobra.Command, input *artifactusecase.
 func newReleaseCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "release", Short: "Release utilities"}
 	cmd.AddCommand(newReleaseCreateCommand())
+	cmd.AddCommand(newReleaseListCommand())
 	cmd.AddCommand(newReleaseGetCommand())
 	cmd.AddCommand(newReleaseArtifactsCommand())
 	cmd.AddCommand(newReleaseCancelCommand())
@@ -3746,6 +3747,39 @@ func newReleaseCommand() *cobra.Command {
 	cmd.AddCommand(newReleaseSecurityCommand())
 	cmd.AddCommand(newReleaseEvidenceCommand())
 	cmd.AddCommand(newReleaseExecutionCommand())
+	return cmd
+}
+
+func newReleaseListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var projectID string
+	var environmentID string
+	var applicationID string
+	var status string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List releases from a Nivora server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			setQueryValue(values, "projectId", projectID)
+			setQueryValue(values, "environmentId", environmentID)
+			setQueryValue(values, "applicationId", applicationID)
+			setQueryValue(values, "status", status)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, withQuery("/api/v1/releases", values), nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "filter releases by project id")
+	cmd.Flags().StringVar(&environmentID, "environment-id", "", "filter releases by environment id")
+	cmd.Flags().StringVar(&applicationID, "application-id", "", "filter releases by application id")
+	cmd.Flags().StringVar(&status, "status", "", "filter releases by status")
 	return cmd
 }
 

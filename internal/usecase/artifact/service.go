@@ -293,8 +293,23 @@ func (s *Service) GetRelease(ctx context.Context, id string) (ReleaseRecord, err
 	return s.store.GetRelease(ctx, id)
 }
 
-func (s *Service) ListReleases(ctx context.Context) ([]ReleaseRecord, error) {
-	return s.store.ListReleases(ctx)
+func (s *Service) ListReleases(ctx context.Context, inputs ...ListReleasesInput) ([]ReleaseRecord, error) {
+	records, err := s.store.ListReleases(ctx)
+	if err != nil {
+		return nil, err
+	}
+	input := ListReleasesInput{}
+	if len(inputs) > 0 {
+		input = inputs[0]
+	}
+	filter := normalizeReleaseFilter(input)
+	filtered := make([]ReleaseRecord, 0, len(records))
+	for _, record := range records {
+		if releaseMatches(record, filter) {
+			filtered = append(filtered, cloneReleaseRecord(record))
+		}
+	}
+	return filtered, nil
 }
 
 func (s *Service) UpdateReleaseStatus(ctx context.Context, id string, status release.ReleaseStatus, actorID string, reason string) (ReleaseRecord, error) {
@@ -489,6 +504,68 @@ func normalizeArtifactFilter(input ListArtifactsInput) ListArtifactsInput {
 		ProjectID:     strings.TrimSpace(input.ProjectID),
 		EnvironmentID: strings.TrimSpace(input.EnvironmentID),
 	}
+}
+
+func normalizeReleaseFilter(input ListReleasesInput) ListReleasesInput {
+	return ListReleasesInput{
+		ProjectID:     strings.TrimSpace(input.ProjectID),
+		EnvironmentID: strings.TrimSpace(input.EnvironmentID),
+		ApplicationID: strings.TrimSpace(input.ApplicationID),
+		Status:        strings.TrimSpace(strings.ToLower(input.Status)),
+	}
+}
+
+func releaseMatches(record ReleaseRecord, filter ListReleasesInput) bool {
+	if filter.ProjectID != "" && releaseProjectID(record) != filter.ProjectID {
+		return false
+	}
+	if filter.EnvironmentID != "" && releaseEnvironmentID(record) != filter.EnvironmentID {
+		return false
+	}
+	if filter.ApplicationID != "" && record.Release.ApplicationID != filter.ApplicationID {
+		return false
+	}
+	if filter.Status != "" && strings.ToLower(record.Release.Status) != filter.Status {
+		return false
+	}
+	return true
+}
+
+func releaseProjectID(record ReleaseRecord) string {
+	if record.Release.Metadata != nil && record.Release.Metadata["projectId"] != "" {
+		return record.Release.Metadata["projectId"]
+	}
+	for _, binding := range record.Bindings {
+		if binding.Metadata != nil && binding.Metadata["projectId"] != "" {
+			return binding.Metadata["projectId"]
+		}
+	}
+	for _, artifact := range record.Artifacts {
+		if artifact.Metadata != nil && artifact.Metadata["projectId"] != "" {
+			return artifact.Metadata["projectId"]
+		}
+	}
+	return ""
+}
+
+func releaseEnvironmentID(record ReleaseRecord) string {
+	if record.Release.EnvironmentID != "" {
+		return record.Release.EnvironmentID
+	}
+	if record.Release.Metadata != nil && record.Release.Metadata["environmentId"] != "" {
+		return record.Release.Metadata["environmentId"]
+	}
+	for _, binding := range record.Bindings {
+		if binding.Metadata != nil && binding.Metadata["environmentId"] != "" {
+			return binding.Metadata["environmentId"]
+		}
+	}
+	for _, artifact := range record.Artifacts {
+		if artifact.Metadata != nil && artifact.Metadata["environmentId"] != "" {
+			return artifact.Metadata["environmentId"]
+		}
+	}
+	return ""
 }
 
 func artifactMatches(item domainartifact.Artifact, filter ListArtifactsInput) bool {

@@ -103,6 +103,73 @@ func TestCreateReleaseResolvesDigestWhenRequested(t *testing.T) {
 	}
 }
 
+func TestListReleasesFiltersByProjectEnvironmentAndStatus(t *testing.T) {
+	service := NewService(NewMemoryStore(), fakeArtifactProvider{}, fakeEventBus{})
+	releaseA, err := service.CreateRelease(context.Background(), CreateReleaseInput{
+		ProjectID: "project-a",
+		ActorID:   "tester",
+		Definition: ReleaseDefinition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Release",
+			Metadata:   ReleaseMetadata{Name: "demo-a"},
+			Spec: ReleaseSpec{
+				Version:     "1.0.0",
+				Application: "app-a",
+				Environment: "env-a",
+				Artifacts: []ReleaseArtifactSpec{{
+					Name:      "demo-a",
+					Type:      "image",
+					Required:  true,
+					Reference: "registry.example.com/team/demo-a@sha256:abcdef",
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create release A: %v", err)
+	}
+	if _, err := service.CreateRelease(context.Background(), CreateReleaseInput{
+		ProjectID: "project-b",
+		ActorID:   "tester",
+		Definition: ReleaseDefinition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Release",
+			Metadata:   ReleaseMetadata{Name: "demo-b"},
+			Spec: ReleaseSpec{
+				Version:     "1.0.0",
+				Application: "app-b",
+				Environment: "env-b",
+				Artifacts: []ReleaseArtifactSpec{{
+					Name:      "demo-b",
+					Type:      "image",
+					Required:  true,
+					Reference: "registry.example.com/team/demo-b@sha256:abcdef",
+				}},
+			},
+		},
+	}); err != nil {
+		t.Fatalf("create release B: %v", err)
+	}
+	if _, err := service.CancelRelease(context.Background(), releaseA.Release.ID, "tester"); err != nil {
+		t.Fatalf("cancel release A: %v", err)
+	}
+
+	filtered, err := service.ListReleases(context.Background(), ListReleasesInput{ProjectID: "project-a", EnvironmentID: "env-a", ApplicationID: "app-a", Status: "canceled"})
+	if err != nil {
+		t.Fatalf("list releases: %v", err)
+	}
+	if len(filtered) != 1 || filtered[0].Release.ID != releaseA.Release.ID {
+		t.Fatalf("filtered releases = %#v", filtered)
+	}
+	none, err := service.ListReleases(context.Background(), ListReleasesInput{ProjectID: "project-a", Status: "ready"})
+	if err != nil {
+		t.Fatalf("list ready releases: %v", err)
+	}
+	if len(none) != 0 {
+		t.Fatalf("ready filter should be empty after cancel: %#v", none)
+	}
+}
+
 func TestArtifactCatalogQueriesReleaseBindings(t *testing.T) {
 	service := NewService(NewMemoryStore(), fakeArtifactProvider{}, fakeEventBus{})
 	record, err := service.CreateRelease(context.Background(), CreateReleaseInput{Definition: ReleaseDefinition{

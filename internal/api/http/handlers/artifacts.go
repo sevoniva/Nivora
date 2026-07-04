@@ -235,7 +235,12 @@ func CreateRelease(service *artifactusecase.Service) http.HandlerFunc {
 
 func ListReleases(service *artifactusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		records, err := service.ListReleases(r.Context())
+		records, err := service.ListReleases(r.Context(), artifactusecase.ListReleasesInput{
+			ProjectID:     constrainArtifactProjectScope(r, r.URL.Query().Get("projectId")),
+			EnvironmentID: constrainArtifactEnvironmentScope(r, r.URL.Query().Get("environmentId")),
+			ApplicationID: r.URL.Query().Get("applicationId"),
+			Status:        r.URL.Query().Get("status"),
+		})
 		if err != nil {
 			respondArtifactResult(w, r, nil, err)
 			return

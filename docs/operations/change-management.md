@@ -21,7 +21,13 @@ The guarded webhook adapter refuses to send unless `AllowSend=true`. Slack, Feis
 ## CLI
 
 ```sh
+nivora approvals create \
+  --subject-type deployment \
+  --subject-id drun-prod \
+  --env prod \
+  --reason "manual production gate"
 nivora approvals list
+nivora approvals get <approval-id>
 nivora approvals approve <id> --comment "approved for current window"
 nivora approvals reject <id> --comment "policy exception not accepted"
 nivora approvals cancel <id> --comment "superseded"

@@ -454,6 +454,8 @@ func newScopedGetCommand(name string, short string, path string) *cobra.Command 
 func newApprovalsCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "approvals", Short: "Approval request utilities"}
 	cmd.AddCommand(newApprovalListCommand())
+	cmd.AddCommand(newApprovalCreateCommand())
+	cmd.AddCommand(newApprovalGetCommand())
 	cmd.AddCommand(newApprovalDecisionCommand("approve", "Approve an approval request", "/approve"))
 	cmd.AddCommand(newApprovalDecisionCommand("reject", "Reject an approval request", "/reject"))
 	cmd.AddCommand(newApprovalDecisionCommand("cancel", "Cancel an approval request", "/cancel"))
@@ -469,6 +471,88 @@ func newApprovalListCommand() *cobra.Command {
 		Short: "List approval requests",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/approvals", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newApprovalCreateCommand() *cobra.Command {
+	var serverURL string
+	var subjectType string
+	var subjectID string
+	var environmentID string
+	var targetType string
+	var targetID string
+	var severity string
+	var policyResultID string
+	var requiredByPolicy bool
+	var requestedBy string
+	var reason string
+	var expiresAt string
+	cmd := &cobra.Command{
+		Use:   "create --subject-type <type> --subject-id <id>",
+		Short: "Create an approval request",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if subjectType == "" {
+				return fmt.Errorf("--subject-type is required")
+			}
+			if subjectID == "" {
+				return fmt.Errorf("--subject-id is required")
+			}
+			bodyMap := map[string]any{
+				"subjectType":      subjectType,
+				"subjectId":        subjectID,
+				"requiredByPolicy": requiredByPolicy,
+			}
+			setBodyString(bodyMap, "environmentId", environmentID)
+			setBodyString(bodyMap, "targetType", targetType)
+			setBodyString(bodyMap, "targetId", targetID)
+			setBodyString(bodyMap, "severity", severity)
+			setBodyString(bodyMap, "policyResultId", policyResultID)
+			setBodyString(bodyMap, "requestedBy", requestedBy)
+			setBodyString(bodyMap, "reason", reason)
+			setBodyString(bodyMap, "expiresAt", expiresAt)
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/approvals", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&subjectType, "subject-type", "", "approval subject type: release, deployment, or pipeline")
+	cmd.Flags().StringVar(&subjectID, "subject-id", "", "approval subject id")
+	cmd.Flags().StringVar(&environmentID, "env", "", "environment id")
+	cmd.Flags().StringVar(&targetType, "target-type", "", "target type metadata")
+	cmd.Flags().StringVar(&targetID, "target-id", "", "target id metadata")
+	cmd.Flags().StringVar(&severity, "severity", "", "severity metadata")
+	cmd.Flags().StringVar(&policyResultID, "policy-result-id", "", "policy result id metadata")
+	cmd.Flags().BoolVar(&requiredByPolicy, "required-by-policy", true, "whether the approval was required by policy")
+	cmd.Flags().StringVar(&requestedBy, "requested-by", "local-user", "requester identity for local development")
+	cmd.Flags().StringVar(&reason, "reason", "", "approval request reason")
+	cmd.Flags().StringVar(&expiresAt, "expires-at", "", "optional RFC3339 expiration time")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newApprovalGetCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "get <id>",
+		Short: "Get an approval request",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/approvals/"+url.PathEscape(args[0]), nil)
 			if err != nil {
 				return err
 			}
@@ -524,6 +608,12 @@ func newApprovalResumeSubjectCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	return cmd
+}
+
+func setBodyString(body map[string]any, key string, value string) {
+	if value != "" {
+		body[key] = value
+	}
 }
 
 func newChangeWindowCommand() *cobra.Command {

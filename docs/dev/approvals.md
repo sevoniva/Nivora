@@ -41,7 +41,14 @@ This helper rejects Pending approvals. For PipelineRun subjects, approved decisi
 ## CLI
 
 ```sh
+nivora approvals create \
+  --subject-type deployment \
+  --subject-id drun-local \
+  --env prod \
+  --requested-by local-user \
+  --reason "production deployment"
 nivora approvals list
+nivora approvals get <id>
 nivora approvals approve <id> --comment "approved"
 nivora approvals reject <id> --comment "not ready"
 nivora approvals cancel <id> --comment "superseded"

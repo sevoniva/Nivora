@@ -70,13 +70,18 @@ func TestPipelineDefinitionCatalogRoutes(t *testing.T) {
 		t.Fatalf("versions status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+created.Pipeline.ID+"/runs?version=1", nil)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+created.Pipeline.ID+"/runs?version=1&environmentId=env-prod", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
 		t.Fatalf("run first definition version status = %d body = %s", rec.Code, rec.Body.String())
 	}
 	var firstRunResponse struct {
+		Pipeline struct {
+			EnvironmentID string            `json:"environmentId"`
+			Labels        map[string]string `json:"labels"`
+			Metadata      map[string]string `json:"metadata"`
+		} `json:"pipeline"`
 		Run struct {
 			PipelineID        string `json:"pipelineId"`
 			PipelineVersionID string `json:"pipelineVersionId"`
@@ -91,6 +96,9 @@ func TestPipelineDefinitionCatalogRoutes(t *testing.T) {
 	}
 	if firstRunResponse.Run.PipelineID != created.Pipeline.ID || firstRunResponse.Run.PipelineVersionID != created.Version.ID || firstRunResponse.Run.Status != "Succeeded" {
 		t.Fatalf("first version run did not preserve catalog identity: %s", rec.Body.String())
+	}
+	if firstRunResponse.Pipeline.EnvironmentID != "env-prod" || firstRunResponse.Pipeline.Labels["environmentId"] != "env-prod" || firstRunResponse.Pipeline.Metadata["environmentId"] != "env-prod" {
+		t.Fatalf("first version run did not preserve environment ownership: %s", rec.Body.String())
 	}
 	if len(firstRunResponse.Logs) == 0 || !strings.Contains(firstRunResponse.Logs[0].Content, "ok") {
 		t.Fatalf("first version run did not use version 1 definition: %s", rec.Body.String())

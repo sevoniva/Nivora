@@ -93,6 +93,41 @@ func TestPipelineRunRoutes(t *testing.T) {
 	}
 }
 
+func TestPipelineRunCreateAttachesEnvironment(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+
+	body := []byte(`{
+		"apiVersion": "nivora.io/v1alpha1",
+		"kind": "Pipeline",
+		"metadata": {"name": "hello-env"},
+		"spec": {"stages": [{"name": "build", "jobs": [{"name": "echo", "executor": "shell", "steps": [{"name": "say", "run": "printf hello-env"}]}]}]}
+	}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs?environmentId=env-prod", bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	var created map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode response: %v", err)
+	}
+	pipeline := created["pipeline"].(map[string]any)
+	if pipeline["environmentId"] != "env-prod" {
+		t.Fatalf("environment id = %#v body=%s", pipeline["environmentId"], rec.Body.String())
+	}
+	labels, _ := pipeline["labels"].(map[string]any)
+	metadata, _ := pipeline["metadata"].(map[string]any)
+	if labels["environmentId"] != "env-prod" || metadata["environmentId"] != "env-prod" {
+		t.Fatalf("environment ownership missing: labels=%#v metadata=%#v body=%s", labels, metadata, rec.Body.String())
+	}
+}
+
 func TestPipelinePaginationAndLogLimits(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {

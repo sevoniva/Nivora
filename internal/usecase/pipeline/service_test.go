@@ -50,14 +50,18 @@ func TestCreateAndRunSuccess(t *testing.T) {
 func TestCreateQueuedPersistsProjectScope(t *testing.T) {
 	service := newTestService()
 	result, err := service.CreateQueued(context.Background(), CreateRunInput{
-		Definition: testDefinition(`printf "hello"`),
-		ProjectID:  " project-a ",
+		Definition:    testDefinition(`printf "hello"`),
+		ProjectID:     " project-a ",
+		EnvironmentID: " env-prod ",
 	})
 	if err != nil {
 		t.Fatalf("create queued: %v", err)
 	}
 	if result.Record.Pipeline.ProjectID != "project-a" {
 		t.Fatalf("project id = %q", result.Record.Pipeline.ProjectID)
+	}
+	if result.Record.Pipeline.Labels["environmentId"] != "env-prod" || result.Record.Pipeline.Metadata["environmentId"] != "env-prod" {
+		t.Fatalf("environment ownership not persisted: labels=%#v metadata=%#v", result.Record.Pipeline.Labels, result.Record.Pipeline.Metadata)
 	}
 
 	own, err := service.ListFiltered(context.Background(), "project", "project-a")
@@ -384,6 +388,40 @@ func TestRunnerClaimRespectsProjectScopeLabel(t *testing.T) {
 	}
 	if claim.PipelineRunID != projectA.Record.Run.ID {
 		t.Fatalf("runner claimed wrong project run: claim=%#v projectA=%s", claim, projectA.Record.Run.ID)
+	}
+}
+
+func TestRunnerClaimRespectsEnvironmentScopeLabel(t *testing.T) {
+	service := newTestService()
+	result, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:        "runner-env-prod",
+		Name:      "runner-env-prod",
+		Status:    "online",
+		Labels:    map[string]string{"environmentId": "env-prod"},
+		Executors: []string{"shell"},
+	})
+	if err != nil {
+		t.Fatalf("register environment-scoped runner: %v", err)
+	}
+	if err := service.ValidateRunnerToken(context.Background(), result.Runner.ID, result.Token.Token); err != nil {
+		t.Fatalf("validate token: %v", err)
+	}
+	if _, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "dev"`), ProjectID: "project-a", EnvironmentID: "env-dev"}); err != nil {
+		t.Fatalf("create env-dev queued run: %v", err)
+	}
+	if _, err := service.ClaimJob(context.Background(), "runner-env-prod", time.Minute); !errors.Is(err, ErrNoClaimableJob) {
+		t.Fatalf("env-prod runner should not claim env-dev job, got %v", err)
+	}
+	envProd, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "prod"`), ProjectID: "project-a", EnvironmentID: "env-prod"})
+	if err != nil {
+		t.Fatalf("create env-prod queued run: %v", err)
+	}
+	claim, err := service.ClaimJob(context.Background(), "runner-env-prod", time.Minute)
+	if err != nil {
+		t.Fatalf("claim env-prod job: %v", err)
+	}
+	if claim.PipelineRunID != envProd.Record.Run.ID {
+		t.Fatalf("runner claimed wrong environment run: claim=%#v envProd=%s", claim, envProd.Record.Run.ID)
 	}
 }
 

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -145,9 +146,15 @@ func RunPipelineDefinition(catalog *pipelineusecase.DefinitionCatalog, service *
 			versionID = versionRecord.Version.ID
 		}
 		start := time.Now()
+		environmentID := strings.TrimSpace(r.URL.Query().Get("environmentId"))
+		subject := apimiddleware.Subject(r.Context())
+		if subject.ScopeType == tenant.ScopeEnvironment {
+			environmentID = subject.ScopeID
+		}
 		result, err := service.CreateAndRun(r.Context(), pipelineusecase.CreateRunInput{
 			Definition:        definition,
 			ProjectID:         record.Pipeline.ProjectID,
+			EnvironmentID:     environmentID,
 			PipelineID:        record.Pipeline.ID,
 			PipelineVersionID: versionID,
 			CorrelationID:     apimiddleware.CorrelationID(r.Context()),

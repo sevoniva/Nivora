@@ -29,13 +29,17 @@ func CreatePipelineRun(service *pipelineusecase.Service) http.HandlerFunc {
 		}
 		start := time.Now()
 		projectID := ""
+		environmentID := strings.TrimSpace(r.URL.Query().Get("environmentId"))
 		subject := apimiddleware.Subject(r.Context())
 		if subject.ScopeType == tenant.ScopeProject {
 			projectID = subject.ScopeID
+		} else if subject.ScopeType == tenant.ScopeEnvironment {
+			environmentID = subject.ScopeID
 		}
 		result, err := service.CreateAndRun(r.Context(), pipelineusecase.CreateRunInput{
 			Definition:    def,
 			ProjectID:     projectID,
+			EnvironmentID: environmentID,
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
 		})
 		if err != nil {
@@ -99,9 +103,12 @@ func GetPipelineRunLogs(service *pipelineusecase.Service) http.HandlerFunc {
 func pipelineRunResponse(record pipelineusecase.RunRecord) map[string]any {
 	return map[string]any{
 		"pipeline": map[string]any{
-			"id":        record.Pipeline.ID,
-			"projectId": record.Pipeline.ProjectID,
-			"name":      record.Pipeline.Name,
+			"id":            record.Pipeline.ID,
+			"projectId":     record.Pipeline.ProjectID,
+			"environmentId": pipelineEnvironmentID(record),
+			"name":          record.Pipeline.Name,
+			"labels":        record.Pipeline.Labels,
+			"metadata":      record.Pipeline.Metadata,
 		},
 		"run": map[string]any{
 			"id":                record.Run.ID,
@@ -119,6 +126,18 @@ func pipelineRunResponse(record pipelineusecase.RunRecord) map[string]any {
 		"logs":   record.Logs,
 		"events": record.Events,
 	}
+}
+
+func pipelineEnvironmentID(record pipelineusecase.RunRecord) string {
+	if record.Pipeline.Labels != nil {
+		if environmentID := strings.TrimSpace(record.Pipeline.Labels["environmentId"]); environmentID != "" {
+			return environmentID
+		}
+	}
+	if record.Pipeline.Metadata != nil {
+		return strings.TrimSpace(record.Pipeline.Metadata["environmentId"])
+	}
+	return ""
 }
 
 func GetPipelineRunEvents(service *pipelineusecase.Service) http.HandlerFunc {

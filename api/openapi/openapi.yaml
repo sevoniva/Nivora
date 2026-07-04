@@ -1815,6 +1815,12 @@ paths:
             type: integer
             minimum: 1
           description: Saved Pipeline definition version number to run.
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Environment ownership to attach to the created PipelineRun; environment-scoped callers are constrained to their own environment.
       responses:
         "201":
           description: PipelineRun created from saved definition
@@ -1841,6 +1847,13 @@ paths:
                   $ref: "#/components/schemas/PipelineRunRecord"
     post:
       summary: Create and run a minimal shell PipelineRun
+      parameters:
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Environment ownership to attach to the created PipelineRun; environment-scoped callers are constrained to their own environment.
       requestBody:
         required: true
         content:
@@ -6536,6 +6549,19 @@ components:
       properties:
         pipeline:
           type: object
+          properties:
+            id:
+              type: string
+            projectId:
+              type: string
+            environmentId:
+              type: string
+            name:
+              type: string
+            labels:
+              $ref: "#/components/schemas/CatalogMetadata"
+            metadata:
+              $ref: "#/components/schemas/CatalogMetadata"
         run:
           $ref: "#/components/schemas/PipelineRun"
         stages:

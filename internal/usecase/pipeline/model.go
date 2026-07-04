@@ -122,6 +122,7 @@ type RuntimeRecoverySummary struct {
 type CreateRunInput struct {
 	Definition        Definition
 	ProjectID         string
+	EnvironmentID     string
 	PipelineID        string
 	PipelineVersionID string
 	ActorID           string

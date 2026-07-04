@@ -689,6 +689,65 @@ func TestTenantIsolationRunnerClaimRespectsProjectScope(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationRunnerClaimRespectsEnvironmentScope(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	authService := authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+	pipelineService := newTestPipelineService()
+	router := newTestRouterWithPipelineAndAuth(cfg, pipelineService, authService)
+	envAdmin := createScopedToken(t, authService, "runner-claim-admin-env", domainauth.RoleAdmin, "environment", "env-prod")
+	runner, runnerToken := registerScopedRunnerWithToken(t, router, envAdmin, `{"id":"claim-runner-env-prod","name":"claim-runner-env-prod","status":"online","executors":["shell"],"labels":{"environmentId":"env-dev"}}`)
+	if labels, _ := runner["labels"].(map[string]any); labels["environmentId"] != "env-prod" {
+		t.Fatalf("scoped runner should be forced to env-prod labels: %#v", runner)
+	}
+
+	envDev, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition:    tenantClaimDefinition("claim-env-dev"),
+		ProjectID:     "project-a",
+		EnvironmentID: "env-dev",
+	})
+	if err != nil {
+		t.Fatalf("create env-dev queued run: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runners/claim-runner-env-prod/jobs/claim", nil)
+	req.Header.Set("X-Nivora-Runner-Token", runnerToken)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("env-prod runner should not claim env-dev run %s, got %d body=%s", envDev.Record.Run.ID, rec.Code, rec.Body.String())
+	}
+
+	envProd, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition:    tenantClaimDefinition("claim-env-prod"),
+		ProjectID:     "project-a",
+		EnvironmentID: "env-prod",
+	})
+	if err != nil {
+		t.Fatalf("create env-prod queued run: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/claim-runner-env-prod/jobs/claim", nil)
+	req.Header.Set("X-Nivora-Runner-Token", runnerToken)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("env-prod runner should claim env-prod run, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var claim struct {
+		PipelineRunID string `json:"pipelineRunId"`
+		RunnerID      string `json:"runnerId"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &claim); err != nil {
+		t.Fatalf("decode claim: %v", err)
+	}
+	if claim.PipelineRunID != envProd.Record.Run.ID || claim.RunnerID != "claim-runner-env-prod" {
+		t.Fatalf("unexpected claim: %#v want run=%s", claim, envProd.Record.Run.ID)
+	}
+}
+
 func TestTenantIsolationEvidenceBundles(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	developerA := createScopedToken(t, auth, "evidence-dev-a", domainauth.RoleDeveloper, "project", "project-a")

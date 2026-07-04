@@ -84,6 +84,16 @@ func (s *Service) CreateQueued(ctx context.Context, input CreateRunInput) (Creat
 
 	record := s.newRecord(input.Definition)
 	record.Pipeline.ProjectID = strings.TrimSpace(input.ProjectID)
+	if environmentID := strings.TrimSpace(input.EnvironmentID); environmentID != "" {
+		if record.Pipeline.Labels == nil {
+			record.Pipeline.Labels = map[string]string{}
+		}
+		if record.Pipeline.Metadata == nil {
+			record.Pipeline.Metadata = map[string]string{}
+		}
+		record.Pipeline.Labels["environmentId"] = environmentID
+		record.Pipeline.Metadata["environmentId"] = environmentID
+	}
 	if pipelineID := strings.TrimSpace(input.PipelineID); pipelineID != "" {
 		record.Pipeline.ID = pipelineID
 		record.Run.PipelineID = pipelineID

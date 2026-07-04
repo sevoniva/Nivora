@@ -33,6 +33,20 @@ To rerun a saved historical version, pass the version number:
 go run ./cmd/nivora pipeline definition run <pipeline-id> --version 1 --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
+To attach the created PipelineRun to an environment, pass `--environment-id`:
+
+```bash
+go run ./cmd/nivora pipeline definition run <pipeline-id> --environment-id env-prod --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
+```
+
+The same environment flag works when posting a local Pipeline YAML to the server:
+
+```bash
+go run ./cmd/nivora pipeline run --local=false --environment-id env-prod --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN examples/pipelines/simple-shell.yaml
+```
+
+Environment ownership is stored as PipelineRun metadata and labels. Environment-scoped runner tokens can only claim queued PipelineRuns with the matching `environmentId`; this is a control-plane metadata guardrail, not a runtime sandbox.
+
 The shorthand command also supports catalog IDs when `--local=false`:
 
 ```bash

@@ -22,6 +22,7 @@ out/
 /nivora-server
 /nivora-worker
 /nivora-runner
+/nivora-mcp
 coverage.out
 coverage/
 *.coverprofile

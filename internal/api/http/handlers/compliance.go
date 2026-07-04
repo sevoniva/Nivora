@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
+	domaincompliance "github.com/sevoniva/nivora/internal/domain/compliance"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 )
 
@@ -43,7 +44,12 @@ func SearchAudit(service *complianceusecase.Service) http.HandlerFunc {
 
 func GetEvidenceBundle(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		bundle, err := service.EvidenceBundle(r.Context(), complianceusecase.EvidenceInput{SubjectType: chi.URLParam(r, "subject_type"), SubjectID: chi.URLParam(r, "id")})
+		subjectType := chi.URLParam(r, "subject_type")
+		subjectID := chi.URLParam(r, "id")
+		if !ensureEvidenceSubjectAllowed(w, r, service, subjectType, subjectID) {
+			return
+		}
+		bundle, err := service.EvidenceBundle(r.Context(), complianceusecase.EvidenceInput{SubjectType: subjectType, SubjectID: subjectID})
 		if err != nil {
 			respondComplianceResult(w, r, nil, err)
 			return
@@ -68,6 +74,9 @@ func GenerateEvidenceBundle(service *complianceusecase.Service) http.HandlerFunc
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "subjectType and subjectId are required"})
 			return
 		}
+		if !ensureEvidenceSubjectAllowed(w, r, service, input.SubjectType, input.SubjectID) {
+			return
+		}
 		bundle, err := service.EvidenceBundle(r.Context(), input)
 		if err != nil {
 			respondComplianceResult(w, r, nil, err)
@@ -84,6 +93,7 @@ func ListEvidenceBundles(service *complianceusecase.Service) http.HandlerFunc {
 			respondComplianceResult(w, r, nil, err)
 			return
 		}
+		bundles = filterEvidenceBundlesForRequest(r, service, bundles)
 		page, pageErr := parsePagination(r)
 		if pageErr != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_pagination", Message: pageErr.Error()})
@@ -104,6 +114,9 @@ func GenerateReleaseEvidenceBundle(service *complianceusecase.Service) http.Hand
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "release id is required"})
 			return
 		}
+		if !ensureEvidenceSubjectAllowed(w, r, service, "release", releaseID) {
+			return
+		}
 		bundle, err := service.EvidenceBundle(r.Context(), complianceusecase.EvidenceInput{SubjectType: "release", SubjectID: releaseID})
 		if err != nil {
 			respondComplianceResult(w, r, nil, err)
@@ -116,6 +129,10 @@ func GenerateReleaseEvidenceBundle(service *complianceusecase.Service) http.Hand
 func GetEvidenceBundleByID(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		bundle, err := service.GetEvidenceBundle(r.Context(), chi.URLParam(r, "id"))
+		if err == nil && !evidenceBundleAllowedForRequest(r, service, bundle) {
+			RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{Code: "forbidden", Message: "evidence bundle is outside the caller scope"})
+			return
+		}
 		respondComplianceResult(w, r, bundle, err)
 	}
 }
@@ -125,6 +142,10 @@ func ExportEvidenceBundleByID(service *complianceusecase.Service) http.HandlerFu
 		bundle, err := service.GetEvidenceBundle(r.Context(), chi.URLParam(r, "id"))
 		if err != nil {
 			respondComplianceResult(w, r, nil, err)
+			return
+		}
+		if !evidenceBundleAllowedForRequest(r, service, bundle) {
+			RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{Code: "forbidden", Message: "evidence bundle is outside the caller scope"})
 			return
 		}
 		if r.URL.Query().Get("format") == "markdown" {
@@ -171,4 +192,56 @@ func respondComplianceResult(w http.ResponseWriter, r *http.Request, payload any
 		return
 	}
 	RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "compliance_error", Message: err.Error()})
+}
+
+func ensureEvidenceSubjectAllowed(w http.ResponseWriter, r *http.Request, service *complianceusecase.Service, subjectType, subjectID string) bool {
+	requestScopeType, requestScopeID := TenantScopeFilter(r)
+	if requestScopeType == "" {
+		return true
+	}
+	scope, err := service.SubjectScope(r.Context(), subjectType, subjectID)
+	if err != nil {
+		respondComplianceResult(w, r, nil, err)
+		return false
+	}
+	if !scope.Verified || !scopeMatchesRequest(requestScopeType, requestScopeID, scope.ScopeType, scope.ScopeID) {
+		RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{Code: "forbidden", Message: "evidence subject is outside the caller scope"})
+		return false
+	}
+	return true
+}
+
+func filterEvidenceBundlesForRequest(r *http.Request, service *complianceusecase.Service, bundles []domaincompliance.EvidenceBundle) []domaincompliance.EvidenceBundle {
+	if !ScopedByTenant(r) {
+		return bundles
+	}
+	filtered := make([]domaincompliance.EvidenceBundle, 0, len(bundles))
+	for _, bundle := range bundles {
+		if evidenceBundleAllowedForRequest(r, service, bundle) {
+			filtered = append(filtered, bundle)
+		}
+	}
+	return filtered
+}
+
+func evidenceBundleAllowedForRequest(r *http.Request, service *complianceusecase.Service, bundle domaincompliance.EvidenceBundle) bool {
+	requestScopeType, requestScopeID := TenantScopeFilter(r)
+	if requestScopeType == "" {
+		return true
+	}
+	if bundle.ScopeType != "" || bundle.ScopeID != "" {
+		return scopeMatchesRequest(requestScopeType, requestScopeID, bundle.ScopeType, bundle.ScopeID)
+	}
+	scope, err := service.SubjectScope(r.Context(), bundle.SubjectType, bundle.SubjectID)
+	if err != nil || !scope.Verified {
+		return false
+	}
+	return scopeMatchesRequest(requestScopeType, requestScopeID, scope.ScopeType, scope.ScopeID)
+}
+
+func scopeMatchesRequest(requestScopeType, requestScopeID, resourceScopeType, resourceScopeID string) bool {
+	return requestScopeType != "" &&
+		requestScopeID != "" &&
+		requestScopeType == resourceScopeType &&
+		requestScopeID == resourceScopeID
 }

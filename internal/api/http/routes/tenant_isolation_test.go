@@ -484,6 +484,55 @@ func TestTenantIsolationAggregateObservabilityRoutes(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationEvidenceBundles(t *testing.T) {
+	router, auth := newIsoRouter(t)
+	developerA := createScopedToken(t, auth, "evidence-dev-a", domainauth.RoleDeveloper, "project", "project-a")
+	auditorA := createScopedToken(t, auth, "evidence-auditor-a", domainauth.RoleAuditor, "project", "project-a")
+	auditorB := createScopedToken(t, auth, "evidence-auditor-b", domainauth.RoleAuditor, "project", "project-b")
+	runA := createProjectPipelineRun(t, router, developerA, "evidence-a")
+	bundleID := "evb-pipelineRun-" + runA
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/evidence/pipelineRun/"+runA, nil)
+	req.Header.Set("Authorization", "Bearer "+auditorA)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-A auditor should generate own evidence bundle, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, bundleID) || !strings.Contains(body, `"scopeId":"project-a"`) {
+		t.Fatalf("project-A evidence bundle missing id or scope metadata, body=%s", body)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/pipelineRun/"+runA, nil)
+	req.Header.Set("Authorization", "Bearer "+auditorB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-B auditor should be forbidden from subject evidence, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/bundles/"+bundleID, nil)
+	req.Header.Set("Authorization", "Bearer "+auditorB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-B auditor should be forbidden from bundle id read, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/bundles", nil)
+	req.Header.Set("Authorization", "Bearer "+auditorB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-B auditor should list scoped evidence bundles, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	body = rec.Body.String()
+	if strings.Contains(body, runA) || strings.Contains(body, bundleID) || strings.Contains(body, "project-a") {
+		t.Fatalf("project-B evidence bundle list leaked project-A data, body=%s", body)
+	}
+}
+
 func createProjectPipelineRun(t *testing.T, router http.Handler, token, name string) string {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs", strings.NewReader(`{"apiVersion":"nivora.io/v1alpha1","kind":"Pipeline","metadata":{"name":"`+name+`"},"spec":{"stages":[{"name":"build","jobs":[{"name":"echo","executor":"shell","steps":[{"name":"say","run":"printf `+name+`"}]}]}]}}`))

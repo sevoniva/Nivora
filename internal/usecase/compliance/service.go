@@ -11,6 +11,7 @@ import (
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaincompliance "github.com/sevoniva/nivora/internal/domain/compliance"
 	"github.com/sevoniva/nivora/internal/domain/event"
+	"github.com/sevoniva/nivora/internal/domain/tenant"
 	"github.com/sevoniva/nivora/internal/infra/crypto"
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
@@ -29,6 +30,12 @@ type Service struct {
 	approvals   *approvalusecase.Service
 	store       Store
 	now         func() time.Time
+}
+
+type SubjectScopeResult struct {
+	ScopeType string
+	ScopeID   string
+	Verified  bool
 }
 
 func NewService(pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, artifacts *artifactusecase.Service, releases *releaseusecase.Service, security *securityusecase.Service, approvals *approvalusecase.Service) *Service {
@@ -177,10 +184,88 @@ func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (doma
 	for i, entry := range bundle.Audits {
 		bundle.Audits[i] = sanitizeAudit(entry)
 	}
+	scope, err := s.SubjectScope(ctx, input.SubjectType, input.SubjectID)
+	if err != nil {
+		return domaincompliance.EvidenceBundle{}, err
+	}
+	if scope.Verified {
+		bundle.ScopeType = scope.ScopeType
+		bundle.ScopeID = scope.ScopeID
+	}
 	if err := s.store.SaveEvidenceBundle(ctx, bundle); err != nil {
 		return domaincompliance.EvidenceBundle{}, err
 	}
 	return bundle, nil
+}
+
+func (s *Service) SubjectScope(ctx context.Context, subjectType string, subjectID string) (SubjectScopeResult, error) {
+	if err := ctx.Err(); err != nil {
+		return SubjectScopeResult{}, err
+	}
+	switch strings.TrimSpace(subjectType) {
+	case "pipeline", "pipelineRun":
+		if s.pipelines == nil {
+			return SubjectScopeResult{}, nil
+		}
+		record, err := s.pipelines.Get(ctx, subjectID)
+		if err != nil {
+			return SubjectScopeResult{}, err
+		}
+		if record.Pipeline.ProjectID == "" {
+			return SubjectScopeResult{}, nil
+		}
+		return SubjectScopeResult{ScopeType: tenant.ScopeProject, ScopeID: record.Pipeline.ProjectID, Verified: true}, nil
+	case "deployment", "deploymentRun":
+		if s.deployments == nil {
+			return SubjectScopeResult{}, nil
+		}
+		record, err := s.deployments.Get(ctx, subjectID)
+		if err != nil {
+			return SubjectScopeResult{}, err
+		}
+		projectID := record.Environment.ProjectID
+		if projectID == "" {
+			projectID = record.Target.ProjectID
+		}
+		if projectID != "" {
+			return SubjectScopeResult{ScopeType: tenant.ScopeProject, ScopeID: projectID, Verified: true}, nil
+		}
+		if record.Run.EnvironmentID != "" {
+			return SubjectScopeResult{ScopeType: tenant.ScopeEnvironment, ScopeID: record.Run.EnvironmentID, Verified: true}, nil
+		}
+		return SubjectScopeResult{}, nil
+	case "releaseExecution", "release_execution":
+		if s.releases == nil {
+			return SubjectScopeResult{}, nil
+		}
+		record, err := s.releases.GetExecution(ctx, subjectID)
+		if err != nil {
+			return SubjectScopeResult{}, err
+		}
+		for _, target := range record.Plan.Targets {
+			if target.ProjectID != "" {
+				return SubjectScopeResult{ScopeType: tenant.ScopeProject, ScopeID: target.ProjectID, Verified: true}, nil
+			}
+		}
+		if record.Execution.EnvironmentID != "" {
+			return SubjectScopeResult{ScopeType: tenant.ScopeEnvironment, ScopeID: record.Execution.EnvironmentID, Verified: true}, nil
+		}
+		return SubjectScopeResult{}, nil
+	case "security", "securityScan":
+		if s.security == nil {
+			return SubjectScopeResult{}, nil
+		}
+		record, err := s.security.Get(ctx, subjectID)
+		if err != nil {
+			return SubjectScopeResult{}, err
+		}
+		if string(record.Scan.SubjectType) == subjectType && record.Scan.SubjectID == subjectID {
+			return SubjectScopeResult{}, nil
+		}
+		return s.SubjectScope(ctx, string(record.Scan.SubjectType), record.Scan.SubjectID)
+	default:
+		return SubjectScopeResult{}, nil
+	}
 }
 
 func (s *Service) GetEvidenceBundle(ctx context.Context, id string) (domaincompliance.EvidenceBundle, error) {

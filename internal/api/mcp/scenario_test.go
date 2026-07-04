@@ -382,6 +382,15 @@ func createScenarioSecurityScan(t *testing.T, ctx context.Context, service *secu
 	}); err != nil {
 		t.Fatalf("create security scan fixture: %v", err)
 	}
+	if _, err := service.EvaluateAndStore(ctx, securityusecase.EvaluateInput{
+		SubjectType: domainsecurity.SubjectArtifact,
+		SubjectID:   "registry.example.invalid/team/api:latest",
+		Reference:   "registry.example.invalid/team/api:latest",
+		PolicyID:    "policy-latest-warning",
+		ActorID:     "mcp-fixture",
+	}); err != nil {
+		t.Fatalf("create policy result fixture: %v", err)
+	}
 }
 
 func (f *mcpScenarioFixture) server(role string, authMode string) *Server {

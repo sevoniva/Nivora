@@ -59,6 +59,6 @@ These targets check MCP tests, tool/resource catalogs, golden operator scenarios
 
 ## Current Limits
 
-Remote MCP is still experimental and off by default. The first HTTP JSON-RPC foundation is read-only/plan-only, requires bearer/service-account/OIDC auth, applies request and response caps, uses an in-process per-subject request limit, supports limit/offset pagination for event, log, audit, release, artifact, security finding, and evidence bundle list tools, rejects runner tokens, and records MCP audit events through the existing compliance recorder. It still needs remote deployment guidance, distributed rate limits for multi-replica deployments, broader pagination across every list-like resource, and more tenant-scope proof before it should be broadly exposed. Action MCP remains blocked.
+Remote MCP is still experimental and off by default. The first HTTP JSON-RPC foundation is read-only/plan-only, requires bearer/service-account/OIDC auth, applies request and response caps, uses an in-process per-subject request limit, supports limit/offset pagination for event, log, audit, release, artifact, security finding, stored policy result, and evidence bundle list tools, rejects runner tokens, and records MCP audit events through the existing compliance recorder. It still needs remote deployment guidance, distributed rate limits for multi-replica deployments, broader pagination across every list-like resource, and more tenant-scope proof before it should be broadly exposed. Action MCP remains blocked.
 
 See also: `docs/dev/mcp-server.md`.

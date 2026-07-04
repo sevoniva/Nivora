@@ -44,7 +44,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://events", "nivora://logs", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://releases", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://events", "nivora://logs", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://releases", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
 		if !hasResource(resources, want) {
 			t.Fatalf("resource %s missing from %#v", want, resources)
 		}
@@ -58,7 +58,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 			t.Fatalf("blocked action tool %s was exposed", blocked)
 		}
 	}
-	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_search_events", "nivora_search_logs", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_releases", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
+	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_search_events", "nivora_search_logs", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_releases", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_policy_results", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
 		if !hasTool(tools, want) {
 			t.Fatalf("tool %s missing from %#v", want, tools)
 		}
@@ -514,6 +514,39 @@ func TestMCPSecurityPolicyAndRuntimeReadOnly(t *testing.T) {
 		t.Fatalf("policy summary tool result = %#v", policyResult)
 	}
 
+	storedPolicyResult, err := server.services.Security.EvaluateAndStore(ctx, securityusecase.EvaluateInput{
+		SubjectType: domainsecurity.SubjectArtifact,
+		SubjectID:   "registry.example.invalid/team/api:latest",
+		Reference:   "registry.example.invalid/team/api:latest",
+		PolicyID:    "policy-latest-warning",
+		ActorID:     "mcp-fixture",
+	})
+	if err != nil {
+		t.Fatalf("store policy result fixture: %v", err)
+	}
+
+	policyResultsResource, err := server.ReadResource(ctx, "nivora://policy/results")
+	if err != nil {
+		t.Fatalf("read policy results: %v", err)
+	}
+	if !strings.Contains(policyResultsResource.Text, storedPolicyResult.ID) || !strings.Contains(policyResultsResource.Text, `"mutated": false`) || !strings.Contains(policyResultsResource.Text, `"pagination"`) {
+		t.Fatalf("policy results body = %s", policyResultsResource.Text)
+	}
+
+	policyResultsTool, err := server.CallTool(ctx, "nivora_list_policy_results", map[string]any{
+		"policyId": "policy-latest-warning",
+		"decision": "warn",
+		"limit":    1,
+		"offset":   0,
+	})
+	if err != nil {
+		t.Fatalf("policy results tool transport error: %v", err)
+	}
+	policyResultsBody := policyResultsTool.Content[0].Text
+	if policyResultsTool.IsError || !strings.Contains(policyResultsBody, storedPolicyResult.ID) || !strings.Contains(policyResultsBody, `"decision": "warn"`) || !strings.Contains(policyResultsBody, `"mutated": false`) {
+		t.Fatalf("policy results tool result = %#v", policyResultsTool)
+	}
+
 	runtimeResult, err := server.CallTool(ctx, "nivora_get_runtime_recovery_status", map[string]any{"token": "should-not-leak"})
 	if err != nil {
 		t.Fatalf("runtime recovery tool transport error: %v", err)
@@ -891,6 +924,8 @@ func TestMCPTenantScopeFiltersSecurityFindingsPolicyAndEvents(t *testing.T) {
 
 	scanA := createScopedMCPSecurityScan(t, security, "project-a")
 	scanB := createScopedMCPSecurityScan(t, security, "project-b")
+	policyA := createScopedMCPPolicyResult(t, security, "project-a")
+	policyB := createScopedMCPPolicyResult(t, security, "project-b")
 
 	findingsResource, err := projectA.ReadResource(ctx, "nivora://security/findings")
 	if err != nil {
@@ -931,6 +966,23 @@ func TestMCPTenantScopeFiltersSecurityFindingsPolicyAndEvents(t *testing.T) {
 		t.Fatalf("policy summary tool did not honor project scope: %#v", policyTool)
 	}
 
+	policyResultsResource, err := projectA.ReadResource(ctx, "nivora://policy/results")
+	if err != nil {
+		t.Fatalf("project A read policy results resource: %v", err)
+	}
+	if !strings.Contains(policyResultsResource.Text, policyA) || strings.Contains(policyResultsResource.Text, policyB) || strings.Contains(policyResultsResource.Text, "project-b") {
+		t.Fatalf("policy results resource did not honor project scope: %s", policyResultsResource.Text)
+	}
+
+	policyResultsTool, err := projectA.CallTool(ctx, "nivora_list_policy_results", map[string]any{"projectId": "project-b", "policyId": "policy-latest-warning", "decision": "warn", "limit": 1})
+	if err != nil {
+		t.Fatalf("project A policy results tool: %v", err)
+	}
+	policyResultsBody := policyResultsTool.Content[0].Text
+	if policyResultsTool.IsError || !strings.Contains(policyResultsBody, policyA) || strings.Contains(policyResultsBody, policyB) || strings.Contains(policyResultsBody, "project-b") || !strings.Contains(policyResultsBody, `"projectId": "project-a"`) {
+		t.Fatalf("policy results tool did not enforce project scope: %#v", policyResultsTool)
+	}
+
 	events, err := projectA.CallTool(ctx, "nivora_search_events", map[string]any{"securityScanId": scanB})
 	if err != nil {
 		t.Fatalf("cross-project security event search transport error: %v", err)
@@ -941,6 +993,13 @@ func TestMCPTenantScopeFiltersSecurityFindingsPolicyAndEvents(t *testing.T) {
 
 	if _, err := projectB.CallTool(ctx, "nivora_list_security_findings", map[string]any{"scanId": scanB}); err != nil {
 		t.Fatalf("project B read own security findings: %v", err)
+	}
+	projectBPolicyResults, err := projectB.CallTool(ctx, "nivora_list_policy_results", map[string]any{"policyId": "policy-latest-warning", "decision": "warn"})
+	if err != nil {
+		t.Fatalf("project B read own policy results: %v", err)
+	}
+	if projectBPolicyResults.IsError || !strings.Contains(projectBPolicyResults.Content[0].Text, policyB) || strings.Contains(projectBPolicyResults.Content[0].Text, policyA) {
+		t.Fatalf("project B policy results should include project B only: %#v", projectBPolicyResults)
 	}
 }
 
@@ -1979,6 +2038,22 @@ func createScopedMCPSecurityScan(t *testing.T, security *securityusecase.Service
 		t.Fatalf("create scoped security scan fixture: %v", err)
 	}
 	return record.Scan.ID
+}
+
+func createScopedMCPPolicyResult(t *testing.T, security *securityusecase.Service, projectID string) string {
+	t.Helper()
+	result, err := security.EvaluateAndStore(context.Background(), securityusecase.EvaluateInput{
+		SubjectType: domainsecurity.SubjectArtifact,
+		SubjectID:   "registry.example.invalid/team/" + projectID + ":latest",
+		ProjectID:   projectID,
+		Reference:   "registry.example.invalid/team/" + projectID + ":latest",
+		PolicyID:    "policy-latest-warning",
+		ActorID:     "mcp-policy-scope-fixture",
+	})
+	if err != nil {
+		t.Fatalf("create scoped policy result fixture: %v", err)
+	}
+	return result.ID
 }
 
 func mustReadMCPPermissionMatrix(t *testing.T) string {

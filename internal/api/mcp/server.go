@@ -128,6 +128,7 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://runners/summary", "Runner summary", "Runner fleet summary"),
 		resource("nivora://security/summary", "Security summary", "Security scan summary"),
 		resource("nivora://security/findings", "Security findings", "Security findings summary and current finding list"),
+		resource("nivora://policy/results", "Policy results", "Stored policy gate decisions visible to the MCP subject"),
 		resource("nivora://policy/results/summary", "Policy result summary", "Policy gate decision summary derived from security scan records"),
 		resource("nivora://audit/search", "Audit search", "Audit records visible to the MCP subject"),
 		resource("nivora://evidence/bundles", "Evidence bundles", "Persisted evidence bundles visible to the MCP subject"),
@@ -233,6 +234,16 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 		tool("nivora_get_policy_result_summary", "Read policy gate decision summary from security scan records", objectSchema(map[string]any{
 			"subjectType": stringProperty("optional subject type"),
 			"subjectId":   stringProperty("optional subject id"),
+		}, nil)),
+		tool("nivora_list_policy_results", "List stored policy gate decisions visible to the MCP subject", objectSchema(map[string]any{
+			"policyId":      stringProperty("optional policy id"),
+			"subjectType":   stringProperty("optional subject type"),
+			"subjectId":     stringProperty("optional subject id"),
+			"projectId":     stringProperty("optional project id filter"),
+			"environmentId": stringProperty("optional environment id filter"),
+			"decision":      stringProperty("optional gate decision"),
+			"limit":         integerProperty("page size, 1-100"),
+			"offset":        integerProperty("zero-based offset"),
 		}, nil)),
 		tool("nivora_get_evidence_bundle", "Read a persisted evidence bundle by id", idSchema("id")),
 		tool("nivora_list_evidence_bundles", "List persisted evidence bundles", objectSchema(map[string]any{
@@ -403,6 +414,8 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 		return s.securitySummary(ctx)
 	case uri == "nivora://security/findings":
 		return s.securityFindings(ctx, securityusecase.ListFindingsInput{}, mcpPage{})
+	case uri == "nivora://policy/results":
+		return s.policyResultList(ctx, securityusecase.ListPolicyResultsInput{}, mcpPage{})
 	case uri == "nivora://policy/results/summary":
 		return s.policyResultSummary(ctx, "", "")
 	case uri == "nivora://audit/search":
@@ -846,6 +859,19 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		}, page)
 	case "nivora_get_policy_result_summary":
 		return s.policyResultSummary(ctx, stringArg(arguments, "subjectType"), stringArg(arguments, "subjectId"))
+	case "nivora_list_policy_results":
+		page, err := mcpPageFromArgs(arguments)
+		if err != nil {
+			return nil, err
+		}
+		return s.policyResultList(ctx, securityusecase.ListPolicyResultsInput{
+			PolicyID:      stringArg(arguments, "policyId"),
+			SubjectType:   domainsecurity.SubjectType(stringArg(arguments, "subjectType")),
+			SubjectID:     stringArg(arguments, "subjectId"),
+			ProjectID:     stringArg(arguments, "projectId"),
+			EnvironmentID: stringArg(arguments, "environmentId"),
+			Decision:      domainsecurity.GateDecision(stringArg(arguments, "decision")),
+		}, page)
 	case "nivora_get_evidence_bundle":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
@@ -1130,6 +1156,42 @@ func (s *Server) securityFindings(ctx context.Context, input securityusecase.Lis
 		},
 		"findings":   limited,
 		"count":      len(findings),
+		"limit":      normalizedPage.Limit,
+		"offset":     normalizedPage.Offset,
+		"pagination": pagination,
+		"truncated":  truncated,
+		"mutated":    false,
+	}, nil
+}
+
+func (s *Server) policyResultList(ctx context.Context, input securityusecase.ListPolicyResultsInput, page mcpPage) (any, error) {
+	scopedInput := s.scopedPolicyResultListInput(input)
+	results, err := s.services.Security.ListPolicyResults(ctx, scopedInput)
+	if err != nil {
+		return nil, err
+	}
+	visible := make([]domainsecurity.PolicyResult, 0, len(results))
+	for _, result := range results {
+		if s.canReadPolicyResult(result) {
+			visible = append(visible, result)
+		}
+	}
+	normalizedPage, err := normalizeMCPPage(page.Limit, page.Offset)
+	if err != nil {
+		return nil, err
+	}
+	limited, pagination, truncated := paginateMCPItems(visible, normalizedPage)
+	return map[string]any{
+		"filters": map[string]string{
+			"policyId":      scopedInput.PolicyID,
+			"subjectType":   string(scopedInput.SubjectType),
+			"subjectId":     scopedInput.SubjectID,
+			"projectId":     scopedInput.ProjectID,
+			"environmentId": scopedInput.EnvironmentID,
+			"decision":      string(scopedInput.Decision),
+		},
+		"results":    limited,
+		"count":      len(visible),
 		"limit":      normalizedPage.Limit,
 		"offset":     normalizedPage.Offset,
 		"pagination": pagination,
@@ -1689,6 +1751,23 @@ func (s *Server) canReadSecurityScan(record securityusecase.ScanRecord) bool {
 	return s.ensureSubjectScope(record.Scan.ID, record.Scan.ProjectID, record.Scan.EnvironmentID) == nil
 }
 
+func (s *Server) canReadPolicyResult(result domainsecurity.PolicyResult) bool {
+	return s.ensureSubjectScope(result.ID, result.ProjectID, result.EnvironmentID) == nil
+}
+
+func (s *Server) scopedPolicyResultListInput(input securityusecase.ListPolicyResultsInput) securityusecase.ListPolicyResultsInput {
+	subject := s.services.Subject
+	switch strings.TrimSpace(subject.ScopeType) {
+	case domaintenant.ScopeProject:
+		input.ProjectID = strings.TrimSpace(subject.ScopeID)
+		input.EnvironmentID = ""
+	case domaintenant.ScopeEnvironment:
+		input.EnvironmentID = strings.TrimSpace(subject.ScopeID)
+		input.ProjectID = ""
+	}
+	return input
+}
+
 func (s *Server) scopedArtifactListInput(input artifactusecase.ListArtifactsInput) artifactusecase.ListArtifactsInput {
 	subject := s.services.Subject
 	switch strings.TrimSpace(subject.ScopeType) {
@@ -1863,6 +1942,7 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_get_runner_summary",
 		"nivora_list_security_findings",
 		"nivora_get_policy_result_summary",
+		"nivora_list_policy_results",
 		"nivora_get_capability_status":
 		return domainauth.PermissionProjectRead
 	default:

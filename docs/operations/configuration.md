@@ -57,6 +57,7 @@ go run ./cmd/nivora doctor runtime --file configs/production.example.yaml
 - `log.level`: info, debug, warn, or error.
 - `telemetry.enabled`: tracing/metrics integration switch for future external telemetry.
 - `auth`: local dev, token, or OIDC foundation configuration. Token values and OIDC secrets must come from environment variables or secret providers, not committed files.
+- `mcp`: local stdio MCP control-plane settings. `request_timeout` and `max_response_bytes` cap local AI inspection calls; they do not make remote MCP safe.
 - `runner`: runner name, group, and heartbeat interval.
 - `runtime`: unsafe capability flags. Production mode rejects local shell executor, privileged executor, remote host deploy, Kubernetes apply, Argo sync, and insecure registry when enabled globally.
 
@@ -69,6 +70,8 @@ When `environment` is `production` or `prod`, validation rejects:
 - `auth.mode: dev` or `disabled`
 - token auth without `auth.static_token_env`
 - inline database passwords in `database.url`
+- enabled MCP without `mcp.request_timeout`
+- enabled MCP without a positive `mcp.max_response_bytes`
 - unsafe runtime flags enabled globally
 
 Use `configs/production.example.yaml` and inject secrets through environment variables or a secret provider. Do not put database passwords, auth tokens, kubeconfigs, registry passwords, SSH keys, or webhook secrets directly in committed config.

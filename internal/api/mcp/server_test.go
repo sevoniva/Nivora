@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/sevoniva/nivora/internal/app/runtime"
 	"github.com/sevoniva/nivora/internal/domain/audit"
@@ -488,6 +489,41 @@ func TestMCPRedactsSecretLikeData(t *testing.T) {
 	}
 	if !strings.Contains(body, "[REDACTED]") {
 		t.Fatalf("expected redaction marker in %s", body)
+	}
+}
+
+func TestMCPResponseCapReturnsStructuredTruncation(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	server.services.Config.MCP.MaxResponseBytes = 32
+
+	resource, err := server.ReadResource(context.Background(), "nivora://capabilities/current")
+	if err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+	if !strings.Contains(resource.Text, `"truncated": true`) || !strings.Contains(resource.Text, "max_response_bytes") {
+		t.Fatalf("expected structured truncation response, got %s", resource.Text)
+	}
+
+	result, err := server.CallTool(context.Background(), "nivora_get_capability_status", nil)
+	if err != nil {
+		t.Fatalf("CallTool: %v", err)
+	}
+	if result.IsError || !strings.Contains(result.Content[0].Text, `"truncated": true`) {
+		t.Fatalf("expected capped tool response, got %#v", result)
+	}
+}
+
+func TestMCPRequestContextUsesConfiguredTimeout(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	server.services.Config.MCP.RequestTimeout = "25ms"
+	ctx, cancel := server.requestContext(context.Background())
+	defer cancel()
+	deadline, ok := ctx.Deadline()
+	if !ok {
+		t.Fatal("expected request context deadline")
+	}
+	if remaining := time.Until(deadline); remaining <= 0 || remaining > time.Second {
+		t.Fatalf("unexpected deadline remaining = %s", remaining)
 	}
 }
 

@@ -91,6 +91,8 @@ mcp:
   allow_action_tools: false
   subject_role: viewer
   token_env: NIVORA_MCP_TOKEN
+  request_timeout: 15s
+  max_response_bytes: 262144
 ```
 
 Production mode requires explicit token-backed identity. Runner tokens are rejected.
@@ -110,7 +112,7 @@ Local tests can use the in-memory recorder. Runtime wiring uses the compliance s
 
 - The transport is a minimal stdio JSON-RPC foundation.
 - Remote MCP/OAuth is not implemented.
-- Remote MCP-specific OAuth, rate limiting, and per-client scoping are future hardening.
+- Remote MCP-specific OAuth, rate limiting, per-client scoping, pagination, and remote transport cap/timeout proof are future hardening.
 - Full tenant filtering for every future remote MCP resource is not proven yet.
 - Action MCP is not implemented and remains blocked for apply, sync, rollback, approval, token, secret, runner, host, Git, prune, and delete operations.
 - MCP does not make Nivora production-ready.

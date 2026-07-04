@@ -96,6 +96,7 @@ Current controls:
 - Action-shaped tools return `mcp_action_not_allowed`.
 - Runner tokens cannot authenticate to MCP.
 - MCP output redacts secret-like keys and strings.
+- Local MCP responses are capped and requests can use a configured timeout.
 - MCP audit records are routed through the compliance service; PostgreSQL mode persists them through the existing hash-chained audit path.
 
 Required hardening before remote MCP:

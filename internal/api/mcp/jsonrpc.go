@@ -47,6 +47,9 @@ func (s *Server) ServeStdio(ctx context.Context, in io.Reader, out io.Writer) er
 }
 
 func (s *Server) HandleJSONRPC(ctx context.Context, body []byte) jsonRPCResponse {
+	ctx, cancel := s.requestContext(ctx)
+	defer cancel()
+
 	var request jsonRPCRequest
 	if err := json.Unmarshal(body, &request); err != nil {
 		return jsonRPCResponse{JSONRPC: "2.0", Error: rpcError(rpcParseError, "parse error", err.Error())}

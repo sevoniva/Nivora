@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"time"
 
 	"gopkg.in/yaml.v3"
 )
@@ -41,6 +42,8 @@ type MCPConfig struct {
 	SubjectID        string `mapstructure:"subject_id" yaml:"subject_id"`
 	SubjectRole      string `mapstructure:"subject_role" yaml:"subject_role"`
 	TokenEnv         string `mapstructure:"token_env" yaml:"token_env"`
+	RequestTimeout   string `mapstructure:"request_timeout" yaml:"request_timeout"`
+	MaxResponseBytes int    `mapstructure:"max_response_bytes" yaml:"max_response_bytes"`
 }
 
 type DatabaseConfig struct {
@@ -140,12 +143,14 @@ func Default() Config {
 			BindAddress: ":8080",
 		},
 		MCP: MCPConfig{
-			Enabled:        false,
-			Mode:           "stdio",
-			ReadOnly:       true,
-			AllowPlanTools: true,
-			SubjectRole:    "viewer",
-			TokenEnv:       "NIVORA_MCP_TOKEN",
+			Enabled:          false,
+			Mode:             "stdio",
+			ReadOnly:         true,
+			AllowPlanTools:   true,
+			SubjectRole:      "viewer",
+			TokenEnv:         "NIVORA_MCP_TOKEN",
+			RequestTimeout:   "15s",
+			MaxResponseBytes: 256 * 1024,
 		},
 		Database: DatabaseConfig{
 			URL:          "postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable",
@@ -198,6 +203,14 @@ func (c Config) Validate() error {
 	if c.MCP.Mode != "stdio" {
 		return errors.New("config mcp.mode must be stdio in this foundation phase")
 	}
+	if c.MCP.RequestTimeout != "" {
+		if timeout, err := time.ParseDuration(c.MCP.RequestTimeout); err != nil || timeout <= 0 {
+			return errors.New("config mcp.request_timeout must be a positive duration")
+		}
+	}
+	if c.MCP.MaxResponseBytes < 0 {
+		return errors.New("config mcp.max_response_bytes must be zero or greater")
+	}
 	if c.Database.URL == "" {
 		return errors.New("config database.url is required")
 	}
@@ -229,6 +242,12 @@ func (c Config) Validate() error {
 			}
 			if c.MCP.TokenEnv == "" {
 				return errors.New("config mcp.token_env is required when mcp.enabled=true in production")
+			}
+			if c.MCP.RequestTimeout == "" {
+				return errors.New("config mcp.request_timeout is required when mcp.enabled=true in production")
+			}
+			if c.MCP.MaxResponseBytes <= 0 {
+				return errors.New("config mcp.max_response_bytes must be positive when mcp.enabled=true in production")
 			}
 		}
 		if hasInlineDatabasePassword(c.Database.URL) {

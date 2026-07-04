@@ -13,6 +13,8 @@ MCP makes Nivora easier for AI tools to inspect. That also creates a new trust b
 - Token hashes are never returned.
 - Kubeconfigs, private keys, Authorization headers, access keys, and bearer tokens are redacted.
 - Logs are truncated before output.
+- MCP responses are capped by `mcp.max_response_bytes`; over-limit responses return a structured truncation object.
+- MCP requests use `mcp.request_timeout` when configured.
 
 ## Blocked Tool Classes
 
@@ -53,6 +55,10 @@ MCP emits:
 Audit/log records include actor, auth mode, operation name, decision, reason, and time. They must not include secrets or token material.
 
 Runtime wiring records MCP audit through the compliance service. In PostgreSQL runtime mode this enters the existing compliance audit path and hash-chain tables. Local tests can still use the in-memory recorder.
+
+## Response and Timeout Controls
+
+The local stdio MCP foundation enforces a configured response cap and request timeout. The default examples use `mcp.max_response_bytes: 262144` and `mcp.request_timeout: 15s`. These controls reduce accidental large responses in local AI workflows, but they are not proof that a future remote MCP transport is safe. Remote MCP still needs authentication, tenant filters, rate limits, pagination, transport-level body limits, and remote audit tests before exposure.
 
 See [MCP Permission Matrix](MCP_PERMISSION_MATRIX.md) for the resource, tool, prompt, permission, and audit-event mapping.
 

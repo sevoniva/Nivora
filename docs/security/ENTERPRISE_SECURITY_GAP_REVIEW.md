@@ -21,7 +21,7 @@ This review tracks enterprise security gaps that remain after route/RBAC, runner
 |---|---|---|---|
 | Complete tenant isolation across every read model is not fully proven | Cross-project metadata exposure | route tenant tests exist, MCP tenant scope review says remote is incomplete | Add ownership tests for all MCP resources and sensitive visualization/read models |
 | Runner shell execution is not an OS sandbox | Malicious job can affect host if runner is poorly isolated | runner trust-boundary docs | Provide production runner isolation profile and operator checklist |
-| Remote MCP controls are missing | Remote AI clients could enumerate or over-read state | remote MCP no-go docs | Add auth, scope, rate limit, timeout, response cap, and audit proof before remote |
+| Remote MCP controls are missing | Remote AI clients could enumerate or over-read state | remote MCP no-go docs; local stdio cap/timeout tests exist | Add auth, tenant scope, rate limit, pagination, remote timeout/cap proof, and audit proof before remote |
 | Audit evidence is not uniformly proven through a live production profile | Weak compliance evidence | hash-chain tests exist, full live audit chain still limited | Add Postgres audit-chain integration coverage for critical flows |
 | External secret providers are foundation-level | Secret lifecycle varies by operator | provider skeletons/docs | Add provider validation contract tests before production claims |
 | OIDC/SSO lifecycle is incomplete | Enterprise identity lifecycle gaps | auth foundation docs | Add provider-specific integration tests and token lifecycle docs |

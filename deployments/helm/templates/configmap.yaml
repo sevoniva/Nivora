@@ -32,6 +32,8 @@ data:
       allow_action_tools: {{ .Values.config.mcp.allowActionTools }}
       subject_role: {{ .Values.config.mcp.subjectRole | quote }}
       token_env: {{ .Values.config.mcp.tokenEnv | quote }}
+      request_timeout: {{ .Values.config.mcp.requestTimeout | quote }}
+      max_response_bytes: {{ .Values.config.mcp.maxResponseBytes }}
     auth:
       enabled: {{ .Values.config.auth.enabled }}
       mode: {{ .Values.config.auth.mode | quote }}
@@ -86,6 +88,8 @@ data:
       allow_action_tools: {{ .Values.config.mcp.allowActionTools }}
       subject_role: {{ .Values.config.mcp.subjectRole | quote }}
       token_env: {{ .Values.config.mcp.tokenEnv | quote }}
+      request_timeout: {{ .Values.config.mcp.requestTimeout | quote }}
+      max_response_bytes: {{ .Values.config.mcp.maxResponseBytes }}
     auth:
       enabled: {{ .Values.config.auth.enabled }}
       mode: {{ .Values.config.auth.mode | quote }}
@@ -140,6 +144,8 @@ data:
       allow_action_tools: {{ .Values.config.mcp.allowActionTools }}
       subject_role: {{ .Values.config.mcp.subjectRole | quote }}
       token_env: {{ .Values.config.mcp.tokenEnv | quote }}
+      request_timeout: {{ .Values.config.mcp.requestTimeout | quote }}
+      max_response_bytes: {{ .Values.config.mcp.maxResponseBytes }}
     auth:
       enabled: {{ .Values.config.auth.enabled }}
       mode: {{ .Values.config.auth.mode | quote }}

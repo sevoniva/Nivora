@@ -23,6 +23,8 @@ mcp:
   allow_plan_tools: true
   allow_action_tools: false
   token_env: NIVORA_MCP_TOKEN
+  request_timeout: 15s
+  max_response_bytes: 262144
 auth:
   enabled: true
   mode: token

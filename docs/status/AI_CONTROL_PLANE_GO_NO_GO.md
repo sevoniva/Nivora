@@ -7,8 +7,8 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 | Area | Decision | Reason |
 |---|---|---|
 | Local stdio MCP | go for local maintainer use | read-only/plan-only resources and tools are tested; blocked actions are denied |
-| Local AI operator demo | go with scripted local data | 26 validated scenarios and golden answers exist |
-| Remote read-only MCP | no-go until next hardening phase | auth, tenant filters, rate limits, response caps, and remote audit tests are missing |
+| Local AI operator demo | go with scripted local data | 29 validated scenarios and golden answers exist |
+| Remote read-only MCP | no-go until next hardening phase | auth, tenant filters, rate limits, pagination, and remote audit tests are missing; local response caps and request timeouts exist but are not remote transport proof |
 | Remote plan-only MCP | no-go | plan tools need remote abuse controls |
 | Action MCP | no-go | apply, sync, rollback, approval, token, secret, runner, host, Git, prune, and delete actions remain blocked |
 | Production use | no-go | broader platform hardening remains incomplete |
@@ -17,7 +17,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 
 1. Remote MCP tenant filtering is incomplete.
 2. Remote MCP auth/OAuth contract tests do not exist.
-3. Remote response limits and rate limits do not exist.
+3. Remote rate limits do not exist; local MCP response caps and request timeouts exist but remote transport limits are not proven.
 4. Dedicated Postgres MCP audit-chain test is not complete.
 5. Audit search can expose broad metadata without future scope filters.
 6. Runner summary needs environment/group filtering before remote exposure.
@@ -47,9 +47,9 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 6. Tenant-filtered ReleaseExecution resource test.
 7. Tenant-filtered runner summary test.
 8. Tenant-filtered audit search test.
-9. MCP response-size cap test.
+9. Remote MCP response-size cap contract test.
 10. MCP per-client rate-limit test.
-11. MCP request timeout test.
+11. Remote MCP request timeout contract test.
 12. Postgres MCP audit-chain integration test.
 13. Prompt-injection corpus expansion beyond current fixtures.
 14. Golden answer drift check in CI.
@@ -63,7 +63,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 ## Next 3 Goals
 
 1. **Remote Read-Only MCP Contract Hardening**
-   - Scope: auth model, service-account tokens, runner-token denial, remote transport proposal tests, response caps, rate limits.
+   - Scope: auth model, service-account tokens, runner-token denial, remote transport proposal tests, response cap enforcement, request timeout enforcement, rate limits.
    - Non-goals: action tools, secret retrieval, remote plan mutation.
    - Acceptance: remote read-only remains disabled by default and all remote contract tests pass.
 
@@ -86,8 +86,8 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 | 3 | Add Postgres MCP audit-chain test | test | Postgres harness |
 | 4 | Add audit search pagination | code | API/store support |
 | 5 | Add log resource pagination | code | log store support |
-| 6 | Add response-size limit helper | code | transport design |
-| 7 | Add MCP request timeout config | code | transport design |
+| 6 | Extend local response-size caps to any future remote transport contract | code | transport design |
+| 7 | Add remote MCP request timeout contract tests | test | transport design |
 | 8 | Add rate-limit design doc | docs | remote RFC |
 | 9 | Add service-account examples without secrets | docs | auth docs |
 | 10 | Add runner summary scope filters | code | tenancy model |

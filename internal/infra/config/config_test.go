@@ -114,6 +114,14 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 			c.MCP.Enabled = true
 			c.MCP.TokenEnv = ""
 		}},
+		{"mcp missing request timeout", func(c *Config) {
+			c.MCP.Enabled = true
+			c.MCP.RequestTimeout = ""
+		}},
+		{"mcp missing response cap", func(c *Config) {
+			c.MCP.Enabled = true
+			c.MCP.MaxResponseBytes = 0
+		}},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
@@ -126,5 +134,25 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 	}
 	if err := base.Validate(); err != nil {
 		t.Fatalf("safe production config rejected: %v", err)
+	}
+}
+
+func TestMCPConfigRejectsInvalidLimits(t *testing.T) {
+	tests := []struct {
+		name   string
+		mutate func(*Config)
+	}{
+		{"negative max response bytes", func(c *Config) { c.MCP.MaxResponseBytes = -1 }},
+		{"invalid request timeout", func(c *Config) { c.MCP.RequestTimeout = "soon" }},
+		{"zero request timeout", func(c *Config) { c.MCP.RequestTimeout = "0s" }},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cfg := Default()
+			tc.mutate(&cfg)
+			if err := cfg.Validate(); err == nil {
+				t.Fatalf("expected %s to be rejected", tc.name)
+			}
+		})
 	}
 }

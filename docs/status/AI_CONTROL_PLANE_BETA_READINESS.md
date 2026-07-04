@@ -4,8 +4,8 @@ Current MCP maturity: local stdio foundation, beta-readiness hardening in progre
 
 Current scenario evidence:
 
-- 26 validated MCP operator scenarios in `examples/mcp/scenarios/`
-- 26 matching golden answers in `examples/mcp/golden-answers/`
+- 29 validated MCP operator scenarios in `examples/mcp/scenarios/`
+- 29 matching golden answers in `examples/mcp/golden-answers/`
 - fixture-backed scenario tests in `internal/api/mcp/scenario_test.go`
 - validation script: `scripts/validate-mcp-scenarios.sh`
 - broader status: `docs/status/AI_CONTROL_PLANE_DEEP_AUDIT.md`, `docs/status/AI_OPERATOR_JOURNEYS.md`, `docs/status/AI_CONTROL_PLANE_GO_NO_GO.md`
@@ -38,8 +38,8 @@ Current scenario evidence:
 
 | Area | Decision | Reason |
 |---|---|---|
-| Local stdio MCP | go for maintainer/local use | read-only and plan-only, denied action tools, runner-token rejection, redaction, and compliance audit exist |
-| Remote read-only MCP | conditional next phase | design is documented, but OAuth/OIDC, tenant filters, limits, and remote audit tests are required |
+| Local stdio MCP | go for maintainer/local use | read-only and plan-only, denied action tools, runner-token rejection, redaction, response caps, request timeouts, and compliance audit exist |
+| Remote read-only MCP | conditional next phase | design is documented, but OAuth/OIDC, tenant filters, rate limits, pagination, remote timeout/cap proof, and remote audit tests are required |
 | Remote action MCP | no-go | apply/sync/rollback/approval/token/secret/runner/host/Git/Kubernetes delete actions are intentionally blocked |
 
 ## Evidence
@@ -69,6 +69,6 @@ Proceed with **Remote Read-Only MCP Design Validation** before any action-tier w
 
 - add OAuth/OIDC or service-account scoped remote auth contract tests
 - add tenant-filtered MCP resource tests
-- add response-size/rate-limit design and tests
+- add remote response-size, request-timeout, and rate-limit contract tests
 - add Postgres MCP audit-chain integration proof
 - expand adversarial log/prompt-injection fixtures

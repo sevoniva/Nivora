@@ -54,6 +54,8 @@ config:
     allowActionTools: false
     subjectRole: viewer
     tokenEnv: NIVORA_MCP_TOKEN
+    requestTimeout: 15s
+    maxResponseBytes: 262144
   auth:
     enabled: true
     mode: token

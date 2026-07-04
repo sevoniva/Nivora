@@ -38,6 +38,12 @@ func TestHelmProductionValuesAvoidUnsafeDefaults(t *testing.T) {
 	if got := stringValue(mcpValues, "mode"); got != "stdio" {
 		t.Fatalf("MCP mode = %q, want stdio", got)
 	}
+	if got := stringValue(mcpValues, "requestTimeout"); got == "" {
+		t.Fatal("MCP requestTimeout must be set in production values")
+	}
+	if got := intValue(mcpValues, "maxResponseBytes"); got <= 0 {
+		t.Fatalf("MCP maxResponseBytes = %d, want positive", got)
+	}
 	runtimeValues := nestedMap(t, configValues, "runtime")
 	for _, key := range []string{
 		"allowLocalShellExecutor",
@@ -149,4 +155,18 @@ func boolValue(values map[string]any, key string) bool {
 	raw, _ := values[key]
 	value, _ := raw.(bool)
 	return value
+}
+
+func intValue(values map[string]any, key string) int {
+	raw, _ := values[key]
+	switch value := raw.(type) {
+	case int:
+		return value
+	case int64:
+		return int(value)
+	case float64:
+		return int(value)
+	default:
+		return 0
+	}
 }

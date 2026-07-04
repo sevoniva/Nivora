@@ -117,7 +117,7 @@ func (s *Server) ReadResource(ctx context.Context, uri string) (ResourceContent,
 		return ResourceContent{}, err
 	}
 	s.record(ctx, EventResourceRead, uri, "system", "allowed", "resource read")
-	return ResourceContent{URI: uri, MimeType: jsonMime, Text: mustJSON(payload)}, nil
+	return ResourceContent{URI: uri, MimeType: jsonMime, Text: s.capResponseText(mustJSON(payload))}, nil
 }
 
 func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
@@ -254,7 +254,7 @@ func (s *Server) CallTool(ctx context.Context, name string, arguments map[string
 		return errorToolResult(err), nil
 	}
 	s.record(ctx, EventToolCalled, name, "system", "allowed", "tool called")
-	return textToolResult(mustJSON(payload)), nil
+	return textToolResult(s.capResponseText(mustJSON(payload))), nil
 }
 
 func (s *Server) ListPrompts(ctx context.Context) ([]Prompt, error) {
@@ -1231,6 +1231,48 @@ func (s *Server) runtimeConfigSummary() map[string]any {
 		"mcpAllowPlanTools": cfg.MCP.AllowPlanTools,
 		"productionReady":   false,
 	}
+}
+
+func (s *Server) requestContext(ctx context.Context) (context.Context, context.CancelFunc) {
+	timeoutText := strings.TrimSpace(s.services.Config.MCP.RequestTimeout)
+	if timeoutText == "" {
+		return ctx, func() {}
+	}
+	timeout, err := time.ParseDuration(timeoutText)
+	if err != nil || timeout <= 0 {
+		return ctx, func() {}
+	}
+	return context.WithTimeout(ctx, timeout)
+}
+
+func (s *Server) capResponseText(text string) string {
+	limit := s.services.Config.MCP.MaxResponseBytes
+	if limit <= 0 || len([]byte(text)) <= limit {
+		return text
+	}
+	return mustJSON(map[string]any{
+		"truncated": true,
+		"limit":     limit,
+		"preview":   truncateUTF8Bytes(text, limit),
+		"message":   "MCP response exceeded configured max_response_bytes",
+	})
+}
+
+func truncateUTF8Bytes(value string, limit int) string {
+	if limit <= 0 || len([]byte(value)) <= limit {
+		return value
+	}
+	last := 0
+	for idx := range value {
+		if idx > limit {
+			break
+		}
+		last = idx
+	}
+	if last == 0 {
+		return ""
+	}
+	return value[:last]
 }
 
 func resource(uri string, name string, description string) Resource {

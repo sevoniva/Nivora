@@ -551,6 +551,83 @@ func TestMCPTenantScopeFiltersReleaseExecutionReadsAndAggregates(t *testing.T) {
 	}
 }
 
+func TestMCPTenantScopeFiltersSecurityFindingsPolicyAndEvents(t *testing.T) {
+	ctx := context.Background()
+	security := runtime.NewSecurityService()
+	projectA := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-security-project-a",
+		Username:  "sa-security-project-a",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-a",
+	})
+	projectA.services.Security = security
+	projectB := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-security-project-b",
+		Username:  "sa-security-project-b",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-b",
+	})
+	projectB.services.Security = security
+
+	scanA := createScopedMCPSecurityScan(t, security, "project-a")
+	scanB := createScopedMCPSecurityScan(t, security, "project-b")
+
+	findingsResource, err := projectA.ReadResource(ctx, "nivora://security/findings")
+	if err != nil {
+		t.Fatalf("project A read security findings resource: %v", err)
+	}
+	if !strings.Contains(findingsResource.Text, scanA) || strings.Contains(findingsResource.Text, scanB) || strings.Contains(findingsResource.Text, "project-b") {
+		t.Fatalf("security findings resource did not honor project scope: %s", findingsResource.Text)
+	}
+
+	findingsTool, err := projectA.CallTool(ctx, "nivora_list_security_findings", map[string]any{})
+	if err != nil {
+		t.Fatalf("project A list security findings tool: %v", err)
+	}
+	if findingsTool.IsError || !strings.Contains(findingsTool.Content[0].Text, scanA) || strings.Contains(findingsTool.Content[0].Text, scanB) {
+		t.Fatalf("security findings tool did not honor project scope: %#v", findingsTool)
+	}
+
+	crossFindings, err := projectA.CallTool(ctx, "nivora_list_security_findings", map[string]any{"scanId": scanB})
+	if err != nil {
+		t.Fatalf("cross-project security findings transport error: %v", err)
+	}
+	if crossFindings.IsError || !toolSummaryTotalIsZero(t, crossFindings) {
+		t.Fatalf("cross-project security findings returned data: %#v", crossFindings)
+	}
+
+	policyResource, err := projectA.ReadResource(ctx, "nivora://policy/results/summary")
+	if err != nil {
+		t.Fatalf("project A read policy summary resource: %v", err)
+	}
+	if !strings.Contains(policyResource.Text, scanA) || strings.Contains(policyResource.Text, scanB) {
+		t.Fatalf("policy summary resource did not honor project scope: %s", policyResource.Text)
+	}
+	policyTool, err := projectA.CallTool(ctx, "nivora_get_policy_result_summary", map[string]any{})
+	if err != nil {
+		t.Fatalf("project A policy summary tool: %v", err)
+	}
+	if policyTool.IsError || !strings.Contains(policyTool.Content[0].Text, scanA) || strings.Contains(policyTool.Content[0].Text, scanB) {
+		t.Fatalf("policy summary tool did not honor project scope: %#v", policyTool)
+	}
+
+	events, err := projectA.CallTool(ctx, "nivora_search_events", map[string]any{"securityScanId": scanB})
+	if err != nil {
+		t.Fatalf("cross-project security event search transport error: %v", err)
+	}
+	if !resultCountIsZero(t, events) {
+		t.Fatalf("cross-project security event search returned data: %#v", events)
+	}
+
+	if _, err := projectB.CallTool(ctx, "nivora_list_security_findings", map[string]any{"scanId": scanB}); err != nil {
+		t.Fatalf("project B read own security findings: %v", err)
+	}
+}
+
 func TestMCPEvidenceBundleRequiresAuditRead(t *testing.T) {
 	ctx := context.Background()
 	viewer := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
@@ -1281,6 +1358,21 @@ func createScopedMCPReleaseExecution(t *testing.T, store releaseusecase.Store, r
 	return record.Execution.ID
 }
 
+func createScopedMCPSecurityScan(t *testing.T, security *securityusecase.Service, projectID string) string {
+	t.Helper()
+	record, err := security.Scan(context.Background(), securityusecase.ScanInput{
+		SubjectType: domainsecurity.SubjectManifest,
+		SubjectID:   "manifest-" + projectID,
+		ProjectID:   projectID,
+		Content:     "securityContext:\n  privileged: true\n",
+		ActorID:     "mcp-security-scope-fixture",
+	})
+	if err != nil {
+		t.Fatalf("create scoped security scan fixture: %v", err)
+	}
+	return record.Scan.ID
+}
+
 func resultCountIsZero(t *testing.T, result ToolResult) bool {
 	t.Helper()
 	if result.IsError || len(result.Content) == 0 {
@@ -1293,6 +1385,22 @@ func resultCountIsZero(t *testing.T, result ToolResult) bool {
 		t.Fatalf("unmarshal tool result: %v\n%s", err, result.Content[0].Text)
 	}
 	return body.Count == 0
+}
+
+func toolSummaryTotalIsZero(t *testing.T, result ToolResult) bool {
+	t.Helper()
+	if result.IsError || len(result.Content) == 0 {
+		return false
+	}
+	var body struct {
+		Summary struct {
+			Total int `json:"total"`
+		} `json:"summary"`
+	}
+	if err := json.Unmarshal([]byte(result.Content[0].Text), &body); err != nil {
+		t.Fatalf("unmarshal tool result: %v\n%s", err, result.Content[0].Text)
+	}
+	return body.Summary.Total == 0
 }
 
 func hasResource(resources []Resource, uri string) bool {

@@ -8,6 +8,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
+	"github.com/sevoniva/nivora/internal/domain/tenant"
 	"github.com/sevoniva/nivora/internal/infra/telemetry"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
@@ -19,6 +20,7 @@ func CreateSecurityScan(service *securityusecase.Service) http.HandlerFunc {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a security scan request"})
 			return
 		}
+		input.ProjectID, input.EnvironmentID = constrainSecurityScope(r, input.ProjectID, input.EnvironmentID)
 		record, err := service.Scan(r.Context(), input)
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "security_scan_failed", Message: err.Error()})
@@ -34,10 +36,13 @@ func CreateSecurityScan(service *securityusecase.Service) http.HandlerFunc {
 func ListSecurityScans(service *securityusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
+		projectID, environmentID := constrainSecurityScope(r, query.Get("projectId"), query.Get("environmentId"))
 		records, err := service.ListScans(r.Context(), securityusecase.ListScansInput{
-			SubjectType: domainsecurity.SubjectType(query.Get("subjectType")),
-			SubjectID:   query.Get("subjectId"),
-			Status:      domainsecurity.ScanStatus(query.Get("status")),
+			SubjectType:   domainsecurity.SubjectType(query.Get("subjectType")),
+			SubjectID:     query.Get("subjectId"),
+			ProjectID:     projectID,
+			EnvironmentID: environmentID,
+			Status:        domainsecurity.ScanStatus(query.Get("status")),
 		})
 		if err != nil {
 			respondSecurityResult(w, r, nil, err)
@@ -62,6 +67,10 @@ func ListSecurityScans(service *securityusecase.Service) http.HandlerFunc {
 func GetSecurityScan(service *securityusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
+		if err == nil && !securityScanVisibleToRequest(r, record.Scan) {
+			RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{Code: "forbidden", Message: "security scan is outside requester scope"})
+			return
+		}
 		respondSecurityResult(w, r, record, err)
 	}
 }
@@ -69,12 +78,15 @@ func GetSecurityScan(service *securityusecase.Service) http.HandlerFunc {
 func ListSecurityFindings(service *securityusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		query := r.URL.Query()
+		projectID, environmentID := constrainSecurityScope(r, query.Get("projectId"), query.Get("environmentId"))
 		findings, err := service.ListFindings(r.Context(), securityusecase.ListFindingsInput{
-			ScanID:      query.Get("scanId"),
-			SubjectType: domainsecurity.SubjectType(query.Get("subjectType")),
-			SubjectID:   query.Get("subjectId"),
-			Severity:    domainsecurity.Severity(query.Get("severity")),
-			Category:    domainsecurity.FindingCategory(query.Get("category")),
+			ScanID:        query.Get("scanId"),
+			SubjectType:   domainsecurity.SubjectType(query.Get("subjectType")),
+			SubjectID:     query.Get("subjectId"),
+			ProjectID:     projectID,
+			EnvironmentID: environmentID,
+			Severity:      domainsecurity.Severity(query.Get("severity")),
+			Category:      domainsecurity.FindingCategory(query.Get("category")),
 		})
 		if err != nil {
 			respondSecurityResult(w, r, nil, err)
@@ -98,8 +110,12 @@ func ListSecurityFindings(service *securityusecase.Service) http.HandlerFunc {
 
 func GetSecurityFindings(service *securityusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		findings, err := service.Findings(r.Context(), chi.URLParam(r, "id"))
-		respondSecurityResult(w, r, findings, err)
+		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
+		if err == nil && !securityScanVisibleToRequest(r, record.Scan) {
+			RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{Code: "forbidden", Message: "security scan is outside requester scope"})
+			return
+		}
+		respondSecurityResult(w, r, record.Scan.Findings, err)
 	}
 }
 
@@ -130,4 +146,30 @@ func respondSecurityResult(w http.ResponseWriter, r *http.Request, payload any, 
 		code = "security_scan_not_found"
 	}
 	RespondError(w, r, status, dto.ErrorResponse{Code: code, Message: err.Error()})
+}
+
+func constrainSecurityScope(r *http.Request, projectID string, environmentID string) (string, string) {
+	scopeType, scopeID := TenantScopeFilter(r)
+	switch scopeType {
+	case tenant.ScopeProject:
+		return scopeID, ""
+	case tenant.ScopeEnvironment:
+		return "", scopeID
+	default:
+		return projectID, environmentID
+	}
+}
+
+func securityScanVisibleToRequest(r *http.Request, scan domainsecurity.SecurityScan) bool {
+	scopeType, scopeID := TenantScopeFilter(r)
+	switch scopeType {
+	case "":
+		return true
+	case tenant.ScopeProject:
+		return scan.ProjectID != "" && scan.ProjectID == scopeID
+	case tenant.ScopeEnvironment:
+		return scan.EnvironmentID != "" && scan.EnvironmentID == scopeID
+	default:
+		return false
+	}
 }

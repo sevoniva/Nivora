@@ -53,16 +53,18 @@ const (
 )
 
 type SecurityScan struct {
-	ID          string              `json:"id"`
-	SubjectType SubjectType         `json:"subjectType"`
-	SubjectID   string              `json:"subjectId"`
-	Scanner     string              `json:"scanner"`
-	Status      ScanStatus          `json:"status"`
-	StartedAt   *time.Time          `json:"startedAt,omitempty"`
-	FinishedAt  *time.Time          `json:"finishedAt,omitempty"`
-	Summary     SecurityScanSummary `json:"summary"`
-	Findings    []SecurityFinding   `json:"findings,omitempty"`
-	CreatedAt   time.Time           `json:"createdAt"`
+	ID            string              `json:"id"`
+	SubjectType   SubjectType         `json:"subjectType"`
+	SubjectID     string              `json:"subjectId"`
+	ProjectID     string              `json:"projectId,omitempty"`
+	EnvironmentID string              `json:"environmentId,omitempty"`
+	Scanner       string              `json:"scanner"`
+	Status        ScanStatus          `json:"status"`
+	StartedAt     *time.Time          `json:"startedAt,omitempty"`
+	FinishedAt    *time.Time          `json:"finishedAt,omitempty"`
+	Summary       SecurityScanSummary `json:"summary"`
+	Findings      []SecurityFinding   `json:"findings,omitempty"`
+	CreatedAt     time.Time           `json:"createdAt"`
 }
 
 type SecurityScanSummary struct {

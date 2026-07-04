@@ -11,7 +11,7 @@ Current status: **partially proven for local MCP RBAC, not proven for complete r
 | DeploymentRun resources/tools | `project.read` or `deployment.create` | explicit ID reads now check stored project/environment scope when present; HTTP-created project-scoped runs persist project scope; HTTP detail/log/event/timeline/resource and visualization reads are guarded by stored scope | broader project/environment/target ownership checks for all deployment-derived resources | medium-high for remote |
 | ReleaseExecution resources/tools | `project.read` or `deployment.create` | explicit ID reads and aggregate event searches check stored project/environment scope when present; HTTP plan/deploy project scope is copied to release targets and child DeploymentRuns; HTTP execution detail/timeline/target and visualization reads are guarded by stored scope | release/project/environment ownership check across all execution records | medium-high for remote |
 | runner summary | `project.read` | fleet summary | runner group/environment filter | high for remote |
-| security summary | `project.read` | service summary | project/environment filter | medium |
+| security summary | `project.read` | security scans now persist project/environment scope; MCP security findings, policy summaries, and security events filter by stored scan scope when present | broader subject ownership checks for historical unscoped records and evidence joins | medium |
 | audit search | `audit.read` | HTTP scoped subjects are constrained to their own audit scope; MCP audit resource requires `audit.read` | mandatory remote scope filter and caps | high |
 | evidence bundles | `audit.read` | HTTP evidence bundles for PipelineRun, DeploymentRun, and ReleaseExecution subjects are checked against stored project/environment scope and persisted with scope metadata when verifiable | add first-class scope metadata to release/artifact/security evidence | medium-high for remote |
 | plugin capabilities | `project.read` | built-in metadata | usually global | low |
@@ -48,14 +48,19 @@ Current status: **partially proven for local MCP RBAC, not proven for complete r
 - HTTP aggregate `/api/v1/events` and visualization audit timeline filter ReleaseExecution records by stored target project/environment scope.
 - HTTP evidence bundle generation and direct bundle reads are scope-checked for PipelineRun, DeploymentRun, and ReleaseExecution subjects.
 - HTTP project-scoped auditors cannot read another project's evidence bundle by subject path, bundle id, or evidence list.
+- Project-scoped service account can read its own scoped SecurityScan findings and policy summary through MCP.
+- Project-scoped service account does not see another project's SecurityScan findings, policy result summary, or security events through MCP aggregate resources/tools.
+- HTTP project-scoped service account creates SecurityScan records with project scope and cannot list, fetch, or fetch findings for another project's SecurityScan.
 
 Evidence:
 
 - `internal/api/mcp/server.go`
 - `internal/api/mcp/server_test.go`
 - `internal/api/mcp/scenario_test.go`
+- `internal/api/http/handlers/security.go`
 - `internal/api/http/handlers/deployments.go`
 - `internal/api/http/handlers/release_orchestration.go`
+- `internal/api/http/routes/security_test.go`
 - `internal/api/http/routes/tenant_isolation_test.go`
 - `docs/security/MCP_PERMISSION_MATRIX.md`
 
@@ -63,8 +68,8 @@ Evidence:
 
 | Gap | Impact | Required Work |
 |---|---|---|
-| Resource ID ownership not checked for every MCP read | A remote subject could request another tenant's ID if underlying stores do not filter | Extend the scoped PipelineRun/DeploymentRun/ReleaseExecution guard pattern to PipelineRun definitions, artifact bindings, security summaries, and evidence bundles. |
-| Audit and observability scope is not complete for every resource family | Sensitive operational metadata from artifact/security records or release/artifact evidence could cross scopes if exposed remotely | Extend project/environment ownership metadata and tests to artifacts, security scans, and release-bound artifact records before remote MCP or broad tenant exposure. |
+| Resource ID ownership not checked for every MCP read | A remote subject could request another tenant's ID if underlying stores do not filter | Extend the scoped PipelineRun/DeploymentRun/ReleaseExecution/SecurityScan guard pattern to PipelineRun definitions, artifact bindings, and evidence bundles. |
+| Audit and observability scope is not complete for every resource family | Sensitive operational metadata from artifact records, runner summaries, or release/artifact evidence could cross scopes if exposed remotely | Extend project/environment ownership metadata and tests to artifacts and release-bound artifact records before remote MCP or broad tenant exposure. |
 | Runner summary is global | Runner fleet metadata can reveal other environments | Filter by runner group/project/environment. |
 | Capability/runtime documents are broad | Metadata can reveal unsupported or experimental areas | Decide what is safe for remote subjects. |
 | Plan-only tool input scope is local | Remote plan-only tools need body limits and policy checks | Add input size and subject-scope validation. |

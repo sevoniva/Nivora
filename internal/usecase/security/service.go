@@ -43,11 +43,13 @@ func (s *Service) Scan(ctx context.Context, input ScanInput) (ScanRecord, error)
 	}
 	now := s.now()
 	scan := domainsecurity.SecurityScan{
-		ID:          newID("scan"),
-		SubjectType: input.SubjectType,
-		SubjectID:   input.SubjectID,
-		Status:      domainsecurity.ScanPending,
-		CreatedAt:   now,
+		ID:            newID("scan"),
+		SubjectType:   input.SubjectType,
+		SubjectID:     input.SubjectID,
+		ProjectID:     strings.TrimSpace(input.ProjectID),
+		EnvironmentID: strings.TrimSpace(input.EnvironmentID),
+		Status:        domainsecurity.ScanPending,
+		CreatedAt:     now,
 	}
 	record := ScanRecord{Scan: scan}
 	if err := s.store.Save(ctx, record); err != nil {
@@ -183,6 +185,12 @@ func (s *Service) ListScans(ctx context.Context, input ListScansInput) ([]ScanRe
 		if input.SubjectID != "" && record.Scan.SubjectID != input.SubjectID {
 			continue
 		}
+		if input.ProjectID != "" && record.Scan.ProjectID != input.ProjectID {
+			continue
+		}
+		if input.EnvironmentID != "" && record.Scan.EnvironmentID != input.EnvironmentID {
+			continue
+		}
 		if input.Status != "" && record.Scan.Status != input.Status {
 			continue
 		}
@@ -209,13 +217,19 @@ func (s *Service) ListFindings(ctx context.Context, input ListFindingsInput) ([]
 		records = []ScanRecord{record}
 	} else {
 		var err error
-		records, err = s.ListScans(ctx, ListScansInput{SubjectType: input.SubjectType, SubjectID: input.SubjectID})
+		records, err = s.ListScans(ctx, ListScansInput{SubjectType: input.SubjectType, SubjectID: input.SubjectID, ProjectID: input.ProjectID, EnvironmentID: input.EnvironmentID})
 		if err != nil {
 			return nil, err
 		}
 	}
 	findings := make([]domainsecurity.SecurityFinding, 0)
 	for _, record := range records {
+		if input.ProjectID != "" && record.Scan.ProjectID != input.ProjectID {
+			continue
+		}
+		if input.EnvironmentID != "" && record.Scan.EnvironmentID != input.EnvironmentID {
+			continue
+		}
 		for _, finding := range record.Scan.Findings {
 			if input.Severity != "" && finding.Severity != input.Severity {
 				continue
@@ -227,7 +241,7 @@ func (s *Service) ListFindings(ctx context.Context, input ListFindingsInput) ([]
 			if copied.Metadata == nil {
 				copied.Metadata = map[string]string{}
 			} else {
-				metadata := make(map[string]string, len(copied.Metadata)+3)
+				metadata := make(map[string]string, len(copied.Metadata)+5)
 				for key, value := range copied.Metadata {
 					metadata[key] = value
 				}
@@ -236,6 +250,12 @@ func (s *Service) ListFindings(ctx context.Context, input ListFindingsInput) ([]
 			copied.Metadata["scanId"] = record.Scan.ID
 			copied.Metadata["subjectType"] = string(record.Scan.SubjectType)
 			copied.Metadata["subjectId"] = record.Scan.SubjectID
+			if record.Scan.ProjectID != "" {
+				copied.Metadata["projectId"] = record.Scan.ProjectID
+			}
+			if record.Scan.EnvironmentID != "" {
+				copied.Metadata["environmentId"] = record.Scan.EnvironmentID
+			}
 			findings = append(findings, copied)
 		}
 	}

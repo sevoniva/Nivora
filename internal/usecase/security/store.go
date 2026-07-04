@@ -119,10 +119,25 @@ func (s *MemoryStore) AppendAudit(ctx context.Context, scanID string, entry audi
 }
 
 func cloneRecord(record ScanRecord) ScanRecord {
-	record.Scan.Findings = append([]domainsecurity.SecurityFinding(nil), record.Scan.Findings...)
-	record.Policy.Findings = append([]domainsecurity.SecurityFinding(nil), record.Policy.Findings...)
+	record.Scan.Findings = cloneFindings(record.Scan.Findings)
+	record.Policy.Findings = cloneFindings(record.Policy.Findings)
 	record.Events = append([]event.Event(nil), record.Events...)
 	record.Audits = append([]audit.AuditLog(nil), record.Audits...)
 	record.Warnings = append([]string(nil), record.Warnings...)
 	return record
+}
+
+func cloneFindings(findings []domainsecurity.SecurityFinding) []domainsecurity.SecurityFinding {
+	out := append([]domainsecurity.SecurityFinding(nil), findings...)
+	for i := range out {
+		if out[i].Metadata == nil {
+			continue
+		}
+		metadata := make(map[string]string, len(out[i].Metadata))
+		for key, value := range out[i].Metadata {
+			metadata[key] = value
+		}
+		out[i].Metadata = metadata
+	}
+	return out
 }

@@ -34,12 +34,14 @@ func DefaultPolicyConfig() PolicyConfig {
 }
 
 type ScanInput struct {
-	SubjectType domainsecurity.SubjectType `json:"subjectType" yaml:"subjectType"`
-	SubjectID   string                     `json:"subjectId" yaml:"subjectId"`
-	Reference   string                     `json:"reference,omitempty" yaml:"reference,omitempty"`
-	Content     string                     `json:"content,omitempty" yaml:"content,omitempty"`
-	Policy      PolicyConfig               `json:"policy,omitempty" yaml:"policy,omitempty"`
-	ActorID     string                     `json:"actorId,omitempty" yaml:"actorId,omitempty"`
+	SubjectType   domainsecurity.SubjectType `json:"subjectType" yaml:"subjectType"`
+	SubjectID     string                     `json:"subjectId" yaml:"subjectId"`
+	ProjectID     string                     `json:"projectId,omitempty" yaml:"projectId,omitempty"`
+	EnvironmentID string                     `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+	Reference     string                     `json:"reference,omitempty" yaml:"reference,omitempty"`
+	Content       string                     `json:"content,omitempty" yaml:"content,omitempty"`
+	Policy        PolicyConfig               `json:"policy,omitempty" yaml:"policy,omitempty"`
+	ActorID       string                     `json:"actorId,omitempty" yaml:"actorId,omitempty"`
 }
 
 type ScanRecord struct {
@@ -53,17 +55,21 @@ type ScanRecord struct {
 }
 
 type ListScansInput struct {
-	SubjectType domainsecurity.SubjectType `json:"subjectType,omitempty" yaml:"subjectType,omitempty"`
-	SubjectID   string                     `json:"subjectId,omitempty" yaml:"subjectId,omitempty"`
-	Status      domainsecurity.ScanStatus  `json:"status,omitempty" yaml:"status,omitempty"`
+	SubjectType   domainsecurity.SubjectType `json:"subjectType,omitempty" yaml:"subjectType,omitempty"`
+	SubjectID     string                     `json:"subjectId,omitempty" yaml:"subjectId,omitempty"`
+	ProjectID     string                     `json:"projectId,omitempty" yaml:"projectId,omitempty"`
+	EnvironmentID string                     `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+	Status        domainsecurity.ScanStatus  `json:"status,omitempty" yaml:"status,omitempty"`
 }
 
 type ListFindingsInput struct {
-	ScanID      string                         `json:"scanId,omitempty" yaml:"scanId,omitempty"`
-	SubjectType domainsecurity.SubjectType     `json:"subjectType,omitempty" yaml:"subjectType,omitempty"`
-	SubjectID   string                         `json:"subjectId,omitempty" yaml:"subjectId,omitempty"`
-	Severity    domainsecurity.Severity        `json:"severity,omitempty" yaml:"severity,omitempty"`
-	Category    domainsecurity.FindingCategory `json:"category,omitempty" yaml:"category,omitempty"`
+	ScanID        string                         `json:"scanId,omitempty" yaml:"scanId,omitempty"`
+	SubjectType   domainsecurity.SubjectType     `json:"subjectType,omitempty" yaml:"subjectType,omitempty"`
+	SubjectID     string                         `json:"subjectId,omitempty" yaml:"subjectId,omitempty"`
+	ProjectID     string                         `json:"projectId,omitempty" yaml:"projectId,omitempty"`
+	EnvironmentID string                         `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+	Severity      domainsecurity.Severity        `json:"severity,omitempty" yaml:"severity,omitempty"`
+	Category      domainsecurity.FindingCategory `json:"category,omitempty" yaml:"category,omitempty"`
 }
 
 type EvaluateInput struct {

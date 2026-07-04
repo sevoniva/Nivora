@@ -873,7 +873,12 @@ func (s *Server) securitySummary(ctx context.Context) (any, error) {
 	severityCounts := map[string]int{}
 	categoryCounts := map[string]int{}
 	decisionCounts := map[string]int{}
+	visibleScans := make([]securityusecase.ScanRecord, 0, len(scans))
 	for _, scan := range scans {
+		if !s.canReadSecurityScan(scan) {
+			continue
+		}
+		visibleScans = append(visibleScans, scan)
 		totalFindings += scan.Scan.Summary.Total
 		if scan.Policy.Decision != "" {
 			decisionCounts[string(scan.Policy.Decision)]++
@@ -884,21 +889,22 @@ func (s *Server) securitySummary(ctx context.Context) (any, error) {
 		}
 	}
 	return map[string]any{
-		"scanCount":            len(scans),
+		"scanCount":            len(visibleScans),
 		"findingCount":         totalFindings,
 		"severityCounts":       severityCounts,
 		"categoryCounts":       categoryCounts,
 		"policyDecisionCounts": decisionCounts,
-		"scans":                scans,
+		"scans":                visibleScans,
 		"mutated":              false,
 	}, nil
 }
 
 func (s *Server) securityFindings(ctx context.Context, input securityusecase.ListFindingsInput) (any, error) {
-	findings, err := s.services.Security.ListFindings(ctx, input)
+	records, err := s.securityScanRecords(ctx, input)
 	if err != nil {
 		return nil, err
 	}
+	findings := securityFindingsFromRecords(records, input)
 	severityCounts := map[string]int{}
 	categoryCounts := map[string]int{}
 	for _, finding := range findings {
@@ -923,6 +929,66 @@ func (s *Server) securityFindings(ctx context.Context, input securityusecase.Lis
 	}, nil
 }
 
+func (s *Server) securityScanRecords(ctx context.Context, input securityusecase.ListFindingsInput) ([]securityusecase.ScanRecord, error) {
+	var records []securityusecase.ScanRecord
+	if strings.TrimSpace(input.ScanID) != "" {
+		record, err := s.services.Security.Get(ctx, strings.TrimSpace(input.ScanID))
+		if err != nil {
+			return nil, err
+		}
+		records = []securityusecase.ScanRecord{record}
+	} else {
+		var err error
+		records, err = s.services.Security.ListScans(ctx, securityusecase.ListScansInput{
+			SubjectType:   input.SubjectType,
+			SubjectID:     input.SubjectID,
+			ProjectID:     input.ProjectID,
+			EnvironmentID: input.EnvironmentID,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	filtered := make([]securityusecase.ScanRecord, 0, len(records))
+	for _, record := range records {
+		if s.canReadSecurityScan(record) {
+			filtered = append(filtered, record)
+		}
+	}
+	return filtered, nil
+}
+
+func securityFindingsFromRecords(records []securityusecase.ScanRecord, input securityusecase.ListFindingsInput) []domainsecurity.SecurityFinding {
+	findings := make([]domainsecurity.SecurityFinding, 0)
+	for _, record := range records {
+		for _, finding := range record.Scan.Findings {
+			if input.Severity != "" && finding.Severity != input.Severity {
+				continue
+			}
+			if input.Category != "" && finding.Category != input.Category {
+				continue
+			}
+			copied := finding
+			metadata := make(map[string]string, len(copied.Metadata)+5)
+			for key, value := range copied.Metadata {
+				metadata[key] = value
+			}
+			metadata["scanId"] = record.Scan.ID
+			metadata["subjectType"] = string(record.Scan.SubjectType)
+			metadata["subjectId"] = record.Scan.SubjectID
+			if record.Scan.ProjectID != "" {
+				metadata["projectId"] = record.Scan.ProjectID
+			}
+			if record.Scan.EnvironmentID != "" {
+				metadata["environmentId"] = record.Scan.EnvironmentID
+			}
+			copied.Metadata = metadata
+			findings = append(findings, copied)
+		}
+	}
+	return findings
+}
+
 func (s *Server) policyResultSummary(ctx context.Context, subjectType string, subjectID string) (any, error) {
 	scans, err := s.services.Security.ListScans(ctx, securityusecase.ListScansInput{
 		SubjectType: domainsecurity.SubjectType(subjectType),
@@ -934,6 +1000,9 @@ func (s *Server) policyResultSummary(ctx context.Context, subjectType string, su
 	decisionCounts := map[string]int{}
 	results := make([]map[string]any, 0, len(scans))
 	for _, scan := range scans {
+		if !s.canReadSecurityScan(scan) {
+			continue
+		}
 		decision := string(scan.Policy.Decision)
 		if decision == "" {
 			decision = "unknown"
@@ -1031,6 +1100,9 @@ func (s *Server) eventSearch(ctx context.Context, filter mcpEventFilter) (any, e
 		warnings = append(warnings, "security events unavailable: "+err.Error())
 	} else {
 		for _, record := range records {
+			if !s.canReadSecurityScan(record) {
+				continue
+			}
 			events = append(events, record.Events...)
 		}
 	}
@@ -1283,6 +1355,10 @@ func (s *Server) canReadDeployment(record deploymentusecase.RunRecord) bool {
 
 func (s *Server) canReadReleaseExecution(record releaseusecase.ExecutionRecord) bool {
 	return s.ensureReleaseExecutionScope(record, record.Execution.ID) == nil
+}
+
+func (s *Server) canReadSecurityScan(record securityusecase.ScanRecord) bool {
+	return s.ensureSubjectScope(record.Scan.ID, record.Scan.ProjectID, record.Scan.EnvironmentID) == nil
 }
 
 func (s *Server) ensureSubjectScope(resource string, projectID string, environmentID string) error {

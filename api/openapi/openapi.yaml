@@ -1352,6 +1352,16 @@ paths:
           in: query
           schema:
             type: string
+        - name: projectId
+          in: query
+          description: Optional project scope filter; tenant-scoped callers are constrained to their own project.
+          schema:
+            type: string
+        - name: environmentId
+          in: query
+          description: Optional environment scope filter; tenant-scoped callers are constrained to their own environment.
+          schema:
+            type: string
         - name: status
           in: query
           schema:
@@ -1404,6 +1414,16 @@ paths:
             enum: [artifact, manifest, deployment_plan, release]
         - name: subjectId
           in: query
+          schema:
+            type: string
+        - name: projectId
+          in: query
+          description: Optional project scope filter; tenant-scoped callers are constrained to their own project.
+          schema:
+            type: string
+        - name: environmentId
+          in: query
+          description: Optional environment scope filter; tenant-scoped callers are constrained to their own environment.
           schema:
             type: string
         - name: severity
@@ -5959,6 +5979,12 @@ components:
           enum: [artifact, manifest, deployment_plan, release]
         subjectId:
           type: string
+        projectId:
+          type: string
+          description: Optional project scope attached by trusted callers or request scope.
+        environmentId:
+          type: string
+          description: Optional environment scope attached by trusted callers or request scope.
         reference:
           type: string
         content:
@@ -5992,6 +6018,10 @@ components:
         subjectType:
           type: string
         subjectId:
+          type: string
+        projectId:
+          type: string
+        environmentId:
           type: string
         scanner:
           type: string
@@ -6150,6 +6180,10 @@ components:
         subjectType:
           type: string
         subjectId:
+          type: string
+        projectId:
+          type: string
+        environmentId:
           type: string
         reference:
           type: string
@@ -8174,6 +8208,10 @@ components:
         subjectType:
           type: string
         subjectId:
+          type: string
+        projectId:
+          type: string
+        environmentId:
           type: string
         scanner:
           type: string

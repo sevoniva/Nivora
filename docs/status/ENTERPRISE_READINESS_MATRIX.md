@@ -69,7 +69,7 @@ No row in this matrix should be read as a GA production claim.
 | Credential management | foundation | metadata store/API | route/safety tests | credential docs | Validation adapter coverage limited | Provider-specific validation contracts | Security |
 | Redaction | beta | redaction helpers/tests | API/MCP/secret tests | security docs | New fields can drift | Central sensitive-key corpus gate | Security |
 | Route permission coverage | beta | route matrix + tests | `rbac_matrix_test.go` | matrix docs | Test logs some expected failures softly | Convert more soft logs to hard assertions | Security |
-| Tenant isolation | foundation | tenant tests | route tenant tests | tenancy docs | MCP/resource ID filters incomplete | Tenant-scoped MCP and read models | Security |
+| Tenant isolation | foundation | tenant tests, scoped MCP security scan filters | route tenant tests and MCP scope tests | tenancy docs | MCP/resource ID filters still incomplete for artifact and runner summary surfaces | Tenant-scoped artifact and runner read models | Security |
 | Audit evidence | foundation | compliance store/evidence | hash-chain tests | audit docs | Enterprise export/retention incomplete | Evidence bundle release e2e | Compliance |
 | Threat model | beta | security docs | review checklists | threat model docs | Needs recurring release review | Threat model release gate | Security |
 | Policy gates | foundation | built-in rules | policy tests | policy docs | OPA/Kyverno not integrated | Policy decision persistence e2e | Security |
@@ -94,7 +94,7 @@ No row in this matrix should be read as a GA production claim.
 | Remote MCP readiness | foundation | RFC/readiness docs | matrix tests | remote MCP docs | No remote transport | Auth/scope/limit design first | MCP |
 | MCP auth | foundation | local subject/RBAC | MCP auth tests | MCP security docs | Remote auth missing | Service-account bearer contract | MCP |
 | MCP RBAC | beta | permission matrix/tests | MCP matrix tests | MCP permission docs | Tenant filters incomplete | Resource ownership tests | MCP |
-| MCP tenant scope | foundation | tenant scope review | partial tests | tenant scope docs | Remote IDOR risk | Tenant-scoped fixtures | MCP |
+| MCP tenant scope | foundation | tenant scope review, scoped SecurityScan filtering | PipelineRun/DeploymentRun/ReleaseExecution/SecurityScan MCP scope tests | tenant scope docs | Remote IDOR risk remains for artifact bindings, runner summary, and broad metadata surfaces | Tenant-scoped artifact, runner, and capability fixtures | MCP |
 | MCP prompt injection defense | beta | prompt templates/scenarios | prompt tests | MCP security docs | Corpus can grow | Add adversarial scenarios | MCP |
 | MCP redaction | beta | sanitizer/tests | server/scenario tests | MCP security docs | New fields can drift | Central corpus gate | MCP |
 | MCP audit | foundation | compliance recorder | unit/compliance tests | MCP audit docs | Dedicated Postgres audit chain missing | MCP audit integration proof | MCP |

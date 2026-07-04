@@ -30,7 +30,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 
 | Surface | Entry Point | Notes |
 |---|---|---|
-| MCP stdio foundation | `cmd/nivora-mcp`, `nivora mcp serve --stdio` | Local read-only and plan-only MCP resources/tools/prompts over stdio JSON-RPC, including runtime, catalog summary, pipeline definition, deployment, release, release-bound artifact inventory, audit/evidence, and capability resources. It is not an HTTP API, records compliance-backed audit, rejects runner tokens, and does not expose action tools. |
+| MCP stdio foundation | `cmd/nivora-mcp`, `nivora mcp serve --stdio` | Local read-only and plan-only MCP resources/tools/prompts over stdio JSON-RPC, including runtime recovery, catalog summary, pipeline definition, deployment, release, release-bound artifact inventory, security finding, policy result, audit/evidence, and capability resources. It is not an HTTP API, records compliance-backed audit, rejects runner tokens, and does not expose action tools. |
 
 ## Partial Or Guarded
 

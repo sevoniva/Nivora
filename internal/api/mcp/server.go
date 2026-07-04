@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
@@ -71,6 +72,7 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 	return []Resource{
 		resource("nivora://capabilities/current", "Capability status", "Current implemented/partial/foundation capability status"),
 		resource("nivora://system/runtime", "Runtime status", "Runtime configuration and recovery summary"),
+		resource("nivora://runtime/recovery", "Runtime recovery status", "Pipeline, deployment, release, and outbox recovery summary"),
 		resource("nivora://api/inventory", "API inventory", "Current public API inventory"),
 		resource("nivora://catalog/summary", "Catalog summary", "Organization, project, application, environment, repository, and target summary"),
 		resource("nivora://pipelines/definitions", "Pipeline definitions", "Pipeline definition catalog"),
@@ -91,6 +93,8 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://releases/executions/{id}/timeline", "ReleaseExecution timeline", "ReleaseExecution timeline by id"),
 		resource("nivora://runners/summary", "Runner summary", "Runner fleet summary"),
 		resource("nivora://security/summary", "Security summary", "Security scan summary"),
+		resource("nivora://security/findings", "Security findings", "Security findings summary and current finding list"),
+		resource("nivora://policy/results/summary", "Policy result summary", "Policy gate decision summary derived from security scan records"),
 		resource("nivora://audit/search", "Audit search", "Audit records visible to the MCP subject"),
 		resource("nivora://evidence/bundles/{id}", "Evidence bundle", "Persisted evidence bundle by id"),
 		resource("nivora://plugins/capabilities", "Plugin capabilities", "Built-in plugin capability metadata"),
@@ -117,6 +121,7 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 	}
 	tools := []Tool{
 		tool("nivora_status", "Read current Nivora runtime and capability status", nil),
+		tool("nivora_get_runtime_recovery_status", "Read runtime recovery status across pipeline, deployment, release, and outbox state", nil),
 		tool("nivora_get_catalog_summary", "Read organization, project, application, environment, repository, and target catalog summary", objectSchema(map[string]any{
 			"orgId":     stringProperty("optional org id filter"),
 			"projectId": stringProperty("optional project id filter"),
@@ -142,6 +147,17 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 		tool("nivora_get_artifact", "Read a tracked artifact by id", idSchema("id")),
 		tool("nivora_get_artifact_releases", "List releases bound to a tracked artifact", idSchema("id")),
 		tool("nivora_get_runner_summary", "Read runner fleet summary", nil),
+		tool("nivora_list_security_findings", "List security findings with optional filters", objectSchema(map[string]any{
+			"scanId":      stringProperty("optional scan id"),
+			"subjectType": stringProperty("optional subject type"),
+			"subjectId":   stringProperty("optional subject id"),
+			"severity":    stringProperty("optional severity"),
+			"category":    stringProperty("optional category"),
+		}, nil)),
+		tool("nivora_get_policy_result_summary", "Read policy gate decision summary from security scan records", objectSchema(map[string]any{
+			"subjectType": stringProperty("optional subject type"),
+			"subjectId":   stringProperty("optional subject id"),
+		}, nil)),
 		tool("nivora_get_evidence_bundle", "Read a persisted evidence bundle by id", idSchema("id")),
 		tool("nivora_search_audit", "Search audit records visible to the subject", objectSchema(map[string]any{
 			"subject":       stringProperty("subject substring"),
@@ -246,11 +262,9 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 		}
 		return map[string]any{"maturity": "hardened beta-candidate", "productionReady": false, "content": string(body)}, nil
 	case uri == "nivora://system/runtime":
-		runtimeStatus, err := s.services.Pipelines.RuntimeStatus(ctx)
-		if err != nil {
-			return nil, err
-		}
-		return map[string]any{"config": s.runtimeConfigSummary(), "runtime": runtimeStatus}, nil
+		return s.runtimeRecoveryStatus(ctx)
+	case uri == "nivora://runtime/recovery":
+		return s.runtimeRecoveryStatus(ctx)
 	case uri == "nivora://api/inventory":
 		body, err := readProjectFile("docs/API_INVENTORY.md")
 		if err != nil {
@@ -289,6 +303,10 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 		return s.runnerSummary(ctx)
 	case uri == "nivora://security/summary":
 		return s.securitySummary(ctx)
+	case uri == "nivora://security/findings":
+		return s.securityFindings(ctx, securityusecase.ListFindingsInput{})
+	case uri == "nivora://policy/results/summary":
+		return s.policyResultSummary(ctx, "", "")
 	case uri == "nivora://audit/search":
 		return s.services.Compliance.SearchAudit(ctx, complianceusecase.AuditSearchInput{})
 	case strings.HasPrefix(uri, "nivora://evidence/bundles/"):
@@ -387,6 +405,8 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return map[string]any{"maturity": "hardened beta-candidate", "productionReady": false, "runtime": status}, nil
+	case "nivora_get_runtime_recovery_status":
+		return s.runtimeRecoveryStatus(ctx)
 	case "nivora_get_catalog_summary":
 		return s.catalogSummary(ctx, stringArg(arguments, "orgId"), stringArg(arguments, "projectId"))
 	case "nivora_list_pipeline_definitions":
@@ -476,6 +496,16 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		return map[string]any{"artifactId": id, "releases": bindings, "mutated": false}, nil
 	case "nivora_get_runner_summary":
 		return s.runnerSummary(ctx)
+	case "nivora_list_security_findings":
+		return s.securityFindings(ctx, securityusecase.ListFindingsInput{
+			ScanID:      stringArg(arguments, "scanId"),
+			SubjectType: domainsecurity.SubjectType(stringArg(arguments, "subjectType")),
+			SubjectID:   stringArg(arguments, "subjectId"),
+			Severity:    domainsecurity.Severity(stringArg(arguments, "severity")),
+			Category:    domainsecurity.FindingCategory(stringArg(arguments, "category")),
+		})
+	case "nivora_get_policy_result_summary":
+		return s.policyResultSummary(ctx, stringArg(arguments, "subjectType"), stringArg(arguments, "subjectId"))
 	case "nivora_get_evidence_bundle":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
@@ -642,16 +672,128 @@ func (s *Server) runnerSummary(ctx context.Context) (any, error) {
 	return map[string]any{"total": len(runners), "statusCounts": statusCounts, "runners": runners}, nil
 }
 
+func (s *Server) runtimeRecoveryStatus(ctx context.Context) (any, error) {
+	const defaultLimit = 100
+	staleAfter := 2 * time.Minute
+	pipelineStatus, err := s.services.Pipelines.RuntimeStatus(ctx)
+	if err != nil {
+		return nil, err
+	}
+	deploymentStatus, err := s.services.Deployments.RuntimeStatus(ctx, staleAfter, defaultLimit)
+	if err != nil {
+		return nil, err
+	}
+	releaseStatus, err := s.services.Releases.RuntimeStatus(ctx, staleAfter, defaultLimit)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{
+		"config":       s.runtimeConfigSummary(),
+		"pipeline":     pipelineStatus,
+		"deployment":   deploymentStatus,
+		"release":      releaseStatus,
+		"staleAfter":   staleAfter.String(),
+		"limit":        defaultLimit,
+		"mutated":      false,
+		"readOnly":     true,
+		"nextSafeStep": "Use guarded runtime reconcile APIs or CLI outside MCP when recovery action is explicitly approved.",
+	}, nil
+}
+
 func (s *Server) securitySummary(ctx context.Context) (any, error) {
 	scans, err := s.services.Security.List(ctx)
 	if err != nil {
 		return nil, err
 	}
 	totalFindings := 0
+	severityCounts := map[string]int{}
+	categoryCounts := map[string]int{}
+	decisionCounts := map[string]int{}
 	for _, scan := range scans {
 		totalFindings += scan.Scan.Summary.Total
+		if scan.Policy.Decision != "" {
+			decisionCounts[string(scan.Policy.Decision)]++
+		}
+		for _, finding := range scan.Scan.Findings {
+			severityCounts[string(finding.Severity)]++
+			categoryCounts[string(finding.Category)]++
+		}
 	}
-	return map[string]any{"scanCount": len(scans), "findingCount": totalFindings, "scans": scans}, nil
+	return map[string]any{
+		"scanCount":            len(scans),
+		"findingCount":         totalFindings,
+		"severityCounts":       severityCounts,
+		"categoryCounts":       categoryCounts,
+		"policyDecisionCounts": decisionCounts,
+		"scans":                scans,
+		"mutated":              false,
+	}, nil
+}
+
+func (s *Server) securityFindings(ctx context.Context, input securityusecase.ListFindingsInput) (any, error) {
+	findings, err := s.services.Security.ListFindings(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	severityCounts := map[string]int{}
+	categoryCounts := map[string]int{}
+	for _, finding := range findings {
+		severityCounts[string(finding.Severity)]++
+		categoryCounts[string(finding.Category)]++
+	}
+	return map[string]any{
+		"filters": map[string]string{
+			"scanId":      input.ScanID,
+			"subjectType": string(input.SubjectType),
+			"subjectId":   input.SubjectID,
+			"severity":    string(input.Severity),
+			"category":    string(input.Category),
+		},
+		"summary": map[string]any{
+			"total":          len(findings),
+			"severityCounts": severityCounts,
+			"categoryCounts": categoryCounts,
+		},
+		"findings": findings,
+		"mutated":  false,
+	}, nil
+}
+
+func (s *Server) policyResultSummary(ctx context.Context, subjectType string, subjectID string) (any, error) {
+	scans, err := s.services.Security.ListScans(ctx, securityusecase.ListScansInput{
+		SubjectType: domainsecurity.SubjectType(subjectType),
+		SubjectID:   subjectID,
+	})
+	if err != nil {
+		return nil, err
+	}
+	decisionCounts := map[string]int{}
+	results := make([]map[string]any, 0, len(scans))
+	for _, scan := range scans {
+		decision := string(scan.Policy.Decision)
+		if decision == "" {
+			decision = "unknown"
+		}
+		decisionCounts[decision]++
+		results = append(results, map[string]any{
+			"scanId":       scan.Scan.ID,
+			"subjectType":  scan.Scan.SubjectType,
+			"subjectId":    scan.Scan.SubjectID,
+			"decision":     scan.Policy.Decision,
+			"reason":       scan.Policy.Reason,
+			"findingCount": scan.Scan.Summary.Total,
+			"evaluatedAt":  scan.Policy.EvaluatedAt,
+		})
+	}
+	return map[string]any{
+		"filters": map[string]string{
+			"subjectType": subjectType,
+			"subjectId":   subjectID,
+		},
+		"decisionCounts": decisionCounts,
+		"policyResults":  results,
+		"mutated":        false,
+	}, nil
 }
 
 func (s *Server) catalogSummary(ctx context.Context, orgID string, projectID string) (any, error) {
@@ -724,6 +866,7 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_plan_deployment_local":
 		return domainauth.PermissionDeploymentCreate
 	case "nivora_status",
+		"nivora_get_runtime_recovery_status",
 		"nivora_get_catalog_summary",
 		"nivora_list_pipeline_definitions",
 		"nivora_get_pipeline_definition",
@@ -737,6 +880,8 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_get_artifact",
 		"nivora_get_artifact_releases",
 		"nivora_get_runner_summary",
+		"nivora_list_security_findings",
+		"nivora_get_policy_result_summary",
 		"nivora_get_capability_status":
 		return domainauth.PermissionProjectRead
 	default:

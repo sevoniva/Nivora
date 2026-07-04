@@ -10,10 +10,12 @@ import (
 
 	"github.com/sevoniva/nivora/internal/app/runtime"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
+	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseusecase "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"gopkg.in/yaml.v3"
 )
 
@@ -293,6 +295,7 @@ func newMCPScenarioFixture(t *testing.T, ctx context.Context) *mcpScenarioFixtur
 	pipelineID := createScenarioPipeline(t, ctx, pipelines)
 	deploymentID := createScenarioDeployment(t, ctx, deployments)
 	releaseExecutionID := createScenarioReleaseExecution(t, ctx, releases)
+	createScenarioSecurityScan(t, ctx, security)
 
 	return &mcpScenarioFixture{
 		services: Services{
@@ -367,6 +370,18 @@ func createScenarioReleaseExecution(t *testing.T, ctx context.Context, service *
 		t.Fatalf("create release execution fixture: %v", err)
 	}
 	return record.Execution.ID
+}
+
+func createScenarioSecurityScan(t *testing.T, ctx context.Context, service *securityusecase.Service) {
+	t.Helper()
+	if _, err := service.Scan(ctx, securityusecase.ScanInput{
+		SubjectType: domainsecurity.SubjectManifest,
+		SubjectID:   "mcp-scenario-manifest",
+		Content:     "containers:\n- name: api\n  image: registry.example.invalid/team/api:latest\n  imagePullPolicy: Always\n  securityContext:\n    privileged: true\n",
+		ActorID:     "mcp-fixture",
+	}); err != nil {
+		t.Fatalf("create security scan fixture: %v", err)
+	}
 }
 
 func (f *mcpScenarioFixture) server(role string, authMode string) *Server {

@@ -9,12 +9,14 @@ import (
 	"github.com/sevoniva/nivora/internal/app/runtime"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
+	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
 func TestMCPInitializeJSONRPC(t *testing.T) {
@@ -35,7 +37,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://artifacts/{id}/releases", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results/summary", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
 		if !hasResource(resources, want) {
 			t.Fatalf("resource %s missing from %#v", want, resources)
 		}
@@ -49,7 +51,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 			t.Fatalf("blocked action tool %s was exposed", blocked)
 		}
 	}
-	for _, want := range []string{"nivora_status", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
+	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
 		if !hasTool(tools, want) {
 			t.Fatalf("tool %s missing from %#v", want, tools)
 		}
@@ -239,6 +241,79 @@ func TestMCPCatalogAndPipelineDefinitionsReadOnly(t *testing.T) {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("pipeline definition MCP output leaked sensitive value %q: %s", forbidden, body)
 		}
+	}
+}
+
+func TestMCPSecurityPolicyAndRuntimeReadOnly(t *testing.T) {
+	ctx := context.Background()
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	record, err := server.services.Security.Scan(ctx, securityusecase.ScanInput{
+		SubjectType: domainsecurity.SubjectManifest,
+		SubjectID:   "mcp-manifest-risk",
+		Content:     "containers:\n- name: api\n  image: registry.example.invalid/team/api:latest\n  imagePullPolicy: Always\n  securityContext:\n    privileged: true\n",
+		ActorID:     "mcp-fixture",
+	})
+	if err != nil {
+		t.Fatalf("create security scan fixture: %v", err)
+	}
+
+	summary, err := server.ReadResource(ctx, "nivora://security/summary")
+	if err != nil {
+		t.Fatalf("read security summary: %v", err)
+	}
+	if !strings.Contains(summary.Text, record.Scan.ID) || !strings.Contains(summary.Text, `"findingCount": 2`) || !strings.Contains(summary.Text, `"warn": 1`) {
+		t.Fatalf("security summary body = %s", summary.Text)
+	}
+
+	findingsResource, err := server.ReadResource(ctx, "nivora://security/findings")
+	if err != nil {
+		t.Fatalf("read security findings: %v", err)
+	}
+	if !strings.Contains(findingsResource.Text, "Privileged container requested") || !strings.Contains(findingsResource.Text, `"mutated": false`) {
+		t.Fatalf("security findings body = %s", findingsResource.Text)
+	}
+
+	findingsResult, err := server.CallTool(ctx, "nivora_list_security_findings", map[string]any{
+		"severity":      "High",
+		"authorization": "Bearer should-not-leak",
+	})
+	if err != nil {
+		t.Fatalf("security findings tool transport error: %v", err)
+	}
+	findingsBody := findingsResult.Content[0].Text
+	if findingsResult.IsError || !strings.Contains(findingsBody, "Privileged container requested") || strings.Contains(findingsBody, "latest image with Always pull policy") || !strings.Contains(findingsBody, `"mutated": false`) {
+		t.Fatalf("security findings tool result = %#v", findingsResult)
+	}
+	if strings.Contains(findingsBody, "should-not-leak") || strings.Contains(findingsBody, "Authorization: Bearer") {
+		t.Fatalf("security findings leaked sensitive value: %s", findingsBody)
+	}
+
+	policyResource, err := server.ReadResource(ctx, "nivora://policy/results/summary")
+	if err != nil {
+		t.Fatalf("read policy summary: %v", err)
+	}
+	if !strings.Contains(policyResource.Text, `"warn": 1`) || !strings.Contains(policyResource.Text, record.Scan.ID) || !strings.Contains(policyResource.Text, `"mutated": false`) {
+		t.Fatalf("policy summary body = %s", policyResource.Text)
+	}
+
+	policyResult, err := server.CallTool(ctx, "nivora_get_policy_result_summary", map[string]any{"subjectType": "manifest", "subjectId": "mcp-manifest-risk"})
+	if err != nil {
+		t.Fatalf("policy summary tool transport error: %v", err)
+	}
+	if policyResult.IsError || !strings.Contains(policyResult.Content[0].Text, `"warn": 1`) || !strings.Contains(policyResult.Content[0].Text, `"mutated": false`) {
+		t.Fatalf("policy summary tool result = %#v", policyResult)
+	}
+
+	runtimeResult, err := server.CallTool(ctx, "nivora_get_runtime_recovery_status", map[string]any{"token": "should-not-leak"})
+	if err != nil {
+		t.Fatalf("runtime recovery tool transport error: %v", err)
+	}
+	runtimeBody := runtimeResult.Content[0].Text
+	if runtimeResult.IsError || !strings.Contains(runtimeBody, `"pipeline"`) || !strings.Contains(runtimeBody, `"deployment"`) || !strings.Contains(runtimeBody, `"release"`) || !strings.Contains(runtimeBody, `"mutated": false`) {
+		t.Fatalf("runtime recovery tool result = %#v", runtimeResult)
+	}
+	if strings.Contains(runtimeBody, "should-not-leak") || strings.Contains(runtimeBody, "tokenHash") {
+		t.Fatalf("runtime recovery leaked sensitive value: %s", runtimeBody)
 	}
 }
 

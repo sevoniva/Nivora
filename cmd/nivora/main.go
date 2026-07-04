@@ -604,7 +604,121 @@ func newCloudCommand() *cobra.Command {
 
 func newCloudAccountCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "account", Short: "Cloud account utilities"}
+	cmd.AddCommand(newCloudAccountListCommand())
+	cmd.AddCommand(newCloudAccountCreateCommand())
+	cmd.AddCommand(newCloudAccountGetCommand())
 	cmd.AddCommand(newCloudAccountValidateCommand())
+	return cmd
+}
+
+func newCloudAccountListCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List cloud account metadata",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/cloud/accounts", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newCloudAccountCreateCommand() *cobra.Command {
+	var serverURL string
+	var name string
+	var provider string
+	var credentialRef string
+	var accountID string
+	var defaultRegion string
+	var endpoint string
+	var regions []string
+	var metadata map[string]string
+	cmd := &cobra.Command{
+		Use:   "create --name <name> --provider <provider>",
+		Short: "Create cloud account metadata using a CredentialRef",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if name == "" {
+				return fmt.Errorf("--name is required")
+			}
+			if provider == "" {
+				return fmt.Errorf("--provider is required")
+			}
+			config := map[string]any{"provider": provider}
+			if accountID != "" {
+				config["accountId"] = accountID
+			}
+			if defaultRegion != "" {
+				config["defaultRegion"] = defaultRegion
+			}
+			if endpoint != "" {
+				config["endpoint"] = endpoint
+			}
+			if credentialRef != "" {
+				config["credentialRef"] = credentialRef
+			}
+			if len(regions) > 0 {
+				config["regions"] = regions
+			}
+			if len(metadata) > 0 {
+				config["metadata"] = metadata
+			}
+			bodyMap := map[string]any{
+				"name":     name,
+				"provider": provider,
+				"config":   config,
+			}
+			if credentialRef != "" {
+				bodyMap["credentialRef"] = credentialRef
+			}
+			if len(metadata) > 0 {
+				bodyMap["metadata"] = metadata
+			}
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/cloud/accounts", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "cloud account display name")
+	cmd.Flags().StringVar(&provider, "provider", "", "cloud provider type: aws, aliyun, tencent, or generic")
+	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id for provider access; no secret value is accepted")
+	cmd.Flags().StringVar(&accountID, "account-id", "", "provider account id metadata")
+	cmd.Flags().StringVar(&defaultRegion, "default-region", "", "default region metadata")
+	cmd.Flags().StringVar(&endpoint, "endpoint", "", "optional provider API endpoint metadata")
+	cmd.Flags().StringSliceVar(&regions, "region", nil, "allowed or preferred region metadata; repeatable")
+	cmd.Flags().StringToStringVar(&metadata, "metadata", nil, "account metadata as key=value pairs")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newCloudAccountGetCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "get <id>",
+		Short: "Get cloud account metadata",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/cloud/accounts/"+url.PathEscape(args[0]), nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	return cmd
 }
 

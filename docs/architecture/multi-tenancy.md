@@ -37,7 +37,7 @@ The quota model tracks limits for:
 - runner heartbeat rate
 - job claim rate
 
-The current implementation exposes default quota and usage summaries through API/CLI and provides use-case checks for quota enforcement. Full persistence, distributed counters, and production rate limiting remain future work.
+The current implementation exposes quota get/set operations and usage summaries through API/CLI and provides use-case checks for quota enforcement. PostgreSQL-backed runtime mode can persist quota metadata. Distributed counters, production rate limiting, and billing remain future work.
 
 ## Non-Goals
 

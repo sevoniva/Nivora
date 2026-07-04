@@ -493,6 +493,69 @@ func newEvidenceExportCommand() *cobra.Command {
 func newQuotaCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "quota", Short: "Tenant quota utilities"}
 	cmd.AddCommand(newScopedGetCommand("view", "View quota for a scope", "/api/v1/tenancy/quota"))
+	cmd.AddCommand(newQuotaSetCommand())
+	return cmd
+}
+
+func newQuotaSetCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var scopeType string
+	var scopeID string
+	var maxConcurrentPipelineRuns int
+	var maxConcurrentDeploymentRuns int
+	var maxRunners int
+	var maxArtifactsTracked int
+	var maxLogStorageBytes int64
+	var apiTokenRequestsPerMinute int
+	var runnerHeartbeatPerMinute int
+	var jobClaimRequestsPerMinute int
+	var deploymentConcurrency int
+	var pipelineConcurrency int
+	cmd := &cobra.Command{
+		Use:   "set",
+		Short: "Set quota metadata for a tenant scope",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			bodyMap := map[string]any{
+				"scopeType": scopeType,
+				"scopeId":   scopeID,
+			}
+			setBodyInt(bodyMap, "maxConcurrentPipelineRuns", maxConcurrentPipelineRuns)
+			setBodyInt(bodyMap, "maxConcurrentDeploymentRuns", maxConcurrentDeploymentRuns)
+			setBodyInt(bodyMap, "maxRunners", maxRunners)
+			setBodyInt(bodyMap, "maxArtifactsTracked", maxArtifactsTracked)
+			setBodyInt64(bodyMap, "maxLogStorageBytes", maxLogStorageBytes)
+			setBodyInt(bodyMap, "apiTokenRequestsPerMinute", apiTokenRequestsPerMinute)
+			setBodyInt(bodyMap, "runnerHeartbeatPerMinute", runnerHeartbeatPerMinute)
+			setBodyInt(bodyMap, "jobClaimRequestsPerMinute", jobClaimRequestsPerMinute)
+			setBodyInt(bodyMap, "deploymentConcurrency", deploymentConcurrency)
+			setBodyInt(bodyMap, "pipelineConcurrency", pipelineConcurrency)
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/tenancy/quota", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&scopeType, "scope-type", "global", "tenant scope type")
+	cmd.Flags().StringVar(&scopeID, "scope-id", "", "tenant scope id")
+	cmd.Flags().IntVar(&maxConcurrentPipelineRuns, "max-concurrent-pipeline-runs", 0, "max concurrent PipelineRuns; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&maxConcurrentDeploymentRuns, "max-concurrent-deployment-runs", 0, "max concurrent DeploymentRuns; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&maxRunners, "max-runners", 0, "max registered runners; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&maxArtifactsTracked, "max-artifacts-tracked", 0, "max tracked artifacts; omit or set 0 to use server default")
+	cmd.Flags().Int64Var(&maxLogStorageBytes, "max-log-storage-bytes", 0, "max log storage bytes; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&apiTokenRequestsPerMinute, "api-token-requests-per-minute", 0, "API token request rate limit; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&runnerHeartbeatPerMinute, "runner-heartbeat-per-minute", 0, "runner heartbeat rate limit; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&jobClaimRequestsPerMinute, "job-claim-requests-per-minute", 0, "job claim rate limit; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&deploymentConcurrency, "deployment-concurrency", 0, "deployment concurrency limit; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&pipelineConcurrency, "pipeline-concurrency", 0, "pipeline concurrency limit; omit or set 0 to use server default")
 	return cmd
 }
 
@@ -697,6 +760,12 @@ func setBodyString(body map[string]any, key string, value string) {
 }
 
 func setBodyInt(body map[string]any, key string, value int) {
+	if value > 0 {
+		body[key] = value
+	}
+}
+
+func setBodyInt64(body map[string]any, key string, value int64) {
 	if value > 0 {
 		body[key] = value
 	}

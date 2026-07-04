@@ -26,6 +26,7 @@ import (
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
+	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
 	cloudusecase "github.com/sevoniva/nivora/internal/usecase/cloud"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
@@ -55,6 +56,36 @@ func NewPipelineServiceWithConfig(ctx context.Context, cfg config.Config) (*pipe
 		return nil, nil, err
 	}
 	return pipelineusecase.NewService(postgresrepo.NewPipelineStore(pool), runner, bus), pool.Close, nil
+}
+
+func NewCatalogService() *catalogusecase.Service {
+	return catalogusecase.NewService(catalogusecase.NewMemoryStore())
+}
+
+func NewCatalogServiceWithConfig(ctx context.Context, cfg config.Config) (*catalogusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewCatalogService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return catalogusecase.NewService(postgresrepo.NewCatalogStore(pool)), pool.Close, nil
+}
+
+func NewPipelineDefinitionCatalog() *pipelineusecase.DefinitionCatalog {
+	return pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore())
+}
+
+func NewPipelineDefinitionCatalogWithConfig(ctx context.Context, cfg config.Config) (*pipelineusecase.DefinitionCatalog, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewPipelineDefinitionCatalog(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return pipelineusecase.NewDefinitionCatalog(postgresrepo.NewPipelineDefinitionStore(pool)), pool.Close, nil
 }
 
 func NewDeploymentService() *deploymentusecase.Service {

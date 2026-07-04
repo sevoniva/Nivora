@@ -29,11 +29,41 @@ import (
 	"github.com/sevoniva/nivora/internal/version"
 )
 
-func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, tenancyService *tenancyusecase.Service, complianceService *complianceusecase.Service, pluginRegistry *pluginusecase.Registry) http.Handler {
+type Option func(*routeOptions)
+
+type routeOptions struct {
+	catalogService  *catalogusecase.Service
+	pipelineCatalog *pipelineusecase.DefinitionCatalog
+}
+
+func WithCatalogService(service *catalogusecase.Service) Option {
+	return func(options *routeOptions) {
+		if service != nil {
+			options.catalogService = service
+		}
+	}
+}
+
+func WithPipelineDefinitionCatalog(catalog *pipelineusecase.DefinitionCatalog) Option {
+	return func(options *routeOptions) {
+		if catalog != nil {
+			options.pipelineCatalog = catalog
+		}
+	}
+}
+
+func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, tenancyService *tenancyusecase.Service, complianceService *complianceusecase.Service, pluginRegistry *pluginusecase.Registry, opts ...Option) http.Handler {
 	r := chi.NewRouter()
 	runtimeCenter := runtimecenter.NewService(pipelineService, deploymentService, releaseService)
-	catalogService := catalogusecase.NewService(catalogusecase.NewMemoryStore())
-	pipelineCatalog := pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore())
+	routeConfig := routeOptions{
+		catalogService:  catalogusecase.NewService(catalogusecase.NewMemoryStore()),
+		pipelineCatalog: pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore()),
+	}
+	for _, opt := range opts {
+		opt(&routeConfig)
+	}
+	catalogService := routeConfig.catalogService
+	pipelineCatalog := routeConfig.pipelineCatalog
 	policyCatalog := policyusecase.NewService(policyusecase.NewMemoryStore())
 	artifactRegistryCatalog := artifactusecase.NewRegistryService(artifactusecase.NewRegistryMemoryStore())
 	integrationService := integrationusecase.NewService(pluginRegistry)

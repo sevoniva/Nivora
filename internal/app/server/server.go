@@ -58,6 +58,16 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 	cloudService := NewCloudService()
 	tenancyService := NewTenancyService()
 	pluginRegistry := NewPluginRegistry()
+	catalogService, closeCatalog, err := appruntime.NewCatalogServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeCatalog()
+	pipelineCatalog, closePipelineCatalog, err := appruntime.NewPipelineDefinitionCatalogWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closePipelineCatalog()
 	releaseService, closeRelease, err := appruntime.NewReleaseOrchestrationServiceWithConfig(ctx, cfg, artifactService, deploymentService)
 	if err != nil {
 		return err
@@ -68,7 +78,25 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer closeCompliance()
-	handler := routes.New(cfg, version.Current(), logger, pipelineService, deploymentService, artifactService, releaseService, securityService, credentialService, authService, approvalService, cloudService, tenancyService, complianceService, pluginRegistry)
+	handler := routes.New(
+		cfg,
+		version.Current(),
+		logger,
+		pipelineService,
+		deploymentService,
+		artifactService,
+		releaseService,
+		securityService,
+		credentialService,
+		authService,
+		approvalService,
+		cloudService,
+		tenancyService,
+		complianceService,
+		pluginRegistry,
+		routes.WithCatalogService(catalogService),
+		routes.WithPipelineDefinitionCatalog(pipelineCatalog),
+	)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.BindAddress,
 		Handler:           handler,

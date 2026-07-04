@@ -42,6 +42,13 @@ func TestPostgresIntegrationMigrationUpDown(t *testing.T) {
 		"runtime_release_plans",
 		"runtime_release_executions",
 		"runtime_release_execution_targets",
+		"catalog_orgs",
+		"catalog_projects",
+		"catalog_applications",
+		"catalog_environments",
+		"catalog_repositories",
+		"catalog_release_targets",
+		"pipeline_definitions",
 		"compliance_evidence_bundles",
 		"compliance_retention_policies",
 		"compliance_audit_records",
@@ -60,7 +67,7 @@ func TestPostgresIntegrationMigrationUpDown(t *testing.T) {
 	}
 
 	applyDownMigrations(t, db.pool)
-	for _, table := range []string{"runtime_pipeline_runs", "runtime_deployment_runs", "runtime_release_executions", "compliance_evidence_bundles"} {
+	for _, table := range []string{"runtime_pipeline_runs", "runtime_deployment_runs", "runtime_release_executions", "catalog_orgs", "pipeline_definitions", "compliance_evidence_bundles"} {
 		assertRelationMissing(t, db.pool, table)
 	}
 }

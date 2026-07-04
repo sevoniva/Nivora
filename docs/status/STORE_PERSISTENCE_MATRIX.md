@@ -1,6 +1,6 @@
 # Store Persistence Matrix
 
-Current maturity: **hardened beta-candidate (0.9.0-rc.1), not production-ready**. All 11 runtime stores have PostgreSQL implementations. Audit hash chaining is wired through the audit-producing store paths. Runtime store audit paths (pipeline/deployment/release) also keep their per-store audit tables.
+Current maturity: **hardened beta-candidate (0.9.0-rc.1), not production-ready**. The core runtime, governance, compliance, tenancy, catalog metadata, and Pipeline definition stores listed below have PostgreSQL implementations. Audit hash chaining is wired through the audit-producing store paths. Runtime store audit paths (pipeline/deployment/release) also keep their per-store audit tables.
 
 | Service | Store Interface | Memory Store | Postgres Store | Runtime Wiring | Migration | Tests | Production Risk |
 |---|---|---|---|---|---|---|---|
@@ -15,6 +15,8 @@ Current maturity: **hardened beta-candidate (0.9.0-rc.1), not production-ready**
 | Approval | `usecase/approval.Store` | `approval.NewMemoryStore()` | `postgres.NewApprovalStore(pool)` | `runtime.WithConfig` | 000009 | approval service tests, runtime test | Medium |
 | Cloud | `usecase/cloud.Store` | `cloud.NewMemoryStore()` | `postgres.NewCloudStore(pool)` | `runtime.WithConfig` | 000009 | cloud service tests, runtime test | Medium |
 | Tenancy | `usecase/tenancy.Store` | `tenancy.NewMemoryStore()` | `postgres.NewTenancyStore(pool)` | `runtime.WithConfig` | 000009 | tenancy service tests | Low |
+| Catalog | `usecase/catalog.Store` | `catalog.NewMemoryStore()` | `postgres.NewCatalogStore(pool)` | `runtime.WithConfig` | 000010 | catalog_store_test.go, runtime integration opt-in | Medium |
+| PipelineDefinitionCatalog | `usecase/pipeline.DefinitionCatalogStore` | `pipeline.NewDefinitionMemoryStore()` | `postgres.NewPipelineDefinitionStore(pool)` | `runtime.WithConfig` | 000010 | catalog_store_test.go, runtime integration opt-in | Medium |
 
 ## Postgres Integration Tests
 
@@ -37,3 +39,4 @@ All 9 audit-producing stores now produce hash-chained `compliance_audit_records`
 1. **Multi-process recovery not proven in CI**: Postgres integration tests exist but require a live database; CI job runs separately from `make verify`.
 2. **Runner sandboxing is config-level, not OS-level**: Workspace isolation, env blocklist, and process group cleanup are enforced, but no container/VM sandbox.
 3. **Production install smoke test not automated**: Helm templates validated statically (11/11 checks) but no automated install+healthcheck test exists.
+4. **Some catalogs remain memory-backed**: Policy catalog and artifact registry catalog runtime wiring still use memory stores.

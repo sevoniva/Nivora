@@ -12,6 +12,7 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
@@ -54,6 +55,65 @@ func TestPostgresIntegrationRuntimeBootstrapUsesPostgresStores(t *testing.T) {
 	}
 	if loaded.Run.ID != result.Record.Run.ID || loaded.Run.CorrelationID != "corr-runtime-bootstrap" {
 		t.Fatalf("runtime bootstrap did not persist pipeline run: %#v", loaded.Run)
+	}
+
+	catalog, closeCatalog, err := NewCatalogServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("bootstrap catalog service with postgres config: %v", err)
+	}
+	org, err := catalog.CreateOrg(ctx, catalogusecase.CreateOrgInput{Name: "Runtime Bootstrap"})
+	if err != nil {
+		closeCatalog()
+		t.Fatalf("create catalog org in postgres runtime: %v", err)
+	}
+	project, err := catalog.CreateProject(ctx, catalogusecase.CreateProjectInput{OrgID: org.ID, Name: "Runtime Project"})
+	if err != nil {
+		closeCatalog()
+		t.Fatalf("create catalog project in postgres runtime: %v", err)
+	}
+	closeCatalog()
+
+	catalog, closeCatalog, err = NewCatalogServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("restart catalog service with postgres config: %v", err)
+	}
+	reloadedProject, err := catalog.GetProject(ctx, project.ID)
+	closeCatalog()
+	if err != nil {
+		t.Fatalf("reload catalog project from restarted postgres runtime: %v", err)
+	}
+	if reloadedProject.OrgID != org.ID {
+		t.Fatalf("runtime bootstrap did not persist catalog project: %#v", reloadedProject)
+	}
+
+	pipelineCatalog, closePipelineCatalog, err := NewPipelineDefinitionCatalogWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("bootstrap pipeline definition catalog with postgres config: %v", err)
+	}
+	definition, err := pipelineCatalog.Create(ctx, pipelineusecase.DefinitionCreateInput{
+		ProjectID: project.ID,
+		Definition: pipelineusecase.Definition{APIVersion: "nivora.io/v1alpha1", Kind: "Pipeline", Metadata: pipelineusecase.Metadata{Name: "catalog-bootstrap"}, Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+			Name: "build",
+			Jobs: []pipelineusecase.Job{{Name: "echo", Executor: "shell", Steps: []pipelineusecase.Step{{Name: "say", Run: "printf durable"}}}},
+		}}}},
+	})
+	if err != nil {
+		closePipelineCatalog()
+		t.Fatalf("create pipeline definition in postgres runtime: %v", err)
+	}
+	closePipelineCatalog()
+
+	pipelineCatalog, closePipelineCatalog, err = NewPipelineDefinitionCatalogWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("restart pipeline definition catalog with postgres config: %v", err)
+	}
+	reloadedDefinition, err := pipelineCatalog.Get(ctx, definition.Pipeline.ID)
+	closePipelineCatalog()
+	if err != nil {
+		t.Fatalf("reload pipeline definition from restarted postgres runtime: %v", err)
+	}
+	if reloadedDefinition.Pipeline.ProjectID != project.ID || reloadedDefinition.Definition.Metadata.Name != "catalog-bootstrap" {
+		t.Fatalf("runtime bootstrap did not persist pipeline definition: %#v", reloadedDefinition)
 	}
 
 	prod := config.Default()

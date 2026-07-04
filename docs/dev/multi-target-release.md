@@ -50,7 +50,7 @@ These commands manage metadata only. They do not run apply, sync, remote host de
 - Parallel execution is future work.
 - Approval is a foundation gate.
 - Rollback readiness is target-level only through DeploymentRun rollback plans.
-- Some catalog services are still wired to in-memory stores in the HTTP runtime and are not production-ready.
+- Release target metadata is persisted when the server is configured with `database.runtime_store: postgres`. Memory mode remains available for local development, and target execution still depends on the DeploymentRun and ReleaseExecution foundations.
 
 ## Safety Rules
 

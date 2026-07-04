@@ -78,7 +78,7 @@ Current maturity: **hardened beta-candidate foundation**. Nivora is **not produc
 ## Phase 5: Alpha Release Hardening
 
 - Phase 5.0 prepares `v0.1.0-alpha.1` with a capability matrix, alpha demo guide, changelog, release checklist, version alignment, CI hardening, and documentation consistency review.
-- Phase 5.1 hardens the PostgreSQL persistence foundation for PipelineRun runtime state, ordered logs, events, audit records, runners, outbox records, idempotency keys, and recovery queries.
+- Phase 5.1 hardens the PostgreSQL persistence foundation for PipelineRun runtime state, ordered logs, events, audit records, runners, outbox records, idempotency keys, recovery queries, deployment/release runtime state, catalog metadata, and Pipeline definitions.
 - The alpha is for public architecture review, contributor onboarding, and local demos.
 - It is not a production GA release.
 

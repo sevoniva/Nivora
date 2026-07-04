@@ -8,7 +8,7 @@ The project records delivery intent and state across pipelines, releases, artifa
 
 Nivora is **not** Jenkins, Argo CD, Kubernetes, Harbor, a cloud control plane, or a scanner. Those systems remain separate; Nivora models and audits how delivery work moves through them.
 
-Current maturity: **hardened beta-candidate foundation**. Nivora is **not production-ready**. The repository has working backend foundations, PostgreSQL-backed stores for core runtime areas, guarded deployment operations, RBAC tests, packaging assets, and verification scripts. Production use still needs more validation around runner isolation, live install/restore drills, external integrations, and production-scale operations.
+Current maturity: **hardened beta-candidate foundation**. Nivora is **not production-ready**. The repository has working backend foundations, PostgreSQL-backed stores for core runtime areas and control-plane catalog metadata, guarded deployment operations, RBAC tests, packaging assets, and verification scripts. Production use still needs more validation around runner isolation, live install/restore drills, external integrations, and production-scale operations.
 
 Future `v1.0.0` documents are planning checklists, not proof that GA has been reached. The current source of truth is [Capability Status](docs/status/CAPABILITY_STATUS.md), with historical audit context in [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md).
 
@@ -21,7 +21,7 @@ Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/sta
 | PipelineRun runtime | Implemented for local shell execution; not a full workflow engine |
 | DeploymentRun runtime | Partial; YAML dry-run, guarded apply, inventory, health, diff, audit, and PostgreSQL persistence foundations exist |
 | Release and ReleaseExecution | Partial; sequential orchestration and PostgreSQL persistence foundations exist |
-| Release target catalog | Foundation; `/api/v1/release-targets` and `nivora target` manage target metadata with unsafe operations disabled by default |
+| Release target catalog | Foundation; `/api/v1/release-targets` and `nivora target` manage target metadata with PostgreSQL persistence in configured server mode and unsafe operations disabled by default |
 | Runner protocol | Partial; tokens, heartbeat, claim, logs, status, and isolation profiles exist; OS-level sandboxing is still operator work |
 | Kubernetes YAML | Experimental guarded apply/rollback foundation; no default destructive behavior |
 | GitOps / Argo CD | Experimental planning/status/guarded sync foundation; no production Argo automation |

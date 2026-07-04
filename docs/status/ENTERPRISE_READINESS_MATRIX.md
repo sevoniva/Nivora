@@ -75,8 +75,8 @@ No row in this matrix should be read as a GA production claim.
 | Policy gates | foundation | built-in rules | policy tests | policy docs | OPA/Kyverno not integrated | Policy decision persistence e2e | Security |
 | Approval gates | foundation | approval usecase/routes | approval tests | approval docs | Resume workflow incomplete | Approval resume/reject e2e | Governance |
 | Change windows | foundation | evaluator/routes | evaluator tests | change window docs | Timezone/holiday rules basic | Window boundary tests | Governance |
-| PostgreSQL persistence | beta | 11 stores + migrations | Postgres integration | database docs | Full live recovery still expanding | Mandatory release gate for integration job | Database |
-| Migrations | beta | migrations 000001-000009 | up/down tests | persistence docs | Backward compatibility not fully proven | Migration compatibility matrix | Database |
+| PostgreSQL persistence | beta | Runtime/governance/catalog stores + migrations | Postgres integration | database docs | Full live recovery still expanding; policy and artifact registry catalogs still memory-backed | Mandatory release gate for integration job | Database |
+| Migrations | beta | migrations 000001-000010 | up/down tests | persistence docs | Backward compatibility not fully proven | Migration compatibility matrix | Database |
 | Migration rollback | foundation | down files and tests | migration up/down test | database docs | Data-preserving rollback not guaranteed | Release-specific rollback guidance | Database |
 | Backup | documented-only | backup scripts/docs | optional smoke | backup docs | Full backup automation not CI gate | Automated backup/restore drill | Ops |
 | Restore | documented-only | restore docs/scripts | optional smoke | restore docs | Full restore drill limited | Restore job in integration profile | Ops |

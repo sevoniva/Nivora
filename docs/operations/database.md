@@ -1,6 +1,6 @@
 # Database Operations
 
-Nivora uses PostgreSQL as the target source of truth. Local demos still run with in-memory stores by default, but the runtime now has PostgreSQL-backed repository foundations for PipelineRun, DeploymentRun, release artifact binding, ReleasePlan, and ReleaseExecution state.
+Nivora uses PostgreSQL as the target source of truth. Local demos still run with in-memory stores by default, but the runtime now has PostgreSQL-backed repository foundations for PipelineRun, DeploymentRun, release artifact binding, ReleasePlan, ReleaseExecution, catalog metadata, and Pipeline definition state.
 
 Nivora is not production-ready.
 
@@ -17,6 +17,9 @@ Current migration groups:
 - `000005_runner_fleet`: runner token metadata, capabilities, max concurrency, last seen time, and runner fleet indexes.
 - `000006_performance_indexes`: query-shape indexes for list, log, event, audit, runner, lease, and outbox paths.
 - `000007_deployment_release_runtime`: DeploymentRun, DeploymentPlan/resource/log/event/audit, Release, ReleaseArtifact, ReleasePlan, and ReleaseExecution runtime tables.
+- `000008_compliance_audit_evidence`: compliance audit records, evidence bundles, policy results, approval decisions, and retention policy tables.
+- `000009_governance_persistence`: auth, credential, security, approval, cloud, tenancy, and governance audit tables.
+- `000010_catalog_persistence`: org, project, application, environment, repository, release target, and Pipeline definition catalog tables.
 
 Run migrations with:
 
@@ -68,6 +71,13 @@ The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to ma
 - `runtime_release_execution_targets`
 - `runtime_release_execution_events`
 - `runtime_release_execution_audit_logs`
+- `catalog_orgs`
+- `catalog_projects`
+- `catalog_applications`
+- `catalog_environments`
+- `catalog_repositories`
+- `catalog_release_targets`
+- `pipeline_definitions`
 
 ## Operational Notes
 
@@ -79,11 +89,13 @@ The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to ma
 - `runtime_runners.max_concurrency` and `capabilities` support safer job claim decisions.
 - `runtime_pipeline_runs.version`, `runtime_job_runs.version`, and `runtime_runners.version` provide optimistic-locking-friendly fields for later hardening.
 - Log chunks are ordered by `(pipeline_run_id, sequence)`.
+- Catalog records are persisted only when the server is configured with `database.runtime_store: postgres`; memory mode remains available for local development and unit tests.
 - Secret values must never be stored in runtime logs, events, audit records, or idempotency request hashes.
 
 ## Not Yet Complete
 
 - The default local server still uses in-memory stores. Set `database.runtime_store: postgres` to use the runtime PostgreSQL stores.
 - DeploymentRun and ReleaseExecution persistence is a foundation: it stores durable aggregate records and query tables, but worker recovery policy and idempotency at every API boundary still need further hardening.
-- Credential metadata, PolicyResult, approval, notification, and tamper-evident evidence persistence remain future work.
+- Catalog persistence covers org/project/application/environment/repository/release-target metadata and Pipeline definitions. Policy catalog and artifact registry catalog wiring are still memory-backed in the current server runtime.
+- Credential metadata, notification state, and more complete production restore drills remain future work.
 - Phase 8.2 documents HA, backup, and restore procedures, but Nivora still does not automate them or claim production readiness.

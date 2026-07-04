@@ -262,16 +262,18 @@ func projectIDFromRequest(r *http.Request) string {
 
 func GetDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
-		respondDeploymentResult(w, r, record, err)
+		record, ok := getAuthorizedDeploymentRecord(w, r, service)
+		if !ok {
+			return
+		}
+		RespondJSON(w, http.StatusOK, record)
 	}
 }
 
 func GetDeploymentPlan(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
-		if err != nil {
-			respondDeploymentResult(w, r, nil, err)
+		record, ok := getAuthorizedDeploymentRecord(w, r, service)
+		if !ok {
 			return
 		}
 		RespondJSON(w, http.StatusOK, record.Plan)
@@ -280,6 +282,9 @@ func GetDeploymentPlan(service *deploymentusecase.Service) http.HandlerFunc {
 
 func GetDeploymentHosts(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		hosts, err := service.Hosts(r.Context(), chi.URLParam(r, "id"))
 		respondDeploymentResult(w, r, hosts, err)
 	}
@@ -287,9 +292,8 @@ func GetDeploymentHosts(service *deploymentusecase.Service) http.HandlerFunc {
 
 func GetDeploymentGitOpsPlan(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
-		if err != nil {
-			respondDeploymentResult(w, r, nil, err)
+		record, ok := getAuthorizedDeploymentRecord(w, r, service)
+		if !ok {
 			return
 		}
 		RespondJSON(w, http.StatusOK, record.GitOpsPlan)
@@ -298,9 +302,8 @@ func GetDeploymentGitOpsPlan(service *deploymentusecase.Service) http.HandlerFun
 
 func GetDeploymentArgoCDStatus(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
-		if err != nil {
-			respondDeploymentResult(w, r, nil, err)
+		record, ok := getAuthorizedDeploymentRecord(w, r, service)
+		if !ok {
 			return
 		}
 		RespondJSON(w, http.StatusOK, record.ArgoCD)
@@ -309,6 +312,9 @@ func GetDeploymentArgoCDStatus(service *deploymentusecase.Service) http.HandlerF
 
 func SyncDeploymentArgoCD(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		var req portargocd.SyncRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must include allowSync and confirmed"})
@@ -358,9 +364,8 @@ func SyncArgoCDApplication(service *deploymentusecase.Service) http.HandlerFunc 
 
 func GetDeploymentDiff(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
-		if err != nil {
-			respondDeploymentResult(w, r, nil, err)
+		record, ok := getAuthorizedDeploymentRecord(w, r, service)
+		if !ok {
 			return
 		}
 		RespondJSON(w, http.StatusOK, record.GitOpsDiff)
@@ -369,6 +374,9 @@ func GetDeploymentDiff(service *deploymentusecase.Service) http.HandlerFunc {
 
 func GetDeploymentLogs(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		logs, err := service.Logs(r.Context(), chi.URLParam(r, "id"))
 		if respondPaginated(w, r, logs, err) {
 			return
@@ -379,6 +387,9 @@ func GetDeploymentLogs(service *deploymentusecase.Service) http.HandlerFunc {
 
 func GetDeploymentResources(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		resources, err := service.Resources(r.Context(), chi.URLParam(r, "id"))
 		respondDeploymentResult(w, r, resources, err)
 	}
@@ -386,6 +397,9 @@ func GetDeploymentResources(service *deploymentusecase.Service) http.HandlerFunc
 
 func GetDeploymentHealth(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		health, err := service.Health(r.Context(), chi.URLParam(r, "id"))
 		respondDeploymentResult(w, r, health, err)
 	}
@@ -393,6 +407,9 @@ func GetDeploymentHealth(service *deploymentusecase.Service) http.HandlerFunc {
 
 func GetDeploymentRuntimeDiff(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		diff, err := service.Diff(r.Context(), chi.URLParam(r, "id"))
 		respondDeploymentResult(w, r, diff, err)
 	}
@@ -400,6 +417,9 @@ func GetDeploymentRuntimeDiff(service *deploymentusecase.Service) http.HandlerFu
 
 func GetDeploymentManifestSnapshot(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		snapshot, err := service.Snapshot(r.Context(), chi.URLParam(r, "id"))
 		respondDeploymentResult(w, r, snapshot, err)
 	}
@@ -407,6 +427,9 @@ func GetDeploymentManifestSnapshot(service *deploymentusecase.Service) http.Hand
 
 func GetDeploymentRollbackPlan(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		plan, err := service.RollbackPlan(r.Context(), chi.URLParam(r, "id"))
 		respondDeploymentResult(w, r, plan, err)
 	}
@@ -418,6 +441,9 @@ type deploymentRollbackRequest struct {
 
 func RollbackDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		var req deploymentRollbackRequest
 		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must include confirm"})
@@ -437,6 +463,9 @@ func RollbackDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc 
 
 func GetDeploymentEvents(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		events, err := service.Events(r.Context(), chi.URLParam(r, "id"))
 		if respondPaginated(w, r, events, err) {
 			return
@@ -447,6 +476,9 @@ func GetDeploymentEvents(service *deploymentusecase.Service) http.HandlerFunc {
 
 func GetDeploymentTimeline(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		timeline, err := service.Timeline(r.Context(), chi.URLParam(r, "id"))
 		if respondPaginated(w, r, timeline, err) {
 			return
@@ -457,9 +489,8 @@ func GetDeploymentTimeline(service *deploymentusecase.Service) http.HandlerFunc 
 
 func GetDeploymentSecurity(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
-		if err != nil {
-			respondDeploymentResult(w, r, nil, err)
+		record, ok := getAuthorizedDeploymentRecord(w, r, service)
+		if !ok {
 			return
 		}
 		RespondJSON(w, http.StatusOK, record.Security)
@@ -468,6 +499,9 @@ func GetDeploymentSecurity(service *deploymentusecase.Service) http.HandlerFunc 
 
 func CancelDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		record, err := service.Cancel(r.Context(), chi.URLParam(r, "id"), "")
 		respondDeploymentResult(w, r, record, err)
 	}
@@ -475,6 +509,9 @@ func CancelDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 
 func ResumeDeploymentRunAfterApproval(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		var approval domainapproval.ApprovalRequest
 		if err := json.NewDecoder(r.Body).Decode(&approval); err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an approval request"})
@@ -482,6 +519,41 @@ func ResumeDeploymentRunAfterApproval(service *deploymentusecase.Service) http.H
 		}
 		record, err := service.ApplyApprovalDecision(r.Context(), chi.URLParam(r, "id"), approval, "")
 		respondDeploymentResult(w, r, record, err)
+	}
+}
+
+func getAuthorizedDeploymentRecord(w http.ResponseWriter, r *http.Request, service *deploymentusecase.Service) (deploymentusecase.RunRecord, bool) {
+	record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		respondDeploymentResult(w, r, nil, err)
+		return deploymentusecase.RunRecord{}, false
+	}
+	if !deploymentRecordInRequestScope(r, record) {
+		RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{
+			Code:    "forbidden",
+			Message: "deployment run is outside requester scope",
+			Path:    r.URL.Path,
+		})
+		return deploymentusecase.RunRecord{}, false
+	}
+	return record, true
+}
+
+func deploymentRecordInRequestScope(r *http.Request, record deploymentusecase.RunRecord) bool {
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeType == "" {
+		return true
+	}
+	if scopeID == "" {
+		return false
+	}
+	switch scopeType {
+	case tenant.ScopeProject:
+		return record.Environment.ProjectID == scopeID || record.Target.ProjectID == scopeID
+	case tenant.ScopeEnvironment:
+		return record.Environment.ID == scopeID || record.Target.EnvironmentID == scopeID || record.Run.EnvironmentID == scopeID
+	default:
+		return false
 	}
 }
 

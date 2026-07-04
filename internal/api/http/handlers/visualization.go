@@ -55,9 +55,8 @@ func ListVisualizationSurfaces() http.HandlerFunc {
 
 func GetVisualizationPipelineDAG(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
-		if err != nil {
-			respondVisualizationError(w, r, err)
+		record, ok := getAuthorizedPipelineRecord(w, r, service)
+		if !ok {
 			return
 		}
 		nodes, edges := pipelineDAG(record)
@@ -67,6 +66,9 @@ func GetVisualizationPipelineDAG(service *pipelineusecase.Service) http.HandlerF
 
 func GetVisualizationPipelineTimeline(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {
+			return
+		}
 		timeline, err := service.Timeline(r.Context(), chi.URLParam(r, "id"))
 		if err != nil {
 			respondVisualizationError(w, r, err)
@@ -78,9 +80,8 @@ func GetVisualizationPipelineTimeline(service *pipelineusecase.Service) http.Han
 
 func GetVisualizationPipelineSummary(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
-		if err != nil {
-			respondVisualizationError(w, r, err)
+		record, ok := getAuthorizedPipelineRecord(w, r, service)
+		if !ok {
 			return
 		}
 		RespondJSON(w, http.StatusOK, pipelineSummary(record))
@@ -89,6 +90,9 @@ func GetVisualizationPipelineSummary(service *pipelineusecase.Service) http.Hand
 
 func GetVisualizationDeploymentTimeline(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		timeline, err := service.Timeline(r.Context(), chi.URLParam(r, "id"))
 		if err != nil {
 			respondVisualizationError(w, r, err)
@@ -100,6 +104,9 @@ func GetVisualizationDeploymentTimeline(service *deploymentusecase.Service) http
 
 func GetVisualizationDeploymentResources(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		resources, err := service.Resources(r.Context(), chi.URLParam(r, "id"))
 		if err != nil {
 			respondVisualizationError(w, r, err)
@@ -111,6 +118,9 @@ func GetVisualizationDeploymentResources(service *deploymentusecase.Service) htt
 
 func GetVisualizationDeploymentDiff(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		diff, err := service.Diff(r.Context(), chi.URLParam(r, "id"))
 		if err != nil {
 			respondVisualizationError(w, r, err)
@@ -122,6 +132,9 @@ func GetVisualizationDeploymentDiff(service *deploymentusecase.Service) http.Han
 
 func GetVisualizationDeploymentHealth(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedDeploymentRecord(w, r, service); !ok {
+			return
+		}
 		health, err := service.Health(r.Context(), chi.URLParam(r, "id"))
 		if err != nil {
 			respondVisualizationError(w, r, err)
@@ -137,9 +150,8 @@ func GetVisualizationDeploymentHealth(service *deploymentusecase.Service) http.H
 func GetVisualizationReleaseOverview(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		releaseID := chi.URLParam(r, "id")
-		plan, err := service.GetPlan(r.Context(), releaseID)
-		if err != nil {
-			respondVisualizationError(w, r, err)
+		plan, ok := getAuthorizedReleasePlan(w, r, service)
+		if !ok {
 			return
 		}
 		executions, err := service.ListExecutions(r.Context(), releaseID)
@@ -147,6 +159,7 @@ func GetVisualizationReleaseOverview(service *releaseorchestration.Service) http
 			respondVisualizationError(w, r, err)
 			return
 		}
+		executions = filterReleaseExecutionsForRequest(r, executions)
 		RespondJSON(w, http.StatusOK, map[string]any{
 			"release":    plan.Release,
 			"plan":       plan.Plan,
@@ -158,6 +171,9 @@ func GetVisualizationReleaseOverview(service *releaseorchestration.Service) http
 
 func GetVisualizationReleaseExecutionTimeline(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedReleaseExecutionByIDParam(w, r, service, "id"); !ok {
+			return
+		}
 		timeline, err := service.Timeline(r.Context(), chi.URLParam(r, "id"))
 		if err != nil {
 			respondVisualizationError(w, r, err)
@@ -169,6 +185,9 @@ func GetVisualizationReleaseExecutionTimeline(service *releaseorchestration.Serv
 
 func GetVisualizationReleaseExecutionTargets(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedReleaseExecutionByIDParam(w, r, service, "id"); !ok {
+			return
+		}
 		targets, err := service.Targets(r.Context(), chi.URLParam(r, "id"))
 		if err != nil {
 			respondVisualizationError(w, r, err)

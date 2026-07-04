@@ -43,7 +43,7 @@ Auth modes:
 | GET | `/api/v1/pipelines`, `/api/v1/pipelines/{id}` | `project.read` | project/pipeline | user/service account | yes | no | yes | Foundation pipeline definition catalog. |
 | POST | `/api/v1/pipelines` | `project.write` | project/pipeline | user/service account | yes | no | yes | Creates a validated Pipeline definition record; does not execute it. |
 | PATCH/DELETE | `/api/v1/pipelines/{id}` | `project.write` | project/pipeline | user/service account | yes | no | yes | Update can create a new definition version; delete disables instead of hard-deleting. |
-| GET/POST | `/api/v1/pipeline-runs*` | `project.read` for list, `pipeline.run` for create/cancel | project | user/service account | yes | no | yes | Shell executor is not a sandbox. |
+| GET/POST | `/api/v1/pipeline-runs*` | `project.read` for list, `pipeline.run` for create/cancel | project | user/service account | yes | no | yes | Shell executor is not a sandbox; run detail/log/event/timeline reads are guarded by stored project scope. |
 | GET | `/api/v1/runners`, `/api/v1/runners/{id}` | `runner.manage` | runner group/project | user/service account | yes | no | yes | Runner metadata includes token metadata only, never token hashes/raw values. |
 | POST | `/api/v1/runners/register`, `/api/v1/runners/{id}/token/*`, `/api/v1/runners/offline-detect` | `runner.manage` | runner group/project | user/service account | yes | no | yes | Raw runner token returned only at registration/rotation. |
 | POST | `/api/v1/runners/{id}/heartbeat` | runner token for same runner | runner | runner | yes | yes | no | Runner token scoped to URL runner id and validated by usecase. |
@@ -51,7 +51,7 @@ Auth modes:
 | POST | `/api/v1/runners/{id}/jobs/{job_id}/logs` | runner token and job ownership | runner/job | runner | yes | yes | no | Runner cannot append logs to unrelated jobs. |
 | POST | `/api/v1/runners/{id}/jobs/{job_id}/status` | runner token and job ownership | runner/job | runner | yes | yes | no | Runner cannot update unrelated jobs. |
 | POST | `/api/v1/jobs/{id}/logs`, `/api/v1/jobs/{id}/status` | `runner.manage` | runner/job | user/service account | yes | no | yes | Admin compatibility endpoints. |
-| GET/POST | `/api/v1/releases*` | authenticated reads; `release.create` for create/plan/deploy | release/project | user/service account | yes | no | yes | ReleaseExecution remains foundation-level. |
+| GET/POST | `/api/v1/releases*` | authenticated reads; `release.create` for create/plan/deploy | release/project | user/service account | yes | no | yes | ReleaseExecution remains foundation-level; execution detail/timeline/target reads are guarded by stored project/environment scope. |
 | POST | `/api/v1/releases/executions/{execution_id}/cancel` | `deployment.cancel` | release execution/project | user/service account | yes | no | yes | Cancels a ReleaseExecution; now covered by route-level RBAC tests. |
 | POST | `/api/v1/releases/executions/{execution_id}/resume` | `deployment.approve` | release execution/approval | user/service account | yes | no | yes | Applies an approval decision to resume or stop a ReleaseExecution; now covered by route-level RBAC tests. |
 | POST | `/api/v1/releases/{id}/evidence` | `audit.read` | release/audit | user/service account | yes | no | yes | Generates a release evidence bundle; does not deploy or mutate ReleaseExecution state. |
@@ -59,7 +59,7 @@ Auth modes:
 | GET | `/api/v1/evidence/bundles/{id}` | `audit.read` | audit/evidence | user/service account | yes | no | yes | Reads a persisted evidence bundle; secret-like values are redacted. |
 | GET | `/api/v1/artifacts`, `/api/v1/artifacts/{id}`, `/api/v1/artifacts/{id}/releases` | `project.read` | release/artifact | user/service account | yes | no | yes | Read-only inventory derived from release bindings; not an external registry crawl. |
 | GET/POST/PATCH/DELETE | `/api/v1/artifact-registries*` | `project.read` for list/get; `credential.manage` for create/update/disable | project/credential | user/service account | yes | no | yes | Registry records contain CredentialRef metadata only; no registry secret values. |
-| GET/POST | `/api/v1/deployments*` | authenticated reads; `deployment.create`, `deployment.cancel`, or `deployment.approve` for mutations | environment/target | user/service account | yes | no | yes | Apply/sync/rollback remain guarded and not default. |
+| GET/POST | `/api/v1/deployments*` | authenticated reads; `deployment.create`, `deployment.cancel`, or `deployment.approve` for mutations | environment/target | user/service account | yes | no | yes | Apply/sync/rollback remain guarded and not default; run detail/log/event/timeline/resource reads are guarded by stored project/environment scope. |
 | GET/POST | `/api/v1/host-groups`, `/api/v1/deployments/host/plan` | `environment.read`, `environment.write`, `deployment.create` | environment | user/service account | yes | no | yes | Remote host deploy is disabled by default. |
 | GET | `/api/v1/integrations` | `project.read` | system/project | user/service account | yes | no | yes | Read-only adapter/plugin capability index; skeleton/noop/foundation entries are labeled. |
 | GET/POST | `/api/v1/integrations/argocd/applications/*` | `deployment.create` | environment/target | user/service account | yes | no | yes | Argo sync is guarded; no production automation claim. |
@@ -74,7 +74,7 @@ Auth modes:
 | GET | `/api/v1/events`, `/api/v1/logs` | `project.read` | project/runtime | user/service account | yes | no | yes | Aggregate read-only runtime observability paths; scope filtering remains foundation-level. |
 | POST | `/api/v1/retention-policy` | `policy.manage` | org/project/environment | user/service account | yes | no | yes | Retention mutation is policy-sensitive. |
 | GET | `/api/v1/visualization` | `project.read` | read model | user/service account | yes | no | yes | Read-only backend visualization API index. |
-| GET | `/api/v1/visualization/*` | authenticated; audit timeline requires `audit.read` | read model | user/service account | yes | no | yes | Backend visualization only, no frontend production claim. |
+| GET | `/api/v1/visualization/*` | authenticated; audit timeline requires `audit.read` | read model | user/service account | yes | no | yes | Backend visualization only; PipelineRun, DeploymentRun, and ReleaseExecution ID reads are guarded by stored scope. No frontend production claim. |
 | GET/POST | `/api/v1/plugins*` | authenticated foundation routes | system | user/service account | yes | no | yes | Registry/capability metadata only; no unsafe dynamic loading. |
 | GET/POST | `/api/v1/tenancy/*` | authenticated read; `project.write` for quota mutation | org/project | user/service account | yes | no | yes | Quotas are foundation-level. |
 

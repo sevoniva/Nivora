@@ -65,27 +65,39 @@ func releaseProjectIDFromRequest(r *http.Request) string {
 
 func GetReleasePlan(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.GetPlan(r.Context(), chi.URLParam(r, "id"))
-		respondReleaseOrchestrationResult(w, r, record, err)
+		record, ok := getAuthorizedReleasePlan(w, r, service)
+		if !ok {
+			return
+		}
+		RespondJSON(w, http.StatusOK, record)
 	}
 }
 
 func ListReleaseExecutions(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		records, err := service.ListExecutions(r.Context(), chi.URLParam(r, "id"))
+		if err == nil {
+			records = filterReleaseExecutionsForRequest(r, records)
+		}
 		respondReleaseOrchestrationResult(w, r, records, err)
 	}
 }
 
 func GetReleaseExecution(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.GetExecution(r.Context(), chi.URLParam(r, "execution_id"))
-		respondReleaseOrchestrationResult(w, r, record, err)
+		record, ok := getAuthorizedReleaseExecution(w, r, service)
+		if !ok {
+			return
+		}
+		RespondJSON(w, http.StatusOK, record)
 	}
 }
 
 func GetReleaseExecutionTimeline(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedReleaseExecution(w, r, service); !ok {
+			return
+		}
 		timeline, err := service.Timeline(r.Context(), chi.URLParam(r, "execution_id"))
 		respondReleaseOrchestrationResult(w, r, timeline, err)
 	}
@@ -93,6 +105,9 @@ func GetReleaseExecutionTimeline(service *releaseorchestration.Service) http.Han
 
 func GetReleaseExecutionTargets(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedReleaseExecution(w, r, service); !ok {
+			return
+		}
 		targets, err := service.Targets(r.Context(), chi.URLParam(r, "execution_id"))
 		respondReleaseOrchestrationResult(w, r, targets, err)
 	}
@@ -100,6 +115,9 @@ func GetReleaseExecutionTargets(service *releaseorchestration.Service) http.Hand
 
 func CancelReleaseExecution(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedReleaseExecution(w, r, service); !ok {
+			return
+		}
 		record, err := service.Cancel(r.Context(), chi.URLParam(r, "execution_id"), "")
 		respondReleaseOrchestrationResult(w, r, record, err)
 	}
@@ -107,6 +125,9 @@ func CancelReleaseExecution(service *releaseorchestration.Service) http.HandlerF
 
 func ResumeReleaseExecutionAfterApproval(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedReleaseExecution(w, r, service); !ok {
+			return
+		}
 		var approval domainapproval.ApprovalRequest
 		if err := json.NewDecoder(r.Body).Decode(&approval); err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an approval request"})
@@ -119,12 +140,105 @@ func ResumeReleaseExecutionAfterApproval(service *releaseorchestration.Service) 
 
 func GetReleaseSecurity(service *releaseorchestration.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.GetPlan(r.Context(), chi.URLParam(r, "id"))
-		if err != nil {
-			respondReleaseOrchestrationResult(w, r, nil, err)
+		record, ok := getAuthorizedReleasePlan(w, r, service)
+		if !ok {
 			return
 		}
 		RespondJSON(w, http.StatusOK, record.Security)
+	}
+}
+
+func getAuthorizedReleasePlan(w http.ResponseWriter, r *http.Request, service *releaseorchestration.Service) (releaseorchestration.PlanRecord, bool) {
+	record, err := service.GetPlan(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		respondReleaseOrchestrationResult(w, r, nil, err)
+		return releaseorchestration.PlanRecord{}, false
+	}
+	if !releasePlanInRequestScope(r, record.Plan) {
+		RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{
+			Code:    "forbidden",
+			Message: "release plan is outside requester scope",
+			Path:    r.URL.Path,
+		})
+		return releaseorchestration.PlanRecord{}, false
+	}
+	return record, true
+}
+
+func getAuthorizedReleaseExecution(w http.ResponseWriter, r *http.Request, service *releaseorchestration.Service) (releaseorchestration.ExecutionRecord, bool) {
+	return getAuthorizedReleaseExecutionByIDParam(w, r, service, "execution_id")
+}
+
+func getAuthorizedReleaseExecutionByIDParam(w http.ResponseWriter, r *http.Request, service *releaseorchestration.Service, param string) (releaseorchestration.ExecutionRecord, bool) {
+	record, err := service.GetExecution(r.Context(), chi.URLParam(r, param))
+	if err != nil {
+		respondReleaseOrchestrationResult(w, r, nil, err)
+		return releaseorchestration.ExecutionRecord{}, false
+	}
+	if !releaseExecutionInRequestScope(r, record) {
+		RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{
+			Code:    "forbidden",
+			Message: "release execution is outside requester scope",
+			Path:    r.URL.Path,
+		})
+		return releaseorchestration.ExecutionRecord{}, false
+	}
+	return record, true
+}
+
+func filterReleaseExecutionsForRequest(r *http.Request, records []releaseorchestration.ExecutionRecord) []releaseorchestration.ExecutionRecord {
+	scopeType, _ := TenantScopeFilter(r)
+	if scopeType == "" {
+		return records
+	}
+	filtered := make([]releaseorchestration.ExecutionRecord, 0, len(records))
+	for _, record := range records {
+		if releaseExecutionInRequestScope(r, record) {
+			filtered = append(filtered, record)
+		}
+	}
+	return filtered
+}
+
+func releaseExecutionInRequestScope(r *http.Request, record releaseorchestration.ExecutionRecord) bool {
+	if releasePlanInRequestScope(r, record.Plan) {
+		return true
+	}
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeType == "" {
+		return true
+	}
+	return scopeType == tenant.ScopeEnvironment && scopeID != "" && record.Execution.EnvironmentID == scopeID
+}
+
+func releasePlanInRequestScope(r *http.Request, plan releaseorchestration.ReleasePlan) bool {
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeType == "" {
+		return true
+	}
+	if scopeID == "" {
+		return false
+	}
+	switch scopeType {
+	case tenant.ScopeProject:
+		for _, target := range plan.Targets {
+			if target.ProjectID == scopeID {
+				return true
+			}
+		}
+		return false
+	case tenant.ScopeEnvironment:
+		if plan.EnvironmentID == scopeID {
+			return true
+		}
+		for _, target := range plan.Targets {
+			if target.EnvironmentID == scopeID {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
 	}
 }
 

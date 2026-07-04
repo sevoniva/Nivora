@@ -57,9 +57,8 @@ func CreatePipelineRun(service *pipelineusecase.Service) http.HandlerFunc {
 
 func GetPipelineRun(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
-		if err != nil {
-			respondPipelineResult(w, r, nil, err)
+		record, ok := getAuthorizedPipelineRecord(w, r, service)
+		if !ok {
 			return
 		}
 		RespondJSON(w, http.StatusOK, pipelineRunResponse(record))
@@ -86,6 +85,9 @@ func ListPipelineRuns(service *pipelineusecase.Service) http.HandlerFunc {
 
 func GetPipelineRunLogs(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {
+			return
+		}
 		logs, err := service.Logs(r.Context(), chi.URLParam(r, "id"))
 		if respondPaginated(w, r, logs, err) {
 			return
@@ -120,6 +122,9 @@ func pipelineRunResponse(record pipelineusecase.RunRecord) map[string]any {
 
 func GetPipelineRunEvents(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {
+			return
+		}
 		events, err := service.Events(r.Context(), chi.URLParam(r, "id"))
 		if respondPaginated(w, r, events, err) {
 			return
@@ -130,6 +135,9 @@ func GetPipelineRunEvents(service *pipelineusecase.Service) http.HandlerFunc {
 
 func GetPipelineRunTimeline(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {
+			return
+		}
 		timeline, err := service.Timeline(r.Context(), chi.URLParam(r, "id"))
 		if respondPaginated(w, r, timeline, err) {
 			return
@@ -140,6 +148,9 @@ func GetPipelineRunTimeline(service *pipelineusecase.Service) http.HandlerFunc {
 
 func CancelPipelineRun(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {
+			return
+		}
 		record, err := service.Cancel(r.Context(), chi.URLParam(r, "id"), "")
 		if err != nil {
 			respondPipelineResult(w, r, nil, err)
@@ -330,6 +341,9 @@ func MarkOfflineRunners(service *pipelineusecase.Service) http.HandlerFunc {
 
 func RequestPipelineRunCancel(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {
+			return
+		}
 		record, err := service.RequestCancel(r.Context(), chi.URLParam(r, "id"), "")
 		if err != nil {
 			respondPipelineResult(w, r, nil, err)
@@ -337,6 +351,34 @@ func RequestPipelineRunCancel(service *pipelineusecase.Service) http.HandlerFunc
 		}
 		RespondJSON(w, http.StatusOK, pipelineRunResponse(record))
 	}
+}
+
+func getAuthorizedPipelineRecord(w http.ResponseWriter, r *http.Request, service *pipelineusecase.Service) (pipelineusecase.RunRecord, bool) {
+	record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		respondPipelineResult(w, r, nil, err)
+		return pipelineusecase.RunRecord{}, false
+	}
+	if !pipelineRecordInRequestScope(r, record) {
+		RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{
+			Code:    "forbidden",
+			Message: "pipeline run is outside requester scope",
+			Path:    r.URL.Path,
+		})
+		return pipelineusecase.RunRecord{}, false
+	}
+	return record, true
+}
+
+func pipelineRecordInRequestScope(r *http.Request, record pipelineusecase.RunRecord) bool {
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeType == "" {
+		return true
+	}
+	if scopeID == "" {
+		return false
+	}
+	return scopeType == tenant.ScopeProject && record.Pipeline.ProjectID == scopeID
 }
 
 func respondPipelineResult(w http.ResponseWriter, r *http.Request, payload any, err error) {

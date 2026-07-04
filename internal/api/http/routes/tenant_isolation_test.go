@@ -2,6 +2,7 @@ package routes
 
 import (
 	"context"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -244,22 +245,49 @@ func TestTenantIsolationListPipelineRuns(t *testing.T) {
 	t.Logf("unscoped admin list pipeline-runs: %d (should see all)", rec.Code)
 }
 
+func TestTenantIsolationPipelineRunDetailRoutes(t *testing.T) {
+	router, auth := newIsoRouter(t)
+	tokenA := createScopedToken(t, auth, "pipeline-detail-a", domainauth.RoleDeveloper, "project", "project-a")
+	runID := createProjectPipelineRun(t, router, tokenA, "pipeline-detail-a")
+
+	tokenB := createScopedToken(t, auth, "pipeline-detail-b", domainauth.RoleDeveloper, "project", "project-b")
+	paths := []string{
+		"/api/v1/pipeline-runs/" + runID,
+		"/api/v1/pipeline-runs/" + runID + "/logs",
+		"/api/v1/pipeline-runs/" + runID + "/events",
+		"/api/v1/pipeline-runs/" + runID + "/timeline",
+		"/api/v1/visualization/pipeline-runs/" + runID + "/dag",
+		"/api/v1/visualization/pipeline-runs/" + runID + "/timeline",
+		"/api/v1/visualization/pipeline-runs/" + runID + "/summary",
+	}
+	for _, path := range paths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+tokenA)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("project-A should read %s, got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+
+		req = httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+tokenB)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("project-B should be forbidden for %s, got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+}
+
 func TestTenantIsolationListDeployments(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	tokenA := createScopedToken(t, auth, "deploy-list-a", domainauth.RoleDeveloper, "project", "project-a")
 
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments", strings.NewReader(`{"apiVersion":"nivora.io/v1alpha1","kind":"Deployment","metadata":{"name":"deploy-list-a"},"spec":{"application":"app-a","environment":"dev","target":{"type":"kubernetes-yaml","name":"test","namespace":"default"},"manifests":["examples/yaml/configmap.yaml"],"options":{"dryRun":true,"apply":false}}}`))
-	req.Header.Set("Authorization", "Bearer "+tokenA)
-	req.Header.Set("Content-Type", "application/json")
-	rec := httptest.NewRecorder()
-	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusCreated {
-		t.Fatalf("expected 201 for project-A create deployment, got %d body=%s", rec.Code, rec.Body.String())
-	}
+	createProjectDeploymentRun(t, router, tokenA, "deploy-list-a")
 
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/deployments", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/deployments", nil)
 	req.Header.Set("Authorization", "Bearer "+tokenA)
-	rec = httptest.NewRecorder()
+	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("expected 200 for project-A list deployments, got %d body=%s", rec.Code, rec.Body.String())
@@ -283,6 +311,48 @@ func TestTenantIsolationListDeployments(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationDeploymentDetailRoutes(t *testing.T) {
+	router, auth := newIsoRouter(t)
+	tokenA := createScopedToken(t, auth, "deploy-detail-a", domainauth.RoleDeveloper, "project", "project-a")
+	runID := createProjectDeploymentRun(t, router, tokenA, "deploy-detail-a")
+
+	tokenB := createScopedToken(t, auth, "deploy-detail-b", domainauth.RoleDeveloper, "project", "project-b")
+	paths := []string{
+		"/api/v1/deployments/" + runID,
+		"/api/v1/deployments/" + runID + "/plan",
+		"/api/v1/deployments/" + runID + "/resources",
+		"/api/v1/deployments/" + runID + "/health",
+		"/api/v1/deployments/" + runID + "/diff",
+		"/api/v1/deployments/" + runID + "/manifest-snapshot",
+		"/api/v1/deployments/" + runID + "/rollback-plan",
+		"/api/v1/deployments/" + runID + "/logs",
+		"/api/v1/deployments/" + runID + "/events",
+		"/api/v1/deployments/" + runID + "/timeline",
+		"/api/v1/deployments/" + runID + "/security",
+		"/api/v1/visualization/deployments/" + runID + "/timeline",
+		"/api/v1/visualization/deployments/" + runID + "/resources",
+		"/api/v1/visualization/deployments/" + runID + "/diff",
+		"/api/v1/visualization/deployments/" + runID + "/health",
+	}
+	for _, path := range paths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+tokenA)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("project-A should read %s, got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+
+		req = httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+tokenB)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("project-B should be forbidden for %s, got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+}
+
 func TestTenantIsolationListReleases(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	tokenA := createScopedToken(t, auth, "release-list-a", domainauth.RoleDeveloper, "project", "project-a")
@@ -292,6 +362,38 @@ func TestTenantIsolationListReleases(t *testing.T) {
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	t.Logf("project-A list releases: %d", rec.Code)
+}
+
+func TestTenantIsolationReleaseExecutionDetailRoutes(t *testing.T) {
+	router, auth := newIsoRouter(t)
+	tokenA := createScopedToken(t, auth, "rexec-detail-a", domainauth.RoleDeveloper, "project", "project-a")
+	executionID := createProjectReleaseExecution(t, router, tokenA, "rexec-detail-a")
+
+	tokenB := createScopedToken(t, auth, "rexec-detail-b", domainauth.RoleDeveloper, "project", "project-b")
+	paths := []string{
+		"/api/v1/releases/executions/" + executionID,
+		"/api/v1/releases/executions/" + executionID + "/timeline",
+		"/api/v1/releases/executions/" + executionID + "/targets",
+		"/api/v1/visualization/releases/executions/" + executionID + "/timeline",
+		"/api/v1/visualization/releases/executions/" + executionID + "/targets",
+	}
+	for _, path := range paths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+tokenA)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("project-A should read %s, got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+
+		req = httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+tokenB)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("project-B should be forbidden for %s, got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
 }
 
 func TestTenantIsolationListCredentials(t *testing.T) {
@@ -341,4 +443,114 @@ func TestTenantIsolationVisualizationAggregation(t *testing.T) {
 		router.ServeHTTP(rec, req)
 		t.Logf("scoped viewer %s: %d", ep, rec.Code)
 	}
+}
+
+func createProjectPipelineRun(t *testing.T, router http.Handler, token, name string) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs", strings.NewReader(`{"apiVersion":"nivora.io/v1alpha1","kind":"Pipeline","metadata":{"name":"`+name+`"},"spec":{"stages":[{"name":"build","jobs":[{"name":"echo","executor":"shell","steps":[{"name":"say","run":"printf `+name+`"}]}]}]}}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for project pipeline create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode pipeline create response: %v", err)
+	}
+	run, ok := body["run"].(map[string]any)
+	if !ok {
+		t.Fatalf("pipeline create response missing run object: %s", rec.Body.String())
+	}
+	id, ok := run["id"].(string)
+	if !ok || id == "" {
+		t.Fatalf("pipeline create response missing run id: %s", rec.Body.String())
+	}
+	return id
+}
+
+func createProjectDeploymentRun(t *testing.T, router http.Handler, token, name string) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments", strings.NewReader(`{"apiVersion":"nivora.io/v1alpha1","kind":"Deployment","metadata":{"name":"`+name+`"},"spec":{"application":"app-a","environment":"dev","target":{"type":"kubernetes-yaml","name":"test","namespace":"default"},"manifests":["examples/yaml/configmap.yaml"],"options":{"dryRun":true,"apply":false}}}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for project deployment create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode deployment create response: %v", err)
+	}
+	run, ok := body["run"].(map[string]any)
+	if !ok {
+		t.Fatalf("deployment create response missing run object: %s", rec.Body.String())
+	}
+	id, ok := run["id"].(string)
+	if !ok || id == "" {
+		t.Fatalf("deployment create response missing run id: %s", rec.Body.String())
+	}
+	return id
+}
+
+func createProjectReleaseExecution(t *testing.T, router http.Handler, token, name string) string {
+	t.Helper()
+	body := `{
+	  "apiVersion":"nivora.io/v1alpha1",
+	  "kind":"ReleaseOrchestration",
+	  "metadata":{"name":"` + name + `"},
+	  "spec":{
+	    "environment":"dev",
+	    "strategy":"sequential",
+	    "release":{
+	      "apiVersion":"nivora.io/v1alpha1",
+	      "kind":"Release",
+	      "metadata":{"name":"` + name + `"},
+	      "spec":{
+	        "version":"1.0.0",
+	        "application":"app-a",
+	        "environment":"dev",
+	        "artifacts":[{"name":"` + name + `","type":"image","required":true,"reference":"registry.example.com/demo/app:1.0.0"}]
+	      }
+	    },
+	    "targets":[{
+	      "name":"noop-target",
+	      "type":"noop",
+	      "deployment":{
+	        "apiVersion":"nivora.io/v1alpha1",
+	        "kind":"Deployment",
+	        "metadata":{"name":"` + name + `-deployment"},
+	        "spec":{
+	          "application":"app-a",
+	          "environment":"dev",
+	          "target":{"type":"noop","name":"noop-target"},
+	          "options":{"dryRun":true,"apply":false}
+	        }
+	      }
+	    }]
+	  }
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases/local/deploy", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for project release deploy, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode release execution response: %v", err)
+	}
+	execution, ok := response["execution"].(map[string]any)
+	if !ok {
+		t.Fatalf("release execution response missing execution object: %s", rec.Body.String())
+	}
+	id, ok := execution["id"].(string)
+	if !ok || id == "" {
+		t.Fatalf("release execution response missing execution id: %s", rec.Body.String())
+	}
+	return id
 }

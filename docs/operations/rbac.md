@@ -34,13 +34,14 @@ Critical mutation APIs for credentials, runners, deployments, releases, policies
 ## Service Accounts and API Tokens
 
 Service accounts are scoped automation identities. API tokens are stored as hashes only; raw token values are returned exactly once on creation or rotation.
+HTTP route tests cover token creation, token-info, rotation, revocation, expiration rejection, old-token rejection after rotation, and list responses without raw token or hash material.
 
 ```bash
 nivora auth users
 nivora auth roles
 nivora auth permissions
 nivora auth service-account create --name ci-deployer --role developer --scope-type project --scope-id demo
-nivora auth token create --subject-id <service-account-id>
+nivora auth token create --subject-id <service-account-id> --expires-at 2027-01-02T03:04:05Z
 nivora auth token list
 nivora auth token rotate <token-id>
 nivora auth token revoke <token-id>

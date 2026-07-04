@@ -71,6 +71,73 @@ func TestAuthDirectoryCommandsUseCatalogRoutes(t *testing.T) {
 	}
 }
 
+func TestAuthTokenCreateCommandSendsExpiresAt(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "admin-token")
+	expiresAt := "2027-01-02T03:04:05Z"
+	var called bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/auth/tokens" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer admin-token" {
+			t.Fatalf("unexpected authorization header %q", got)
+		}
+		var body map[string]string
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode request: %v", err)
+		}
+		if body["name"] != "ci-token" || body["subjectId"] != "sa-1" || body["expiresAt"] != expiresAt {
+			t.Fatalf("unexpected token create body: %#v", body)
+		}
+		for _, forbidden := range []string{"tokenHash", "password", "secret", "privateKey", "kubeconfig"} {
+			if strings.Contains(body["name"], forbidden) || strings.Contains(body["subjectId"], forbidden) || strings.Contains(body["expiresAt"], forbidden) {
+				t.Fatalf("token create request leaked forbidden marker %q: %#v", forbidden, body)
+			}
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"metadata":{"id":"tok-1","subjectId":"sa-1","expiresAt":"` + expiresAt + `"},"token":"one-time-token"}`))
+	}))
+	defer server.Close()
+
+	cmd := newAuthTokenCreateCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--name", "ci-token", "--subject-id", "sa-1", "--expires-at", expiresAt, "--server", server.URL, "--token-env", "NIVORA_TEST_TOKEN"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("auth token create failed: %v output=%s", err, out.String())
+	}
+	if !called {
+		t.Fatalf("expected auth token create to call server")
+	}
+	if !strings.Contains(out.String(), "one-time-token") || !strings.Contains(out.String(), expiresAt) {
+		t.Fatalf("auth token create output missing payload: %s", out.String())
+	}
+}
+
+func TestAuthTokenCreateCommandRejectsInvalidExpiresAt(t *testing.T) {
+	var called bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		t.Fatalf("unexpected server call for invalid expires-at")
+	}))
+	defer server.Close()
+
+	cmd := newAuthTokenCreateCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--subject-id", "sa-1", "--expires-at", "tomorrow", "--server", server.URL})
+	err := cmd.Execute()
+	if err == nil || !strings.Contains(err.Error(), "--expires-at must be RFC3339") {
+		t.Fatalf("expected RFC3339 error, got err=%v output=%s", err, out.String())
+	}
+	if called {
+		t.Fatalf("server was called for invalid expires-at")
+	}
+}
+
 func TestMembershipCommandsExposeListAndAdd(t *testing.T) {
 	tests := []struct {
 		name string

@@ -56,5 +56,7 @@ Use service accounts and API tokens for automation. Tokens are hashed in storage
 
 ```bash
 nivora auth service-account create --name ci --role developer
-nivora auth token create --subject-id <service-account-id>
+nivora auth token create --subject-id <service-account-id> --expires-at 2027-01-02T03:04:05Z
 ```
+
+Route-level tests cover token creation, token-info, rotation, revocation, expiration rejection, and list responses without raw token or hash material. After rotation the previous raw token is rejected, and after revocation the rotated token is rejected.

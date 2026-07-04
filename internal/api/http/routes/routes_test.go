@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
 	"github.com/sevoniva/nivora/internal/adapters/cloud/aws"
@@ -448,6 +449,186 @@ func TestServiceAccountAndAPITokenRoutesDoNotLeakHashes(t *testing.T) {
 	}
 	if strings.Contains(rec.Body.String(), token.Token) || strings.Contains(rec.Body.String(), "tokenHash") {
 		t.Fatalf("list api tokens leaked token material = %s", rec.Body.String())
+	}
+}
+
+func TestAPITokenRoutesEnforceLifecycleAndDoNotLeakMaterial(t *testing.T) {
+	t.Setenv("NIVORA_TEST_AUTH_TOKEN", "admin-token")
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	cfg.Auth.StaticTokenEnv = "NIVORA_TEST_AUTH_TOKEN"
+	router := newTestRouter(cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/service-accounts", strings.NewReader(`{"name":"ci-lifecycle","role":"developer","scopeType":"project","scopeId":"project-1"}`))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create service account status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var account struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &account); err != nil {
+		t.Fatalf("decode service account: %v", err)
+	}
+	if account.ID == "" {
+		t.Fatalf("expected service account id: %s", rec.Body.String())
+	}
+
+	futureExpiresAt := time.Now().Add(time.Hour).UTC().Format(time.RFC3339)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens", strings.NewReader(`{"name":"ci-lifecycle-token","subjectId":"`+account.ID+`","expiresAt":"`+futureExpiresAt+`"}`))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create api token status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "tokenHash") {
+		t.Fatalf("create api token leaked hash = %s", rec.Body.String())
+	}
+	var created struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode created token: %v", err)
+	}
+	if created.Metadata.ID == "" || created.Token == "" {
+		t.Fatalf("expected token metadata id and one-time token: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/whoami", nil)
+	req.Header.Set("Authorization", "Bearer "+created.Token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("fresh api token whoami status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"tokenId":"`+created.Metadata.ID+`"`) {
+		t.Fatalf("whoami response did not include token id = %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), created.Token) || strings.Contains(rec.Body.String(), "tokenHash") {
+		t.Fatalf("whoami leaked token material = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/token-info", nil)
+	req.Header.Set("Authorization", "Bearer "+created.Token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("token-info status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"tokenId":"`+created.Metadata.ID+`"`) {
+		t.Fatalf("token-info response did not include token id = %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), created.Token) || strings.Contains(rec.Body.String(), "tokenHash") {
+		t.Fatalf("token-info leaked token material = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens/"+created.Metadata.ID+"/rotate", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rotate api token status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), created.Token) || strings.Contains(rec.Body.String(), "tokenHash") {
+		t.Fatalf("rotate leaked old token material = %s", rec.Body.String())
+	}
+	var rotated struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &rotated); err != nil {
+		t.Fatalf("decode rotated token: %v", err)
+	}
+	if rotated.Metadata.ID != created.Metadata.ID || rotated.Token == "" || rotated.Token == created.Token {
+		t.Fatalf("expected same token id with new one-time token: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/whoami", nil)
+	req.Header.Set("Authorization", "Bearer "+created.Token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("old api token after rotate status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/whoami", nil)
+	req.Header.Set("Authorization", "Bearer "+rotated.Token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rotated api token whoami status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens/"+created.Metadata.ID+"/revoke", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("revoke api token status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), rotated.Token) || strings.Contains(rec.Body.String(), created.Token) || strings.Contains(rec.Body.String(), "tokenHash") {
+		t.Fatalf("revoke leaked token material = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/whoami", nil)
+	req.Header.Set("Authorization", "Bearer "+rotated.Token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("revoked api token whoami status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	expiredAt := time.Now().Add(-time.Hour).UTC().Format(time.RFC3339)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/auth/tokens", strings.NewReader(`{"name":"expired-token","subjectId":"`+account.ID+`","expiresAt":"`+expiredAt+`"}`))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create expired api token status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var expired struct {
+		Metadata struct {
+			ID string `json:"id"`
+		} `json:"metadata"`
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &expired); err != nil {
+		t.Fatalf("decode expired token: %v", err)
+	}
+	if expired.Token == "" {
+		t.Fatalf("expected one-time expired token: %s", rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/whoami", nil)
+	req.Header.Set("Authorization", "Bearer "+expired.Token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("expired api token whoami status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/auth/tokens", nil)
+	req.Header.Set("Authorization", "Bearer admin-token")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list api tokens status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	for _, sensitive := range []string{created.Token, rotated.Token, expired.Token, "tokenHash"} {
+		if strings.Contains(rec.Body.String(), sensitive) {
+			t.Fatalf("list api tokens leaked %q in %s", sensitive, rec.Body.String())
+		}
 	}
 }
 

@@ -518,6 +518,12 @@ paths:
                   $ref: "#/components/schemas/APITokenMetadata"
     post:
       summary: Create an API token and return the raw token once
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/APITokenCreateRequest"
       responses:
         "201":
           description: API token created
@@ -4756,6 +4762,20 @@ components:
         revokedAt:
           type: string
           format: date-time
+    APITokenCreateRequest:
+      type: object
+      required:
+        - subjectId
+      properties:
+        name:
+          type: string
+        subjectId:
+          type: string
+          description: Service account subject id.
+        expiresAt:
+          type: string
+          format: date-time
+          description: Optional RFC3339 expiration time.
     APITokenCreateResponse:
       type: object
       properties:

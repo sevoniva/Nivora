@@ -1577,6 +1577,7 @@ func newAuthTokenCreateCommand() *cobra.Command {
 	var tokenEnv string
 	var name string
 	var subjectID string
+	var expiresAt string
 	cmd := &cobra.Command{
 		Use:   "create --subject-id <service-account-id>",
 		Short: "Create an API token; the raw token is printed only once",
@@ -1584,7 +1585,14 @@ func newAuthTokenCreateCommand() *cobra.Command {
 			if subjectID == "" {
 				return fmt.Errorf("--subject-id is required")
 			}
-			body, err := json.Marshal(map[string]string{"name": name, "subjectId": subjectID})
+			bodyMap := map[string]string{"name": name, "subjectId": subjectID}
+			if expiresAt != "" {
+				if _, err := time.Parse(time.RFC3339, expiresAt); err != nil {
+					return fmt.Errorf("--expires-at must be RFC3339: %w", err)
+				}
+				bodyMap["expiresAt"] = expiresAt
+			}
+			body, err := json.Marshal(bodyMap)
 			if err != nil {
 				return err
 			}
@@ -1600,6 +1608,7 @@ func newAuthTokenCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&name, "name", "", "token name")
 	cmd.Flags().StringVar(&subjectID, "subject-id", "", "service account subject id")
+	cmd.Flags().StringVar(&expiresAt, "expires-at", "", "optional RFC3339 expiration time")
 	return cmd
 }
 

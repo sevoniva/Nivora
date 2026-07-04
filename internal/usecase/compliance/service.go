@@ -66,6 +66,12 @@ func (s *Service) SearchAudit(ctx context.Context, input AuditSearchInput) (doma
 		if input.Subject != "" && !strings.Contains(entry.Subject, input.Subject) {
 			continue
 		}
+		if input.SubjectType != "" && entry.SubjectType != input.SubjectType {
+			continue
+		}
+		if input.SubjectID != "" && entry.SubjectID != input.SubjectID {
+			continue
+		}
 		if input.ActorID != "" && entry.ActorID != input.ActorID {
 			continue
 		}
@@ -76,6 +82,9 @@ func (s *Service) SearchAudit(ctx context.Context, input AuditSearchInput) (doma
 			continue
 		}
 		if input.ScopeID != "" && entry.ScopeID != input.ScopeID {
+			continue
+		}
+		if input.RequestID != "" && entry.RequestID != input.RequestID {
 			continue
 		}
 		if input.CorrelationID != "" && entry.CorrelationID != input.CorrelationID {

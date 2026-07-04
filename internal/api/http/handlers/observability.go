@@ -4,6 +4,7 @@ import (
 	"context"
 	"net/http"
 	"sort"
+	"strings"
 
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	domainevent "github.com/sevoniva/nivora/internal/domain/event"
@@ -49,6 +50,7 @@ func ListEvents(pipelines *pipelineusecase.Service, deployments *deploymentuseca
 			RespondError(w, r, http.StatusInternalServerError, dto.ErrorResponse{Code: "events_list_failed", Message: err.Error(), Path: r.URL.Path})
 			return
 		}
+		events = filterEvents(events, r)
 		page, pageErr := parsePagination(r)
 		if pageErr != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_pagination", Message: pageErr.Error(), Path: r.URL.Path})
@@ -69,6 +71,7 @@ func ListLogs(pipelines *pipelineusecase.Service, deployments *deploymentusecase
 			RespondError(w, r, http.StatusInternalServerError, dto.ErrorResponse{Code: "logs_list_failed", Message: err.Error(), Path: r.URL.Path})
 			return
 		}
+		logs = filterLogs(logs, r)
 		page, pageErr := parsePagination(r)
 		if pageErr != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_pagination", Message: pageErr.Error(), Path: r.URL.Path})
@@ -160,4 +163,126 @@ func collectLogs(ctx context.Context, pipelines *pipelineusecase.Service, deploy
 		return logs[i].CreatedAt.Before(logs[j].CreatedAt)
 	})
 	return logs, nil
+}
+
+func filterEvents(events []domainevent.Event, r *http.Request) []domainevent.Event {
+	query := r.URL.Query()
+	eventType := query.Get("type")
+	source := query.Get("source")
+	subject := query.Get("subject")
+	runID := query.Get("runId")
+	pipelineRunID := query.Get("pipelineRunId")
+	deploymentRunID := query.Get("deploymentRunId")
+	releaseID := query.Get("releaseId")
+	artifactID := query.Get("artifactId")
+	securityScanID := query.Get("securityScanId")
+	if eventType == "" && source == "" && subject == "" && runID == "" && pipelineRunID == "" && deploymentRunID == "" && releaseID == "" && artifactID == "" && securityScanID == "" {
+		return events
+	}
+	filtered := make([]domainevent.Event, 0, len(events))
+	for _, evt := range events {
+		if eventType != "" && !containsFold(evt.Type, eventType) {
+			continue
+		}
+		if source != "" && !containsFold(evt.Source, source) {
+			continue
+		}
+		if subject != "" && !containsFold(evt.Subject, subject) {
+			continue
+		}
+		if runID != "" && !eventMatchesIdentifier(evt, runID, "runId", "pipelineRunId", "deploymentRunId", "releaseExecutionId") {
+			continue
+		}
+		if pipelineRunID != "" && !eventMatchesIdentifier(evt, pipelineRunID, "runId", "pipelineRunId") {
+			continue
+		}
+		if deploymentRunID != "" && !eventMatchesIdentifier(evt, deploymentRunID, "runId", "deploymentRunId") {
+			continue
+		}
+		if releaseID != "" && !eventMatchesIdentifier(evt, releaseID, "releaseId") {
+			continue
+		}
+		if artifactID != "" && !eventMatchesIdentifier(evt, artifactID, "artifactId") {
+			continue
+		}
+		if securityScanID != "" && !eventMatchesIdentifier(evt, securityScanID, "scanId", "securityScanId") {
+			continue
+		}
+		filtered = append(filtered, evt)
+	}
+	return filtered
+}
+
+func eventMatchesIdentifier(evt domainevent.Event, value string, dataKeys ...string) bool {
+	if value == "" {
+		return true
+	}
+	if evt.Subject == value {
+		return true
+	}
+	for _, key := range dataKeys {
+		if dataValue, ok := evt.Data[key]; ok && anyString(dataValue) == value {
+			return true
+		}
+	}
+	return false
+}
+
+func filterLogs(logs []domainevent.LogChunk, r *http.Request) []domainevent.LogChunk {
+	query := r.URL.Query()
+	runID := query.Get("runId")
+	pipelineRunID := query.Get("pipelineRunId")
+	deploymentRunID := query.Get("deploymentRunId")
+	stageRunID := query.Get("stageRunId")
+	jobRunID := query.Get("jobRunId")
+	stepRunID := query.Get("stepRunId")
+	stream := query.Get("stream")
+	contains := query.Get("contains")
+	if runID == "" && pipelineRunID == "" && deploymentRunID == "" && stageRunID == "" && jobRunID == "" && stepRunID == "" && stream == "" && contains == "" {
+		return logs
+	}
+	filtered := make([]domainevent.LogChunk, 0, len(logs))
+	for _, log := range logs {
+		if runID != "" && log.PipelineRunID != runID && log.DeploymentRunID != runID {
+			continue
+		}
+		if pipelineRunID != "" && log.PipelineRunID != pipelineRunID {
+			continue
+		}
+		if deploymentRunID != "" && log.DeploymentRunID != deploymentRunID {
+			continue
+		}
+		if stageRunID != "" && log.StageRunID != stageRunID {
+			continue
+		}
+		if jobRunID != "" && log.JobRunID != jobRunID {
+			continue
+		}
+		if stepRunID != "" && log.StepRunID != stepRunID {
+			continue
+		}
+		if stream != "" && log.Stream != stream {
+			continue
+		}
+		if contains != "" && !containsFold(log.Content, contains) {
+			continue
+		}
+		filtered = append(filtered, log)
+	}
+	return filtered
+}
+
+func anyString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case []byte:
+		return string(typed)
+	default:
+		return ""
+	}
+}
+
+func containsFold(value string, needle string) bool {
+	return strings.Contains(strings.ToLower(value), strings.ToLower(needle))
 }

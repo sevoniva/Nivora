@@ -21,7 +21,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | Approval / change windows / notifications | approvals, approval subject resume, change-window evaluate, notifications test/list | backend governance foundation; `/api/v1/approvals/{id}/resume-subject` applies terminal approval decisions to waiting DeploymentRun or ReleaseExecution subjects |
 | Cloud inventory | providers, accounts, validate, regions, clusters, hosts, registries, inventory | fake/provider skeleton inventory only |
 | Host deployment | host groups, host deployment plan, deployment hosts, rollback plan | dry-run/noop and guarded SSH surface |
-| Compliance | audit search, evidence bundle, retention policy | retention enforcement jobs remain future work |
+| Compliance | audit search, filtered audit-log reads, evidence bundle, retention policy | retention enforcement jobs remain future work |
 | Plugins | list, inspect, capabilities, validate | built-in registry and manifest validation |
 | Visualization | `/api/v1/visualization` index, pipeline/deployment/release visualization, environment topology, runner/security/audit summaries | backend read models for future UI |
 | Tenancy | quota, usage | scope and quota foundation |
@@ -40,7 +40,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | Argo CD sync | integration and deployment sync routes | sync requires explicit allow and confirmation; production automation is future work |
 | GitOps commit / rollback | `POST /api/v1/deployments/gitops/commit`, `/rollback` | local working tree foundation; push is guarded |
 | External providers | cloud, registry, secret, notification, scanner routes | adapters are skeletal or fake unless explicitly configured |
-| Pagination | selected list/log/event/timeline/audit routes | optional `limit`/`offset`; legacy array responses remain when omitted |
+| Pagination and filters | selected list/log/event/timeline/audit routes | optional `limit`/`offset`; aggregate events/logs/audit support lightweight run, subject, scope, and content filters |
 
 ## Placeholder / Not Implemented
 

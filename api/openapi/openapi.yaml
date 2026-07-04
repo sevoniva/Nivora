@@ -161,6 +161,14 @@ paths:
           in: query
           schema:
             type: string
+        - name: subjectType
+          in: query
+          schema:
+            type: string
+        - name: subjectId
+          in: query
+          schema:
+            type: string
         - name: actorId
           in: query
           schema:
@@ -174,6 +182,10 @@ paths:
           schema:
             type: string
         - name: scopeId
+          in: query
+          schema:
+            type: string
+        - name: requestId
           in: query
           schema:
             type: string
@@ -3385,6 +3397,14 @@ paths:
           in: query
           schema:
             type: string
+        - name: subjectType
+          in: query
+          schema:
+            type: string
+        - name: subjectId
+          in: query
+          schema:
+            type: string
         - name: actorId
           in: query
           schema:
@@ -3401,10 +3421,16 @@ paths:
           in: query
           schema:
             type: string
+        - name: requestId
+          in: query
+          schema:
+            type: string
         - name: correlationId
           in: query
           schema:
             type: string
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: Aggregate audit search result
@@ -3415,6 +3441,46 @@ paths:
   /api/v1/events:
     get:
       summary: List aggregate runtime events
+      description: Supports lightweight filtering across persisted PipelineRun, DeploymentRun, ReleaseExecution, artifact, and security event records.
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: subject
+          in: query
+          schema:
+            type: string
+        - name: runId
+          in: query
+          schema:
+            type: string
+        - name: pipelineRunId
+          in: query
+          schema:
+            type: string
+        - name: deploymentRunId
+          in: query
+          schema:
+            type: string
+        - name: releaseId
+          in: query
+          schema:
+            type: string
+        - name: artifactId
+          in: query
+          schema:
+            type: string
+        - name: securityScanId
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: Aggregate events from runtime records
@@ -3432,6 +3498,42 @@ paths:
   /api/v1/logs:
     get:
       summary: List aggregate runtime logs
+      description: Supports lightweight filtering across PipelineRun and DeploymentRun log chunks.
+      parameters:
+        - name: runId
+          in: query
+          schema:
+            type: string
+        - name: pipelineRunId
+          in: query
+          schema:
+            type: string
+        - name: deploymentRunId
+          in: query
+          schema:
+            type: string
+        - name: stageRunId
+          in: query
+          schema:
+            type: string
+        - name: jobRunId
+          in: query
+          schema:
+            type: string
+        - name: stepRunId
+          in: query
+          schema:
+            type: string
+        - name: stream
+          in: query
+          schema:
+            type: string
+        - name: contains
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
       responses:
         "200":
           description: Aggregate logs from PipelineRun and DeploymentRun records

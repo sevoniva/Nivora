@@ -152,6 +152,12 @@ func auditMatches(entry audit.AuditLog, input AuditSearchInput) bool {
 	if input.Subject != "" && !strings.Contains(entry.Subject, input.Subject) && !strings.Contains(entry.SubjectID, input.Subject) && !strings.Contains(entry.SubjectType, input.Subject) {
 		return false
 	}
+	if input.SubjectType != "" && entry.SubjectType != input.SubjectType {
+		return false
+	}
+	if input.SubjectID != "" && entry.SubjectID != input.SubjectID {
+		return false
+	}
 	if input.ActorID != "" && entry.ActorID != input.ActorID {
 		return false
 	}
@@ -162,6 +168,9 @@ func auditMatches(entry audit.AuditLog, input AuditSearchInput) bool {
 		return false
 	}
 	if input.ScopeID != "" && entry.ScopeID != input.ScopeID {
+		return false
+	}
+	if input.RequestID != "" && entry.RequestID != input.RequestID {
 		return false
 	}
 	if input.CorrelationID != "" && entry.CorrelationID != input.CorrelationID {

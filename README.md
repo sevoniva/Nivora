@@ -1011,6 +1011,14 @@ Core API groups include:
 /api/v1/visualization
 ```
 
+Aggregate runtime inspection also has CLI entry points:
+
+```bash
+nivora events search --pipeline-run-id <pipeline-run-id> --limit 50
+nivora logs search --pipeline-run-id <pipeline-run-id> --contains "error"
+nivora audit search --subject-id <subject-id> --scope-type project --scope-id <project-id>
+```
+
 ## Roadmap
 
 ```mermaid

@@ -59,6 +59,15 @@ func (s *ComplianceStore) SearchAuditLogs(ctx context.Context, input complianceu
 		if input.ScopeID != "" && entry.ScopeID != input.ScopeID {
 			continue
 		}
+		if input.SubjectType != "" && entry.SubjectType != input.SubjectType {
+			continue
+		}
+		if input.SubjectID != "" && entry.SubjectID != input.SubjectID {
+			continue
+		}
+		if input.RequestID != "" && entry.RequestID != input.RequestID {
+			continue
+		}
 		if input.CorrelationID != "" && entry.CorrelationID != input.CorrelationID {
 			continue
 		}

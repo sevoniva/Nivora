@@ -2,10 +2,13 @@ package compliance
 
 type AuditSearchInput struct {
 	Subject       string `json:"subject,omitempty"`
+	SubjectType   string `json:"subjectType,omitempty"`
+	SubjectID     string `json:"subjectId,omitempty"`
 	ActorID       string `json:"actorId,omitempty"`
 	Action        string `json:"action,omitempty"`
 	ScopeType     string `json:"scopeType,omitempty"`
 	ScopeID       string `json:"scopeId,omitempty"`
+	RequestID     string `json:"requestId,omitempty"`
 	CorrelationID string `json:"correlationId,omitempty"`
 }
 

@@ -13,10 +13,13 @@ func SearchAudit(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		input := complianceusecase.AuditSearchInput{
 			Subject:       r.URL.Query().Get("subject"),
+			SubjectType:   r.URL.Query().Get("subjectType"),
+			SubjectID:     r.URL.Query().Get("subjectId"),
 			ActorID:       r.URL.Query().Get("actorId"),
 			Action:        r.URL.Query().Get("action"),
 			ScopeType:     r.URL.Query().Get("scopeType"),
 			ScopeID:       r.URL.Query().Get("scopeId"),
+			RequestID:     r.URL.Query().Get("requestId"),
 			CorrelationID: r.URL.Query().Get("correlationId"),
 		}
 		result, err := service.SearchAudit(r.Context(), input)

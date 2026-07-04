@@ -12,7 +12,7 @@ This is not a production observability platform. External metrics storage, distr
 
 Logs explain execution behavior. Runner and Executor logs should be correlated with PipelineRuns, JobRuns, StepRuns, DeploymentRuns, and AuditLogs.
 
-Phase 1.5 stores stdout and stderr as ordered LogChunks for each PipelineRun. Log streaming, external log storage, and retention policies are future work.
+Phase 1.5 stores stdout and stderr as ordered LogChunks for each PipelineRun. DeploymentRun logs are also exposed through the aggregate log API. `GET /api/v1/logs` supports lightweight filters such as `pipelineRunId`, `deploymentRunId`, `jobRunId`, `stream`, and `contains`; the CLI equivalent is `nivora logs search`. Log streaming, external log storage, and retention policies are future work.
 
 API access logs are structured and include method, path, status, duration, request ID, correlation ID, and trace ID. They intentionally avoid request bodies, query values, credentials, and secret material.
 
@@ -20,7 +20,7 @@ API access logs are structured and include method, path, status, duration, reque
 
 Events should describe lifecycle changes such as PipelineRun created, queued, started, completed, failed, canceled, JobRun assigned, JobRun started, JobRun completed, JobRun failed, runner heartbeat, DeploymentRun started, and policy violation detected.
 
-Phase 1.5 stores PipelineRun events in the in-memory runtime and exposes them through events and timeline APIs.
+Phase 1.5 stores PipelineRun events and later phases add DeploymentRun, ReleaseExecution, artifact, and security events. `GET /api/v1/events` supports lightweight filters such as `type`, `source`, `subject`, `pipelineRunId`, `deploymentRunId`, `releaseId`, `artifactId`, and `securityScanId`; the CLI equivalent is `nivora events search`.
 
 ## Metrics and Traces
 
@@ -50,4 +50,4 @@ Operational endpoints:
 
 ## Timelines
 
-Phase 1.5 exposes a minimal PipelineRun timeline from stored events. Future visualization APIs should support richer pipeline timelines, deployment timelines, runner heartbeat history, and audit timelines.
+Phase 1.5 exposes a minimal PipelineRun timeline from stored events. Aggregate audit reads are available through `GET /api/v1/audit/search`, `GET /api/v1/audit-logs`, and `nivora audit search`, with subject, actor, scope, request, and correlation filters. Future visualization APIs should support richer pipeline timelines, deployment timelines, runner heartbeat history, and audit timelines.

@@ -81,6 +81,8 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newQuotaCommand())
 	root.AddCommand(newUsageCommand())
 	root.AddCommand(newAuditCommand())
+	root.AddCommand(newEventsCommand())
+	root.AddCommand(newLogsCommand())
 	root.AddCommand(newEvidenceCommand())
 	root.AddCommand(newDoctorCommand())
 	return root
@@ -120,18 +122,34 @@ func newAuditVerifyCommand() *cobra.Command {
 
 func newAuditSearchCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var subject string
+	var subjectType string
+	var subjectID string
 	var actorID string
 	var action string
+	var scopeType string
+	var scopeID string
+	var requestID string
+	var correlationID string
+	var limit int
+	var offset int
 	cmd := &cobra.Command{
 		Use:   "search",
 		Short: "Search audit records",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			values := url.Values{}
-			values.Set("subject", subject)
-			values.Set("actorId", actorID)
-			values.Set("action", action)
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/audit/search?"+values.Encode(), nil)
+			setQueryValue(values, "subject", subject)
+			setQueryValue(values, "subjectType", subjectType)
+			setQueryValue(values, "subjectId", subjectID)
+			setQueryValue(values, "actorId", actorID)
+			setQueryValue(values, "action", action)
+			setQueryValue(values, "scopeType", scopeType)
+			setQueryValue(values, "scopeId", scopeID)
+			setQueryValue(values, "requestId", requestID)
+			setQueryValue(values, "correlationId", correlationID)
+			setPaginationValues(values, limit, offset)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, withQuery("/api/v1/audit/search", values), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -140,9 +158,133 @@ func newAuditSearchCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&subject, "subject", "", "subject substring")
+	cmd.Flags().StringVar(&subjectType, "subject-type", "", "subject type filter")
+	cmd.Flags().StringVar(&subjectID, "subject-id", "", "subject id filter")
 	cmd.Flags().StringVar(&actorID, "actor-id", "", "actor id")
 	cmd.Flags().StringVar(&action, "action", "", "action substring")
+	cmd.Flags().StringVar(&scopeType, "scope-type", "", "scope type filter")
+	cmd.Flags().StringVar(&scopeID, "scope-id", "", "scope id filter")
+	cmd.Flags().StringVar(&requestID, "request-id", "", "request id filter")
+	cmd.Flags().StringVar(&correlationID, "correlation-id", "", "correlation id filter")
+	cmd.Flags().IntVar(&limit, "limit", 0, "page size, 1-500")
+	cmd.Flags().IntVar(&offset, "offset", 0, "zero-based page offset")
+	return cmd
+}
+
+func newEventsCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "events", Short: "Aggregate runtime event queries"}
+	cmd.AddCommand(newEventsSearchCommand())
+	return cmd
+}
+
+func newEventsSearchCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var eventType string
+	var source string
+	var subject string
+	var runID string
+	var pipelineRunID string
+	var deploymentRunID string
+	var releaseID string
+	var artifactID string
+	var securityScanID string
+	var limit int
+	var offset int
+	cmd := &cobra.Command{
+		Use:   "search",
+		Short: "Search aggregate runtime events",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			setQueryValue(values, "type", eventType)
+			setQueryValue(values, "source", source)
+			setQueryValue(values, "subject", subject)
+			setQueryValue(values, "runId", runID)
+			setQueryValue(values, "pipelineRunId", pipelineRunID)
+			setQueryValue(values, "deploymentRunId", deploymentRunID)
+			setQueryValue(values, "releaseId", releaseID)
+			setQueryValue(values, "artifactId", artifactID)
+			setQueryValue(values, "securityScanId", securityScanID)
+			setPaginationValues(values, limit, offset)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, withQuery("/api/v1/events", values), nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&eventType, "type", "", "event type substring")
+	cmd.Flags().StringVar(&source, "source", "", "event source substring")
+	cmd.Flags().StringVar(&subject, "subject", "", "event subject substring")
+	cmd.Flags().StringVar(&runID, "run-id", "", "pipeline or deployment run id")
+	cmd.Flags().StringVar(&pipelineRunID, "pipeline-run-id", "", "PipelineRun id")
+	cmd.Flags().StringVar(&deploymentRunID, "deployment-run-id", "", "DeploymentRun id")
+	cmd.Flags().StringVar(&releaseID, "release-id", "", "Release id")
+	cmd.Flags().StringVar(&artifactID, "artifact-id", "", "Artifact id")
+	cmd.Flags().StringVar(&securityScanID, "security-scan-id", "", "SecurityScan id")
+	cmd.Flags().IntVar(&limit, "limit", 0, "page size, 1-500")
+	cmd.Flags().IntVar(&offset, "offset", 0, "zero-based page offset")
+	return cmd
+}
+
+func newLogsCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "logs", Short: "Aggregate runtime log queries"}
+	cmd.AddCommand(newLogsSearchCommand())
+	return cmd
+}
+
+func newLogsSearchCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var runID string
+	var pipelineRunID string
+	var deploymentRunID string
+	var stageRunID string
+	var jobRunID string
+	var stepRunID string
+	var stream string
+	var contains string
+	var limit int
+	var offset int
+	cmd := &cobra.Command{
+		Use:   "search",
+		Short: "Search aggregate runtime logs",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			setQueryValue(values, "runId", runID)
+			setQueryValue(values, "pipelineRunId", pipelineRunID)
+			setQueryValue(values, "deploymentRunId", deploymentRunID)
+			setQueryValue(values, "stageRunId", stageRunID)
+			setQueryValue(values, "jobRunId", jobRunID)
+			setQueryValue(values, "stepRunId", stepRunID)
+			setQueryValue(values, "stream", stream)
+			setQueryValue(values, "contains", contains)
+			setPaginationValues(values, limit, offset)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, withQuery("/api/v1/logs", values), nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&runID, "run-id", "", "pipeline or deployment run id")
+	cmd.Flags().StringVar(&pipelineRunID, "pipeline-run-id", "", "PipelineRun id")
+	cmd.Flags().StringVar(&deploymentRunID, "deployment-run-id", "", "DeploymentRun id")
+	cmd.Flags().StringVar(&stageRunID, "stage-run-id", "", "StageRun id")
+	cmd.Flags().StringVar(&jobRunID, "job-run-id", "", "JobRun id")
+	cmd.Flags().StringVar(&stepRunID, "step-run-id", "", "StepRun id")
+	cmd.Flags().StringVar(&stream, "stream", "", "stdout or stderr")
+	cmd.Flags().StringVar(&contains, "contains", "", "case-insensitive log content substring")
+	cmd.Flags().IntVar(&limit, "limit", 0, "page size, 1-500")
+	cmd.Flags().IntVar(&offset, "offset", 0, "zero-based page offset")
 	return cmd
 }
 
@@ -4269,6 +4411,28 @@ func newRuntimeInspectCommand(name string, short string, method string, path str
 
 func doJSON(ctx context.Context, method string, serverURL string, path string, body []byte) (any, error) {
 	return doJSONWithToken(ctx, method, serverURL, path, body, "")
+}
+
+func setQueryValue(values url.Values, name string, value string) {
+	if value != "" {
+		values.Set(name, value)
+	}
+}
+
+func setPaginationValues(values url.Values, limit int, offset int) {
+	if limit > 0 {
+		values.Set("limit", fmt.Sprintf("%d", limit))
+	}
+	if offset > 0 {
+		values.Set("offset", fmt.Sprintf("%d", offset))
+	}
+}
+
+func withQuery(path string, values url.Values) string {
+	if encoded := values.Encode(); encoded != "" {
+		return path + "?" + encoded
+	}
+	return path
 }
 
 func doRaw(ctx context.Context, method string, serverURL string, path string, body []byte) ([]byte, error) {

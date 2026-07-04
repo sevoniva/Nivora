@@ -413,6 +413,29 @@ func TestTenantIsolationListReleases(t *testing.T) {
 	t.Logf("project-A list releases: %d", rec.Code)
 }
 
+func TestTenantIsolationRejectsCrossProjectReleaseCreateScope(t *testing.T) {
+	router, auth := newIsoRouter(t)
+	tokenA := createScopedToken(t, auth, "release-create-a", domainauth.RoleDeveloper, "project", "project-a")
+	body := `{
+	  "apiVersion":"nivora.io/v1alpha1",
+	  "kind":"Release",
+	  "metadata":{"name":"release-create-a"},
+	  "spec":{
+	    "version":"1.0.0",
+	    "application":"app-a",
+	    "artifacts":[{"name":"release-create-a","type":"image","required":true,"reference":"registry.example.com/demo/app@sha256:abcdef"}]
+	  }
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases?projectId=project-b", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-A token should not create release in project-B, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestTenantIsolationReleaseCancelRoutes(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	tokenA := createScopedToken(t, auth, "release-cancel-a", domainauth.RoleDeveloper, "project", "project-a")

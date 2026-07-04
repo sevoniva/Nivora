@@ -223,10 +223,7 @@ func CreateRelease(service *artifactusecase.Service) http.HandlerFunc {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a release definition"})
 			return
 		}
-		projectID := ""
-		if scopeType, scopeID := TenantScopeFilter(r); scopeType == tenant.ScopeProject {
-			projectID = scopeID
-		}
+		projectID := constrainArtifactProjectScope(r, r.URL.Query().Get("projectId"))
 		record, err := service.CreateRelease(r.Context(), artifactusecase.CreateReleaseInput{Definition: def, ProjectID: projectID, ActorID: apimiddleware.Subject(r.Context()).ID})
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "release_create_failed", Message: err.Error()})

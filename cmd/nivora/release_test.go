@@ -172,9 +172,10 @@ func TestReleaseServerCommandsUseBearerToken(t *testing.T) {
 		{
 			name:       "create",
 			cmd:        newReleaseCreateCommand(),
-			args:       []string{"--file", releaseFile, "--local=false", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			args:       []string{"--file", releaseFile, "--project-id", "project-a", "--local=false", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
 			wantMethod: http.MethodPost,
 			wantPath:   "/api/v1/releases",
+			wantQuery:  "projectId=project-a",
 			response:   `{"release":{"id":"rel-1","version":"1.0.0"}}`,
 		},
 		{

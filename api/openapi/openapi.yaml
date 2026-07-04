@@ -2130,7 +2130,7 @@ paths:
           description: PipelineRun not found
   /api/v1/releases:
     get:
-      summary: List Releases in the in-memory Phase 2.2 runtime
+      summary: List Releases tracked by the configured runtime store
       responses:
         "200":
           description: Release records
@@ -2142,6 +2142,13 @@ paths:
                   $ref: "#/components/schemas/CreateReleaseResponse"
     post:
       summary: Create a Release and bind ReleaseArtifacts
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          description: Optional project scope for unscoped control-plane callers. Project-scoped tokens override this value with their own scope.
+          schema:
+            type: string
       requestBody:
         required: true
         content:

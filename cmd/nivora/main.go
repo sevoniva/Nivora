@@ -3754,6 +3754,7 @@ func newReleaseCreateCommand() *cobra.Command {
 	var local bool
 	var serverURL string
 	var tokenEnv string
+	var projectID string
 	cmd := &cobra.Command{
 		Use:   "create --file <release.yaml>",
 		Short: "Create a release and bind artifacts",
@@ -3770,14 +3771,18 @@ func newReleaseCreateCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases", body, os.Getenv(tokenEnv))
+				values := url.Values{}
+				if projectID != "" {
+					values.Set("projectId", projectID)
+				}
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, withQuery("/api/v1/releases", values), body, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
 				printJSON(cmd.OutOrStdout(), payload)
 				return nil
 			}
-			record, err := server.NewArtifactService().CreateRelease(cmd.Context(), artifactusecase.CreateReleaseInput{Definition: def})
+			record, err := server.NewArtifactService().CreateRelease(cmd.Context(), artifactusecase.CreateReleaseInput{Definition: def, ProjectID: projectID})
 			if err != nil {
 				return err
 			}
@@ -3794,6 +3799,7 @@ func newReleaseCreateCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&local, "local", true, "create release in the in-process local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token for --local=false")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "project id scope for the Release and bound artifact metadata")
 	return cmd
 }
 

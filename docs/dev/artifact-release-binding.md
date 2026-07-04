@@ -19,6 +19,18 @@ go run ./cmd/nivora release create --local --file examples/releases/simple-relea
 
 The local command creates an in-memory Release record, marks it `Ready` after artifact binding succeeds, binds ReleaseArtifacts, emits events, and records audit entries. The local process does not persist records after the command exits.
 
+Server-backed release creation uses the configured runtime store and can attach explicit project ownership metadata for unscoped admin or service-account callers:
+
+```bash
+nivora release create \
+  --file examples/releases/simple-release.yaml \
+  --local=false \
+  --project-id project-a \
+  --token-env NIVORA_AUTH_TOKEN
+```
+
+The matching API is `POST /api/v1/releases?projectId=project-a`. If the caller is already project-scoped, Nivora uses the token scope instead of the query value. Project ownership is copied to the Release and bound artifact metadata without exposing CredentialRef or secret values.
+
 ## Generate Release Evidence
 
 For server-backed release records:

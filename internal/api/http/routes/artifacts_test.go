@@ -82,7 +82,7 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 			"artifacts": [{"name": "demo-app", "type": "image", "reference": "registry.example.com/team/demo@sha256:abcdef", "required": true}]
 		}
 	}`)
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/releases", bytes.NewReader(body))
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/releases?projectId=project-explicit", bytes.NewReader(body))
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusCreated {
@@ -94,8 +94,17 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 	}
 	releaseObj := created["release"].(map[string]any)
 	releaseID := releaseObj["id"].(string)
+	releaseMetadata := releaseObj["metadata"].(map[string]any)
+	if releaseMetadata["projectId"] != "project-explicit" {
+		t.Fatalf("release metadata missing explicit project id: %#v", releaseMetadata)
+	}
 	artifactList := created["artifacts"].([]any)
-	artifactID := artifactList[0].(map[string]any)["id"].(string)
+	artifactObj := artifactList[0].(map[string]any)
+	artifactID := artifactObj["id"].(string)
+	artifactMetadata := artifactObj["metadata"].(map[string]any)
+	if artifactMetadata["projectId"] != "project-explicit" {
+		t.Fatalf("artifact metadata missing explicit project id: %#v", artifactMetadata)
+	}
 
 	deployBody := []byte(`{
 		"apiVersion": "nivora.io/v1alpha1",

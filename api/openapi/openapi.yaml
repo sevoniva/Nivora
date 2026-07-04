@@ -6025,8 +6025,12 @@ components:
           type: string
         content:
           type: string
+        policyId:
+          type: string
+          description: Optional saved policy definition to apply. If omitted and no ad hoc policy is supplied, Nivora resolves an enabled policy attachment for the request environment, project, or global scope.
         policy:
           $ref: "#/components/schemas/PolicyConfig"
+          description: Optional ad hoc policy config. Saved policyId and resolved attachments take precedence.
     SecurityScanRecord:
       type: object
       properties:
@@ -8234,8 +8238,12 @@ components:
           type: string
         content:
           type: string
+        policyId:
+          type: string
+          description: Optional saved policy definition to apply. If omitted and no ad hoc policy is supplied, Nivora resolves an enabled policy attachment for the request environment, project, or global scope.
         policy:
           type: object
+          description: Optional ad hoc policy config. Saved policyId and resolved attachments take precedence.
           properties:
             criticalDenyThreshold:
               type: integer

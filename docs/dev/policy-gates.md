@@ -28,3 +28,10 @@ nivora policy disable policy-example --token-env NIVORA_AUTH_TOKEN
 ```
 
 The catalog records built-in gate configuration and foundation scope attachments only. Saved policy evaluation uses the stored policy definition and rejects disabled policies. OPA, Kyverno, Gatekeeper, and external policy distribution are future work.
+
+Security scan creation can now use saved policies in two ways:
+
+- `POST /api/v1/security/scans` may include `policyId` to apply one enabled saved policy.
+- If `policyId` and an ad hoc `policy` are omitted, the scan resolves the first enabled security policy attachment for `environmentId`, then `projectId`, then `global`.
+
+Disabled policies are rejected when explicitly requested and skipped during attachment resolution. This is still the built-in policy gate foundation; it is not OPA/Kyverno/Gatekeeper distribution or an enterprise policy engine.

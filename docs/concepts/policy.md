@@ -20,6 +20,8 @@ Phase 3.0 adds security policy gates backed by SecurityScan and SecurityFinding 
 
 The current backend also includes a foundation Policy catalog at `/api/v1/policies` and `nivora policy list/create/get/update/disable --token-env NIVORA_AUTH_TOKEN`. It stores built-in gate definitions such as digest requirements and finding thresholds. Saved policies can be evaluated through `/api/v1/policies/{id}/evaluate` and `nivora policy evaluate <policy-id> --subject ...`; disabled policies are rejected. Policies can be attached to `global`, `org`, `project`, `application`, `environment`, `target`, `release`, or `deployment` scopes through `/api/v1/policies/{id}/attachments` and `nivora policy attach --token-env NIVORA_AUTH_TOKEN`.
 
+Security scans can apply a saved policy explicitly with `policyId`. If a scan omits both `policyId` and an ad hoc `policy`, the server resolves an enabled security policy attachment for the request `environmentId`, then `projectId`, then `global`, and records the applied `policyId` in the PolicyResult.
+
 Policy attachments are control-plane metadata. They declare where a built-in policy is intended to apply, but they are not an external policy distribution system. The catalog and attachments can use PostgreSQL when the runtime store is configured for Postgres; local development can still use in-memory stores.
 
 ## Common Confusion

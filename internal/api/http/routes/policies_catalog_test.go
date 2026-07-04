@@ -83,6 +83,16 @@ func TestPolicyCatalogRoutes(t *testing.T) {
 		t.Fatalf("saved policy evaluation did not apply requireDigest policy: %s", rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/security/scans", strings.NewReader(`{"subjectType":"artifact","reference":"registry.example.invalid/demo/app:1.0.0","environmentId":"prod"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("security scan status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"policyId":"policy-digest"`) || !strings.Contains(rec.Body.String(), `"decision":"deny"`) {
+		t.Fatalf("security scan did not apply attached policy: %s", rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodPatch, "/api/v1/policies/policy-digest", strings.NewReader(`{"highWarnThreshold":2}`))
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -111,5 +121,15 @@ func TestPolicyCatalogRoutes(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"code":"policy_disabled"`) {
 		t.Fatalf("disabled policy evaluation should be structured: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/security/scans", strings.NewReader(`{"subjectType":"artifact","reference":"registry.example.invalid/demo/app:1.0.0","policyId":"policy-digest"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("disabled policy scan status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"code":"policy_disabled"`) {
+		t.Fatalf("disabled policy scan should be structured: %s", rec.Body.String())
 	}
 }

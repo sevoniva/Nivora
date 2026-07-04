@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -187,6 +188,46 @@ func (s *Service) ListAttachments(ctx context.Context, input AttachmentListInput
 	return s.store.ListAttachments(ctx, filter)
 }
 
+func (s *Service) ResolveEnabledForScope(ctx context.Context, input ResolveInput) (domainpolicy.Policy, bool, error) {
+	projectID := strings.TrimSpace(input.ProjectID)
+	environmentID := strings.TrimSpace(input.EnvironmentID)
+	enabled := true
+	filters := make([]AttachmentListInput, 0, 3)
+	if environmentID != "" {
+		filters = append(filters, AttachmentListInput{ScopeType: "environment", ScopeID: environmentID, Enabled: &enabled})
+	}
+	if projectID != "" {
+		filters = append(filters, AttachmentListInput{ScopeType: "project", ScopeID: projectID, Enabled: &enabled})
+	}
+	filters = append(filters, AttachmentListInput{ScopeType: "global", Enabled: &enabled})
+
+	seen := map[string]struct{}{}
+	for _, filter := range filters {
+		attachments, err := s.ListAttachments(ctx, filter)
+		if err != nil {
+			return domainpolicy.Policy{}, false, err
+		}
+		for _, attachment := range attachments {
+			if _, ok := seen[attachment.PolicyID]; ok {
+				continue
+			}
+			seen[attachment.PolicyID] = struct{}{}
+			policy, err := s.GetEnabled(ctx, attachment.PolicyID)
+			if err != nil {
+				if errors.Is(err, ErrDisabled) || errors.Is(err, ErrNotFound) {
+					continue
+				}
+				return domainpolicy.Policy{}, false, err
+			}
+			if !isSecurityPolicy(policy) {
+				continue
+			}
+			return policy, true, nil
+		}
+	}
+	return domainpolicy.Policy{}, false, nil
+}
+
 func defaultID(input string) string {
 	input = strings.TrimSpace(input)
 	if input != "" {
@@ -236,4 +277,9 @@ func isSupportedScopeType(scopeType string) bool {
 	default:
 		return false
 	}
+}
+
+func isSecurityPolicy(policy domainpolicy.Policy) bool {
+	policyType := strings.ToLower(strings.TrimSpace(policy.Type))
+	return policyType == "" || policyType == "security"
 }

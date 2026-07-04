@@ -62,6 +62,33 @@ func TestRequireDigestWithoutThresholdsStillDenies(t *testing.T) {
 	}
 }
 
+func TestEvaluateRecordsPolicyIDAndAppliesPolicyMode(t *testing.T) {
+	service := NewService(NewMemoryStore(), fakeScanner{}, nil, nil)
+	result := service.Evaluate(EvaluateInput{
+		SubjectType: domainsecurity.SubjectArtifact,
+		SubjectID:   "demo",
+		Reference:   "demo:latest",
+		PolicyID:    "policy-latest",
+		PolicyMode:  "deny",
+	})
+	if result.PolicyID != "policy-latest" {
+		t.Fatalf("policyId = %q, want policy-latest", result.PolicyID)
+	}
+	if result.Decision != domainsecurity.GateDeny {
+		t.Fatalf("decision = %s, want deny", result.Decision)
+	}
+
+	result = service.Evaluate(EvaluateInput{
+		SubjectType: domainsecurity.SubjectArtifact,
+		SubjectID:   "demo",
+		Reference:   "demo:latest",
+		PolicyMode:  "require_approval",
+	})
+	if result.Decision != domainsecurity.GateRequireApproval {
+		t.Fatalf("decision = %s, want require_approval", result.Decision)
+	}
+}
+
 func TestManifestPrivilegedWarning(t *testing.T) {
 	service := NewService(NewMemoryStore(), fakeScanner{}, nil, nil)
 	record, err := service.Scan(context.Background(), ScanInput{SubjectType: domainsecurity.SubjectManifest, SubjectID: "manifest", Content: "securityContext:\n  privileged: true\n"})

@@ -130,3 +130,83 @@ func TestPolicyAttachmentLifecycle(t *testing.T) {
 		t.Fatalf("unexpected target attachments: %+v", listed)
 	}
 }
+
+func TestResolveEnabledForScopePrefersEnvironmentProjectGlobal(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	ctx := context.Background()
+	global, err := service.Create(ctx, CreateInput{ID: "policy-global", Name: "Global", RequireDigest: true})
+	if err != nil {
+		t.Fatalf("create global policy: %v", err)
+	}
+	project, err := service.Create(ctx, CreateInput{ID: "policy-project", Name: "Project", ProjectID: "project-a", HighWarn: 2})
+	if err != nil {
+		t.Fatalf("create project policy: %v", err)
+	}
+	environment, err := service.Create(ctx, CreateInput{ID: "policy-environment", Name: "Environment", EnvironmentID: "prod", ApprovalOnCritical: true})
+	if err != nil {
+		t.Fatalf("create environment policy: %v", err)
+	}
+	if _, err := service.Attach(ctx, global.ID, AttachInput{ScopeType: "global"}); err != nil {
+		t.Fatalf("attach global policy: %v", err)
+	}
+	if _, err := service.Attach(ctx, project.ID, AttachInput{ScopeType: "project", ScopeID: "project-a"}); err != nil {
+		t.Fatalf("attach project policy: %v", err)
+	}
+	if _, err := service.Attach(ctx, environment.ID, AttachInput{ScopeType: "environment", ScopeID: "prod"}); err != nil {
+		t.Fatalf("attach environment policy: %v", err)
+	}
+
+	resolved, ok, err := service.ResolveEnabledForScope(ctx, ResolveInput{ProjectID: "project-a", EnvironmentID: "prod"})
+	if err != nil {
+		t.Fatalf("resolve environment policy: %v", err)
+	}
+	if !ok || resolved.ID != environment.ID {
+		t.Fatalf("resolved policy = %+v ok=%v, want environment", resolved, ok)
+	}
+
+	resolved, ok, err = service.ResolveEnabledForScope(ctx, ResolveInput{ProjectID: "project-a"})
+	if err != nil {
+		t.Fatalf("resolve project policy: %v", err)
+	}
+	if !ok || resolved.ID != project.ID {
+		t.Fatalf("resolved policy = %+v ok=%v, want project", resolved, ok)
+	}
+
+	resolved, ok, err = service.ResolveEnabledForScope(ctx, ResolveInput{ProjectID: "project-b"})
+	if err != nil {
+		t.Fatalf("resolve global policy: %v", err)
+	}
+	if !ok || resolved.ID != global.ID {
+		t.Fatalf("resolved policy = %+v ok=%v, want global", resolved, ok)
+	}
+}
+
+func TestResolveEnabledForScopeSkipsDisabledPolicy(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	ctx := context.Background()
+	disabled, err := service.Create(ctx, CreateInput{ID: "policy-disabled", Name: "Disabled", RequireDigest: true})
+	if err != nil {
+		t.Fatalf("create disabled policy: %v", err)
+	}
+	fallback, err := service.Create(ctx, CreateInput{ID: "policy-fallback", Name: "Fallback", HighWarn: 2})
+	if err != nil {
+		t.Fatalf("create fallback policy: %v", err)
+	}
+	if _, err := service.Attach(ctx, disabled.ID, AttachInput{ScopeType: "environment", ScopeID: "prod"}); err != nil {
+		t.Fatalf("attach disabled policy: %v", err)
+	}
+	if _, err := service.Attach(ctx, fallback.ID, AttachInput{ScopeType: "global"}); err != nil {
+		t.Fatalf("attach fallback policy: %v", err)
+	}
+	if _, err := service.Disable(ctx, disabled.ID); err != nil {
+		t.Fatalf("disable policy: %v", err)
+	}
+
+	resolved, ok, err := service.ResolveEnabledForScope(ctx, ResolveInput{EnvironmentID: "prod"})
+	if err != nil {
+		t.Fatalf("resolve policy: %v", err)
+	}
+	if !ok || resolved.ID != fallback.ID {
+		t.Fatalf("resolved policy = %+v ok=%v, want fallback", resolved, ok)
+	}
+}

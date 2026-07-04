@@ -56,3 +56,8 @@ type AttachmentListInput struct {
 	ScopeID   string
 	Enabled   *bool
 }
+
+type ResolveInput struct {
+	ProjectID     string
+	EnvironmentID string
+}

@@ -105,10 +105,10 @@ func EvaluatePolicyDefinition(policyService *policyusecase.Service, securityServ
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_policy_evaluation", Message: "subjectId or reference is required"})
 			return
 		}
+		input.PolicyID = policy.ID
+		input.PolicyMode = policy.Mode
 		input.Policy = securityPolicyConfigFromDefinition(policy)
 		result := securityService.Evaluate(input)
-		result.PolicyID = policy.ID
-		result = applyPolicyDefinitionMode(policy, result)
 		RespondJSON(w, http.StatusOK, result)
 	}
 }
@@ -167,18 +167,4 @@ func securityPolicyConfigFromDefinition(policy domainpolicy.Policy) securityusec
 		RequireDigest:         policy.RequireDigest,
 		ApprovalOnCritical:    policy.ApprovalOnCritical || strings.EqualFold(policy.Mode, "require_approval"),
 	}
-}
-
-func applyPolicyDefinitionMode(policy domainpolicy.Policy, result domainsecurity.PolicyResult) domainsecurity.PolicyResult {
-	switch strings.ToLower(strings.TrimSpace(policy.Mode)) {
-	case "deny":
-		if result.Decision != domainsecurity.GateAllow {
-			result.Decision = domainsecurity.GateDeny
-		}
-	case "require_approval", "require-approval":
-		if result.Decision != domainsecurity.GateAllow {
-			result.Decision = domainsecurity.GateRequireApproval
-		}
-	}
-	return result
 }

@@ -1,19 +1,23 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
+	domainpolicy "github.com/sevoniva/nivora/internal/domain/policy"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/domain/tenant"
 	"github.com/sevoniva/nivora/internal/infra/telemetry"
+	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
-func CreateSecurityScan(service *securityusecase.Service) http.HandlerFunc {
+func CreateSecurityScan(service *securityusecase.Service, policyCatalog ...*policyusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var input securityusecase.ScanInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -21,6 +25,12 @@ func CreateSecurityScan(service *securityusecase.Service) http.HandlerFunc {
 			return
 		}
 		input.ProjectID, input.EnvironmentID = constrainSecurityScope(r, input.ProjectID, input.EnvironmentID)
+		if len(policyCatalog) > 0 && policyCatalog[0] != nil {
+			if err := applySavedPolicyForScan(r.Context(), policyCatalog[0], &input); err != nil {
+				respondPolicyCatalogError(w, r, err)
+				return
+			}
+		}
 		record, err := service.Scan(r.Context(), input)
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "security_scan_failed", Message: err.Error()})
@@ -31,6 +41,42 @@ func CreateSecurityScan(service *securityusecase.Service) http.HandlerFunc {
 		}
 		RespondJSON(w, http.StatusCreated, record)
 	}
+}
+
+func applySavedPolicyForScan(ctx context.Context, service *policyusecase.Service, input *securityusecase.ScanInput) error {
+	if policyID := strings.TrimSpace(input.PolicyID); policyID != "" {
+		policy, err := service.GetEnabled(ctx, policyID)
+		if err != nil {
+			return err
+		}
+		applyPolicyDefinitionToScanInput(policy, input)
+		return nil
+	}
+	if !isZeroPolicyConfig(input.Policy) {
+		return nil
+	}
+	policy, ok, err := service.ResolveEnabledForScope(ctx, policyusecase.ResolveInput{
+		ProjectID:     input.ProjectID,
+		EnvironmentID: input.EnvironmentID,
+	})
+	if err != nil || !ok {
+		return err
+	}
+	applyPolicyDefinitionToScanInput(policy, input)
+	return nil
+}
+
+func applyPolicyDefinitionToScanInput(policy domainpolicy.Policy, input *securityusecase.ScanInput) {
+	input.PolicyID = policy.ID
+	input.PolicyMode = policy.Mode
+	input.Policy = securityPolicyConfigFromDefinition(policy)
+}
+
+func isZeroPolicyConfig(policy securityusecase.PolicyConfig) bool {
+	return policy.CriticalDenyThreshold == 0 &&
+		policy.HighWarnThreshold == 0 &&
+		!policy.RequireDigest &&
+		!policy.ApprovalOnCritical
 }
 
 func ListSecurityScans(service *securityusecase.Service) http.HandlerFunc {

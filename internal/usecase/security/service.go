@@ -85,6 +85,8 @@ func (s *Service) Scan(ctx context.Context, input ScanInput) (ScanRecord, error)
 		SubjectID:   input.SubjectID,
 		Reference:   input.Reference,
 		Findings:    record.Scan.Findings,
+		PolicyID:    input.PolicyID,
+		PolicyMode:  input.PolicyMode,
 		Policy:      input.Policy,
 		ActorID:     input.ActorID,
 	})
@@ -157,8 +159,9 @@ func (s *Service) Evaluate(input EvaluateInput) domainsecurity.PolicyResult {
 		decision = domainsecurity.GateDeny
 		reason = "artifact digest is required"
 	}
-	return domainsecurity.PolicyResult{
+	result := domainsecurity.PolicyResult{
 		ID:          newID("policy"),
+		PolicyID:    strings.TrimSpace(input.PolicyID),
 		SubjectType: input.SubjectType,
 		SubjectID:   input.SubjectID,
 		Decision:    decision,
@@ -166,6 +169,7 @@ func (s *Service) Evaluate(input EvaluateInput) domainsecurity.PolicyResult {
 		Findings:    append([]domainsecurity.SecurityFinding(nil), input.Findings...),
 		EvaluatedAt: s.now(),
 	}
+	return applyPolicyMode(input.PolicyMode, result)
 }
 
 func (s *Service) Get(ctx context.Context, id string) (ScanRecord, error) {
@@ -350,6 +354,20 @@ func referenceWarning(reference string, policyConfig PolicyConfig) string {
 		}
 	}
 	return ""
+}
+
+func applyPolicyMode(mode string, result domainsecurity.PolicyResult) domainsecurity.PolicyResult {
+	switch strings.ToLower(strings.TrimSpace(mode)) {
+	case "deny":
+		if result.Decision != domainsecurity.GateAllow {
+			result.Decision = domainsecurity.GateDeny
+		}
+	case "require_approval", "require-approval":
+		if result.Decision != domainsecurity.GateAllow {
+			result.Decision = domainsecurity.GateRequireApproval
+		}
+	}
+	return result
 }
 
 func manifestFindings(content string) []domainsecurity.SecurityFinding {

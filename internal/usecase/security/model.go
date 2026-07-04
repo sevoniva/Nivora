@@ -40,6 +40,8 @@ type ScanInput struct {
 	EnvironmentID string                     `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
 	Reference     string                     `json:"reference,omitempty" yaml:"reference,omitempty"`
 	Content       string                     `json:"content,omitempty" yaml:"content,omitempty"`
+	PolicyID      string                     `json:"policyId,omitempty" yaml:"policyId,omitempty"`
+	PolicyMode    string                     `json:"-" yaml:"-"`
 	Policy        PolicyConfig               `json:"policy,omitempty" yaml:"policy,omitempty"`
 	ActorID       string                     `json:"actorId,omitempty" yaml:"actorId,omitempty"`
 }
@@ -77,6 +79,8 @@ type EvaluateInput struct {
 	SubjectID   string                           `json:"subjectId" yaml:"subjectId"`
 	Reference   string                           `json:"reference,omitempty" yaml:"reference,omitempty"`
 	Findings    []domainsecurity.SecurityFinding `json:"findings,omitempty" yaml:"findings,omitempty"`
+	PolicyID    string                           `json:"-" yaml:"-"`
+	PolicyMode  string                           `json:"-" yaml:"-"`
 	Policy      PolicyConfig                     `json:"policy,omitempty" yaml:"policy,omitempty"`
 	ActorID     string                           `json:"actorId,omitempty" yaml:"actorId,omitempty"`
 }

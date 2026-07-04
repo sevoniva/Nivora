@@ -511,7 +511,7 @@ func newApprovalResumeSubjectCommand() *cobra.Command {
 	var serverURL string
 	cmd := &cobra.Command{
 		Use:   "resume <id>",
-		Short: "Apply an approval decision to its DeploymentRun or ReleaseExecution subject",
+		Short: "Apply an approval decision to its DeploymentRun, ReleaseExecution, or PipelineRun subject",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/approvals/"+args[0]+"/resume-subject", nil)

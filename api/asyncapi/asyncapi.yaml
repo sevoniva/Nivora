@@ -14,6 +14,11 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.pipeline.run.paused:
+    address: devops.pipeline.run.paused
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.pipeline.run.started:
     address: devops.pipeline.run.started
     messages:

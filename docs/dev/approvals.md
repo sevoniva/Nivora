@@ -30,13 +30,13 @@ curl -s http://localhost:8080/api/v1/releases/executions/<execution-id>/resume \
   -d '{"subjectType":"release","subjectId":"<execution-id>","status":"Rejected"}'
 ```
 
-The approval service also exposes a subject resume helper. It reads the stored approval request by approval id and applies the terminal decision to the referenced DeploymentRun or ReleaseExecution:
+The approval service also exposes a subject resume helper. It reads the stored approval request by approval id and applies the terminal decision to the referenced DeploymentRun, ReleaseExecution, or PipelineRun:
 
 ```sh
 curl -s -X POST http://localhost:8080/api/v1/approvals/<id>/resume-subject
 ```
 
-This helper rejects Pending approvals. Pipeline subject resume is still not implemented.
+This helper rejects Pending approvals. For PipelineRun subjects, approved decisions move a `Paused` PipelineRun back to `Queued`; rejected or expired decisions fail the run; canceled decisions cancel it. The helper does not execute shell steps directly.
 
 ## CLI
 

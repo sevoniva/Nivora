@@ -30,7 +30,7 @@ func TestApprovalResumeHelp(t *testing.T) {
 		t.Fatalf("approvals resume help failed: %v", err)
 	}
 	help := out.String()
-	for _, want := range []string{"resume <id>", "DeploymentRun", "ReleaseExecution"} {
+	for _, want := range []string{"resume <id>", "DeploymentRun", "ReleaseExecution", "PipelineRun"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("approvals resume help missing %q: %s", want, help)
 		}

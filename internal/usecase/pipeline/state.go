@@ -33,13 +33,15 @@ func canTransitionPipelineRun(from domainpipeline.PipelineRunStatus, to domainpi
 	case domainpipeline.PipelineRunPending:
 		return to == domainpipeline.PipelineRunQueued || to == domainpipeline.PipelineRunCanceled
 	case domainpipeline.PipelineRunQueued:
-		return to == domainpipeline.PipelineRunRunning || to == domainpipeline.PipelineRunCanceled
+		return to == domainpipeline.PipelineRunRunning || to == domainpipeline.PipelineRunPaused ||
+			to == domainpipeline.PipelineRunCanceled
 	case domainpipeline.PipelineRunRunning:
 		return to == domainpipeline.PipelineRunPaused || to == domainpipeline.PipelineRunSucceeded ||
 			to == domainpipeline.PipelineRunFailed || to == domainpipeline.PipelineRunCanceled ||
 			to == domainpipeline.PipelineRunTimeout
 	case domainpipeline.PipelineRunPaused:
-		return to == domainpipeline.PipelineRunRunning || to == domainpipeline.PipelineRunCanceled
+		return to == domainpipeline.PipelineRunQueued || to == domainpipeline.PipelineRunRunning ||
+			to == domainpipeline.PipelineRunFailed || to == domainpipeline.PipelineRunCanceled
 	default:
 		return false
 	}

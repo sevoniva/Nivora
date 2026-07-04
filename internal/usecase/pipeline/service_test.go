@@ -8,6 +8,7 @@ import (
 	"testing"
 	"time"
 
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
 	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
@@ -143,6 +144,94 @@ func TestCancelQueuedPipelineRun(t *testing.T) {
 	}
 	if !hasEvent(canceled.Events, EventPipelineRunCanceled) {
 		t.Fatal("expected canceled event")
+	}
+}
+
+func TestApprovalApprovedRequeuesPausedPipelineRun(t *testing.T) {
+	service := newTestService()
+	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})
+	if err != nil {
+		t.Fatalf("create queued: %v", err)
+	}
+	paused, err := service.PauseForApproval(context.Background(), created.Record.Run.ID, "policy", "manual approval required")
+	if err != nil {
+		t.Fatalf("pause for approval: %v", err)
+	}
+	if paused.Run.Status != domainpipeline.PipelineRunPaused {
+		t.Fatalf("paused status = %s", paused.Run.Status)
+	}
+	if !hasEvent(paused.Events, EventPipelineRunPaused) {
+		t.Fatalf("expected paused event: %#v", paused.Events)
+	}
+	resumed, err := service.ApplyApprovalDecision(context.Background(), created.Record.Run.ID, domainapproval.ApprovalRequest{
+		SubjectType: domainapproval.SubjectPipeline,
+		SubjectID:   created.Record.Run.ID,
+		Status:      domainapproval.StatusApproved,
+	}, "reviewer")
+	if err != nil {
+		t.Fatalf("apply approval: %v", err)
+	}
+	if resumed.Run.Status != domainpipeline.PipelineRunQueued {
+		t.Fatalf("resumed status = %s", resumed.Run.Status)
+	}
+	if resumed.Run.FailureReason != "" {
+		t.Fatalf("failure reason should be cleared, got %q", resumed.Run.FailureReason)
+	}
+	if !hasEvent(resumed.Events, EventPipelineRunQueued) {
+		t.Fatalf("expected queued event: %#v", resumed.Events)
+	}
+}
+
+func TestApprovalRejectedFailsPausedPipelineRun(t *testing.T) {
+	service := newTestService()
+	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})
+	if err != nil {
+		t.Fatalf("create queued: %v", err)
+	}
+	if _, err := service.PauseForApproval(context.Background(), created.Record.Run.ID, "policy", "manual approval required"); err != nil {
+		t.Fatalf("pause for approval: %v", err)
+	}
+	failed, err := service.ApplyApprovalDecision(context.Background(), created.Record.Run.ID, domainapproval.ApprovalRequest{
+		SubjectType: domainapproval.SubjectPipeline,
+		SubjectID:   created.Record.Run.ID,
+		Status:      domainapproval.StatusRejected,
+	}, "reviewer")
+	if err != nil {
+		t.Fatalf("apply rejection: %v", err)
+	}
+	if failed.Run.Status != domainpipeline.PipelineRunFailed || !strings.Contains(failed.Run.FailureReason, "approval rejected") {
+		t.Fatalf("failed run = %#v", failed.Run)
+	}
+	if !hasEvent(failed.Events, EventPipelineRunFailed) {
+		t.Fatalf("expected failed event: %#v", failed.Events)
+	}
+}
+
+func TestApprovalSubjectMismatchDoesNotResumePipelineRun(t *testing.T) {
+	service := newTestService()
+	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})
+	if err != nil {
+		t.Fatalf("create queued: %v", err)
+	}
+	if _, err := service.PauseForApproval(context.Background(), created.Record.Run.ID, "policy", "manual approval required"); err != nil {
+		t.Fatalf("pause for approval: %v", err)
+	}
+	_, err = service.ApplyApprovalDecision(context.Background(), created.Record.Run.ID, domainapproval.ApprovalRequest{
+		SubjectType: domainapproval.SubjectDeployment,
+		SubjectID:   created.Record.Run.ID,
+		Status:      domainapproval.StatusApproved,
+	}, "reviewer")
+	if err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("expected subject type mismatch error, got %v", err)
+	}
+
+	_, err = service.ApplyApprovalDecision(context.Background(), created.Record.Run.ID, domainapproval.ApprovalRequest{
+		SubjectType: domainapproval.SubjectPipeline,
+		SubjectID:   "other-run",
+		Status:      domainapproval.StatusApproved,
+	}, "reviewer")
+	if err == nil || !strings.Contains(err.Error(), "does not match") {
+		t.Fatalf("expected subject mismatch error, got %v", err)
 	}
 }
 

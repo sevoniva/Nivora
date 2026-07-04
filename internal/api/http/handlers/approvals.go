@@ -11,6 +11,7 @@ import (
 	domainnotification "github.com/sevoniva/nivora/internal/domain/notification"
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 )
 
@@ -73,7 +74,7 @@ func ExpireApproval(service *approvalusecase.Service) http.HandlerFunc {
 	}
 }
 
-func ResumeApprovalSubject(approvalService *approvalusecase.Service, deploymentService *deploymentusecase.Service, releaseService *releaseorchestration.Service) http.HandlerFunc {
+func ResumeApprovalSubject(approvalService *approvalusecase.Service, deploymentService *deploymentusecase.Service, releaseService *releaseorchestration.Service, pipelineService *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		approval, err := approvalService.GetApproval(r.Context(), chi.URLParam(r, "id"))
 		if err != nil {
@@ -108,7 +109,13 @@ func ResumeApprovalSubject(approvalService *approvalusecase.Service, deploymentS
 			response.Result = record
 			RespondJSON(w, http.StatusOK, response)
 		case domainapproval.SubjectPipeline:
-			RespondError(w, r, http.StatusNotImplemented, dto.ErrorResponse{Code: "not_implemented", Message: "approval subject resume for pipeline is not implemented"})
+			record, err := pipelineService.ApplyApprovalDecision(r.Context(), approval.SubjectID, approval, actorID)
+			if err != nil {
+				respondApprovalSubjectResumeError(w, r, err)
+				return
+			}
+			response.Result = record
+			RespondJSON(w, http.StatusOK, response)
 		default:
 			respondApprovalSubjectResumeError(w, r, errors.New("approval subjectType must be deployment, release, or pipeline"))
 		}
@@ -213,7 +220,8 @@ func respondApprovalSubjectResumeError(w http.ResponseWriter, r *http.Request, e
 	status := http.StatusBadRequest
 	if errors.Is(err, approvalusecase.ErrApprovalNotFound) ||
 		errors.Is(err, deploymentusecase.ErrRunNotFound) ||
-		errors.Is(err, releaseorchestration.ErrExecutionNotFound) {
+		errors.Is(err, releaseorchestration.ErrExecutionNotFound) ||
+		errors.Is(err, pipelineusecase.ErrRunNotFound) {
 		status = http.StatusNotFound
 	}
 	RespondError(w, r, status, dto.ErrorResponse{Code: "approval_subject_resume_failed", Message: err.Error()})

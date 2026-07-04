@@ -11,6 +11,7 @@ import (
 	"strings"
 	"time"
 
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
@@ -22,6 +23,7 @@ import (
 const (
 	EventPipelineRunCreated    = "devops.pipeline.run.created"
 	EventPipelineRunQueued     = "devops.pipeline.run.queued"
+	EventPipelineRunPaused     = "devops.pipeline.run.paused"
 	EventPipelineRunStarted    = "devops.pipeline.run.started"
 	EventPipelineRunCompleted  = "devops.pipeline.run.completed"
 	EventPipelineRunFailed     = "devops.pipeline.run.failed"
@@ -228,6 +230,92 @@ func (s *Service) Cancel(ctx context.Context, id string, actorID string) (RunRec
 		return RunRecord{}, err
 	}
 	return s.store.Get(ctx, id)
+}
+
+func (s *Service) PauseForApproval(ctx context.Context, id string, actorID string, reason string) (RunRecord, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if isTerminalPipelineStatus(record.Run.Status) {
+		return record, ErrRunTerminal
+	}
+	if record.Run.Status != domainpipeline.PipelineRunQueued && record.Run.Status != domainpipeline.PipelineRunRunning {
+		return RunRecord{}, fmt.Errorf("pipeline run %s cannot wait for approval from %s", id, record.Run.Status)
+	}
+	if reason == "" {
+		reason = "approval required"
+	}
+	if err := transitionPipelineRun(&record.Run, domainpipeline.PipelineRunPaused, s.now(), reason); err != nil {
+		return RunRecord{}, err
+	}
+	record.Run.OwnerID = ""
+	record.Run.LeaseExpiresAt = nil
+	record.Run.HeartbeatAt = nil
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunPaused, "PipelineRun paused for approval", actorID, string(record.Run.Status), reason); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.Get(ctx, id)
+}
+
+func (s *Service) ApplyApprovalDecision(ctx context.Context, id string, approval domainapproval.ApprovalRequest, actorID string) (RunRecord, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if record.Run.Status != domainpipeline.PipelineRunPaused {
+		return RunRecord{}, fmt.Errorf("pipeline run is not waiting for approval")
+	}
+	if approval.SubjectType != "" && approval.SubjectType != domainapproval.SubjectPipeline {
+		return RunRecord{}, fmt.Errorf("approval subject does not match pipeline run")
+	}
+	if approval.SubjectID != "" && approval.SubjectID != id {
+		return RunRecord{}, fmt.Errorf("approval subject does not match pipeline run")
+	}
+	now := s.now()
+	switch approval.Status {
+	case domainapproval.StatusApproved:
+		if err := transitionPipelineRun(&record.Run, domainpipeline.PipelineRunQueued, now, "approval approved"); err != nil {
+			return RunRecord{}, err
+		}
+		record.Run.FinishedAt = nil
+		record.Run.FailureReason = ""
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunQueued, "Pipeline approval approved", actorID, string(record.Run.Status), "Pipeline approval approved; run returned to queue"); err != nil {
+			return RunRecord{}, err
+		}
+		return s.store.Get(ctx, id)
+	case domainapproval.StatusRejected, domainapproval.StatusExpired:
+		reason := "approval " + strings.ToLower(approval.Status)
+		if err := transitionPipelineRun(&record.Run, domainpipeline.PipelineRunFailed, now, reason); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunFailed, "PipelineRun failed", actorID, string(record.Run.Status), reason); err != nil {
+			return RunRecord{}, err
+		}
+		return s.store.Get(ctx, id)
+	case domainapproval.StatusCanceled:
+		if err := transitionPipelineRun(&record.Run, domainpipeline.PipelineRunCanceled, now, "approval canceled"); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.store.Save(ctx, record); err != nil {
+			return RunRecord{}, err
+		}
+		if err := s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunCanceled, "PipelineRun canceled", actorID, string(record.Run.Status), "approval canceled"); err != nil {
+			return RunRecord{}, err
+		}
+		return s.store.Get(ctx, id)
+	default:
+		return RunRecord{}, fmt.Errorf("approval must be Approved, Rejected, Expired, or Canceled")
+	}
 }
 
 func (s *Service) Get(ctx context.Context, id string) (RunRecord, error) {

@@ -917,6 +917,91 @@ func TestApprovalResumeSubjectReleaseExecutionRoute(t *testing.T) {
 	}
 }
 
+func TestApprovalResumeSubjectPipelineRoute(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	pipelineService := newTestPipelineService()
+	router := newTestRouterWithPipelineAndAuth(cfg, pipelineService, authusecase.NewService(authusecase.NewMemoryStore(), memory.New()))
+	created, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{Definition: pipelineusecase.Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Pipeline",
+		Metadata:   pipelineusecase.Metadata{Name: "approval-pipeline"},
+		Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+			Name: "build",
+			Jobs: []pipelineusecase.Job{{
+				Name:     "job",
+				Executor: "shell",
+				Steps: []pipelineusecase.Step{{
+					Name: "echo",
+					Run:  "printf hello",
+				}},
+			}},
+		}}},
+	}})
+	if err != nil {
+		t.Fatalf("create pipeline run: %v", err)
+	}
+	paused, err := pipelineService.PauseForApproval(context.Background(), created.Record.Run.ID, "policy", "pipeline approval required")
+	if err != nil {
+		t.Fatalf("pause pipeline run: %v", err)
+	}
+	if paused.Run.Status != "Paused" {
+		t.Fatalf("paused status = %s", paused.Run.Status)
+	}
+
+	approvalBody := `{"subjectType":"pipeline","subjectId":"` + created.Record.Run.ID + `","requiredByPolicy":true,"requestedBy":"policy","reason":"pipeline approval required"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/approvals", strings.NewReader(approvalBody))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("create pipeline approval status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var createdApproval struct {
+		ID     string `json:"id"`
+		Status string `json:"status"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &createdApproval); err != nil {
+		t.Fatalf("decode approval: %v", err)
+	}
+	if createdApproval.ID == "" || createdApproval.Status != "Pending" {
+		t.Fatalf("created approval = %#v", createdApproval)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+createdApproval.ID+"/approve", strings.NewReader(`{"approver":"reviewer","comment":"ok"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("approve pipeline status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+createdApproval.ID+"/resume-subject", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("resume pipeline subject status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var resumed struct {
+		SubjectType string `json:"subjectType"`
+		SubjectID   string `json:"subjectId"`
+		Approval    struct {
+			Status string `json:"status"`
+		} `json:"approval"`
+		Result struct {
+			Run struct {
+				Status string `json:"status"`
+			} `json:"run"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resumed); err != nil {
+		t.Fatalf("decode pipeline resume response: %v", err)
+	}
+	if resumed.SubjectType != "pipeline" || resumed.SubjectID != created.Record.Run.ID || resumed.Approval.Status != "Approved" || resumed.Result.Run.Status != "Queued" {
+		t.Fatalf("pipeline resume response = %#v body = %s", resumed, rec.Body.String())
+	}
+}
+
 func TestChangeWindowRoutes(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {

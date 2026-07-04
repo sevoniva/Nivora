@@ -49,6 +49,11 @@ type DefinitionUpdateInput struct {
 	Enabled     *bool             `json:"enabled,omitempty"`
 }
 
+type DefinitionRollbackInput struct {
+	Version     int     `json:"version"`
+	Description *string `json:"description,omitempty"`
+}
+
 type DefinitionCatalogStore interface {
 	CreateDefinition(ctx context.Context, record DefinitionRecord) (DefinitionRecord, error)
 	GetDefinition(ctx context.Context, id string) (DefinitionRecord, error)
@@ -178,6 +183,28 @@ func (c *DefinitionCatalog) Update(ctx context.Context, id string, input Definit
 	}
 	record.Pipeline.UpdatedAt = now
 	return c.store.UpdateDefinition(ctx, record)
+}
+
+func (c *DefinitionCatalog) Rollback(ctx context.Context, id string, input DefinitionRollbackInput) (DefinitionRecord, error) {
+	if input.Version <= 0 {
+		return DefinitionRecord{}, fmt.Errorf("pipeline definition rollback version must be greater than zero")
+	}
+	current, err := c.store.GetDefinition(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return DefinitionRecord{}, err
+	}
+	if input.Version >= current.Version.Version {
+		return DefinitionRecord{}, fmt.Errorf("pipeline definition rollback version must be older than current version %d", current.Version.Version)
+	}
+	target, err := c.Version(ctx, current.Pipeline.ID, input.Version)
+	if err != nil {
+		return DefinitionRecord{}, err
+	}
+	update := DefinitionUpdateInput{Definition: &target.Definition}
+	if input.Description != nil {
+		update.Description = input.Description
+	}
+	return c.Update(ctx, current.Pipeline.ID, update)
 }
 
 func (c *DefinitionCatalog) Disable(ctx context.Context, id string) (DefinitionRecord, error) {

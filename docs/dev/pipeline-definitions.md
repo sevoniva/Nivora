@@ -55,15 +55,27 @@ go run ./cmd/nivora pipeline run --local=false --server http://localhost:8080 --
 
 If the argument is an existing local file path, the command keeps the older server behavior and posts that YAML directly to `/api/v1/pipeline-runs`.
 
-## Versions
+## Versions And Rollback
 
 ```bash
 go run ./cmd/nivora pipeline definition versions <pipeline-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
-The endpoint returns persisted version metadata for versions created through catalog create/update operations. Each entry includes the version number, definition hash, and timestamps. `historyComplete` is true for the configured catalog store when it can enumerate the saved history.
+The endpoint returns persisted version metadata for versions created through catalog create/update/rollback operations. Each entry includes the version number, definition hash, and timestamps. `historyComplete` is true for the configured catalog store when it can enumerate the saved history.
 
-This is a traceability and rerun feature, not a rollback or scheduling mechanism.
+To restore an older saved version as the new current catalog definition:
+
+```bash
+go run ./cmd/nivora pipeline definition rollback <pipeline-id> \
+  --version 1 \
+  --description "restore last known stable definition" \
+  --server http://localhost:8080 \
+  --token-env NIVORA_AUTH_TOKEN
+```
+
+Rollback does not overwrite version history. If the current version is `2` and version `1` is restored, Nivora creates version `3` with the restored definition content. The rollback endpoint is a catalog mutation protected by `project.write`; it does not create or execute a PipelineRun.
+
+This is traceability, rerun, and catalog rollback support, not a scheduler.
 
 ## Safety
 

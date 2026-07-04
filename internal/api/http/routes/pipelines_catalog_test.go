@@ -131,6 +131,66 @@ func TestPipelineDefinitionCatalogRoutes(t *testing.T) {
 		t.Fatalf("run did not preserve catalog identity: %s", rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+created.Pipeline.ID+"/rollback", strings.NewReader(`{"version":1,"description":"restored stable"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("rollback pipeline definition status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var rolledBack struct {
+		Pipeline struct {
+			Description string `json:"description"`
+		} `json:"pipeline"`
+		Version struct {
+			ID             string `json:"id"`
+			Version        int    `json:"version"`
+			DefinitionHash string `json:"definitionHash"`
+		} `json:"version"`
+		Definition struct {
+			Metadata struct {
+				Name string `json:"name"`
+			} `json:"metadata"`
+		} `json:"definition"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &rolledBack); err != nil {
+		t.Fatalf("decode rollback response: %v", err)
+	}
+	if rolledBack.Version.Version != 3 || rolledBack.Version.DefinitionHash != created.Version.DefinitionHash || rolledBack.Definition.Metadata.Name != "build" || rolledBack.Pipeline.Description != "restored stable" {
+		t.Fatalf("unexpected rollback response: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+created.Pipeline.ID+"/runs", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("run rolled back definition status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var rollbackRunResponse struct {
+		Run struct {
+			PipelineVersionID string `json:"pipelineVersionId"`
+			Status            string `json:"status"`
+		} `json:"run"`
+		Logs []struct {
+			Content string `json:"content"`
+		} `json:"logs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &rollbackRunResponse); err != nil {
+		t.Fatalf("decode rollback run response: %v", err)
+	}
+	if rollbackRunResponse.Run.PipelineVersionID != rolledBack.Version.ID || rollbackRunResponse.Run.Status != "Succeeded" {
+		t.Fatalf("rolled back current run did not use new version: %s", rec.Body.String())
+	}
+	if len(rollbackRunResponse.Logs) == 0 || !strings.Contains(rollbackRunResponse.Logs[0].Content, "ok") {
+		t.Fatalf("rolled back current run did not restore version 1 definition: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+created.Pipeline.ID+"/rollback", strings.NewReader(`{"version":3}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "older than current") {
+		t.Fatalf("rollback current version status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipelines?projectId=project-a", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

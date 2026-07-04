@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,7 +22,7 @@ func TestPipelineDefinitionCommandIncludesRunAndVersions(t *testing.T) {
 		t.Fatalf("pipeline definition help failed: %v", err)
 	}
 	help := out.String()
-	for _, command := range []string{"run", "versions"} {
+	for _, command := range []string{"run", "versions", "rollback"} {
 		if !strings.Contains(help, command) {
 			t.Fatalf("pipeline definition help missing %s: %s", command, help)
 		}
@@ -110,5 +111,55 @@ func TestPipelineDefinitionRunRejectsInvalidVersion(t *testing.T) {
 	cmd.SetArgs([]string{"pipe-1", "--version", "0"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "--version must be greater than zero") {
 		t.Fatalf("expected invalid version error, got err=%v output=%s", err, out.String())
+	}
+}
+
+func TestPipelineDefinitionRollbackUsesBearerToken(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "rollback-token")
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/pipelines/pipe-1/rollback" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer rollback-token" {
+			t.Fatalf("Authorization header = %q", got)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		raw := string(body)
+		if !strings.Contains(raw, `"version":1`) || !strings.Contains(raw, `"description":"stable"`) {
+			t.Fatalf("unexpected rollback body: %s", raw)
+		}
+		_, _ = w.Write([]byte(`{"pipeline":{"id":"pipe-1"},"version":{"id":"pver-3","version":3}}`))
+	}))
+	defer server.Close()
+
+	cmd := newPipelineDefinitionRollbackCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"pipe-1", "--version", "1", "--description", "stable", "--server", server.URL, "--token-env", "NIVORA_TEST_TOKEN"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("rollback command failed: %v output=%s", err, out.String())
+	}
+	if !called {
+		t.Fatal("expected rollback command to call server")
+	}
+	if !strings.Contains(out.String(), `"pver-3"`) {
+		t.Fatalf("rollback output missing response: %s", out.String())
+	}
+}
+
+func TestPipelineDefinitionRollbackRejectsInvalidVersion(t *testing.T) {
+	cmd := newPipelineDefinitionRollbackCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"pipe-1", "--version", "0"})
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "--version must be greater than zero") {
+		t.Fatalf("expected invalid rollback version error, got err=%v output=%s", err, out.String())
 	}
 }

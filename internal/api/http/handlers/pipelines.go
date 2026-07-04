@@ -119,6 +119,25 @@ func ListPipelineDefinitionVersions(catalog *pipelineusecase.DefinitionCatalog) 
 	}
 }
 
+func RollbackPipelineDefinition(catalog *pipelineusecase.DefinitionCatalog) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineDefinition(w, r, catalog); !ok {
+			return
+		}
+		var input pipelineusecase.DefinitionRollbackInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_json", Message: "request body must be valid JSON"})
+			return
+		}
+		record, err := catalog.Rollback(r.Context(), chi.URLParam(r, "id"), input)
+		if err != nil {
+			respondPipelineDefinitionError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record)
+	}
+}
+
 func RunPipelineDefinition(catalog *pipelineusecase.DefinitionCatalog, service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		record, ok := getAuthorizedPipelineDefinition(w, r, catalog)

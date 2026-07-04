@@ -1818,7 +1818,7 @@ paths:
   /api/v1/pipelines/{id}/versions:
     get:
       summary: List pipeline definition versions
-      description: Returns persisted Pipeline definition version metadata created by catalog create/update operations. This is version history for traceability, not a scheduler or rollback mechanism.
+      description: Returns persisted Pipeline definition version metadata created by catalog create/update/rollback operations. This is version history for traceability, rerun, and catalog rollback support, not a scheduler.
       parameters:
         - $ref: "#/components/parameters/ID"
       responses:
@@ -1839,6 +1839,31 @@ paths:
                     type: boolean
                   currentVersionId:
                     type: string
+  /api/v1/pipelines/{id}/rollback:
+    post:
+      summary: Restore a saved pipeline definition version
+      description: Restores an older saved Pipeline definition version as a new current catalog version. This mutates catalog metadata only and does not execute a PipelineRun.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PipelineDefinitionRollbackRequest"
+      responses:
+        "200":
+          description: Pipeline definition restored as a new current version
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineDefinitionRecord"
+        "400":
+          description: Invalid rollback target
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/pipelines/{id}/runs:
     post:
       summary: Run a saved pipeline definition
@@ -6618,6 +6643,17 @@ components:
           type: boolean
         definition:
           $ref: "#/components/schemas/PipelineDefinition"
+    PipelineDefinitionRollbackRequest:
+      type: object
+      required: [version]
+      properties:
+        version:
+          type: integer
+          minimum: 1
+          description: Older saved Pipeline definition version number to restore as the new current version.
+        description:
+          type: string
+          description: Optional replacement description for the restored catalog record.
     PipelineSpec:
       type: object
       required: [stages]

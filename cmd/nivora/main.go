@@ -4040,6 +4040,7 @@ func newPipelineCommand() *cobra.Command {
 	definitions.AddCommand(newPipelineDefinitionUpdateCommand())
 	definitions.AddCommand(newPipelineDefinitionDisableCommand())
 	definitions.AddCommand(newPipelineDefinitionVersionsCommand())
+	definitions.AddCommand(newPipelineDefinitionRollbackCommand())
 	definitions.AddCommand(newPipelineDefinitionRunCommand())
 	cmd.AddCommand(definitions)
 	cmd.AddCommand(newPipelineRunCommand())
@@ -4226,6 +4227,40 @@ func newPipelineDefinitionVersionsCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newPipelineDefinitionRollbackCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var version int
+	var description string
+	cmd := &cobra.Command{
+		Use:   "rollback <pipeline-id> --version <n>",
+		Short: "Restore a historical pipeline definition version as the new current version",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if version <= 0 {
+				return fmt.Errorf("--version must be greater than zero")
+			}
+			bodyMap := map[string]any{"version": version}
+			setBodyString(bodyMap, "description", description)
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/pipelines/"+url.PathEscape(args[0])+"/rollback", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().IntVar(&version, "version", 0, "historical pipeline definition version to restore")
+	cmd.Flags().StringVar(&description, "description", "", "optional pipeline description to store on the restored definition")
 	return cmd
 }
 

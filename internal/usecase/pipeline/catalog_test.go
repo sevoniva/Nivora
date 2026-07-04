@@ -3,6 +3,7 @@ package pipeline
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -47,6 +48,22 @@ func TestDefinitionCatalogCreateUpdateAndDisable(t *testing.T) {
 		t.Fatalf("unexpected second version record: %+v", secondVersion)
 	}
 
+	rollbackDescription := "restored stable definition"
+	rolledBack, err := catalog.Rollback(ctx, record.Pipeline.ID, DefinitionRollbackInput{Version: 1, Description: &rollbackDescription})
+	if err != nil {
+		t.Fatalf("rollback definition: %v", err)
+	}
+	if rolledBack.Version.Version != 3 || rolledBack.Definition.Metadata.Name != "build" || rolledBack.Pipeline.Description != rollbackDescription {
+		t.Fatalf("unexpected rollback record: %+v", rolledBack)
+	}
+	versions, err = catalog.Versions(ctx, record.Pipeline.ID)
+	if err != nil {
+		t.Fatalf("list versions after rollback: %v", err)
+	}
+	if len(versions) != 3 || versions[2].Version != 3 {
+		t.Fatalf("rollback should append version 3, got %+v", versions)
+	}
+
 	disabled, err := catalog.Disable(ctx, record.Pipeline.ID)
 	if err != nil {
 		t.Fatalf("disable definition: %v", err)
@@ -67,6 +84,27 @@ func TestDefinitionCatalogRejectsInvalidAndDuplicateDefinitions(t *testing.T) {
 	}
 	if _, err := catalog.Create(ctx, DefinitionCreateInput{ProjectID: "project-a", Definition: catalogTestDefinition("BUILD")}); !errors.Is(err, ErrPipelineDefinitionAlreadyExists) {
 		t.Fatalf("duplicate error = %v", err)
+	}
+}
+
+func TestDefinitionCatalogRollbackRejectsInvalidTargets(t *testing.T) {
+	ctx := context.Background()
+	catalog := NewDefinitionCatalog(NewDefinitionMemoryStore())
+	record, err := catalog.Create(ctx, DefinitionCreateInput{ProjectID: "project-a", Definition: catalogTestDefinition("build")})
+	if err != nil {
+		t.Fatalf("create definition: %v", err)
+	}
+	if _, err := catalog.Rollback(ctx, record.Pipeline.ID, DefinitionRollbackInput{Version: 0}); err == nil || !strings.Contains(err.Error(), "greater than zero") {
+		t.Fatalf("expected invalid version error, got %v", err)
+	}
+	if _, err := catalog.Rollback(ctx, record.Pipeline.ID, DefinitionRollbackInput{Version: 1}); err == nil || !strings.Contains(err.Error(), "older than current") {
+		t.Fatalf("expected current version rejection, got %v", err)
+	}
+	if _, err := catalog.Update(ctx, record.Pipeline.ID, DefinitionUpdateInput{Definition: ptrDefinition(catalogTestDefinition("build-v2"))}); err != nil {
+		t.Fatalf("update definition: %v", err)
+	}
+	if _, err := catalog.Rollback(ctx, record.Pipeline.ID, DefinitionRollbackInput{Version: 99}); err == nil || !strings.Contains(err.Error(), "older than current") {
+		t.Fatalf("expected future version rejection, got %v", err)
 	}
 }
 

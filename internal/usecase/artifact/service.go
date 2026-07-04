@@ -200,6 +200,13 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 				message   string
 			}{EventArtifactDigestResolved, resolution.DigestQualifiedReference})
 		}
+		metadata := cloneMap(item.Metadata)
+		if projectID := strings.TrimSpace(input.ProjectID); projectID != "" && metadata["projectId"] == "" {
+			if metadata == nil {
+				metadata = map[string]string{}
+			}
+			metadata["projectId"] = projectID
+		}
 		artifactID := newID("artifact")
 		artifact := domainartifact.Artifact{
 			ID:             artifactID,
@@ -213,7 +220,7 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 			MediaType:      resolution.MediaType,
 			SizeBytes:      resolution.SizeBytes,
 			ManifestSchema: resolution.ManifestSchema,
-			Metadata:       item.Metadata,
+			Metadata:       metadata,
 			CreatedAt:      now,
 		}
 		bound := release.ReleaseArtifact{
@@ -230,7 +237,7 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 			MediaType:       resolution.MediaType,
 			SizeBytes:       resolution.SizeBytes,
 			ManifestSchema:  resolution.ManifestSchema,
-			Metadata:        item.Metadata,
+			Metadata:        cloneMap(metadata),
 			CreatedAt:       now,
 			UpdatedAt:       now,
 		}

@@ -65,6 +65,17 @@ func CreateArtifact(service *artifactusecase.Service) http.HandlerFunc {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an artifact tracking request"})
 			return
 		}
+		if scopeType, scopeID := TenantScopeFilter(r); scopeID != "" {
+			if input.Metadata == nil {
+				input.Metadata = map[string]string{}
+			}
+			switch scopeType {
+			case tenant.ScopeProject:
+				input.Metadata["projectId"] = scopeID
+			case tenant.ScopeEnvironment:
+				input.Metadata["environmentId"] = scopeID
+			}
+		}
 		artifact, err := service.TrackArtifact(r.Context(), input)
 		if err != nil {
 			respondArtifactResult(w, r, artifact, err)

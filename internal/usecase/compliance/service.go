@@ -186,6 +186,21 @@ func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (doma
 		bundle.Events = record.Events
 		bundle.Audits = record.Audits
 		bundle = s.appendReleaseExecutionEvidence(ctx, bundle, input.SubjectID)
+	case "artifact":
+		artifact, err := s.artifacts.GetArtifact(ctx, input.SubjectID)
+		if err != nil {
+			return bundle, err
+		}
+		bindings, _ := s.artifacts.ArtifactReleases(ctx, input.SubjectID)
+		bundle.SubjectSummary = map[string]any{
+			"artifactId": artifact.ID,
+			"name":       artifact.Name,
+			"type":       artifact.Type,
+			"reference":  artifact.Reference,
+			"digest":     artifact.Digest,
+			"bindings":   len(bindings),
+		}
+		bundle.Artifacts = append([]any{sanitizeAny(artifact)}, anySlice(bindings)...)
 	case "security", "securityScan":
 		record, err := s.security.Get(ctx, input.SubjectID)
 		if err != nil {
@@ -317,6 +332,48 @@ func (s *Service) SubjectScope(ctx context.Context, subjectType string, subjectI
 		}
 		if record.Run.EnvironmentID != "" {
 			return SubjectScopeResult{ScopeType: tenant.ScopeEnvironment, ScopeID: record.Run.EnvironmentID, Verified: true}, nil
+		}
+		return SubjectScopeResult{}, nil
+	case "release":
+		if s.artifacts == nil {
+			return SubjectScopeResult{}, nil
+		}
+		record, err := s.artifacts.GetRelease(ctx, subjectID)
+		if err != nil {
+			return SubjectScopeResult{}, err
+		}
+		if projectID := strings.TrimSpace(record.Release.Metadata["projectId"]); projectID != "" {
+			return SubjectScopeResult{ScopeType: tenant.ScopeProject, ScopeID: projectID, Verified: true}, nil
+		}
+		if record.Release.EnvironmentID != "" {
+			return SubjectScopeResult{ScopeType: tenant.ScopeEnvironment, ScopeID: record.Release.EnvironmentID, Verified: true}, nil
+		}
+		return SubjectScopeResult{}, nil
+	case "artifact":
+		if s.artifacts == nil {
+			return SubjectScopeResult{}, nil
+		}
+		artifact, err := s.artifacts.GetArtifact(ctx, subjectID)
+		if err != nil {
+			return SubjectScopeResult{}, err
+		}
+		if projectID := strings.TrimSpace(artifact.Metadata["projectId"]); projectID != "" {
+			return SubjectScopeResult{ScopeType: tenant.ScopeProject, ScopeID: projectID, Verified: true}, nil
+		}
+		if environmentID := strings.TrimSpace(artifact.Metadata["environmentId"]); environmentID != "" {
+			return SubjectScopeResult{ScopeType: tenant.ScopeEnvironment, ScopeID: environmentID, Verified: true}, nil
+		}
+		bindings, err := s.artifacts.ArtifactReleases(ctx, subjectID)
+		if err != nil {
+			return SubjectScopeResult{}, nil
+		}
+		for _, binding := range bindings {
+			if projectID := strings.TrimSpace(binding.Release.Metadata["projectId"]); projectID != "" {
+				return SubjectScopeResult{ScopeType: tenant.ScopeProject, ScopeID: projectID, Verified: true}, nil
+			}
+			if binding.Release.EnvironmentID != "" {
+				return SubjectScopeResult{ScopeType: tenant.ScopeEnvironment, ScopeID: binding.Release.EnvironmentID, Verified: true}, nil
+			}
 		}
 		return SubjectScopeResult{}, nil
 	case "releaseExecution", "release_execution":

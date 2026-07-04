@@ -623,6 +623,62 @@ func TestTenantIsolationEvidenceBundles(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationReleaseAndArtifactEvidenceBundles(t *testing.T) {
+	router, auth := newIsoRouter(t)
+	developerA := createScopedToken(t, auth, "evidence-release-dev-a", domainauth.RoleDeveloper, "project", "project-a")
+	auditorA := createScopedToken(t, auth, "evidence-release-auditor-a", domainauth.RoleAuditor, "project", "project-a")
+	auditorB := createScopedToken(t, auth, "evidence-release-auditor-b", domainauth.RoleAuditor, "project", "project-b")
+
+	releaseID := createProjectRelease(t, router, developerA, "evidence-release-a")
+	releaseBundleID := "evb-release-" + releaseID
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/evidence/release/"+releaseID, nil)
+	req.Header.Set("Authorization", "Bearer "+auditorA)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-A auditor should generate release evidence, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), releaseBundleID) || !strings.Contains(rec.Body.String(), `"scopeId":"project-a"`) {
+		t.Fatalf("release evidence missing scope metadata, body=%s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/release/"+releaseID, nil)
+	req.Header.Set("Authorization", "Bearer "+auditorB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-B auditor should be forbidden from project-A release evidence, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/bundles/"+releaseBundleID, nil)
+	req.Header.Set("Authorization", "Bearer "+auditorB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-B auditor should be forbidden from release bundle id read, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	artifactID := createProjectArtifact(t, router, developerA, "evidence-artifact-a")
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/artifact/"+artifactID, nil)
+	req.Header.Set("Authorization", "Bearer "+auditorA)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-A auditor should generate artifact evidence, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"subjectType":"artifact"`) || !strings.Contains(rec.Body.String(), `"scopeId":"project-a"`) {
+		t.Fatalf("artifact evidence missing subject/scope metadata, body=%s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/artifact/"+artifactID, nil)
+	req.Header.Set("Authorization", "Bearer "+auditorB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-B auditor should be forbidden from project-A artifact evidence, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func createProjectPipelineRun(t *testing.T, router http.Handler, token, name string) string {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs", strings.NewReader(`{"apiVersion":"nivora.io/v1alpha1","kind":"Pipeline","metadata":{"name":"`+name+`"},"spec":{"stages":[{"name":"build","jobs":[{"name":"echo","executor":"shell","steps":[{"name":"say","run":"printf `+name+`"}]}]}]}}`))
@@ -796,6 +852,32 @@ func createProjectRelease(t *testing.T, router http.Handler, token, name string)
 	metadata, ok := releaseObj["metadata"].(map[string]any)
 	if !ok || metadata["projectId"] != "project-a" {
 		t.Fatalf("scoped release did not preserve project metadata: %s", rec.Body.String())
+	}
+	return id
+}
+
+func createProjectArtifact(t *testing.T, router http.Handler, token, name string) string {
+	t.Helper()
+	body := `{"name":"` + name + `","type":"image","reference":"registry.example.com/demo/` + name + `:1.0.0"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for project artifact create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode artifact response: %v", err)
+	}
+	id, ok := response["id"].(string)
+	if !ok || id == "" {
+		t.Fatalf("artifact response missing id: %s", rec.Body.String())
+	}
+	metadata, ok := response["metadata"].(map[string]any)
+	if !ok || metadata["projectId"] != "project-a" {
+		t.Fatalf("scoped artifact did not preserve project metadata: %s", rec.Body.String())
 	}
 	return id
 }

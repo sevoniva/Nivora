@@ -16,6 +16,7 @@ import (
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	domainevent "github.com/sevoniva/nivora/internal/domain/event"
+	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	domaintenant "github.com/sevoniva/nivora/internal/domain/tenant"
 	"github.com/sevoniva/nivora/internal/infra/crypto"
@@ -299,7 +300,13 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"maturity": "hardened beta-candidate", "productionReady": false, "content": string(body)}, nil
+		return map[string]any{
+			"maturity":        "hardened beta-candidate",
+			"productionReady": false,
+			"scope":           s.subjectScopeSummary(),
+			"warnings":        s.capabilityStatusWarnings(),
+			"content":         string(body),
+		}, nil
 	case uri == "nivora://system/runtime":
 		return s.runtimeRecoveryStatus(ctx)
 	case uri == "nivora://runtime/recovery":
@@ -853,11 +860,12 @@ func (s *Server) runnerSummary(ctx context.Context) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	runners = s.filterRunnersForSubject(runners)
 	statusCounts := map[string]int{}
 	for _, runner := range runners {
 		statusCounts[runner.Status]++
 	}
-	return map[string]any{"total": len(runners), "statusCounts": statusCounts, "runners": runners}, nil
+	return map[string]any{"total": len(runners), "statusCounts": statusCounts, "runners": runners, "scope": s.subjectScopeSummary(), "mutated": false}, nil
 }
 
 func (s *Server) runtimeRecoveryStatus(ctx context.Context) (any, error) {
@@ -1430,6 +1438,60 @@ func (s *Server) canReadArtifactReleaseBinding(binding artifactusecase.ArtifactR
 	projectID := firstNonEmpty(binding.Binding.Metadata["projectId"], binding.Release.Metadata["projectId"])
 	environmentID := firstNonEmpty(binding.Binding.Metadata["environmentId"], binding.Release.Metadata["environmentId"], binding.Release.EnvironmentID)
 	return s.ensureSubjectScope(binding.Binding.ID, projectID, environmentID) == nil
+}
+
+func (s *Server) filterRunnersForSubject(runners []domainrunner.Runner) []domainrunner.Runner {
+	if len(runners) == 0 {
+		return runners
+	}
+	scopeType := strings.TrimSpace(s.services.Subject.ScopeType)
+	scopeID := strings.TrimSpace(s.services.Subject.ScopeID)
+	if scopeType == "" || scopeType == domaintenant.ScopeGlobal || scopeID == "" {
+		return runners
+	}
+	filtered := make([]domainrunner.Runner, 0, len(runners))
+	for _, runner := range runners {
+		if s.canReadRunner(runner) {
+			filtered = append(filtered, runner)
+		}
+	}
+	return filtered
+}
+
+func (s *Server) canReadRunner(runner domainrunner.Runner) bool {
+	scopeType := strings.TrimSpace(s.services.Subject.ScopeType)
+	scopeID := strings.TrimSpace(s.services.Subject.ScopeID)
+	if scopeType == "" || scopeType == domaintenant.ScopeGlobal || scopeID == "" {
+		return true
+	}
+	switch scopeType {
+	case domaintenant.ScopeOrg:
+		return runner.Labels["orgId"] == scopeID
+	case domaintenant.ScopeProject:
+		return runner.Labels["projectId"] == scopeID
+	case domaintenant.ScopeEnvironment:
+		return runner.Labels["environmentId"] == scopeID
+	default:
+		return false
+	}
+}
+
+func (s *Server) subjectScopeSummary() map[string]string {
+	scopeType := strings.TrimSpace(s.services.Subject.ScopeType)
+	scopeID := strings.TrimSpace(s.services.Subject.ScopeID)
+	if scopeType == "" || scopeType == domaintenant.ScopeGlobal || scopeID == "" {
+		return map[string]string{"type": domaintenant.ScopeGlobal}
+	}
+	return map[string]string{"type": scopeType, "id": scopeID}
+}
+
+func (s *Server) capabilityStatusWarnings() []string {
+	scopeType := strings.TrimSpace(s.services.Subject.ScopeType)
+	scopeID := strings.TrimSpace(s.services.Subject.ScopeID)
+	if scopeType == "" || scopeType == domaintenant.ScopeGlobal || scopeID == "" {
+		return nil
+	}
+	return []string{"capability status is global maturity metadata; tenant inventory is not included in this resource"}
 }
 
 func (s *Server) ensureSubjectScope(resource string, projectID string, environmentID string) error {

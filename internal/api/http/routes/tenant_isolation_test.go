@@ -574,6 +574,63 @@ func TestTenantIsolationAggregateObservabilityRoutes(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationRunnerScopeFilteringAndMutation(t *testing.T) {
+	router, auth := newIsoRouter(t)
+	projectAAdmin := createScopedToken(t, auth, "runner-scope-admin-a", domainauth.RoleAdmin, "project", "project-a")
+	projectBAdmin := createScopedToken(t, auth, "runner-scope-admin-b", domainauth.RoleAdmin, "project", "project-b")
+	globalAdmin := createScopedToken(t, auth, "runner-scope-global-admin", domainauth.RoleAdmin, "", "")
+
+	runnerA := registerScopedRunner(t, router, projectAAdmin, `{"id":"runner-project-a","name":"runner-project-a","status":"online","executors":["shell"],"labels":{"projectId":"project-b","environmentId":"env-b"}}`)
+	if labels, _ := runnerA["labels"].(map[string]any); labels["projectId"] != "project-a" || labels["environmentId"] != nil {
+		t.Fatalf("scoped runner registration should force project-a labels and drop environment override: %#v", runnerA)
+	}
+	registerScopedRunner(t, router, globalAdmin, `{"id":"runner-project-b","name":"runner-project-b","status":"online","executors":["shell"],"labels":{"projectId":"project-b"}}`)
+
+	for _, path := range []string{"/api/v1/runners", "/api/v1/visualization/runners/summary"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+projectAAdmin)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("project-A runner read %s got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "runner-project-a") || strings.Contains(body, "runner-project-b") || strings.Contains(body, "project-b") {
+			t.Fatalf("project-A runner read %s leaked or missed scoped data, body=%s", path, body)
+		}
+
+		req = httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+projectBAdmin)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("project-B runner read %s got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+		body = rec.Body.String()
+		if !strings.Contains(body, "runner-project-b") || strings.Contains(body, "runner-project-a") || strings.Contains(body, "project-a") {
+			t.Fatalf("project-B runner read %s leaked or missed scoped data, body=%s", path, body)
+		}
+	}
+
+	for _, tc := range []struct {
+		method string
+		path   string
+	}{
+		{http.MethodGet, "/api/v1/runners/runner-project-b"},
+		{http.MethodPost, "/api/v1/runners/runner-project-b/token/rotate"},
+		{http.MethodPost, "/api/v1/runners/runner-project-b/token/revoke"},
+		{http.MethodPost, "/api/v1/runners/offline-detect"},
+	} {
+		req := httptest.NewRequest(tc.method, tc.path, nil)
+		req.Header.Set("Authorization", "Bearer "+projectAAdmin)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("project-A should be forbidden for %s %s, got %d body=%s", tc.method, tc.path, rec.Code, rec.Body.String())
+		}
+	}
+}
+
 func TestTenantIsolationEvidenceBundles(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	developerA := createScopedToken(t, auth, "evidence-dev-a", domainauth.RoleDeveloper, "project", "project-a")
@@ -880,4 +937,28 @@ func createProjectArtifact(t *testing.T, router http.Handler, token, name string
 		t.Fatalf("scoped artifact did not preserve project metadata: %s", rec.Body.String())
 	}
 	return id
+}
+
+func registerScopedRunner(t *testing.T, router http.Handler, token string, body string) map[string]any {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runners/register", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("register runner got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode runner register response: %v", err)
+	}
+	if strings.Contains(rec.Body.String(), "tokenHash") {
+		t.Fatalf("runner register leaked token hash: %s", rec.Body.String())
+	}
+	runner, ok := response["runner"].(map[string]any)
+	if !ok {
+		t.Fatalf("runner register response missing runner object: %s", rec.Body.String())
+	}
+	return runner
 }

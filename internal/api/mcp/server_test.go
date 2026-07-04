@@ -14,6 +14,7 @@ import (
 	"github.com/sevoniva/nivora/internal/app/runtime"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
+	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
@@ -490,6 +491,64 @@ func TestMCPTenantScopeFiltersPipelineReadsAndAggregates(t *testing.T) {
 
 	if _, err := projectB.ReadResource(ctx, "nivora://pipelines/runs/"+runB+"/timeline"); err != nil {
 		t.Fatalf("project B read own pipeline timeline: %v", err)
+	}
+}
+
+func TestMCPTenantScopeFiltersRunnerSummaryAndCapabilityMetadata(t *testing.T) {
+	ctx := context.Background()
+	pipelines := runtime.NewPipelineService()
+	projectA := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-runner-project-a",
+		Username:  "sa-runner-project-a",
+		Roles:     []string{domainauth.RoleViewer},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-a",
+	})
+	projectA.services.Pipelines = pipelines
+	projectB := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-runner-project-b",
+		Username:  "sa-runner-project-b",
+		Roles:     []string{domainauth.RoleViewer},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-b",
+	})
+	projectB.services.Pipelines = pipelines
+
+	registerMCPRunner(t, pipelines, "runner-project-a", "project-a")
+	registerMCPRunner(t, pipelines, "runner-project-b", "project-b")
+
+	resource, err := projectA.ReadResource(ctx, "nivora://runners/summary")
+	if err != nil {
+		t.Fatalf("project A runner summary resource: %v", err)
+	}
+	if !strings.Contains(resource.Text, "runner-project-a") || strings.Contains(resource.Text, "runner-project-b") || strings.Contains(resource.Text, "project-b") {
+		t.Fatalf("project A runner summary leaked or missed scoped data: %s", resource.Text)
+	}
+
+	toolResult, err := projectA.CallTool(ctx, "nivora_get_runner_summary", nil)
+	if err != nil {
+		t.Fatalf("project A runner summary tool transport: %v", err)
+	}
+	if toolResult.IsError || !strings.Contains(toolResult.Content[0].Text, "runner-project-a") || strings.Contains(toolResult.Content[0].Text, "runner-project-b") {
+		t.Fatalf("project A runner summary tool leaked or missed scoped data: %#v", toolResult)
+	}
+
+	resource, err = projectB.ReadResource(ctx, "nivora://runners/summary")
+	if err != nil {
+		t.Fatalf("project B runner summary resource: %v", err)
+	}
+	if !strings.Contains(resource.Text, "runner-project-b") || strings.Contains(resource.Text, "runner-project-a") || strings.Contains(resource.Text, "project-a") {
+		t.Fatalf("project B runner summary leaked or missed scoped data: %s", resource.Text)
+	}
+
+	capability, err := projectA.ReadResource(ctx, "nivora://capabilities/current")
+	if err != nil {
+		t.Fatalf("project A capability resource: %v", err)
+	}
+	if !strings.Contains(capability.Text, `"scope"`) || !strings.Contains(capability.Text, `"id": "project-a"`) || !strings.Contains(capability.Text, "global maturity metadata") {
+		t.Fatalf("scoped capability resource should label scope and global metadata warning: %s", capability.Text)
 	}
 }
 
@@ -1483,6 +1542,20 @@ func createScopedMCPSecurityScan(t *testing.T, security *securityusecase.Service
 		t.Fatalf("create scoped security scan fixture: %v", err)
 	}
 	return record.Scan.ID
+}
+
+func registerMCPRunner(t *testing.T, service *pipelineusecase.Service, id string, projectID string) {
+	t.Helper()
+	_, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:        id,
+		Name:      id,
+		Status:    "online",
+		Executors: []string{"shell"},
+		Labels:    map[string]string{"projectId": projectID},
+	})
+	if err != nil {
+		t.Fatalf("register MCP runner %s: %v", id, err)
+	}
 }
 
 func resultCountIsZero(t *testing.T, result ToolResult) bool {

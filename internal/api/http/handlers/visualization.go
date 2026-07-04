@@ -215,6 +215,7 @@ func GetVisualizationRunnerSummary(service *pipelineusecase.Service) http.Handle
 			respondVisualizationError(w, r, err)
 			return
 		}
+		runners = filterRunnersForRequest(r, runners)
 		nodes := make([]dto.ResourceNode, 0, len(runners))
 		counts := map[string]int{"total": len(runners)}
 		for _, runner := range runners {

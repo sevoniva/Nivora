@@ -178,6 +178,7 @@ func RegisterRunner(service *pipelineusecase.Service) http.HandlerFunc {
 			})
 			return
 		}
+		applyRunnerRequestScope(r, &runner)
 		result, err := service.RegisterRunnerWithToken(r.Context(), runner)
 		if err != nil {
 			respondPipelineResult(w, r, nil, err)
@@ -189,6 +190,9 @@ func RegisterRunner(service *pipelineusecase.Service) http.HandlerFunc {
 
 func RotateRunnerToken(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedRunner(w, r, service); !ok {
+			return
+		}
 		result, err := service.RotateRunnerToken(r.Context(), chi.URLParam(r, "id"))
 		if err != nil {
 			respondPipelineResult(w, r, nil, err)
@@ -200,6 +204,9 @@ func RotateRunnerToken(service *pipelineusecase.Service) http.HandlerFunc {
 
 func RevokeRunnerToken(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedRunner(w, r, service); !ok {
+			return
+		}
 		runner, err := service.RevokeRunnerToken(r.Context(), chi.URLParam(r, "id"))
 		respondPipelineResult(w, r, runner, err)
 	}
@@ -208,14 +215,21 @@ func RevokeRunnerToken(service *pipelineusecase.Service) http.HandlerFunc {
 func ListRunners(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		runners, err := service.ListRunners(r.Context())
-		respondPipelineResult(w, r, runners, err)
+		if err != nil {
+			respondPipelineResult(w, r, nil, err)
+			return
+		}
+		respondPipelineResult(w, r, filterRunnersForRequest(r, runners), nil)
 	}
 }
 
 func GetRunner(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		runner, err := service.GetRunner(r.Context(), chi.URLParam(r, "id"))
-		respondPipelineResult(w, r, runner, err)
+		runner, ok := getAuthorizedRunner(w, r, service)
+		if !ok {
+			return
+		}
+		respondPipelineResult(w, r, runner, nil)
 	}
 }
 
@@ -326,6 +340,14 @@ func UpdateJobStatus(service *pipelineusecase.Service) http.HandlerFunc {
 
 func MarkOfflineRunners(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if ScopedByTenant(r) {
+			RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{
+				Code:    "forbidden",
+				Message: "runner offline detection requires global runner.manage scope",
+				Path:    r.URL.Path,
+			})
+			return
+		}
 		timeout := time.Minute
 		if value := r.URL.Query().Get("timeoutSeconds"); value != "" {
 			parsed, err := time.ParseDuration(value + "s")
@@ -380,6 +402,23 @@ func pipelineRecordInRequestScope(r *http.Request, record pipelineusecase.RunRec
 		return false
 	}
 	return scopeType == tenant.ScopeProject && record.Pipeline.ProjectID == scopeID
+}
+
+func getAuthorizedRunner(w http.ResponseWriter, r *http.Request, service *pipelineusecase.Service) (domainrunner.Runner, bool) {
+	runner, err := service.GetRunner(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		respondPipelineResult(w, r, nil, err)
+		return domainrunner.Runner{}, false
+	}
+	if !runnerInRequestScope(r, runner) {
+		RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{
+			Code:    "forbidden",
+			Message: "runner is outside requester scope",
+			Path:    r.URL.Path,
+		})
+		return domainrunner.Runner{}, false
+	}
+	return runner, true
 }
 
 func respondPipelineResult(w http.ResponseWriter, r *http.Request, payload any, err error) {

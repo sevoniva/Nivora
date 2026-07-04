@@ -53,7 +53,7 @@ Nivora is **not production-ready**. All 11 core runtime stores have PostgreSQL i
 
 ## Contract Notes
 
-- Placeholder route groups must return structured `not_implemented` responses.
+- If placeholder route groups are reintroduced, they must return structured `not_implemented` responses and be labeled in OpenAPI.
 - OpenAPI paths must match registered HTTP routes at route/path level.
 - OpenAPI and AsyncAPI describe a hardened beta-candidate foundation, not a production-ready platform.
 - External adapters labeled noop, fake, skeleton, placeholder, or experimental must not be described as complete integrations.

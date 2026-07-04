@@ -8,7 +8,7 @@ Current decision: **experimental go for explicitly enabled remote read-only MCP 
 |---|---|---|---|
 | Local stdio read-only MCP | go for local maintainer use | `cmd/nivora-mcp`, `make verify-mcp` | Local trust boundary only. |
 | Local stdio plan-only MCP | go for local maintainer use | plan tools return `mutated=false` | Summaries are not execution authority. |
-| Remote read-only MCP | experimental foundation | `POST /api/v1/mcp/rpc`; bearer/static-token route tests; runner-token rejection; request body cap; JSON-RPC response cap; blocked action denial; OpenAPI contract | Broader OIDC coverage, per-client rate limits, pagination, operator deployment docs, and remote audit attribution tests remain incomplete. |
+| Remote read-only MCP | experimental foundation | `POST /api/v1/mcp/rpc`; bearer/static-token route tests; runner-token rejection; request body cap; JSON-RPC response cap; in-process per-subject rate limit; blocked action denial; OpenAPI contract | Broader OIDC coverage, distributed rate limits, pagination, operator deployment docs, and remote audit attribution tests remain incomplete. |
 | Remote plan-only MCP | experimental foundation | plan-only local tests exist and remote JSON-RPC uses the same server dispatch | Remote abuse controls and result-size pagination need more proof. |
 | Remote action MCP | no-go | blocked action tools | Destructive actions are intentionally excluded. |
 
@@ -23,7 +23,7 @@ Current decision: **experimental go for explicitly enabled remote read-only MCP 
 | Tenant scope | org/project/environment filters per resource/tool | partially modeled, not complete |
 | Response limits | body size, log truncation, capped lists | local and remote JSON-RPC response cap exists; pagination missing |
 | Request timeout | per request timeout | shared JSON-RPC timeout path exists |
-| Rate limits | per subject/client | shared in-process JSON-RPC rate limit exists; per-client distributed limit missing |
+| Rate limits | per subject/client | in-process per-subject JSON-RPC rate limit exists; distributed limit missing |
 | Audit | actor, auth mode, client, resource/tool, decision, scope, request/correlation IDs | compliance recorder exists and `TestPostgresIntegrationMCPAuditHashChain` proves Postgres hash-chain persistence; remote client attribution proof missing |
 | Secrets | never return values or token hashes | implemented in redaction tests |
 

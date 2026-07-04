@@ -100,7 +100,7 @@ No row in this matrix should be read as a GA production claim.
 | MCP audit | foundation | compliance recorder and Postgres hash-chain proof | unit/compliance tests plus `TestPostgresIntegrationMCPAuditHashChain` | MCP audit docs | Remote client attribution and audit scope policy are still future work | Remote audit contract tests before remote MCP exposure | MCP |
 | MCP scenario corpus | beta | scenario YAML | validator/tests | scenario README | Coverage must grow with tools | Require enterprise abuse cases | MCP |
 | MCP golden answers | beta | golden markdown | validator/tests | scenario README | Style drift possible | Golden-answer linter | MCP |
-| MCP rate limit | foundation | shared JSON-RPC request limit | MCP rate-limit tests | MCP security docs | Remote per-client distributed limits missing | Add remote per-client limits before exposure | MCP |
+| MCP rate limit | foundation | in-process per-subject JSON-RPC request limit | MCP rate-limit tests | MCP security docs | Distributed limits across replicas are missing | Add distributed rate limits before broad exposure | MCP |
 | MCP request body cap | foundation | shared JSON-RPC request body cap and remote route test | MCP request-size tests | MCP security docs | More remote abuse-depth tests needed | Add remote body-limit scenarios before exposure | MCP |
 | MCP response size cap | beta | JSON-RPC transport cap plus log/resource truncation | transport cap and truncation tests | MCP docs | Remote pagination still missing | Add pagination before broad exposure | MCP |
 | MCP action denial | beta | denied tool registry | scenario tests | permission matrix | New action aliases could drift | Deny-list catalog test | MCP |

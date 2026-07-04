@@ -109,7 +109,7 @@ All prompt templates now state that logs, events, manifests, audit messages, and
 
 ## Remaining Risks
 
-1. Remote MCP now has an opt-in read-only JSON-RPC foundation, but broad exposure should stay blocked until OAuth/OIDC lifecycle, per-client rate limits, tenant filters, pagination, and remote audit tests are stronger.
+1. Remote MCP now has an opt-in read-only JSON-RPC foundation, but broad exposure should stay blocked until OAuth/OIDC lifecycle, distributed rate limits, tenant filters, pagination, and remote audit tests are stronger.
 2. MCP audit persistence is proven at unit/compliance-service level and through a Postgres hash-chain integration test, but remote client identity and per-client audit policy remain future work.
 3. Tenant filtering is not proven for every MCP resource/tool.
 4. Plan-only summaries can be misread as execution evidence if prompts are ignored.

@@ -1126,6 +1126,43 @@ func TestMCPJSONRPCRateLimit(t *testing.T) {
 	}
 }
 
+func TestMCPJSONRPCRateLimitIsPerSubject(t *testing.T) {
+	base := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:       "viewer-a",
+		Username: "viewer-a",
+		Roles:    []string{domainauth.RoleViewer},
+		AuthMode: "token",
+	})
+	base.services.Config.MCP.MaxRequestsPerMinute = 1
+
+	viewerA := base.WithSubject(domainauth.Subject{
+		ID:       "viewer-a",
+		Username: "viewer-a",
+		Roles:    []string{domainauth.RoleViewer},
+		AuthMode: "token",
+	})
+	viewerB := base.WithSubject(domainauth.Subject{
+		ID:       "viewer-b",
+		Username: "viewer-b",
+		Roles:    []string{domainauth.RoleViewer},
+		AuthMode: "token",
+	})
+
+	firstA := viewerA.HandleJSONRPC(context.Background(), []byte(`{"jsonrpc":"2.0","id":"a1","method":"initialize","params":{}}`))
+	if firstA.Error != nil {
+		t.Fatalf("first viewer-a request error = %#v", firstA.Error)
+	}
+	secondA := viewerA.HandleJSONRPC(context.Background(), []byte(`{"jsonrpc":"2.0","id":"a2","method":"initialize","params":{}}`))
+	if secondA.Error == nil || !strings.Contains(mustMarshal(t, secondA), "mcp_rate_limited") {
+		t.Fatalf("expected viewer-a rate limit, got %#v", secondA)
+	}
+
+	firstB := viewerB.HandleJSONRPC(context.Background(), []byte(`{"jsonrpc":"2.0","id":"b1","method":"initialize","params":{}}`))
+	if firstB.Error != nil {
+		t.Fatalf("viewer-b should have separate rate-limit bucket, got %#v", firstB.Error)
+	}
+}
+
 func TestMCPJSONRPCRequestBodyLimit(t *testing.T) {
 	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
 	server.services.Config.MCP.MaxRequestBytes = 64

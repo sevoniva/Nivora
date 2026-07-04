@@ -57,7 +57,11 @@ type Server struct {
 }
 
 type rateLimitState struct {
-	mu     sync.Mutex
+	mu      sync.Mutex
+	entries map[string]rateLimitEntry
+}
+
+type rateLimitEntry struct {
 	window time.Time
 	count  int
 }

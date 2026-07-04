@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"strings"
 	"time"
 )
 
@@ -202,16 +203,44 @@ func (s *Server) checkJSONRPCRateLimit(now time.Time) error {
 	}
 	s.rateLimit.mu.Lock()
 	defer s.rateLimit.mu.Unlock()
-
-	if s.rateLimit.window.IsZero() || now.Sub(s.rateLimit.window) >= time.Minute {
-		s.rateLimit.window = now
-		s.rateLimit.count = 0
+	if s.rateLimit.entries == nil {
+		s.rateLimit.entries = map[string]rateLimitEntry{}
 	}
-	if s.rateLimit.count >= limit {
+
+	key := s.rateLimitKey()
+	if len(s.rateLimit.entries) > 1024 {
+		for entryKey, entry := range s.rateLimit.entries {
+			if !entry.window.IsZero() && now.Sub(entry.window) >= time.Minute {
+				delete(s.rateLimit.entries, entryKey)
+			}
+		}
+	}
+	entry := s.rateLimit.entries[key]
+	if entry.window.IsZero() || now.Sub(entry.window) >= time.Minute {
+		entry.window = now
+		entry.count = 0
+	}
+	if entry.count >= limit {
 		return OperationError{Code: "mcp_rate_limited", Message: "MCP request rate limit exceeded"}
 	}
-	s.rateLimit.count++
+	entry.count++
+	s.rateLimit.entries[key] = entry
 	return nil
+}
+
+func (s *Server) rateLimitKey() string {
+	subject := s.services.Subject
+	authMode := strings.TrimSpace(subject.AuthMode)
+	if authMode == "" {
+		authMode = "unknown"
+	}
+	id := strings.TrimSpace(subject.ID)
+	if id == "" {
+		id = "anonymous"
+	}
+	scopeType := strings.TrimSpace(subject.ScopeType)
+	scopeID := strings.TrimSpace(subject.ScopeID)
+	return authMode + "|" + id + "|" + scopeType + "|" + scopeID
 }
 
 func (s *Server) capJSONRPCResponse(response jsonRPCResponse) jsonRPCResponse {

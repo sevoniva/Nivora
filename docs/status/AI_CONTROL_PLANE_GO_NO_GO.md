@@ -8,7 +8,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 |---|---|---|
 | Local stdio MCP | go for local maintainer use | read-only/plan-only resources and tools are tested; blocked actions are denied |
 | Local AI operator demo | go with scripted local data | 29 validated scenarios and golden answers exist |
-| Remote read-only MCP | experimental opt-in foundation | `POST /api/v1/mcp/rpc` exists with bearer/static-token tests, runner-token rejection, body/response caps, and blocked actions; broader OIDC/service-account, tenant, pagination, per-client rate-limit, and audit-attribution proof remains incomplete |
+| Remote read-only MCP | experimental opt-in foundation | `POST /api/v1/mcp/rpc` exists with bearer/static-token tests, runner-token rejection, body/response caps, in-process per-subject rate limits, and blocked actions; broader OIDC/service-account, tenant, pagination, distributed rate-limit, and audit-attribution proof remains incomplete |
 | Remote plan-only MCP | experimental opt-in foundation | plan tools share the same JSON-RPC path and return `mutated=false`; broader abuse controls and pagination still need hardening |
 | Action MCP | no-go | apply, sync, rollback, approval, token, secret, runner, host, Git, prune, and delete actions remain blocked |
 | Production use | no-go | broader platform hardening remains incomplete |
@@ -17,7 +17,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 
 1. Remote MCP tenant filtering is incomplete for broad exposure.
 2. Remote MCP OIDC/service-account scoped contract tests are incomplete.
-3. Remote per-client distributed rate limits do not exist; shared JSON-RPC request/response caps, request timeouts, and in-process request rate limits exist.
+3. Remote distributed rate limits do not exist; JSON-RPC request/response caps, request timeouts, and in-process per-subject request rate limits exist.
 4. Audit search can expose broad metadata without future remote scope filters and pagination.
 5. Remote MCP audit policy for client identity and per-client attribution is not complete.
 6. Runner summary needs environment/group filtering before remote exposure.
@@ -49,7 +49,7 @@ Production configuration now also fails closed when MCP is enabled with `mcp.rea
 7. Tenant-filtered runner summary test.
 8. Tenant-filtered audit search test.
 9. Remote MCP pagination contract test for large result sets.
-10. MCP per-client rate-limit test.
+10. Distributed MCP rate-limit design and tests.
 11. Remote MCP request timeout depth test.
 12. Prompt-injection corpus expansion beyond current fixtures.
 13. Golden answer drift check in CI.
@@ -64,7 +64,7 @@ Production configuration now also fails closed when MCP is enabled with `mcp.rea
 ## Next 3 Goals
 
 1. **Remote Read-Only MCP Contract Hardening**
-   - Scope: auth model, service-account tokens, runner-token denial, response cap enforcement, request timeout enforcement, and stronger per-client rate limits.
+   - Scope: auth model, service-account tokens, runner-token denial, response cap enforcement, request timeout enforcement, and stronger multi-process rate limits.
    - Non-goals: action tools, secret retrieval, remote plan mutation.
    - Acceptance: remote read-only remains disabled by default and all expanded remote contract tests pass.
 

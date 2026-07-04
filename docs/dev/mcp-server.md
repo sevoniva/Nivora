@@ -114,7 +114,7 @@ Local tests can use the in-memory recorder. Runtime wiring uses the compliance s
 
 - The primary transport is a minimal stdio JSON-RPC foundation.
 - A minimal remote HTTP JSON-RPC foundation exists behind `mcp.enabled=true` and `mcp.mode=http`; it is experimental and disabled by default.
-- Remote MCP-specific OAuth depth, per-client rate limiting, per-client scoping, pagination, and broader transport cap/timeout proof are future hardening.
+- Remote MCP-specific OAuth depth, distributed rate limiting, per-client scoping, pagination, and broader transport cap/timeout proof are future hardening.
 - Full tenant filtering for every future remote MCP resource is not proven yet.
 - Action MCP is not implemented and remains blocked for apply, sync, rollback, approval, token, secret, runner, host, Git, prune, and delete operations.
 - MCP does not make Nivora production-ready.

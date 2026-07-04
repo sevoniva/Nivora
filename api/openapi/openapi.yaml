@@ -2060,7 +2060,8 @@ paths:
                 items:
                   $ref: "#/components/schemas/DeploymentRunRecord"
     post:
-      summary: Create and run a non-destructive YAML DeploymentRun
+      summary: Create and run a non-destructive DeploymentRun
+      description: Creates a DeploymentRun through the configured runtime. Kubernetes YAML and host targets run non-destructive dry-run/noop behavior by default; Kubernetes apply, GitOps push/sync, host remote deploy, and rollback execution require their dedicated guarded endpoints or explicit server-side confirmation paths.
       requestBody:
         required: true
         content:

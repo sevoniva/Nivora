@@ -26,6 +26,14 @@ nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
 
 The noop executor records logs, events, audit records, and per-host details without mutating local or remote machines.
 
+The same dry-run/noop host definition can be submitted to a running Nivora server:
+
+```sh
+nivora deployment host run --file examples/deployments/host-dry-run.yaml --local=false --server http://localhost:8080
+```
+
+Server-backed host run uses `POST /api/v1/deployments` and only accepts safe dry-run/noop input from the CLI. If the file requests `options.apply: true`, `host.allowRemoteHostDeploy: true`, `--confirm`, or `--allow-remote-host-deploy`, the CLI refuses the server-backed run instead of implying remote SSH execution.
+
 ## Guarded Remote Shape
 
 Remote execution remains disabled by default. The SSH adapter surface requires:

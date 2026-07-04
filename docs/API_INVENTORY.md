@@ -20,7 +20,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | Secrets / credentials | secrets, secret refs, provider validate, rotate/delete, credentials CRUD/validate | values are not returned by normal APIs |
 | Approval / change windows / notifications | approvals, approval subject resume, change-window evaluate, notifications test/list | backend governance foundation; `/api/v1/approvals/{id}/resume-subject` applies terminal approval decisions to waiting DeploymentRun, ReleaseExecution, or Paused PipelineRun subjects |
 | Cloud inventory | providers, accounts, validate, regions, clusters, hosts, registries, inventory | fake/provider skeleton inventory only |
-| Host deployment | host groups, host deployment plan, deployment hosts, rollback plan | dry-run/noop and guarded SSH surface |
+| Host deployment | host groups, host deployment plan, server-backed dry-run/noop via `POST /api/v1/deployments`, deployment hosts, rollback plan | dry-run/noop and guarded SSH surface; server-backed CLI host run rejects remote apply inputs |
 | Compliance | audit search, filtered audit-log reads, evidence bundle list/read/export, retention policy | evidence bundles include redacted subject summaries, release execution/deployment references, policy/security/approval references, events/audits/log references, and deterministic digests; retention enforcement jobs remain future work |
 | Plugins | list, inspect, capabilities, validate | built-in registry and manifest validation |
 | Visualization | `/api/v1/visualization` index, pipeline/deployment/release visualization, environment topology, runner/security/audit summaries | backend read models for future UI |

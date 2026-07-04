@@ -3574,13 +3574,11 @@ func newDeploymentHostRunCommand() *cobra.Command {
 	var local bool
 	var confirm bool
 	var allowRemote bool
+	var serverURL string
 	cmd := &cobra.Command{
-		Use:   "run --file <deployment.yaml> --local",
-		Short: "Run a host DeploymentRun through the safe local/noop runtime",
+		Use:   "run --file <deployment.yaml>",
+		Short: "Run a host DeploymentRun through the safe local/noop or server runtime",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if !local {
-				return fmt.Errorf("server-backed host run is not implemented in the CLI; use --local")
-			}
 			path, err := cmd.Flags().GetString("file")
 			if err != nil {
 				return err
@@ -3591,6 +3589,21 @@ func newDeploymentHostRunCommand() *cobra.Command {
 			def, err := deploymentusecase.LoadDefinitionFile(path)
 			if err != nil {
 				return err
+			}
+			if !local {
+				if confirm || allowRemote || def.Spec.Options.Apply || def.Spec.Host.AllowRemoteHostDeploy {
+					return fmt.Errorf("server-backed host run supports safe dry-run/noop only; remote host apply is not enabled by this command")
+				}
+				body, err := json.Marshal(def)
+				if err != nil {
+					return err
+				}
+				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments", body)
+				if err != nil {
+					return err
+				}
+				printDeploymentRunSummary(cmd.OutOrStdout(), payload)
+				return nil
 			}
 			if allowRemote {
 				def.Spec.Host.AllowRemoteHostDeploy = true
@@ -3612,6 +3625,7 @@ func newDeploymentHostRunCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process local host runtime")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm explicit host apply")
 	cmd.Flags().BoolVar(&allowRemote, "allow-remote-host-deploy", false, "allow guarded remote host deployment when the spec also opts in")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
 	return cmd
 }
 
@@ -4813,6 +4827,14 @@ func printDeploymentRunSummary(w io.Writer, payload any) {
 	}
 	if logs, _ := record["logs"].([]any); logs != nil {
 		fmt.Fprintf(w, "Logs: %d chunk(s)\n", len(logs))
+	}
+	if hosts, _ := record["hostDetails"].([]any); hosts != nil {
+		fmt.Fprintf(w, "Hosts: %d\n", len(hosts))
+	}
+	if rollback, _ := record["rollbackPlan"].(map[string]any); rollback != nil {
+		if strategy, _ := rollback["strategy"].(string); strategy != "" {
+			fmt.Fprintf(w, "RollbackPlan: %s\n", strategy)
+		}
 	}
 }
 

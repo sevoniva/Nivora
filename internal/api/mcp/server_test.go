@@ -264,7 +264,8 @@ func TestMCPCatalogAndPipelineDefinitionsReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read pipeline definition catalog: %v", err)
 	}
-	if !strings.Contains(resource.Text, pipelineID) || !strings.Contains(resource.Text, "mcp-demo-pipeline") {
+	if !strings.Contains(resource.Text, pipelineID) || !strings.Contains(resource.Text, "mcp-demo-pipeline") ||
+		!strings.Contains(resource.Text, `"pagination"`) || !strings.Contains(resource.Text, `"mutated": false`) {
 		t.Fatalf("pipeline definition catalog body = %s", resource.Text)
 	}
 
@@ -280,8 +281,17 @@ func TestMCPCatalogAndPipelineDefinitionsReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list pipeline definitions tool transport error: %v", err)
 	}
-	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, pipelineID) || !strings.Contains(listResult.Content[0].Text, `"mutated": false`) {
+	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, pipelineID) ||
+		!strings.Contains(listResult.Content[0].Text, `"mutated": false`) || !strings.Contains(listResult.Content[0].Text, `"pagination"`) {
 		t.Fatalf("list pipeline definitions result = %#v", listResult)
+	}
+	pagedList, err := server.CallTool(ctx, "nivora_list_pipeline_definitions", map[string]any{"projectId": projectID, "limit": 1, "offset": 0})
+	if err != nil {
+		t.Fatalf("paged pipeline definitions transport error: %v", err)
+	}
+	if pagedList.IsError || !strings.Contains(pagedList.Content[0].Text, `"limit": 1`) ||
+		!strings.Contains(pagedList.Content[0].Text, `"offset": 0`) || !strings.Contains(pagedList.Content[0].Text, `"total": 1`) {
+		t.Fatalf("paged pipeline definitions result = %#v", pagedList)
 	}
 
 	getResult, err := server.CallTool(ctx, "nivora_get_pipeline_definition", map[string]any{"id": pipelineID, "token": "should-not-leak"})
@@ -338,6 +348,9 @@ func TestMCPTenantScopeFiltersPipelineDefinitions(t *testing.T) {
 	}
 	if result.IsError || !strings.Contains(result.Content[0].Text, defA) || strings.Contains(result.Content[0].Text, defB) || strings.Contains(result.Content[0].Text, "project-b") {
 		t.Fatalf("project A definition list tool leaked or missed scoped data: %#v", result)
+	}
+	if !strings.Contains(result.Content[0].Text, `"pagination"`) || !strings.Contains(result.Content[0].Text, `"mutated": false`) {
+		t.Fatalf("project A definition list missing pagination or read-only marker: %#v", result)
 	}
 
 	if _, err := projectA.ReadResource(ctx, "nivora://pipelines/definitions/"+defB); err == nil {

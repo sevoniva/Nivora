@@ -187,6 +187,8 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 		}, nil)),
 		tool("nivora_list_pipeline_definitions", "List pipeline definitions", objectSchema(map[string]any{
 			"projectId": stringProperty("optional project id filter"),
+			"limit":     integerProperty("page size, 1-100"),
+			"offset":    integerProperty("zero-based offset"),
 		}, nil)),
 		tool("nivora_get_pipeline_definition", "Read a pipeline definition by id", idSchema("id")),
 		tool("nivora_get_pipeline_run", "Read a PipelineRun by id", idSchema("id")),
@@ -358,11 +360,7 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 	case uri == "nivora://catalog/summary":
 		return s.catalogSummary(ctx, "", "")
 	case uri == "nivora://pipelines/definitions":
-		definitions, err := s.scopedPipelineDefinitions(ctx, "")
-		if err != nil {
-			return nil, err
-		}
-		return map[string]any{"definitions": definitions}, nil
+		return s.pipelineDefinitionList(ctx, "", mcpPage{})
 	case strings.HasPrefix(uri, "nivora://pipelines/definitions/"):
 		id := strings.TrimPrefix(uri, "nivora://pipelines/definitions/")
 		definition, err := s.services.PipelineDefs.Get(ctx, id)
@@ -574,6 +572,27 @@ func (s *Server) artifactResource(ctx context.Context, rest string) (any, error)
 	return artifact, nil
 }
 
+func (s *Server) pipelineDefinitionList(ctx context.Context, projectID string, page mcpPage) (any, error) {
+	definitions, err := s.scopedPipelineDefinitions(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	normalizedPage, err := normalizeMCPPage(page.Limit, page.Offset)
+	if err != nil {
+		return nil, err
+	}
+	limited, pagination, truncated := paginateMCPItems(definitions, normalizedPage)
+	return map[string]any{
+		"definitions": limited,
+		"count":       len(definitions),
+		"limit":       normalizedPage.Limit,
+		"offset":      normalizedPage.Offset,
+		"pagination":  pagination,
+		"truncated":   truncated,
+		"mutated":     false,
+	}, nil
+}
+
 func (s *Server) artifactList(ctx context.Context, input artifactusecase.ListArtifactsInput, page mcpPage) (any, error) {
 	artifacts, err := s.services.Artifacts.ListArtifacts(ctx, s.scopedArtifactListInput(input))
 	if err != nil {
@@ -643,11 +662,11 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 	case "nivora_get_catalog_summary":
 		return s.catalogSummary(ctx, stringArg(arguments, "orgId"), stringArg(arguments, "projectId"))
 	case "nivora_list_pipeline_definitions":
-		definitions, err := s.scopedPipelineDefinitions(ctx, stringArg(arguments, "projectId"))
+		page, err := mcpPageFromArgs(arguments)
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"definitions": definitions, "mutated": false}, nil
+		return s.pipelineDefinitionList(ctx, stringArg(arguments, "projectId"), page)
 	case "nivora_get_pipeline_definition":
 		id, err := requiredString(arguments, "id")
 		if err != nil {

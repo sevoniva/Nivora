@@ -30,6 +30,14 @@ curl -s http://localhost:8080/api/v1/releases/executions/<execution-id>/resume \
   -d '{"subjectType":"release","subjectId":"<execution-id>","status":"Rejected"}'
 ```
 
+The approval service also exposes a subject resume helper. It reads the stored approval request by approval id and applies the terminal decision to the referenced DeploymentRun or ReleaseExecution:
+
+```sh
+curl -s -X POST http://localhost:8080/api/v1/approvals/<id>/resume-subject
+```
+
+This helper rejects Pending approvals. Pipeline subject resume is still not implemented.
+
 ## CLI
 
 ```sh
@@ -38,6 +46,7 @@ nivora approvals approve <id> --comment "approved"
 nivora approvals reject <id> --comment "not ready"
 nivora approvals cancel <id> --comment "superseded"
 nivora approvals expire <id> --comment "expired"
+nivora approvals resume <id>
 nivora deployment resume <deployment-run-id> --approval-status Approved
 nivora release execution resume <execution-id> --approval-status Approved
 ```

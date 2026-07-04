@@ -78,6 +78,7 @@ var criticalRoutes = []struct {
 	{"GET", "/api/v1/secrets/refs", domainauth.PermissionCredentialManage, false},
 	{"POST", "/api/v1/approvals", domainauth.PermissionDeploymentApprove, true},
 	{"POST", "/api/v1/approvals/test-id/approve", domainauth.PermissionDeploymentApprove, true},
+	{"POST", "/api/v1/approvals/test-id/resume-subject", domainauth.PermissionDeploymentApprove, true},
 	{"GET", "/api/v1/approvals", domainauth.PermissionProjectRead, false},
 	{"GET", "/api/v1/change-windows", domainauth.PermissionProjectRead, false},
 	{"POST", "/api/v1/change-windows", domainauth.PermissionEnvironmentWrite, true},

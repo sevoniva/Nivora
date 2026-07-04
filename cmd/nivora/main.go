@@ -283,6 +283,7 @@ func newApprovalsCommand() *cobra.Command {
 	cmd.AddCommand(newApprovalDecisionCommand("reject", "Reject an approval request", "/reject"))
 	cmd.AddCommand(newApprovalDecisionCommand("cancel", "Cancel an approval request", "/cancel"))
 	cmd.AddCommand(newApprovalDecisionCommand("expire", "Expire an approval request", "/expire"))
+	cmd.AddCommand(newApprovalResumeSubjectCommand())
 	return cmd
 }
 
@@ -328,6 +329,25 @@ func newApprovalDecisionCommand(name string, short string, actionPath string) *c
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&comment, "comment", "", "approval decision comment")
 	cmd.Flags().StringVar(&approver, "approver", "local-user", "approver identity for local development")
+	return cmd
+}
+
+func newApprovalResumeSubjectCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "resume <id>",
+		Short: "Apply an approval decision to its DeploymentRun or ReleaseExecution subject",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/approvals/"+args[0]+"/resume-subject", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	return cmd
 }
 

@@ -2817,6 +2817,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ApprovalRequest"
+  /api/v1/approvals/{id}/resume-subject:
+    post:
+      summary: Apply an approval decision to its DeploymentRun or ReleaseExecution subject
+      description: Applies a terminal approval decision to the waiting DeploymentRun or ReleaseExecution referenced by subjectId. Pipeline subject resume returns a structured 501 response in this beta-candidate foundation.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Approval decision applied to subject
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ApprovalSubjectResumeResponse"
+        "400":
+          description: Approval is pending or the subject cannot accept the decision
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "501":
+          description: Subject resume is not implemented for this subject type
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/change-windows:
     get:
       summary: List change windows
@@ -3931,6 +3956,20 @@ components:
           type: string
         role:
           type: string
+    ApprovalSubjectResumeResponse:
+      type: object
+      properties:
+        approval:
+          $ref: "#/components/schemas/ApprovalRequest"
+        subjectType:
+          type: string
+          enum: [release, deployment, pipeline]
+        subjectId:
+          type: string
+        result:
+          oneOf:
+            - $ref: "#/components/schemas/DeploymentRunRecord"
+            - $ref: "#/components/schemas/ReleaseExecutionRecord"
     ChangeWindow:
       type: object
       required: [name, environmentId]

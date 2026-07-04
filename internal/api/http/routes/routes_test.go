@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -699,6 +700,205 @@ func TestApprovalRoutes(t *testing.T) {
 	}
 }
 
+func TestApprovalResumeSubjectDeploymentRoute(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	manifestPath := filepath.Join(t.TempDir(), "configmap.yaml")
+	if err := os.WriteFile(manifestPath, []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: approval-resume-demo
+data:
+  mode: dry-run
+`), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	def := deploymentusecase.Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Deployment",
+		Metadata:   deploymentusecase.Metadata{Name: "approval-resume"},
+		Spec: deploymentusecase.Spec{
+			Application: "demo",
+			Environment: "prod",
+			Target: deploymentusecase.Target{
+				Type:      "kubernetes-yaml",
+				Name:      "local",
+				Namespace: "default",
+			},
+			Manifests: []string{manifestPath},
+			Options: deploymentusecase.Options{
+				DryRun:           true,
+				ApprovalRequired: true,
+			},
+		},
+	}
+	body, err := json.Marshal(def)
+	if err != nil {
+		t.Fatalf("marshal deployment: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments", strings.NewReader(string(body)))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create deployment status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		Run struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"run"`
+		Approval struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"approval"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode deployment: %v", err)
+	}
+	if created.Run.ID == "" || created.Run.Status != "WaitingApproval" || created.Approval.ID == "" || created.Approval.Status != "Pending" {
+		t.Fatalf("created deployment = %#v", created)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+created.Approval.ID+"/resume-subject", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "Pending") {
+		t.Fatalf("pending resume status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+created.Approval.ID+"/approve", strings.NewReader(`{"approver":"reviewer","comment":"ok"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("approve status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+created.Approval.ID+"/resume-subject", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("resume subject status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var resumed struct {
+		SubjectType string `json:"subjectType"`
+		SubjectID   string `json:"subjectId"`
+		Approval    struct {
+			Status string `json:"status"`
+		} `json:"approval"`
+		Result struct {
+			Run struct {
+				Status string `json:"status"`
+			} `json:"run"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resumed); err != nil {
+		t.Fatalf("decode resume response: %v", err)
+	}
+	if resumed.SubjectType != "deployment" || resumed.SubjectID != created.Run.ID || resumed.Approval.Status != "Approved" {
+		t.Fatalf("resume response = %#v", resumed)
+	}
+	if resumed.Result.Run.Status != "Succeeded" {
+		t.Fatalf("deployment status after resume = %s body = %s", resumed.Result.Run.Status, rec.Body.String())
+	}
+}
+
+func TestApprovalResumeSubjectReleaseExecutionRoute(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	def := releaseorchestration.Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "ReleaseOrchestration",
+		Metadata:   releaseorchestration.Metadata{Name: "approval-release-resume"},
+		Spec: releaseorchestration.Spec{
+			Environment:      "prod",
+			Strategy:         releaseorchestration.StrategySequential,
+			ApprovalRequired: true,
+			Release: artifactusecase.ReleaseDefinition{
+				APIVersion: "nivora.io/v1alpha1",
+				Kind:       "Release",
+				Metadata:   artifactusecase.ReleaseMetadata{Name: "approval-release"},
+				Spec: artifactusecase.ReleaseSpec{
+					Version:     "1.0.0",
+					Application: "demo",
+					Environment: "prod",
+					Artifacts: []artifactusecase.ReleaseArtifactSpec{{
+						Name:      "demo",
+						Type:      "image",
+						Required:  true,
+						Reference: "example.invalid/demo/app:1.0.0",
+					}},
+				},
+			},
+			Targets: []releaseorchestration.TargetSpec{{
+				Name:  "audit-only",
+				Type:  "noop",
+				Order: 1,
+			}},
+		},
+	}
+	body, err := json.Marshal(def)
+	if err != nil {
+		t.Fatalf("marshal release orchestration: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases/local/deploy", strings.NewReader(string(body)))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("deploy release status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var created struct {
+		Execution struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"execution"`
+		Approval struct {
+			ID     string `json:"id"`
+			Status string `json:"status"`
+		} `json:"approval"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &created); err != nil {
+		t.Fatalf("decode release execution: %v", err)
+	}
+	if created.Execution.ID == "" || created.Execution.Status != "WaitingApproval" || created.Approval.ID == "" || created.Approval.Status != "Pending" {
+		t.Fatalf("created release execution = %#v", created)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+created.Approval.ID+"/approve", strings.NewReader(`{"approver":"reviewer","comment":"ok"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("approve release status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/approvals/"+created.Approval.ID+"/resume-subject", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("resume release subject status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var resumed struct {
+		SubjectType string `json:"subjectType"`
+		SubjectID   string `json:"subjectId"`
+		Result      struct {
+			Execution struct {
+				Status string `json:"status"`
+			} `json:"execution"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &resumed); err != nil {
+		t.Fatalf("decode release resume response: %v", err)
+	}
+	if resumed.SubjectType != "release" || resumed.SubjectID != created.Execution.ID || resumed.Result.Execution.Status != "Succeeded" {
+		t.Fatalf("release resume response = %#v body = %s", resumed, rec.Body.String())
+	}
+}
+
 func TestChangeWindowRoutes(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {
@@ -742,8 +942,10 @@ func newTestRouterWithPipelineAndAuth(cfg config.Config, pipelineService *pipeli
 	artifactService := newTestArtifactService()
 	deploymentService := newTestDeploymentService()
 	approvalService := approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New())
+	deploymentService.WithGovernance(approvalService)
 	securityService := securityusecase.NewService(securityusecase.NewMemoryStore(), fakeSecurityScanner{}, nil, memory.New())
 	releaseService := newTestReleaseOrchestrationService(artifactService, deploymentService)
+	releaseService.WithGovernance(approvalService)
 	return New(
 		cfg,
 		version.Current(),

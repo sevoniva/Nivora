@@ -194,6 +194,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/approvals/{id}/reject", apimiddleware.RequirePermission(authService, "deployment.approve", handlers.RespondError, handlers.RejectApproval(approvalService)))
 		api.Post("/approvals/{id}/cancel", apimiddleware.RequirePermission(authService, "deployment.approve", handlers.RespondError, handlers.CancelApproval(approvalService)))
 		api.Post("/approvals/{id}/expire", apimiddleware.RequirePermission(authService, "deployment.approve", handlers.RespondError, handlers.ExpireApproval(approvalService)))
+		api.Post("/approvals/{id}/resume-subject", apimiddleware.RequirePermission(authService, "deployment.approve", handlers.RespondError, handlers.ResumeApprovalSubject(approvalService, deploymentService, releaseService)))
 		api.Get("/change-windows", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListChangeWindows(approvalService)))
 		api.Post("/change-windows", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.CreateChangeWindow(approvalService)))
 		api.Get("/change-windows/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetChangeWindow(approvalService)))

@@ -574,6 +574,7 @@ func (s *Service) RuntimeStatus(ctx context.Context) (RuntimeRecoverySummary, er
 		QueuedPipelineRuns:       len(queued),
 		StaleRunningPipelineRuns: len(stale),
 		ExpiredJobClaims:         len(expiredClaims),
+		PendingOutboxEvents:      len(outbox),
 		CheckedAt:                now,
 	}
 	for _, item := range outbox {
@@ -689,6 +690,7 @@ func (s *Service) ReconcileRuntime(ctx context.Context, options RuntimeRecoveryO
 	}
 	pending, listErr := s.store.ListPendingOutbox(ctx, options.OutboxLimit)
 	if listErr == nil {
+		summary.PendingOutboxEvents = len(pending)
 		for _, item := range pending {
 			if item.Status == "failed" {
 				summary.FailedOutboxEvents++

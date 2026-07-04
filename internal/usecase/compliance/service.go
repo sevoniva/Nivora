@@ -174,6 +174,13 @@ func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (doma
 	return bundle, nil
 }
 
+func (s *Service) GetEvidenceBundle(ctx context.Context, id string) (domaincompliance.EvidenceBundle, error) {
+	if err := ctx.Err(); err != nil {
+		return domaincompliance.EvidenceBundle{}, err
+	}
+	return s.store.GetEvidenceBundle(ctx, id)
+}
+
 func (s *Service) ExportMarkdown(bundle domaincompliance.EvidenceBundle) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Evidence Bundle\n\n")

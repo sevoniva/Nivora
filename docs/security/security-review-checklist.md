@@ -70,6 +70,7 @@ This checklist supports Phase 9.2 security review before GA. It is not complete 
 
 - [x] Audit records exist for important runtime and security-sensitive actions.
 - [x] Evidence bundle docs avoid raw secret values.
+- [x] Evidence bundle generate/get/export routes and CLI commands exist, with JSON and Markdown export tests.
 - [x] Backup/restore docs include audit/event/log data.
 - [ ] Maintainers have reviewed database permissions for audit tables in the target environment.
 - [ ] Append-only or tamper-evident audit export has been evaluated if required by compliance goals.

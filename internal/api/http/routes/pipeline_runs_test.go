@@ -243,8 +243,8 @@ func TestRuntimeRecoveryRoutes(t *testing.T) {
 		path   string
 		field  string
 	}{
-		{method: http.MethodGet, path: "/api/v1/system/runtime/recovery", field: `"queuedPipelineRuns"`},
-		{method: http.MethodPost, path: "/api/v1/system/runtime/reconcile", field: `"publishedOutboxEvents"`},
+		{method: http.MethodGet, path: "/api/v1/system/runtime/recovery", field: `"nonTerminalDeploymentRuns"`},
+		{method: http.MethodPost, path: "/api/v1/system/runtime/reconcile", field: `"staleReleaseExecutions"`},
 	} {
 		req := httptest.NewRequest(tc.method, tc.path, nil)
 		rec := httptest.NewRecorder()

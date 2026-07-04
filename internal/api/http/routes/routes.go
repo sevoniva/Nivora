@@ -20,6 +20,7 @@ import (
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	runtimecenter "github.com/sevoniva/nivora/internal/usecase/runtimecenter"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	tenancyusecase "github.com/sevoniva/nivora/internal/usecase/tenancy"
 	"github.com/sevoniva/nivora/internal/version"
@@ -27,6 +28,7 @@ import (
 
 func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, tenancyService *tenancyusecase.Service, complianceService *complianceusecase.Service, pluginRegistry *pluginusecase.Registry) http.Handler {
 	r := chi.NewRouter()
+	runtimeCenter := runtimecenter.NewService(pipelineService, deploymentService, releaseService)
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
 	r.Use(middleware.RealIP)
@@ -45,13 +47,16 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/system/info", handlers.SystemInfo(cfg))
 		api.Get("/system/runtime", handlers.SystemRuntime(cfg))
 		api.Get("/system/diagnostics", handlers.SystemDiagnostics(cfg))
-		api.Get("/system/runtime/recovery", handlers.RuntimeRecoveryStatus(pipelineService))
-		api.Post("/system/runtime/reconcile", handlers.ReconcileRuntime(pipelineService))
+		api.Get("/system/runtime/recovery", handlers.RuntimeRecoveryStatus(runtimeCenter))
+		api.Post("/system/runtime/reconcile", handlers.ReconcileRuntime(runtimeCenter))
 		api.Get("/tenancy/quota", handlers.GetQuota(tenancyService))
 		api.Post("/tenancy/quota", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.SetQuota(tenancyService)))
 		api.Get("/tenancy/usage", handlers.GetUsageSummary(tenancyService))
 		api.Get("/audit/verify", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.VerifyAuditChain(complianceService)))
 		api.Get("/audit/search", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.SearchAudit(complianceService)))
+		api.Post("/evidence/bundles", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GenerateEvidenceBundle(complianceService)))
+		api.Get("/evidence/bundles/{id}", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetEvidenceBundleByID(complianceService)))
+		api.Get("/evidence/bundles/{id}/export", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.ExportEvidenceBundleByID(complianceService)))
 		api.Get("/evidence/{subject_type}/{id}", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetEvidenceBundle(complianceService)))
 		api.Get("/retention-policy", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetRetentionPolicy(complianceService)))
 		api.Post("/retention-policy", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.SetRetentionPolicy(complianceService)))

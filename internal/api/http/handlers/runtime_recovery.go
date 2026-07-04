@@ -4,12 +4,12 @@ import (
 	"net/http"
 
 	"github.com/sevoniva/nivora/internal/api/http/dto"
-	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	runtimecenter "github.com/sevoniva/nivora/internal/usecase/runtimecenter"
 )
 
-func RuntimeRecoveryStatus(service *pipelineusecase.Service) http.HandlerFunc {
+func RuntimeRecoveryStatus(service *runtimecenter.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		summary, err := service.RuntimeStatus(r.Context())
+		summary, err := service.Status(r.Context(), runtimecenter.Options{})
 		if err != nil {
 			RespondError(w, r, http.StatusInternalServerError, dto.ErrorResponse{Code: "runtime_status_failed", Message: err.Error(), Path: r.URL.Path})
 			return
@@ -18,9 +18,9 @@ func RuntimeRecoveryStatus(service *pipelineusecase.Service) http.HandlerFunc {
 	}
 }
 
-func ReconcileRuntime(service *pipelineusecase.Service) http.HandlerFunc {
+func ReconcileRuntime(service *runtimecenter.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		summary, err := service.ReconcileRuntime(r.Context(), pipelineusecase.RuntimeRecoveryOptions{})
+		summary, err := service.Reconcile(r.Context(), runtimecenter.Options{})
 		if err != nil {
 			RespondError(w, r, http.StatusInternalServerError, dto.ErrorResponse{Code: "runtime_reconcile_failed", Message: err.Error(), Path: r.URL.Path})
 			return

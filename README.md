@@ -34,7 +34,7 @@ Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/sta
 | Web console | Experimental minimal UI that consumes backend APIs |
 | MCP control plane | Foundation; local stdio read-only and plan-only AI access, denied action tools, runner-token rejection, compliance-backed audit, and 26 validated operator scenarios with golden answers; remote MCP remains no-go |
 | Packaging | Partial; Docker Compose, Helm, production-like values, and smoke checks exist |
-| Observability / audit | Partial; diagnostics, metrics, runbooks, audit/evidence foundations; production retention/export still needs hardening |
+| Observability / audit | Partial; diagnostics, metrics, runtime recovery center, production doctor, runbooks, and audit/evidence export foundations; production retention/export still needs hardening |
 
 Current focus:
 
@@ -43,6 +43,7 @@ keep public status accurate
 keep examples and docs aligned with implemented behavior
 stabilize CI, packaging, and local demo paths
 continue runtime, install, restore, runner, and audit hardening
+turn operator-facing checks into repeatable product workflows
 ```
 
 Status references:
@@ -78,6 +79,7 @@ Status references:
 - [Tutorials](docs/tutorials/README.md)
 - [Release Playbook](docs/releases/release-playbook.md)
 - [Production-Direction Install](docs/operations/production-install.md)
+- [Production Doctor](docs/operations/production-doctor.md)
 - [Upgrade Guide](docs/operations/upgrade.md)
 - [Release Automation](docs/operations/release-automation.md)
 - [Changelog](CHANGELOG.md)

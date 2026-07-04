@@ -112,6 +112,7 @@ type RuntimeRecoverySummary struct {
 	CancelRequestedPipelineRuns int       `json:"cancelRequestedPipelineRuns"`
 	TimedOutPipelineRuns        int       `json:"timedOutPipelineRuns"`
 	OfflineRunners              int       `json:"offlineRunners"`
+	PendingOutboxEvents         int       `json:"pendingOutboxEvents"`
 	PublishedOutboxEvents       int       `json:"publishedOutboxEvents"`
 	FailedOutboxEvents          int       `json:"failedOutboxEvents"`
 	CheckedAt                   time.Time `json:"checkedAt"`

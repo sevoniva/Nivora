@@ -44,13 +44,20 @@ Evidence bundles collect available runtime evidence for a subject:
 JSON export:
 
 ```bash
-go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id>
+go run ./cmd/nivora evidence generate --subject-type pipelineRun --subject-id <pipeline-run-id>
+go run ./cmd/nivora evidence export <evidence-bundle-id>
 ```
 
 Markdown summary:
 
 ```bash
-go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id> --format markdown
+go run ./cmd/nivora evidence export <evidence-bundle-id> --format markdown
+```
+
+The legacy subject export path is still available:
+
+```bash
+go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id>
 ```
 
 Evidence includes log references rather than raw log content by default. Secret-like values are redacted before export.

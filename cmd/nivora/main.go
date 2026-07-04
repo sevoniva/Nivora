@@ -76,6 +76,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newUsageCommand())
 	root.AddCommand(newAuditCommand())
 	root.AddCommand(newEvidenceCommand())
+	root.AddCommand(newDoctorCommand())
 	return root
 }
 
@@ -141,7 +142,49 @@ func newAuditSearchCommand() *cobra.Command {
 
 func newEvidenceCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "evidence", Short: "Evidence bundle utilities"}
+	cmd.AddCommand(newEvidenceGenerateCommand())
 	cmd.AddCommand(newEvidenceExportCommand())
+	return cmd
+}
+
+func newEvidenceGenerateCommand() *cobra.Command {
+	var serverURL string
+	var subjectType string
+	var subjectID string
+	var releaseID string
+	var deploymentID string
+	cmd := &cobra.Command{
+		Use:   "generate",
+		Short: "Generate and persist an evidence bundle",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if releaseID != "" {
+				subjectType = "release"
+				subjectID = releaseID
+			}
+			if deploymentID != "" {
+				subjectType = "deploymentRun"
+				subjectID = deploymentID
+			}
+			if subjectType == "" || subjectID == "" {
+				return fmt.Errorf("--subject-type and --subject-id are required unless --release or --deployment is set")
+			}
+			body, err := json.Marshal(map[string]string{"subjectType": subjectType, "subjectId": subjectID})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/evidence/bundles", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&subjectType, "subject-type", "", "Evidence subject type")
+	cmd.Flags().StringVar(&subjectID, "subject-id", "", "Evidence subject ID")
+	cmd.Flags().StringVar(&releaseID, "release", "", "Generate evidence for a Release")
+	cmd.Flags().StringVar(&deploymentID, "deployment", "", "Generate evidence for a DeploymentRun")
 	return cmd
 }
 
@@ -149,9 +192,9 @@ func newEvidenceExportCommand() *cobra.Command {
 	var serverURL string
 	var format string
 	cmd := &cobra.Command{
-		Use:   "export <subject-type> <subject-id>",
+		Use:   "export <bundle-id> | <subject-type> <subject-id>",
 		Short: "Export an evidence bundle as JSON or Markdown",
-		Args:  cobra.ExactArgs(2),
+		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			values := url.Values{}
 			if format != "" {
@@ -161,15 +204,19 @@ func newEvidenceExportCommand() *cobra.Command {
 			if encoded := values.Encode(); encoded != "" {
 				query = "?" + encoded
 			}
+			path := "/api/v1/evidence/bundles/" + args[0] + "/export" + query
+			if len(args) == 2 {
+				path = "/api/v1/evidence/" + args[0] + "/" + args[1] + query
+			}
 			if format == "markdown" {
-				body, err := doRaw(cmd.Context(), http.MethodGet, serverURL, "/api/v1/evidence/"+args[0]+"/"+args[1]+query, nil)
+				body, err := doRaw(cmd.Context(), http.MethodGet, serverURL, path, nil)
 				if err != nil {
 					return err
 				}
 				_, _ = cmd.OutOrStdout().Write(body)
 				return nil
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/evidence/"+args[0]+"/"+args[1]+query, nil)
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
 			if err != nil {
 				return err
 			}
@@ -2398,6 +2445,7 @@ func newRunnerCommand() *cobra.Command {
 	cmd.AddCommand(newRunnerTokenCommand())
 	cmd.AddCommand(newRunnerHeartbeatCommand())
 	cmd.AddCommand(newRunnerClaimCommand())
+	cmd.AddCommand(newRunnerOfflineDetectCommand())
 	cmd.AddCommand(newRunnerAppendLogCommand())
 	cmd.AddCommand(newRunnerUpdateStatusCommand())
 	return cmd
@@ -2576,6 +2624,27 @@ func newRunnerClaimCommand() *cobra.Command {
 	cmd.Flags().StringVar(&name, "name", "local-runner", "runner ID")
 	cmd.Flags().IntVar(&leaseSeconds, "lease-seconds", 30, "claim lease duration in seconds")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_RUNNER_TOKEN", "environment variable containing the runner token")
+	return cmd
+}
+
+func newRunnerOfflineDetectCommand() *cobra.Command {
+	var serverURL string
+	var timeoutSeconds int
+	cmd := &cobra.Command{
+		Use:   "offline-detect",
+		Short: "Mark stale online runners offline",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := fmt.Sprintf("/api/v1/runners/offline-detect?timeoutSeconds=%d", timeoutSeconds)
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, path, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().IntVar(&timeoutSeconds, "timeout-seconds", 60, "heartbeat age threshold in seconds")
 	return cmd
 }
 

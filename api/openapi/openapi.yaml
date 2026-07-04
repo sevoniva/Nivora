@@ -241,6 +241,54 @@ paths:
             text/markdown:
               schema:
                 type: string
+  /api/v1/evidence/bundles:
+    post:
+      summary: Generate and persist an evidence bundle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EvidenceGenerateRequest"
+      responses:
+        "201":
+          description: Generated evidence bundle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceBundle"
+  /api/v1/evidence/bundles/{id}:
+    get:
+      summary: Get a persisted evidence bundle
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Evidence bundle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceBundle"
+  /api/v1/evidence/bundles/{id}/export:
+    get:
+      summary: Export a persisted evidence bundle
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - name: format
+          in: query
+          schema:
+            type: string
+            enum: [json, markdown]
+      responses:
+        "200":
+          description: Evidence bundle as JSON or Markdown
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceBundle"
+            text/markdown:
+              schema:
+                type: string
   /api/v1/retention-policy:
     get:
       summary: View retention policy for a scope
@@ -3432,6 +3480,18 @@ components:
         updatedAt:
           type: string
           format: date-time
+    EvidenceGenerateRequest:
+      type: object
+      required: [subjectType, subjectId]
+      properties:
+        subjectType:
+          type: string
+        subjectId:
+          type: string
+        scopeType:
+          type: string
+        scopeId:
+          type: string
     EvidenceBundle:
       type: object
       properties:
@@ -3553,6 +3613,35 @@ components:
           type: integer
         failedOutboxEvents:
           type: integer
+        pendingOutboxEvents:
+          type: integer
+        offlineRunners:
+          type: integer
+        nonTerminalDeploymentRuns:
+          type: integer
+        staleDeploymentRuns:
+          type: integer
+        nonTerminalReleaseExecutions:
+          type: integer
+        staleReleaseExecutions:
+          type: integer
+        planOnly:
+          type: boolean
+        reconciled:
+          type: boolean
+        status:
+          type: string
+          enum: [healthy, warning, degraded]
+        pipeline:
+          type: object
+        deployment:
+          type: object
+        release:
+          type: object
+        safeNextActions:
+          type: array
+          items:
+            $ref: "#/components/schemas/RuntimeRecoveryAction"
         checkedAt:
           type: string
           format: date-time
@@ -3560,6 +3649,24 @@ components:
           type: array
           items:
             type: string
+    RuntimeRecoveryAction:
+      type: object
+      properties:
+        subjectType:
+          type: string
+        subjectId:
+          type: string
+        status:
+          type: string
+        reason:
+          type: string
+        safeNextAction:
+          type: string
+        automatic:
+          type: boolean
+        observedAt:
+          type: string
+          format: date-time
     MetricsSnapshot:
       type: object
       properties:

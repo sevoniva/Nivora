@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"time"
 
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/audit"
@@ -35,6 +36,8 @@ type Store interface {
 	Events(ctx context.Context, runID string) ([]event.Event, error)
 	AppendAudit(ctx context.Context, runID string, entry audit.AuditLog) error
 	Audits(ctx context.Context, subject string) ([]audit.AuditLog, error)
+	ListNonTerminalDeploymentRuns(ctx context.Context, limit int) ([]RunRecord, error)
+	ListStaleDeploymentRuns(ctx context.Context, olderThan time.Time, limit int) ([]RunRecord, error)
 }
 
 type MemoryStore struct {
@@ -245,6 +248,49 @@ func (s *MemoryStore) Audits(ctx context.Context, subject string) ([]audit.Audit
 		return entries[i].CreatedAt.Before(entries[j].CreatedAt)
 	})
 	return entries, nil
+}
+
+func (s *MemoryStore) ListNonTerminalDeploymentRuns(ctx context.Context, limit int) ([]RunRecord, error) {
+	records, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RunRecord, 0, len(records))
+	for _, record := range records {
+		if isTerminalDeploymentStatus(record.Run.Status) {
+			continue
+		}
+		out = append(out, record)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (s *MemoryStore) ListStaleDeploymentRuns(ctx context.Context, olderThan time.Time, limit int) ([]RunRecord, error) {
+	records, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RunRecord, 0, len(records))
+	for _, record := range records {
+		if isTerminalDeploymentStatus(record.Run.Status) {
+			continue
+		}
+		stale := record.Run.UpdatedAt.Before(olderThan)
+		if record.Run.LeaseExpiresAt != nil && record.Run.LeaseExpiresAt.Before(olderThan) {
+			stale = true
+		}
+		if !stale {
+			continue
+		}
+		out = append(out, record)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
 }
 
 func cloneRecord(record RunRecord) RunRecord {

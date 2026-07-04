@@ -34,6 +34,16 @@ go run ./cmd/nivora config validate --file configs/server.yaml
 go run ./cmd/nivora config validate --file configs/production.example.yaml
 ```
 
+For production-like posture checks, use the read-only doctor command:
+
+```sh
+go run ./cmd/nivora doctor --file configs/production.example.yaml
+go run ./cmd/nivora doctor security --file configs/production.example.yaml
+go run ./cmd/nivora doctor runtime --file configs/production.example.yaml
+```
+
+`nivora doctor` checks config guardrails and reports live-only areas as `NOT_CHECKED`; it is not a production-readiness certificate.
+
 ## Important Fields
 
 - `app.name`: component name.

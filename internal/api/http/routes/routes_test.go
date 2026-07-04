@@ -236,6 +236,39 @@ func TestComplianceEvidenceRoutes(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), `"logReferences"`) {
 		t.Fatalf("evidence missing log refs: %s", rec.Body.String())
 	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/evidence/bundles", strings.NewReader(`{"subjectType":"pipelineRun","subjectId":"`+created.Run.ID+`"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("generate evidence bundle status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var bundle struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &bundle); err != nil {
+		t.Fatalf("decode evidence bundle: %v", err)
+	}
+	if bundle.ID == "" {
+		t.Fatalf("generated evidence bundle missing id: %s", rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/bundles/"+bundle.ID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get evidence bundle status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(strings.ToLower(rec.Body.String()), "password") || strings.Contains(strings.ToLower(rec.Body.String()), "authorization") {
+		t.Fatalf("evidence bundle leaked secret-like field: %s", rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/bundles/"+bundle.ID+"/export?format=markdown", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("export evidence bundle status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "# Evidence Bundle") {
+		t.Fatalf("markdown evidence bundle missing heading: %s", rec.Body.String())
+	}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/audit/search?subject="+created.Run.ID, nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -510,6 +543,74 @@ func TestRunnerTokenScopeInTokenAuthMode(t *testing.T) {
 	}
 }
 
+func TestRunnerTokenCannotMutateUnrelatedJob(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	t.Setenv("NIVORA_TEST_AUTH_TOKEN", "admin-token")
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	cfg.Auth.StaticTokenEnv = "NIVORA_TEST_AUTH_TOKEN"
+	pipelineService := newTestPipelineService()
+	created, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition: pipelineusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Pipeline",
+			Metadata:   pipelineusecase.Metadata{Name: "runner-boundary"},
+			Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+				Name: "build",
+				Jobs: []pipelineusecase.Job{{
+					Name:     "job",
+					Executor: "shell",
+					Steps:    []pipelineusecase.Step{{Name: "step", Run: "printf ok"}},
+				}},
+			}}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create queued run: %v", err)
+	}
+	router := newTestRouterWithPipelineAndAuth(cfg, pipelineService, authusecase.NewService(authusecase.NewMemoryStore(), memory.New()))
+
+	tokenA := registerRunnerAndToken(t, router, "runner-a")
+	tokenB := registerRunnerAndToken(t, router, "runner-b")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-a/jobs/claim", nil)
+	req.Header.Set("X-Nivora-Runner-Token", tokenA)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("runner claim status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var claim struct {
+		JobRunID string `json:"jobRunId"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &claim); err != nil {
+		t.Fatalf("decode claim: %v", err)
+	}
+	if claim.JobRunID == "" {
+		t.Fatalf("claim missing jobRunId: %s", rec.Body.String())
+	}
+
+	body := `{"pipelineRunId":"` + created.Record.Run.ID + `","stream":"stdout","content":"nope"}`
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-b/jobs/"+claim.JobRunID+"/logs", strings.NewReader(body))
+	req.Header.Set("X-Nivora-Runner-Token", tokenB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("runner-b appended unrelated job log status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-b/jobs/"+claim.JobRunID+"/status", strings.NewReader(`{"status":"Succeeded"}`))
+	req.Header.Set("X-Nivora-Runner-Token", tokenB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("runner-b updated unrelated job status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestCredentialRoutesDoNotReturnCredentialValues(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {
@@ -631,9 +732,12 @@ func newTestRouter(cfg config.Config) http.Handler {
 }
 
 func newTestRouterWithAuth(cfg config.Config, authService *authusecase.Service) http.Handler {
+	return newTestRouterWithPipelineAndAuth(cfg, newTestPipelineService(), authService)
+}
+
+func newTestRouterWithPipelineAndAuth(cfg config.Config, pipelineService *pipelineusecase.Service, authService *authusecase.Service) http.Handler {
 	artifactService := newTestArtifactService()
 	deploymentService := newTestDeploymentService()
-	pipelineService := newTestPipelineService()
 	approvalService := approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New())
 	securityService := securityusecase.NewService(securityusecase.NewMemoryStore(), fakeSecurityScanner{}, nil, memory.New())
 	releaseService := newTestReleaseOrchestrationService(artifactService, deploymentService)
@@ -654,6 +758,29 @@ func newTestRouterWithAuth(cfg config.Config, authService *authusecase.Service) 
 		complianceusecase.NewService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService),
 		pluginusecase.NewDefaultRegistry(),
 	)
+}
+
+func registerRunnerAndToken(t *testing.T, router http.Handler, id string) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runners/register", strings.NewReader(`{"id":"`+id+`","name":"`+id+`","status":"online","executors":["shell"]}`))
+	req.Header.Set("Authorization", "Bearer admin-token")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("register %s status = %d body = %s", id, rec.Code, rec.Body.String())
+	}
+	var registered struct {
+		Token struct {
+			Token string `json:"token"`
+		} `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &registered); err != nil {
+		t.Fatalf("decode runner registration: %v", err)
+	}
+	if registered.Token.Token == "" {
+		t.Fatalf("register %s missing token: %s", id, rec.Body.String())
+	}
+	return registered.Token.Token
 }
 
 type routeOIDCProvider struct{}

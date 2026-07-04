@@ -5,6 +5,7 @@ import (
 	"errors"
 	"sort"
 	"sync"
+	"time"
 
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	"github.com/sevoniva/nivora/internal/domain/environment"
@@ -29,6 +30,8 @@ type Store interface {
 	Events(ctx context.Context, executionID string) ([]event.Event, error)
 	AppendAudit(ctx context.Context, executionID string, entry audit.AuditLog) error
 	Audits(ctx context.Context, executionID string) ([]audit.AuditLog, error)
+	ListNonTerminalReleaseExecutions(ctx context.Context, limit int) ([]ExecutionRecord, error)
+	ListStaleReleaseExecutions(ctx context.Context, olderThan time.Time, limit int) ([]ExecutionRecord, error)
 }
 
 type MemoryStore struct {
@@ -213,6 +216,49 @@ func (s *MemoryStore) Audits(ctx context.Context, executionID string) ([]audit.A
 		return audits[i].CreatedAt.Before(audits[j].CreatedAt)
 	})
 	return audits, nil
+}
+
+func (s *MemoryStore) ListNonTerminalReleaseExecutions(ctx context.Context, limit int) ([]ExecutionRecord, error) {
+	records, err := s.ListExecutions(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ExecutionRecord, 0, len(records))
+	for _, record := range records {
+		if isTerminal(record.Execution.Status) {
+			continue
+		}
+		out = append(out, record)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
+}
+
+func (s *MemoryStore) ListStaleReleaseExecutions(ctx context.Context, olderThan time.Time, limit int) ([]ExecutionRecord, error) {
+	records, err := s.ListExecutions(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ExecutionRecord, 0, len(records))
+	for _, record := range records {
+		if isTerminal(record.Execution.Status) {
+			continue
+		}
+		stale := record.Execution.UpdatedAt.Before(olderThan)
+		if record.Execution.LeaseExpiresAt != nil && record.Execution.LeaseExpiresAt.Before(olderThan) {
+			stale = true
+		}
+		if !stale {
+			continue
+		}
+		out = append(out, record)
+		if limit > 0 && len(out) >= limit {
+			break
+		}
+	}
+	return out, nil
 }
 
 func clonePlan(record PlanRecord) PlanRecord {

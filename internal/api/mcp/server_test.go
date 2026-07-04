@@ -32,7 +32,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://deployments/{id}/health", "nivora://plugins/capabilities"} {
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://deployments/{id}/health", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
 		if !hasResource(resources, want) {
 			t.Fatalf("resource %s missing from %#v", want, resources)
 		}
@@ -46,7 +46,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 			t.Fatalf("blocked action tool %s was exposed", blocked)
 		}
 	}
-	for _, want := range []string{"nivora_status", "nivora_get_deployment_health", "nivora_plan_deployment_local"} {
+	for _, want := range []string{"nivora_status", "nivora_get_deployment_health", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
 		if !hasTool(tools, want) {
 			t.Fatalf("tool %s missing from %#v", want, tools)
 		}
@@ -132,6 +132,40 @@ func TestMCPRBACReadAuditAndPlanBoundaries(t *testing.T) {
 	}
 	if planResult.IsError || !strings.Contains(planResult.Content[0].Text, `"mutated": false`) {
 		t.Fatalf("developer plan result = %#v", planResult)
+	}
+}
+
+func TestMCPEvidenceBundleRequiresAuditRead(t *testing.T) {
+	ctx := context.Background()
+	viewer := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	if _, err := viewer.ReadResource(ctx, "nivora://evidence/bundles/evb-missing"); err == nil {
+		t.Fatal("viewer read evidence unexpectedly allowed")
+	}
+
+	auditor := newTestMCPServer(t, domainauth.RoleAuditor, "token")
+	bundle, err := auditor.services.Compliance.EvidenceBundle(ctx, complianceusecase.EvidenceInput{SubjectType: "generic", SubjectID: "mcp-evidence"})
+	if err != nil {
+		t.Fatalf("generate evidence bundle: %v", err)
+	}
+	resource, err := auditor.ReadResource(ctx, "nivora://evidence/bundles/"+bundle.ID)
+	if err != nil {
+		t.Fatalf("auditor read evidence resource: %v", err)
+	}
+	if !strings.Contains(resource.Text, bundle.ID) {
+		t.Fatalf("evidence resource body = %s", resource.Text)
+	}
+	result, err := auditor.CallTool(ctx, "nivora_get_evidence_bundle", map[string]any{"id": bundle.ID, "authorization": "Bearer should-not-leak"})
+	if err != nil {
+		t.Fatalf("evidence tool transport error: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("evidence tool result = %#v", result)
+	}
+	body := result.Content[0].Text
+	for _, forbidden := range []string{"should-not-leak", "tokenHash", "BEGIN PRIVATE KEY"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("evidence MCP output leaked sensitive value %q: %s", forbidden, body)
+		}
 	}
 }
 

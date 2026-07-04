@@ -53,6 +53,49 @@ func GetEvidenceBundle(service *complianceusecase.Service) http.HandlerFunc {
 	}
 }
 
+func GenerateEvidenceBundle(service *complianceusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input complianceusecase.EvidenceInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an evidence generation request"})
+			return
+		}
+		if input.SubjectType == "" || input.SubjectID == "" {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "subjectType and subjectId are required"})
+			return
+		}
+		bundle, err := service.EvidenceBundle(r.Context(), input)
+		if err != nil {
+			respondComplianceResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, bundle)
+	}
+}
+
+func GetEvidenceBundleByID(service *complianceusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		bundle, err := service.GetEvidenceBundle(r.Context(), chi.URLParam(r, "id"))
+		respondComplianceResult(w, r, bundle, err)
+	}
+}
+
+func ExportEvidenceBundleByID(service *complianceusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		bundle, err := service.GetEvidenceBundle(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondComplianceResult(w, r, nil, err)
+			return
+		}
+		if r.URL.Query().Get("format") == "markdown" {
+			w.Header().Set("Content-Type", "text/markdown; charset=utf-8")
+			_, _ = w.Write([]byte(service.ExportMarkdown(bundle)))
+			return
+		}
+		RespondJSON(w, http.StatusOK, bundle)
+	}
+}
+
 func GetRetentionPolicy(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		policy, err := service.RetentionPolicy(r.Context(), r.URL.Query().Get("scopeType"), r.URL.Query().Get("scopeId"))

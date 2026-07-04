@@ -9,7 +9,7 @@ nivora runtime status --server http://localhost:8080
 curl http://localhost:8080/api/v1/system/runtime/recovery
 ```
 
-The response reports queued PipelineRuns, stale running runs, expired job claims, cancel requests, timeout candidates, and outbox retry state.
+The response reports queued PipelineRuns, stale running PipelineRuns, expired job claims, cancel requests, timeout candidates, pending/failed outbox state, stale DeploymentRuns, stale ReleaseExecutions, offline runners, and safe next actions for records that require human inspection.
 
 ## Run Reconciliation
 
@@ -18,7 +18,7 @@ nivora runtime reconcile --server http://localhost:8080
 curl -X POST http://localhost:8080/api/v1/system/runtime/reconcile
 ```
 
-The worker also runs reconciliation as its runtime advancement step.
+The worker also runs reconciliation as its runtime advancement step. The HTTP/CLI reconcile path is intentionally conservative: PipelineRun lease/outbox recovery uses the existing safe runtime reconciliation behavior, while DeploymentRun and ReleaseExecution recovery remains report-only with manual next actions.
 
 ## Multi-Process Recovery Smoke
 
@@ -52,6 +52,6 @@ This test runs in CI as part of the `postgres-integration` job.
 - Cancellation is reconciled for queued/running PipelineRuns; executor-level interruption remains limited by the current runner/executor implementation.
 - Timeout reconciliation is based on stale update time and lease state.
 - Runner offline detection is part of reconciliation and uses heartbeat age.
-- DeploymentRun and ReleaseExecution persistence survives repository/service restart in PostgreSQL mode; complete multi-process worker orchestration remains future hardening.
+- DeploymentRun and ReleaseExecution persistence survives repository/service restart in PostgreSQL mode; the runtime recovery center now surfaces non-terminal and stale counts for both. Automatic DeploymentRun or ReleaseExecution mutation remains future hardening.
 
 Nivora is a hardened beta-candidate foundation and is not production-ready.

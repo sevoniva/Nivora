@@ -22,6 +22,8 @@ Events should describe lifecycle changes such as PipelineRun created, queued, st
 
 Phase 1.5 stores PipelineRun events and later phases add DeploymentRun, ReleaseExecution, artifact, and security events. `GET /api/v1/events` supports lightweight filters such as `type`, `source`, `subject`, `pipelineRunId`, `deploymentRunId`, `releaseId`, `artifactId`, and `securityScanId`; the CLI equivalent is `nivora events search`.
 
+`GET /api/v1/timeline` combines filtered events and log summaries into a single time-ordered read model for operator investigation. It accepts the same run, subject, and pagination filters used by the aggregate events and logs APIs. The CLI equivalent is `nivora timeline search`. Secret-like values are redacted before the response is returned.
+
 ## Metrics and Traces
 
 Phase 4.2 exposes an in-process metrics registry and a lightweight text endpoint at `/metrics`. It tracks PipelineRun count, DeploymentRun count, runtime failure count, observed run durations, and runner heartbeat count.
@@ -51,4 +53,4 @@ Operational endpoints:
 
 ## Timelines
 
-Phase 1.5 exposes a minimal PipelineRun timeline from stored events. Aggregate audit reads are available through `GET /api/v1/audit/search`, `GET /api/v1/audit-logs`, and `nivora audit search`, with subject, actor, scope, request, and correlation filters. Future visualization APIs should support richer pipeline timelines, deployment timelines, runner heartbeat history, and audit timelines.
+Phase 1.5 exposes a minimal PipelineRun timeline from stored events. Later phases expose DeploymentRun and ReleaseExecution timelines, visualization timelines, and the aggregate `/api/v1/timeline` read model for cross-runtime event/log investigation. Aggregate audit reads are available through `GET /api/v1/audit/search`, `GET /api/v1/audit-logs`, and `nivora audit search`, with subject, actor, scope, request, and correlation filters.

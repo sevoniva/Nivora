@@ -87,6 +87,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newAuditCommand())
 	root.AddCommand(newEventsCommand())
 	root.AddCommand(newLogsCommand())
+	root.AddCommand(newTimelineCommand())
 	root.AddCommand(newEvidenceCommand())
 	root.AddCommand(newRetentionPolicyCommand())
 	root.AddCommand(newDoctorCommand())
@@ -242,6 +243,80 @@ func newEventsSearchCommand() *cobra.Command {
 func newLogsCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "logs", Short: "Aggregate runtime log queries"}
 	cmd.AddCommand(newLogsSearchCommand())
+	return cmd
+}
+
+func newTimelineCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "timeline", Short: "Aggregate runtime timeline queries"}
+	cmd.AddCommand(newTimelineSearchCommand())
+	return cmd
+}
+
+func newTimelineSearchCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var eventType string
+	var source string
+	var subject string
+	var runID string
+	var pipelineRunID string
+	var deploymentRunID string
+	var releaseID string
+	var artifactID string
+	var securityScanID string
+	var stageRunID string
+	var jobRunID string
+	var stepRunID string
+	var stream string
+	var contains string
+	var limit int
+	var offset int
+	cmd := &cobra.Command{
+		Use:   "search",
+		Short: "Search aggregate runtime timeline entries",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			setQueryValue(values, "type", eventType)
+			setQueryValue(values, "source", source)
+			setQueryValue(values, "subject", subject)
+			setQueryValue(values, "runId", runID)
+			setQueryValue(values, "pipelineRunId", pipelineRunID)
+			setQueryValue(values, "deploymentRunId", deploymentRunID)
+			setQueryValue(values, "releaseId", releaseID)
+			setQueryValue(values, "artifactId", artifactID)
+			setQueryValue(values, "securityScanId", securityScanID)
+			setQueryValue(values, "stageRunId", stageRunID)
+			setQueryValue(values, "jobRunId", jobRunID)
+			setQueryValue(values, "stepRunId", stepRunID)
+			setQueryValue(values, "stream", stream)
+			setQueryValue(values, "contains", contains)
+			setPaginationValues(values, limit, offset)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, withQuery("/api/v1/timeline", values), nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&eventType, "type", "", "event type substring")
+	cmd.Flags().StringVar(&source, "source", "", "event source substring")
+	cmd.Flags().StringVar(&subject, "subject", "", "event subject substring")
+	cmd.Flags().StringVar(&runID, "run-id", "", "pipeline or deployment run id")
+	cmd.Flags().StringVar(&pipelineRunID, "pipeline-run-id", "", "PipelineRun id")
+	cmd.Flags().StringVar(&deploymentRunID, "deployment-run-id", "", "DeploymentRun id")
+	cmd.Flags().StringVar(&releaseID, "release-id", "", "Release id")
+	cmd.Flags().StringVar(&artifactID, "artifact-id", "", "Artifact id")
+	cmd.Flags().StringVar(&securityScanID, "security-scan-id", "", "SecurityScan id")
+	cmd.Flags().StringVar(&stageRunID, "stage-run-id", "", "StageRun id")
+	cmd.Flags().StringVar(&jobRunID, "job-run-id", "", "JobRun id")
+	cmd.Flags().StringVar(&stepRunID, "step-run-id", "", "StepRun id")
+	cmd.Flags().StringVar(&stream, "stream", "", "stdout, stderr, or system")
+	cmd.Flags().StringVar(&contains, "contains", "", "case-insensitive log content substring")
+	cmd.Flags().IntVar(&limit, "limit", 0, "page size, 1-500")
+	cmd.Flags().IntVar(&offset, "offset", 0, "zero-based page offset")
 	return cmd
 }
 

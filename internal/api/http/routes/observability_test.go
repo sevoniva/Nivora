@@ -41,7 +41,7 @@ func TestAggregateObservabilityRoutes(t *testing.T) {
 		t.Fatalf("pipeline run response missing id: %s", rec.Body.String())
 	}
 
-	for _, path := range []string{"/api/v1/events", "/api/v1/logs"} {
+	for _, path := range []string{"/api/v1/events", "/api/v1/logs", "/api/v1/timeline"} {
 		req = httptest.NewRequest(http.MethodGet, path, nil)
 		rec = httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
@@ -73,6 +73,15 @@ func TestAggregateObservabilityRoutes(t *testing.T) {
 		t.Fatalf("filtered events body = %s", rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/timeline?pipelineRunId="+created.Run.ID+"&contains=observable&limit=10", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("filtered timeline status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"pagination"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"kind":"event"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"kind":"log"`)) {
+		t.Fatalf("filtered timeline body = %s", rec.Body.String())
+	}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/events?pipelineRunId=missing-run", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -101,6 +110,16 @@ func TestAggregateObservabilityRoutes(t *testing.T) {
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte(`"count":0`)) {
 		t.Fatalf("missing-run logs should be empty: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/timeline?pipelineRunId=missing-run", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("missing-run timeline status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"count":0`)) {
+		t.Fatalf("missing-run timeline should be empty: %s", rec.Body.String())
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/audit-logs", nil)

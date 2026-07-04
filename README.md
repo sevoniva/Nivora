@@ -1015,6 +1015,7 @@ Core API groups include:
 /api/v1/audit-logs
 /api/v1/events
 /api/v1/logs
+/api/v1/timeline
 /api/v1/integrations
 /api/v1/visualization
 ```
@@ -1024,6 +1025,7 @@ Aggregate runtime inspection also has CLI entry points:
 ```bash
 nivora events search --pipeline-run-id <pipeline-run-id> --limit 50
 nivora logs search --pipeline-run-id <pipeline-run-id> --contains "error"
+nivora timeline search --pipeline-run-id <pipeline-run-id> --limit 50
 nivora audit search --subject-id <subject-id> --scope-type project --scope-id <project-id>
 ```
 

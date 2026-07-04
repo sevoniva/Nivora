@@ -42,7 +42,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | Argo CD sync | integration and deployment sync routes | sync requires explicit allow and confirmation; production automation is future work |
 | GitOps commit / rollback | `POST /api/v1/deployments/gitops/commit`, `/rollback` | local working tree foundation; push is guarded |
 | External providers | cloud, registry, secret, notification, scanner routes | adapters are skeletal or fake unless explicitly configured |
-| Pagination and filters | selected list/log/event/timeline/audit routes | optional `limit`/`offset`; aggregate events/logs/audit support lightweight run, subject, scope, and content filters |
+| Pagination and filters | selected list/log/event/timeline/audit routes | optional `limit`/`offset`; aggregate events/logs/timeline/audit support lightweight run, subject, scope, and content filters |
 
 ## Placeholder / Not Implemented
 

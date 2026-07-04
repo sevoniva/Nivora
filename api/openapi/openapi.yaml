@@ -3872,6 +3872,83 @@ paths:
                       $ref: "#/components/schemas/LogChunk"
                   count:
                     type: integer
+  /api/v1/timeline:
+    get:
+      summary: List aggregate runtime timeline entries
+      description: Combines filtered runtime events and log summaries across PipelineRun, DeploymentRun, ReleaseExecution, artifact, and security records. Secret-like values are redacted and results are ordered by time.
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: subject
+          in: query
+          schema:
+            type: string
+        - name: runId
+          in: query
+          schema:
+            type: string
+        - name: pipelineRunId
+          in: query
+          schema:
+            type: string
+        - name: deploymentRunId
+          in: query
+          schema:
+            type: string
+        - name: releaseId
+          in: query
+          schema:
+            type: string
+        - name: artifactId
+          in: query
+          schema:
+            type: string
+        - name: securityScanId
+          in: query
+          schema:
+            type: string
+        - name: stageRunId
+          in: query
+          schema:
+            type: string
+        - name: jobRunId
+          in: query
+          schema:
+            type: string
+        - name: stepRunId
+          in: query
+          schema:
+            type: string
+        - name: stream
+          in: query
+          schema:
+            type: string
+        - name: contains
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Aggregate runtime timeline
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timeline:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/AggregateTimelineItem"
+                  count:
+                    type: integer
   /api/v1/integrations:
     get:
       summary: List integration capability index
@@ -8034,6 +8111,45 @@ components:
           type: string
         message:
           type: string
+    AggregateTimelineItem:
+      type: object
+      properties:
+        id:
+          type: string
+        kind:
+          type: string
+          enum: [event, log]
+        type:
+          type: string
+        time:
+          type: string
+          format: date-time
+        subject:
+          type: string
+        source:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+        pipelineRunId:
+          type: string
+        deploymentRunId:
+          type: string
+        stageRunId:
+          type: string
+        jobRunId:
+          type: string
+        stepRunId:
+          type: string
+        stream:
+          type: string
+        sequence:
+          type: integer
+          format: int64
+        data:
+          type: object
+          additionalProperties: true
     RunnerGroup:
       type: object
       properties:

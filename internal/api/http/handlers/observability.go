@@ -5,9 +5,11 @@ import (
 	"net/http"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	domainevent "github.com/sevoniva/nivora/internal/domain/event"
+	"github.com/sevoniva/nivora/internal/infra/crypto"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
@@ -15,6 +17,25 @@ import (
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
+
+type AggregateTimelineItem struct {
+	ID              string         `json:"id,omitempty"`
+	Kind            string         `json:"kind"`
+	Type            string         `json:"type"`
+	Time            time.Time      `json:"time"`
+	Subject         string         `json:"subject,omitempty"`
+	Source          string         `json:"source,omitempty"`
+	Status          string         `json:"status,omitempty"`
+	Message         string         `json:"message,omitempty"`
+	PipelineRunID   string         `json:"pipelineRunId,omitempty"`
+	DeploymentRunID string         `json:"deploymentRunId,omitempty"`
+	StageRunID      string         `json:"stageRunId,omitempty"`
+	JobRunID        string         `json:"jobRunId,omitempty"`
+	StepRunID       string         `json:"stepRunId,omitempty"`
+	Stream          string         `json:"stream,omitempty"`
+	Sequence        int64          `json:"sequence,omitempty"`
+	Data            map[string]any `json:"data,omitempty"`
+}
 
 func ListAuditLogs(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
@@ -41,6 +62,34 @@ func ListAuditLogs(service *complianceusecase.Service) http.HandlerFunc {
 			return
 		}
 		RespondJSON(w, http.StatusOK, result)
+	}
+}
+
+func ListTimeline(pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, releases *releaseorchestration.Service, artifacts *artifactusecase.Service, security *securityusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		events, err := collectEvents(r.Context(), r, pipelines, deployments, releases, artifacts, security)
+		if err != nil {
+			RespondError(w, r, http.StatusInternalServerError, dto.ErrorResponse{Code: "timeline_list_failed", Message: err.Error(), Path: r.URL.Path})
+			return
+		}
+		logs, err := collectLogs(r.Context(), r, pipelines, deployments)
+		if err != nil {
+			RespondError(w, r, http.StatusInternalServerError, dto.ErrorResponse{Code: "timeline_list_failed", Message: err.Error(), Path: r.URL.Path})
+			return
+		}
+		events = filterEvents(events, r)
+		logs = filterLogs(logs, r)
+		timeline := buildAggregateTimeline(events, logs)
+		page, pageErr := parsePagination(r)
+		if pageErr != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_pagination", Message: pageErr.Error(), Path: r.URL.Path})
+			return
+		}
+		if page.Enabled {
+			RespondJSON(w, http.StatusOK, paginatedPayload(timeline, page))
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{"timeline": timeline, "count": len(timeline)})
 	}
 }
 
@@ -84,6 +133,53 @@ func ListLogs(pipelines *pipelineusecase.Service, deployments *deploymentusecase
 		}
 		RespondJSON(w, http.StatusOK, map[string]any{"logs": logs, "count": len(logs)})
 	}
+}
+
+func buildAggregateTimeline(events []domainevent.Event, logs []domainevent.LogChunk) []AggregateTimelineItem {
+	items := make([]AggregateTimelineItem, 0, len(events)+len(logs))
+	for _, evt := range events {
+		items = append(items, AggregateTimelineItem{
+			ID:      evt.ID,
+			Kind:    "event",
+			Type:    evt.Type,
+			Time:    evt.Time,
+			Subject: evt.Subject,
+			Source:  evt.Source,
+			Status:  crypto.RedactString(anyString(evt.Data["status"])),
+			Message: crypto.RedactString(anyString(evt.Data["message"])),
+			Data:    redactAnyMap(evt.Data),
+		})
+	}
+	for _, log := range logs {
+		items = append(items, AggregateTimelineItem{
+			ID:              log.ID,
+			Kind:            "log",
+			Type:            "log." + log.Stream,
+			Time:            log.CreatedAt,
+			Subject:         firstNonEmpty(log.StepRunID, log.JobRunID, log.DeploymentRunID, log.PipelineRunID),
+			Message:         crypto.RedactString(log.Content),
+			PipelineRunID:   log.PipelineRunID,
+			DeploymentRunID: log.DeploymentRunID,
+			StageRunID:      log.StageRunID,
+			JobRunID:        log.JobRunID,
+			StepRunID:       log.StepRunID,
+			Stream:          log.Stream,
+			Sequence:        log.Sequence,
+		})
+	}
+	sort.SliceStable(items, func(i, j int) bool {
+		if items[i].Time.Equal(items[j].Time) {
+			if items[i].Kind == items[j].Kind {
+				if items[i].Sequence == items[j].Sequence {
+					return items[i].ID < items[j].ID
+				}
+				return items[i].Sequence < items[j].Sequence
+			}
+			return items[i].Kind == "event"
+		}
+		return items[i].Time.Before(items[j].Time)
+	})
+	return items
 }
 
 func collectEvents(ctx context.Context, r *http.Request, pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, releases *releaseorchestration.Service, artifacts *artifactusecase.Service, security *securityusecase.Service) ([]domainevent.Event, error) {
@@ -289,4 +385,37 @@ func anyString(value any) string {
 
 func containsFold(value string, needle string) bool {
 	return strings.Contains(strings.ToLower(value), strings.ToLower(needle))
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
+}
+
+func redactAnyMap(values map[string]any) map[string]any {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]any, len(values))
+	for key, value := range values {
+		if crypto.IsSensitiveKey(key) {
+			out[key] = "[REDACTED]"
+			continue
+		}
+		switch typed := value.(type) {
+		case string:
+			out[key] = crypto.RedactString(typed)
+		case map[string]any:
+			out[key] = redactAnyMap(typed)
+		case map[string]string:
+			out[key] = crypto.RedactMap(typed)
+		default:
+			out[key] = typed
+		}
+	}
+	return out
 }

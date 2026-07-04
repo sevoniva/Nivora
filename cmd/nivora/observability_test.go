@@ -16,7 +16,7 @@ func TestRootCommandIncludesAggregateObservabilityCommands(t *testing.T) {
 		t.Fatalf("root help failed: %v", err)
 	}
 	help := out.String()
-	for _, command := range []string{"events", "logs", "audit"} {
+	for _, command := range []string{"events", "logs", "timeline", "audit"} {
 		if !strings.Contains(help, command) {
 			t.Fatalf("root help missing %s command: %s", command, help)
 		}
@@ -53,6 +53,23 @@ func TestLogsSearchHelpIncludesFilters(t *testing.T) {
 	for _, flag := range []string{"--pipeline-run-id", "--deployment-run-id", "--job-run-id", "--contains", "--stream", "--limit", "--token-env"} {
 		if !strings.Contains(help, flag) {
 			t.Fatalf("logs search help missing %s: %s", flag, help)
+		}
+	}
+}
+
+func TestTimelineSearchHelpIncludesEventAndLogFilters(t *testing.T) {
+	cmd := newTimelineCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"search", "--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("timeline search help failed: %v", err)
+	}
+	help := out.String()
+	for _, flag := range []string{"--pipeline-run-id", "--deployment-run-id", "--release-id", "--job-run-id", "--contains", "--limit", "--token-env"} {
+		if !strings.Contains(help, flag) {
+			t.Fatalf("timeline search help missing %s: %s", flag, help)
 		}
 	}
 }

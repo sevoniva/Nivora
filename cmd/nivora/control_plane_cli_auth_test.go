@@ -27,6 +27,7 @@ func TestControlPlaneServerCommandsUseBearerToken(t *testing.T) {
 		response   string
 	}{
 		{name: "audit verify", cmd: newAuditVerifyCommand(), args: []string{"--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/audit/verify", response: `{"valid":true}`},
+		{name: "timeline search", cmd: newTimelineSearchCommand(), args: []string{"--pipeline-run-id", "prun-1", "--limit", "2", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/timeline", wantQuery: "limit=2&pipelineRunId=prun-1", response: `{"timeline":[],"count":0}`},
 		{name: "evidence generate", cmd: newEvidenceGenerateCommand(), args: []string{"--subject-type", "release", "--subject-id", "rel-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/evidence/bundles", response: `{"id":"evb-1"}`},
 		{name: "evidence export json", cmd: newEvidenceExportCommand(), args: []string{"evb-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/evidence/bundles/evb-1/export", response: `{"id":"evb-1"}`},
 		{name: "evidence export markdown", cmd: newEvidenceExportCommand(), args: []string{"evb-1", "--format", "markdown", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/evidence/bundles/evb-1/export", response: `# Evidence`},

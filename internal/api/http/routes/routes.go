@@ -134,6 +134,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/audit-logs", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.ListAuditLogs(complianceService)))
 		api.Get("/events", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListEvents(pipelineService, deploymentService, releaseService, artifactService, securityService)))
 		api.Get("/logs", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListLogs(pipelineService, deploymentService)))
+		api.Get("/timeline", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListTimeline(pipelineService, deploymentService, releaseService, artifactService, securityService)))
 		api.Get("/evidence/bundles", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.ListEvidenceBundles(complianceService)))
 		api.Post("/evidence/bundles", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GenerateEvidenceBundle(complianceService)))
 		api.Get("/evidence/bundles/{id}", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetEvidenceBundleByID(complianceService)))

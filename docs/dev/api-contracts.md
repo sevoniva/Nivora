@@ -35,6 +35,17 @@ All mutation routes (POST/PUT/PATCH/DELETE) are wrapped with `RequirePermission`
 - `POST /api/v1/artifact-registries/validate`
 - Runner protocol: heartbeat, claim, log append, status update (use `X-Nivora-Runner-Token`)
 
+## Aggregate Runtime Queries
+
+The control plane exposes read-only aggregate observability routes:
+
+- `GET /api/v1/events`
+- `GET /api/v1/logs`
+- `GET /api/v1/timeline`
+- `GET /api/v1/audit-logs`
+
+`/api/v1/timeline` combines filtered runtime events and log summaries into one time-ordered response. It accepts the same lightweight filters used by events/logs, including `runId`, `pipelineRunId`, `deploymentRunId`, `releaseId`, `artifactId`, `securityScanId`, `jobRunId`, `stepRunId`, `contains`, `limit`, and `offset`. Secret-like values are redacted before they are returned.
+
 ## Schema Coverage
 
 Key domain schemas are defined in OpenAPI `components/schemas`:

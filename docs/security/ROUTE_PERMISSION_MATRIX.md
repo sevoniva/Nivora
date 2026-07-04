@@ -30,6 +30,9 @@ Auth modes:
 | GET | `/api/v1/environments`, `/api/v1/environments/{id}` | `environment.read` | environment/project | user/service account | yes | no | yes | Foundation environment catalog. |
 | POST | `/api/v1/environments` | `environment.write` | environment/project | user/service account | yes | no | yes | Parent project is validated. |
 | PATCH/DELETE | `/api/v1/environments/{id}` | `environment.write` | environment/project | user/service account | yes | no | yes | Delete disables instead of hard-deleting. |
+| GET | `/api/v1/release-targets`, `/api/v1/release-targets/{id}` | `environment.read` | environment/target | user/service account | yes | no | yes | Foundation release target catalog; no execution occurs. |
+| POST/PATCH/DELETE | `/api/v1/release-targets*` | `environment.write` | environment/target | user/service account | yes | no | yes | Unsafe flags default false; delete disables instead of hard-deleting. |
+| POST | `/api/v1/release-targets/{id}/validate` | `deployment.create` | environment/target | user/service account | yes | no | yes | Disabled targets are rejected; validation does not execute deployment. |
 | GET | `/api/v1/repositories`, `/api/v1/repositories/{id}` | `project.read` | project/repository | user/service account | yes | no | yes | Foundation SCM repository catalog; no provider network calls. |
 | POST | `/api/v1/repositories` | `project.write` | project/repository | user/service account | yes | no | yes | Parent project is validated; CredentialRef id only. |
 | PATCH/DELETE | `/api/v1/repositories/{id}` | `project.write` | project/repository | user/service account | yes | no | yes | Delete disables instead of hard-deleting. |

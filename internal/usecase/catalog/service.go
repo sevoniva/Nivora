@@ -433,6 +433,155 @@ func (s *Service) DisableRepository(ctx context.Context, id string) (domainapp.R
 	return s.UpdateRepository(ctx, id, UpdateRepositoryInput{Enabled: &disabled})
 }
 
+func (s *Service) CreateReleaseTarget(ctx context.Context, input CreateReleaseTargetInput) (domainenv.ReleaseTarget, error) {
+	environmentID := strings.TrimSpace(input.EnvironmentID)
+	if environmentID == "" {
+		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: release target environmentId is required", ErrInvalid)
+	}
+	environment, err := s.store.GetEnvironment(ctx, environmentID)
+	if err != nil {
+		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: environment %q", ErrNotFound, environmentID)
+	}
+	projectID := strings.TrimSpace(input.ProjectID)
+	if projectID == "" {
+		projectID = environment.ProjectID
+	}
+	if projectID != environment.ProjectID {
+		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: release target projectId must match parent environment projectId", ErrInvalid)
+	}
+	if _, err := s.store.GetProject(ctx, projectID); err != nil {
+		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: project %q", ErrNotFound, projectID)
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: release target name is required", ErrInvalid)
+	}
+	targetType := normalizeTargetType(input.TargetType)
+	if err := validateTargetType(targetType); err != nil {
+		return domainenv.ReleaseTarget{}, err
+	}
+	targets, _ := s.store.ListReleaseTargets(ctx, projectID, environmentID)
+	for _, existing := range targets {
+		if strings.EqualFold(existing.Name, name) {
+			return domainenv.ReleaseTarget{}, fmt.Errorf("%w: release target %q", ErrAlreadyExists, name)
+		}
+	}
+	now := s.now().UTC()
+	enabled := true
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+	target := domainenv.ReleaseTarget{
+		ID:                    defaultID(input.ID, "target"),
+		ProjectID:             projectID,
+		EnvironmentID:         environmentID,
+		Name:                  name,
+		TargetType:            targetType,
+		Context:               strings.TrimSpace(input.Context),
+		Namespace:             strings.TrimSpace(input.Namespace),
+		ConfigRef:             strings.TrimSpace(input.ConfigRef),
+		CredentialRef:         strings.TrimSpace(input.CredentialRef),
+		Labels:                copyMap(input.Labels),
+		Metadata:              copyMap(input.Metadata),
+		AllowApply:            boolValue(input.AllowApply),
+		AllowSync:             boolValue(input.AllowSync),
+		AllowRemoteHostDeploy: boolValue(input.AllowRemoteHostDeploy),
+		Enabled:               enabled,
+		CreatedAt:             now,
+		UpdatedAt:             now,
+	}
+	result := validateReleaseTargetShape(target)
+	if !result.Valid {
+		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: %s", ErrInvalid, strings.Join(result.Errors, "; "))
+	}
+	return s.store.CreateReleaseTarget(ctx, target)
+}
+
+func (s *Service) GetReleaseTarget(ctx context.Context, id string) (domainenv.ReleaseTarget, error) {
+	return s.store.GetReleaseTarget(ctx, strings.TrimSpace(id))
+}
+
+func (s *Service) ListReleaseTargets(ctx context.Context, projectID string, environmentID string) ([]domainenv.ReleaseTarget, error) {
+	return s.store.ListReleaseTargets(ctx, strings.TrimSpace(projectID), strings.TrimSpace(environmentID))
+}
+
+func (s *Service) UpdateReleaseTarget(ctx context.Context, id string, input UpdateReleaseTargetInput) (domainenv.ReleaseTarget, error) {
+	target, err := s.store.GetReleaseTarget(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return domainenv.ReleaseTarget{}, err
+	}
+	if input.Name != nil {
+		target.Name = strings.TrimSpace(*input.Name)
+		if target.Name == "" {
+			return domainenv.ReleaseTarget{}, fmt.Errorf("%w: release target name is required", ErrInvalid)
+		}
+	}
+	if input.TargetType != nil {
+		target.TargetType = normalizeTargetType(*input.TargetType)
+		if err := validateTargetType(target.TargetType); err != nil {
+			return domainenv.ReleaseTarget{}, err
+		}
+	}
+	if input.Context != nil {
+		target.Context = strings.TrimSpace(*input.Context)
+	}
+	if input.Namespace != nil {
+		target.Namespace = strings.TrimSpace(*input.Namespace)
+	}
+	if input.ConfigRef != nil {
+		target.ConfigRef = strings.TrimSpace(*input.ConfigRef)
+	}
+	if input.CredentialRef != nil {
+		target.CredentialRef = strings.TrimSpace(*input.CredentialRef)
+	}
+	if input.Labels != nil {
+		target.Labels = copyMap(input.Labels)
+	}
+	if input.Metadata != nil {
+		target.Metadata = copyMap(input.Metadata)
+	}
+	if input.AllowApply != nil {
+		target.AllowApply = *input.AllowApply
+	}
+	if input.AllowSync != nil {
+		target.AllowSync = *input.AllowSync
+	}
+	if input.AllowRemoteHostDeploy != nil {
+		target.AllowRemoteHostDeploy = *input.AllowRemoteHostDeploy
+	}
+	if input.Enabled != nil {
+		target.Enabled = *input.Enabled
+	}
+	target.UpdatedAt = s.now().UTC()
+	result := validateReleaseTargetShape(target)
+	if !result.Valid {
+		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: %s", ErrInvalid, strings.Join(result.Errors, "; "))
+	}
+	targets, err := s.store.ListReleaseTargets(ctx, target.ProjectID, target.EnvironmentID)
+	if err != nil {
+		return domainenv.ReleaseTarget{}, err
+	}
+	for _, existing := range targets {
+		if existing.ID != target.ID && strings.EqualFold(existing.Name, target.Name) {
+			return domainenv.ReleaseTarget{}, fmt.Errorf("%w: release target %q", ErrAlreadyExists, target.Name)
+		}
+	}
+	return s.store.UpdateReleaseTarget(ctx, target)
+}
+
+func (s *Service) DisableReleaseTarget(ctx context.Context, id string) (domainenv.ReleaseTarget, error) {
+	disabled := false
+	return s.UpdateReleaseTarget(ctx, id, UpdateReleaseTargetInput{Enabled: &disabled})
+}
+
+func (s *Service) ValidateReleaseTarget(ctx context.Context, id string) (ReleaseTargetValidationResult, error) {
+	target, err := s.store.GetReleaseTarget(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return ReleaseTargetValidationResult{}, err
+	}
+	return validateReleaseTarget(target), nil
+}
+
 func (s *Service) findOrgByNameOrSlug(ctx context.Context, name string, slug string) (domainorg.Org, error) {
 	orgs, err := s.store.ListOrgs(ctx)
 	if err != nil {
@@ -492,6 +641,71 @@ func defaultBranch(branch string) string {
 		return "main"
 	}
 	return branch
+}
+
+func normalizeTargetType(targetType string) string {
+	return strings.TrimSpace(strings.ToLower(targetType))
+}
+
+func validateTargetType(targetType string) error {
+	switch targetType {
+	case "kubernetes-yaml", "argocd", "host", "webhook", "noop":
+		return nil
+	default:
+		return fmt.Errorf("%w: release target type %q is not supported", ErrInvalid, targetType)
+	}
+}
+
+func validateReleaseTarget(target domainenv.ReleaseTarget) ReleaseTargetValidationResult {
+	result := validateReleaseTargetShape(target)
+	if !target.Enabled {
+		result.Errors = append(result.Errors, "target is disabled")
+	}
+	if len(result.Errors) > 0 {
+		result.Valid = false
+	}
+	return result
+}
+
+func validateReleaseTargetShape(target domainenv.ReleaseTarget) ReleaseTargetValidationResult {
+	result := ReleaseTargetValidationResult{Valid: true, TargetID: target.ID}
+	if strings.TrimSpace(target.ProjectID) == "" {
+		result.Errors = append(result.Errors, "projectId is required")
+	}
+	if strings.TrimSpace(target.EnvironmentID) == "" {
+		result.Errors = append(result.Errors, "environmentId is required")
+	}
+	if strings.TrimSpace(target.Name) == "" {
+		result.Errors = append(result.Errors, "name is required")
+	}
+	if err := validateTargetType(target.TargetType); err != nil {
+		result.Errors = append(result.Errors, err.Error())
+	}
+	switch target.TargetType {
+	case "kubernetes-yaml":
+		if target.AllowApply {
+			result.Warnings = append(result.Warnings, "kubernetes apply is explicitly allowed for this target")
+		}
+		if target.Namespace == "" {
+			result.Warnings = append(result.Warnings, "namespace is not set; deployment specs must provide an explicit namespace")
+		}
+	case "argocd":
+		if target.AllowSync {
+			result.Warnings = append(result.Warnings, "Argo CD sync is explicitly allowed for this target")
+		}
+	case "host":
+		if target.AllowRemoteHostDeploy {
+			result.Warnings = append(result.Warnings, "remote host deployment is explicitly allowed for this target")
+		}
+	}
+	if len(result.Errors) > 0 {
+		result.Valid = false
+	}
+	return result
+}
+
+func boolValue(value *bool) bool {
+	return value != nil && *value
 }
 
 func defaultSlug(slug string, name string) string {

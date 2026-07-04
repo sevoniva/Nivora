@@ -3,6 +3,12 @@ kind: ReleaseTarget
 metadata:
   name: audit-only
 spec:
-  type: noop
-  environment: dev
+  projectId: example-project
+  environmentId: example-dev
+  targetType: noop
+  allowApply: false
+  allowSync: false
+  allowRemoteHostDeploy: false
   enabled: true
+  labels:
+    purpose: audit

@@ -41,6 +41,11 @@ type Store interface {
 	GetRepository(ctx context.Context, id string) (domainapp.Repository, error)
 	ListRepositories(ctx context.Context, projectID string) ([]domainapp.Repository, error)
 	UpdateRepository(ctx context.Context, repository domainapp.Repository) (domainapp.Repository, error)
+
+	CreateReleaseTarget(ctx context.Context, target domainenv.ReleaseTarget) (domainenv.ReleaseTarget, error)
+	GetReleaseTarget(ctx context.Context, id string) (domainenv.ReleaseTarget, error)
+	ListReleaseTargets(ctx context.Context, projectID string, environmentID string) ([]domainenv.ReleaseTarget, error)
+	UpdateReleaseTarget(ctx context.Context, target domainenv.ReleaseTarget) (domainenv.ReleaseTarget, error)
 }
 
 type CreateOrgInput struct {
@@ -144,4 +149,44 @@ type UpdateRepositoryInput struct {
 	Labels        map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 	Metadata      map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	Enabled       *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type CreateReleaseTargetInput struct {
+	ID                    string            `json:"id,omitempty" yaml:"id,omitempty"`
+	ProjectID             string            `json:"projectId,omitempty" yaml:"projectId,omitempty"`
+	EnvironmentID         string            `json:"environmentId" yaml:"environmentId"`
+	Name                  string            `json:"name" yaml:"name"`
+	TargetType            string            `json:"targetType" yaml:"targetType"`
+	Context               string            `json:"context,omitempty" yaml:"context,omitempty"`
+	Namespace             string            `json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	ConfigRef             string            `json:"configRef,omitempty" yaml:"configRef,omitempty"`
+	CredentialRef         string            `json:"credentialRef,omitempty" yaml:"credentialRef,omitempty"`
+	Labels                map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata              map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	AllowApply            *bool             `json:"allowApply,omitempty" yaml:"allowApply,omitempty"`
+	AllowSync             *bool             `json:"allowSync,omitempty" yaml:"allowSync,omitempty"`
+	AllowRemoteHostDeploy *bool             `json:"allowRemoteHostDeploy,omitempty" yaml:"allowRemoteHostDeploy,omitempty"`
+	Enabled               *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type UpdateReleaseTargetInput struct {
+	Name                  *string           `json:"name,omitempty" yaml:"name,omitempty"`
+	TargetType            *string           `json:"targetType,omitempty" yaml:"targetType,omitempty"`
+	Context               *string           `json:"context,omitempty" yaml:"context,omitempty"`
+	Namespace             *string           `json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	ConfigRef             *string           `json:"configRef,omitempty" yaml:"configRef,omitempty"`
+	CredentialRef         *string           `json:"credentialRef,omitempty" yaml:"credentialRef,omitempty"`
+	Labels                map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata              map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	AllowApply            *bool             `json:"allowApply,omitempty" yaml:"allowApply,omitempty"`
+	AllowSync             *bool             `json:"allowSync,omitempty" yaml:"allowSync,omitempty"`
+	AllowRemoteHostDeploy *bool             `json:"allowRemoteHostDeploy,omitempty" yaml:"allowRemoteHostDeploy,omitempty"`
+	Enabled               *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type ReleaseTargetValidationResult struct {
+	Valid    bool     `json:"valid"`
+	TargetID string   `json:"targetId,omitempty"`
+	Warnings []string `json:"warnings,omitempty"`
+	Errors   []string `json:"errors,omitempty"`
 }

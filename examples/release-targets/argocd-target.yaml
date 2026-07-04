@@ -3,9 +3,15 @@ kind: ReleaseTarget
 metadata:
   name: dev-argocd
 spec:
-  type: argocd
-  environment: dev
-  applicationName: demo-springboot
-  repoURL: https://example.com/gitops/demo.git
-  path: apps/demo-springboot/dev
-  sync: false
+  projectId: example-project
+  environmentId: example-dev
+  targetType: argocd
+  context: example-argocd-app
+  configRef: argocd-config-placeholder
+  credentialRef: argocd-credential-placeholder
+  allowSync: false
+  allowApply: false
+  allowRemoteHostDeploy: false
+  enabled: true
+  labels:
+    tier: dev

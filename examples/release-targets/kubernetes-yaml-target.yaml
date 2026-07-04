@@ -3,7 +3,16 @@ kind: ReleaseTarget
 metadata:
   name: dev-yaml
 spec:
-  type: kubernetes-yaml
-  environment: dev
+  projectId: example-project
+  environmentId: example-dev
+  targetType: kubernetes-yaml
+  context: kube-context-placeholder
   namespace: default
+  configRef: kube-target-config-placeholder
+  credentialRef: kube-credential-placeholder
+  allowApply: false
+  allowSync: false
+  allowRemoteHostDeploy: false
   enabled: true
+  labels:
+    tier: dev

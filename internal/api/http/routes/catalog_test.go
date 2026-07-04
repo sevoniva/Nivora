@@ -37,6 +37,18 @@ func TestCatalogRoutesCreateListUpdateAndDisable(t *testing.T) {
 	environment := postCatalogResource(t, router, "/api/v1/environments", `{"projectId":"`+projectID+`","name":"Production"}`, http.StatusCreated)
 	environmentID := stringField(t, environment, "id")
 
+	target := postCatalogResource(t, router, "/api/v1/release-targets", `{"environmentId":"`+environmentID+`","name":"prod-noop","targetType":"noop","credentialRef":"target-cred-ref"}`, http.StatusCreated)
+	targetID := stringField(t, target, "id")
+	if stringField(t, target, "projectId") != projectID {
+		t.Fatalf("target projectId mismatch: %+v", target)
+	}
+	if boolField(t, target, "allowApply") || boolField(t, target, "allowSync") || boolField(t, target, "allowRemoteHostDeploy") {
+		t.Fatalf("unsafe target flags should default false: %+v", target)
+	}
+	if stringField(t, target, "credentialRef") != "target-cred-ref" {
+		t.Fatalf("target credentialRef mismatch: %+v", target)
+	}
+
 	repository := postCatalogResource(t, router, "/api/v1/repositories", `{"projectId":"`+projectID+`","name":"Service Repo","url":"https://example.com/team/service.git","provider":"generic","credentialRef":"cred-ref"}`, http.StatusCreated)
 	repositoryID := stringField(t, repository, "id")
 	if stringField(t, repository, "credentialRef") != "cred-ref" {
@@ -74,6 +86,33 @@ func TestCatalogRoutesCreateListUpdateAndDisable(t *testing.T) {
 		t.Fatalf("list projects status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/release-targets?projectId="+projectID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), targetID) {
+		t.Fatalf("list targets status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/release-targets/"+targetID+"/validate", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"valid":true`) {
+		t.Fatalf("validate target status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/release-targets/"+targetID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"enabled":false`) {
+		t.Fatalf("disable target status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/release-targets/"+targetID+"/validate", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "target is disabled") {
+		t.Fatalf("validate disabled target status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodDelete, "/api/v1/repositories/"+repositoryID, nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -94,6 +133,7 @@ func TestCatalogRoutesValidateParentsAndDuplicates(t *testing.T) {
 
 	postCatalogResource(t, router, "/api/v1/projects", `{"orgId":"missing","name":"Delivery"}`, http.StatusNotFound)
 	postCatalogResource(t, router, "/api/v1/repositories", `{"projectId":"missing","name":"Repo","url":"https://example.com/team/service.git"}`, http.StatusNotFound)
+	postCatalogResource(t, router, "/api/v1/release-targets", `{"environmentId":"missing","name":"target","targetType":"noop"}`, http.StatusNotFound)
 	postCatalogResource(t, router, "/api/v1/orgs", `{"name":"Platform"}`, http.StatusCreated)
 	postCatalogResource(t, router, "/api/v1/orgs", `{"name":"platform"}`, http.StatusConflict)
 }

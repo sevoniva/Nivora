@@ -21,6 +21,7 @@ Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/sta
 | PipelineRun runtime | Implemented for local shell execution; not a full workflow engine |
 | DeploymentRun runtime | Partial; YAML dry-run, guarded apply, inventory, health, diff, audit, and PostgreSQL persistence foundations exist |
 | Release and ReleaseExecution | Partial; sequential orchestration and PostgreSQL persistence foundations exist |
+| Release target catalog | Foundation; `/api/v1/release-targets` and `nivora target` manage target metadata with unsafe operations disabled by default |
 | Runner protocol | Partial; tokens, heartbeat, claim, logs, status, and isolation profiles exist; OS-level sandboxing is still operator work |
 | Kubernetes YAML | Experimental guarded apply/rollback foundation; no default destructive behavior |
 | GitOps / Argo CD | Experimental planning/status/guarded sync foundation; no production Argo automation |

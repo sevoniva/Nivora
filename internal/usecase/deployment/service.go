@@ -1437,6 +1437,7 @@ func (s *Service) newRecord(def Definition) RunRecord {
 			TargetType:    def.Spec.Target.Type,
 			Context:       def.Spec.Target.Context,
 			Namespace:     def.Spec.Target.Namespace,
+			Enabled:       true,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		},

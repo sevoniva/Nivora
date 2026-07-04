@@ -889,6 +889,109 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/Environment"
+  /api/v1/release-targets:
+    get:
+      summary: List release targets
+      description: Lists ReleaseTarget catalog records. This is metadata only and does not execute deployment, sync, rollback, or host operations.
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
+        - name: environmentId
+          in: query
+          required: false
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Release target list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  releaseTargets:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ReleaseTarget"
+    post:
+      summary: Create release target
+      description: Creates ReleaseTarget metadata with dangerous operations disabled by default.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseTargetCreateRequest"
+      responses:
+        "201":
+          description: Release target created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseTarget"
+  /api/v1/release-targets/{id}:
+    get:
+      summary: Get release target
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Release target
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseTarget"
+    patch:
+      summary: Update release target
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReleaseTargetUpdateRequest"
+      responses:
+        "200":
+          description: Release target updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseTarget"
+    delete:
+      summary: Disable release target
+      description: Disables the target instead of hard-deleting it.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Release target disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseTarget"
+  /api/v1/release-targets/{id}/validate:
+    post:
+      summary: Validate release target
+      description: Validates that a ReleaseTarget is usable. Disabled targets are rejected.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Release target is usable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseTargetValidationResult"
+        "400":
+          description: Release target is not usable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReleaseTargetValidationResult"
   /api/v1/repositories:
     get:
       summary: List SCM repositories
@@ -3254,6 +3357,50 @@ components:
           properties:
             projectId:
               type: string
+    ReleaseTarget:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        environmentId:
+          type: string
+        name:
+          type: string
+        targetType:
+          type: string
+          enum: [kubernetes-yaml, argocd, host, webhook, noop]
+        context:
+          type: string
+        namespace:
+          type: string
+        configRef:
+          type: string
+        credentialRef:
+          type: string
+          description: CredentialRef id only; secret values are never returned.
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        allowApply:
+          type: boolean
+          description: Explicit opt-in for Kubernetes apply; defaults to false.
+        allowSync:
+          type: boolean
+          description: Explicit opt-in for Argo CD sync; defaults to false.
+        allowRemoteHostDeploy:
+          type: boolean
+          description: Explicit opt-in for remote host deployment; defaults to false.
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     SCMRepository:
       type: object
       properties:
@@ -3322,6 +3469,84 @@ components:
     EnvironmentCreateRequest:
       allOf:
         - $ref: "#/components/schemas/ApplicationCreateRequest"
+    ReleaseTargetCreateRequest:
+      type: object
+      required: [environmentId, name, targetType]
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        environmentId:
+          type: string
+        name:
+          type: string
+        targetType:
+          type: string
+          enum: [kubernetes-yaml, argocd, host, webhook, noop]
+        context:
+          type: string
+        namespace:
+          type: string
+        configRef:
+          type: string
+        credentialRef:
+          type: string
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        allowApply:
+          type: boolean
+        allowSync:
+          type: boolean
+        allowRemoteHostDeploy:
+          type: boolean
+        enabled:
+          type: boolean
+    ReleaseTargetUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        targetType:
+          type: string
+          enum: [kubernetes-yaml, argocd, host, webhook, noop]
+        context:
+          type: string
+        namespace:
+          type: string
+        configRef:
+          type: string
+        credentialRef:
+          type: string
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        allowApply:
+          type: boolean
+        allowSync:
+          type: boolean
+        allowRemoteHostDeploy:
+          type: boolean
+        enabled:
+          type: boolean
+    ReleaseTargetValidationResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        targetId:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: string
     SCMRepositoryCreateRequest:
       type: object
       required: [projectId, name, url]
@@ -5036,7 +5261,7 @@ components:
           type: string
         type:
           type: string
-          enum: [kubernetes-yaml, argocd, noop, webhook]
+          enum: [kubernetes-yaml, argocd, host, noop, webhook]
         order:
           type: integer
         dependencies:

@@ -34,13 +34,23 @@ The local runtime executes safe targets only:
 - `argocd` uses the existing noop Argo CD provider.
 - `noop` records target execution without external side effects.
 
+ReleaseTarget metadata can also be managed through the catalog API and CLI:
+
+```sh
+go run ./cmd/nivora target create --environment-id env-dev --name dev-noop --type noop
+go run ./cmd/nivora target list --project-id project-dev
+go run ./cmd/nivora target validate target-id
+```
+
+These commands manage metadata only. They do not run apply, sync, remote host deployment, rollback, or Git push.
+
 ## Current Limitations
 
 - Sequential execution is the only real execution strategy.
 - Parallel execution is future work.
-- Approval is a placeholder gate.
+- Approval is a foundation gate.
 - Rollback readiness is target-level only through DeploymentRun rollback plans.
-- The runtime is in-memory and not production-ready.
+- Some catalog services are still wired to in-memory stores in the HTTP runtime and are not production-ready.
 
 ## Safety Rules
 

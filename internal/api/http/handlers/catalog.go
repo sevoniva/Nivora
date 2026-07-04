@@ -335,6 +335,86 @@ func DisableRepository(service *catalogusecase.Service) http.HandlerFunc {
 	}
 }
 
+func ListReleaseTargets(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		targets, err := service.ListReleaseTargets(r.Context(), r.URL.Query().Get("projectId"), r.URL.Query().Get("environmentId"))
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{"releaseTargets": targets})
+	}
+}
+
+func CreateReleaseTarget(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input catalogusecase.CreateReleaseTargetInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_json", Message: "request body must be valid JSON"})
+			return
+		}
+		target, err := service.CreateReleaseTarget(r.Context(), input)
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, target)
+	}
+}
+
+func GetReleaseTarget(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		target, err := service.GetReleaseTarget(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, target)
+	}
+}
+
+func UpdateReleaseTarget(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input catalogusecase.UpdateReleaseTargetInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_json", Message: "request body must be valid JSON"})
+			return
+		}
+		target, err := service.UpdateReleaseTarget(r.Context(), chi.URLParam(r, "id"), input)
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, target)
+	}
+}
+
+func DisableReleaseTarget(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		target, err := service.DisableReleaseTarget(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, target)
+	}
+}
+
+func ValidateReleaseTarget(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := service.ValidateReleaseTarget(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		status := http.StatusOK
+		if !result.Valid {
+			status = http.StatusBadRequest
+		}
+		RespondJSON(w, status, result)
+	}
+}
+
 func respondCatalogError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, catalogusecase.ErrInvalid):

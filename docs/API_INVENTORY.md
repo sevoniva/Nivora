@@ -13,6 +13,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | Runner protocol | register, heartbeat, claim, append logs, update status, offline detect, token rotate/revoke | runner mutation uses runner tokens or RBAC where applicable |
 | DeploymentRun | `POST /api/v1/deployments`, plan/apply, get, resources, health, diff, snapshot, rollback plan, logs/events/timeline/cancel/resume | apply and rollback remain guarded |
 | Release orchestration | releases, release artifacts, plan/deploy, executions, targets, timeline, cancel/resume | sequential local orchestration foundation |
+| Release target catalog | `GET/POST /api/v1/release-targets`, get/update/disable/validate | metadata only; unsafe flags default false |
 | Artifact / release binding | inspect, resolve, release create/list/get/artifacts, registry validate | OCI-compatible foundation; vendor management APIs are not implemented |
 | Security / policy | scans, findings, policy evaluate, release/deployment security | noop/fake scanners and built-in policy rules |
 | Auth / RBAC | whoami, permissions, token info, users, roles, permissions, memberships, service accounts, API tokens | local/token/OIDC-foundation only |
@@ -22,7 +23,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | Host deployment | host groups, host deployment plan, deployment hosts, rollback plan | dry-run/noop and guarded SSH surface |
 | Compliance | audit search, evidence bundle, retention policy | retention enforcement jobs remain future work |
 | Plugins | list, inspect, capabilities, validate | built-in registry and manifest validation |
-| Visualization | pipeline/deployment/release visualization, environment topology, runner/security/audit summaries | backend read models for future UI |
+| Visualization | `/api/v1/visualization` index, pipeline/deployment/release visualization, environment topology, runner/security/audit summaries | backend read models for future UI |
 | Tenancy | quota, usage | scope and quota foundation |
 
 ## Non-HTTP Control-Plane Surfaces
@@ -43,21 +44,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 
 ## Placeholder / Not Implemented
 
-These route groups intentionally return structured `not_implemented` responses or only shallow placeholders:
-
-- `/api/v1/orgs`
-- `/api/v1/projects`
-- `/api/v1/applications`
-- `/api/v1/environments`
-- `/api/v1/repositories`
-- `/api/v1/artifact-registries` collection CRUD beyond validation
-- `/api/v1/pipelines` definition CRUD
-- `/api/v1/policies` policy CRUD
-- `/api/v1/audit-logs`
-- `/api/v1/events`
-- `/api/v1/logs`
-- `/api/v1/integrations` generic collection
-- `/api/v1/visualization` generic collection
+There are currently no root-level HTTP route groups registered solely to return structured `not_implemented`. Several capabilities remain foundation-only, skeleton, noop, fake, or experimental even when their read/write metadata APIs are implemented. If a placeholder route group is reintroduced, it must return structured `not_implemented` and be labeled in OpenAPI.
 
 ## API Freeze Notes
 

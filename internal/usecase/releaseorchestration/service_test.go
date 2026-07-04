@@ -164,6 +164,36 @@ func TestParseDefinition(t *testing.T) {
 	}
 }
 
+func TestDefinitionAllowsHostTarget(t *testing.T) {
+	def := testDefinition(false, StrategySequential)
+	def.Spec.Targets = []TargetSpec{{
+		Name:  "host-noop",
+		Type:  "host",
+		Order: 1,
+		Deployment: deploymentusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Deployment",
+			Metadata:   deploymentusecase.Metadata{Name: "host-noop"},
+			Spec: deploymentusecase.Spec{
+				Application: "demo",
+				Environment: "dev",
+				Target: deploymentusecase.Target{
+					Type: "host",
+					Name: "host-noop",
+				},
+				Artifact: deploymentusecase.Artifact{Name: "demo", Type: "binary", Reference: "./dist/demo.tar.gz"},
+				Host: deploymentusecase.HostSpec{
+					DeployPath: "/opt/nivora/apps/demo",
+					DryRun:     true,
+				},
+			},
+		},
+	}}
+	if err := def.Validate(); err != nil {
+		t.Fatalf("host target should validate: %v", err)
+	}
+}
+
 func newTestService(policyEngine policy.Engine) *Service {
 	return NewService(NewMemoryStore(), fakeArtifactService{}, fakeDeploymentService{}, policyEngine, nil)
 }

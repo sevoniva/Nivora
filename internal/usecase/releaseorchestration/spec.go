@@ -82,7 +82,7 @@ func (d Definition) Validate() error {
 		if target.Type == "" {
 			return fmt.Errorf("release orchestration target %q type is required", target.Name)
 		}
-		if target.Type != "kubernetes-yaml" && target.Type != "argocd" && target.Type != "noop" && target.Type != "webhook" {
+		if target.Type != "kubernetes-yaml" && target.Type != "argocd" && target.Type != "host" && target.Type != "noop" && target.Type != "webhook" {
 			return fmt.Errorf("release orchestration target %q type %q is not supported in Phase 2.7", target.Name, target.Type)
 		}
 		if target.Enabled != nil && !*target.Enabled {

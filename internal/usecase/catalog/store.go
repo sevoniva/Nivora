@@ -19,6 +19,7 @@ type MemoryStore struct {
 	applications map[string]domainapp.Application
 	environments map[string]domainenv.Environment
 	repositories map[string]domainapp.Repository
+	targets      map[string]domainenv.ReleaseTarget
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -28,6 +29,7 @@ func NewMemoryStore() *MemoryStore {
 		applications: map[string]domainapp.Application{},
 		environments: map[string]domainenv.Environment{},
 		repositories: map[string]domainapp.Repository{},
+		targets:      map[string]domainenv.ReleaseTarget{},
 	}
 }
 
@@ -244,6 +246,53 @@ func (s *MemoryStore) UpdateRepository(ctx context.Context, repository domainapp
 	return copyRepository(repository), nil
 }
 
+func (s *MemoryStore) CreateReleaseTarget(ctx context.Context, target domainenv.ReleaseTarget) (domainenv.ReleaseTarget, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.targets[target.ID]; ok {
+		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: release target id %q", ErrAlreadyExists, target.ID)
+	}
+	s.targets[target.ID] = copyReleaseTarget(target)
+	return copyReleaseTarget(target), nil
+}
+
+func (s *MemoryStore) GetReleaseTarget(ctx context.Context, id string) (domainenv.ReleaseTarget, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	target, ok := s.targets[id]
+	if !ok {
+		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: release target %q", ErrNotFound, id)
+	}
+	return copyReleaseTarget(target), nil
+}
+
+func (s *MemoryStore) ListReleaseTargets(ctx context.Context, projectID string, environmentID string) ([]domainenv.ReleaseTarget, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]domainenv.ReleaseTarget, 0, len(s.targets))
+	for _, target := range s.targets {
+		if projectID != "" && target.ProjectID != projectID {
+			continue
+		}
+		if environmentID != "" && target.EnvironmentID != environmentID {
+			continue
+		}
+		out = append(out, copyReleaseTarget(target))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (s *MemoryStore) UpdateReleaseTarget(ctx context.Context, target domainenv.ReleaseTarget) (domainenv.ReleaseTarget, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.targets[target.ID]; !ok {
+		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: release target %q", ErrNotFound, target.ID)
+	}
+	s.targets[target.ID] = copyReleaseTarget(target)
+	return copyReleaseTarget(target), nil
+}
+
 func copyOrg(org domainorg.Org) domainorg.Org {
 	org.Labels = copyMap(org.Labels)
 	org.Metadata = copyMap(org.Metadata)
@@ -272,4 +321,10 @@ func copyRepository(repository domainapp.Repository) domainapp.Repository {
 	repository.Labels = copyMap(repository.Labels)
 	repository.Metadata = copyMap(repository.Metadata)
 	return repository
+}
+
+func copyReleaseTarget(target domainenv.ReleaseTarget) domainenv.ReleaseTarget {
+	target.Labels = copyMap(target.Labels)
+	target.Metadata = copyMap(target.Metadata)
+	return target
 }

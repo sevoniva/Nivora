@@ -58,6 +58,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newApplicationCommand())
 	root.AddCommand(newEnvironmentCommand())
 	root.AddCommand(newRepositoryCommand())
+	root.AddCommand(newTargetCommand())
 	root.AddCommand(newApprovalsCommand())
 	root.AddCommand(newChangeWindowCommand())
 	root.AddCommand(newNotificationCommand())
@@ -834,6 +835,52 @@ func newRepositoryCommand() *cobra.Command {
 	return cmd
 }
 
+func newTargetCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "target", Short: "Release target catalog utilities"}
+	cmd.AddCommand(newTargetListCommand())
+	cmd.AddCommand(newCatalogGetCommand("get", "Get a release target", "/api/v1/release-targets"))
+	cmd.AddCommand(newTargetCreateCommand())
+	cmd.AddCommand(newTargetUpdateCommand())
+	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable a release target", "/api/v1/release-targets"))
+	cmd.AddCommand(newTargetValidateCommand())
+	return cmd
+}
+
+func newTargetListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var projectID string
+	var environmentID string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List release targets",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			if projectID != "" {
+				values.Set("projectId", projectID)
+			}
+			if environmentID != "" {
+				values.Set("environmentId", environmentID)
+			}
+			query := ""
+			if len(values) > 0 {
+				query = "?" + values.Encode()
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/release-targets"+query, nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "project id filter")
+	cmd.Flags().StringVar(&environmentID, "environment-id", "", "environment id filter")
+	return cmd
+}
+
 func newOrgCreateCommand() *cobra.Command {
 	return newCatalogCreateCommand("create", "Create an organization", "/api/v1/orgs", "")
 }
@@ -1137,6 +1184,181 @@ func newRepositoryUpdateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&defaultBranch, "default-branch", "", "default branch")
 	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id for future SCM access")
 	cmd.Flags().BoolVar(&enabled, "enabled", true, "resource enabled state")
+	return cmd
+}
+
+func newTargetCreateCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var environmentID string
+	var name string
+	var targetType string
+	var contextName string
+	var namespace string
+	var configRef string
+	var credentialRef string
+	var allowApply bool
+	var allowSync bool
+	var allowRemoteHostDeploy bool
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a release target catalog record",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if environmentID == "" {
+				return fmt.Errorf("--environment-id is required")
+			}
+			if name == "" {
+				return fmt.Errorf("--name is required")
+			}
+			if targetType == "" {
+				return fmt.Errorf("--type is required")
+			}
+			bodyMap := map[string]any{"environmentId": environmentID, "name": name, "targetType": targetType}
+			if contextName != "" {
+				bodyMap["context"] = contextName
+			}
+			if namespace != "" {
+				bodyMap["namespace"] = namespace
+			}
+			if configRef != "" {
+				bodyMap["configRef"] = configRef
+			}
+			if credentialRef != "" {
+				bodyMap["credentialRef"] = credentialRef
+			}
+			if cmd.Flags().Changed("allow-apply") {
+				bodyMap["allowApply"] = allowApply
+			}
+			if cmd.Flags().Changed("allow-sync") {
+				bodyMap["allowSync"] = allowSync
+			}
+			if cmd.Flags().Changed("allow-remote-host-deploy") {
+				bodyMap["allowRemoteHostDeploy"] = allowRemoteHostDeploy
+			}
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/release-targets", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&environmentID, "environment-id", "", "parent environment id")
+	cmd.Flags().StringVar(&name, "name", "", "target name")
+	cmd.Flags().StringVar(&targetType, "type", "", "target type: kubernetes-yaml, argocd, host, webhook, or noop")
+	cmd.Flags().StringVar(&contextName, "context", "", "target context name")
+	cmd.Flags().StringVar(&namespace, "namespace", "", "target namespace")
+	cmd.Flags().StringVar(&configRef, "config-ref", "", "config reference id")
+	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id")
+	cmd.Flags().BoolVar(&allowApply, "allow-apply", false, "explicitly allow Kubernetes apply for this target")
+	cmd.Flags().BoolVar(&allowSync, "allow-sync", false, "explicitly allow Argo CD sync for this target")
+	cmd.Flags().BoolVar(&allowRemoteHostDeploy, "allow-remote-host-deploy", false, "explicitly allow remote host deployment for this target")
+	return cmd
+}
+
+func newTargetUpdateCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var name string
+	var targetType string
+	var contextName string
+	var namespace string
+	var configRef string
+	var credentialRef string
+	var allowApply bool
+	var allowSync bool
+	var allowRemoteHostDeploy bool
+	var enabled bool
+	cmd := &cobra.Command{
+		Use:   "update <id>",
+		Short: "Update a release target catalog record",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			bodyMap := map[string]any{}
+			if cmd.Flags().Changed("name") {
+				bodyMap["name"] = name
+			}
+			if cmd.Flags().Changed("type") {
+				bodyMap["targetType"] = targetType
+			}
+			if cmd.Flags().Changed("context") {
+				bodyMap["context"] = contextName
+			}
+			if cmd.Flags().Changed("namespace") {
+				bodyMap["namespace"] = namespace
+			}
+			if cmd.Flags().Changed("config-ref") {
+				bodyMap["configRef"] = configRef
+			}
+			if cmd.Flags().Changed("credential-ref") {
+				bodyMap["credentialRef"] = credentialRef
+			}
+			if cmd.Flags().Changed("allow-apply") {
+				bodyMap["allowApply"] = allowApply
+			}
+			if cmd.Flags().Changed("allow-sync") {
+				bodyMap["allowSync"] = allowSync
+			}
+			if cmd.Flags().Changed("allow-remote-host-deploy") {
+				bodyMap["allowRemoteHostDeploy"] = allowRemoteHostDeploy
+			}
+			if cmd.Flags().Changed("enabled") {
+				bodyMap["enabled"] = enabled
+			}
+			if len(bodyMap) == 0 {
+				return fmt.Errorf("at least one update flag must be set")
+			}
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPatch, serverURL, "/api/v1/release-targets/"+args[0], body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&name, "name", "", "target name")
+	cmd.Flags().StringVar(&targetType, "type", "", "target type")
+	cmd.Flags().StringVar(&contextName, "context", "", "target context name")
+	cmd.Flags().StringVar(&namespace, "namespace", "", "target namespace")
+	cmd.Flags().StringVar(&configRef, "config-ref", "", "config reference id")
+	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id")
+	cmd.Flags().BoolVar(&allowApply, "allow-apply", false, "explicitly allow Kubernetes apply for this target")
+	cmd.Flags().BoolVar(&allowSync, "allow-sync", false, "explicitly allow Argo CD sync for this target")
+	cmd.Flags().BoolVar(&allowRemoteHostDeploy, "allow-remote-host-deploy", false, "explicitly allow remote host deployment for this target")
+	cmd.Flags().BoolVar(&enabled, "enabled", true, "target enabled state")
+	return cmd
+}
+
+func newTargetValidateCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "validate <id>",
+		Short: "Validate a release target for use",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/release-targets/"+args[0]+"/validate", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 

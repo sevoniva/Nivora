@@ -44,9 +44,22 @@ func (s *Service) Quota(ctx context.Context, input ScopeInput) (domaintenant.Quo
 	}
 	scope := normalizeScope(input.ScopeType, input.ScopeID)
 	s.mu.RLock()
-	defer s.mu.RUnlock()
 	if quota, ok := s.quotas[scopeKey(scope)]; ok {
+		s.mu.RUnlock()
 		return quota, nil
+	}
+	s.mu.RUnlock()
+	if s.store != nil {
+		quota, err := s.store.GetQuota(ctx, scope.Type, scope.ID)
+		if err == nil {
+			s.mu.Lock()
+			s.quotas[scopeKey(scope)] = quota
+			s.mu.Unlock()
+			return quota, nil
+		}
+		if !errors.Is(err, ErrQuotaNotFound) {
+			return domaintenant.Quota{}, err
+		}
 	}
 	return defaultQuota(scope, s.now()), nil
 }
@@ -83,9 +96,22 @@ func (s *Service) Usage(ctx context.Context, input ScopeInput) (domaintenant.Usa
 	}
 	scope := normalizeScope(input.ScopeType, input.ScopeID)
 	s.mu.RLock()
-	defer s.mu.RUnlock()
 	if usage, ok := s.usage[scopeKey(scope)]; ok {
+		s.mu.RUnlock()
 		return usage, nil
+	}
+	s.mu.RUnlock()
+	if s.store != nil {
+		usage, err := s.store.GetUsage(ctx, scope.Type, scope.ID)
+		if err != nil {
+			return domaintenant.UsageSummary{}, err
+		}
+		if usage.Scope.Type != "" || usage.Scope.ID != "" {
+			s.mu.Lock()
+			s.usage[scopeKey(scope)] = usage
+			s.mu.Unlock()
+			return usage, nil
+		}
 	}
 	return domaintenant.UsageSummary{Scope: scope, UpdatedAt: s.now()}, nil
 }

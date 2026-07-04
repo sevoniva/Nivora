@@ -2,8 +2,10 @@ package postgres
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"errors"
+	"fmt"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -47,22 +49,63 @@ func (s *TenancyStore) GetQuota(ctx context.Context, scopeType, scopeID string) 
 }
 
 func (s *TenancyStore) SaveUsage(ctx context.Context, usage domaintenant.UsageSummary) error {
-	payload, _ := json.Marshal(usage)
-	_, err := s.pool.Exec(ctx, `INSERT INTO tenancy_usage_records (id, scope_type, scope_id, resource_type, resource_count, window_start, window_end, created_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
-		usage.Scope.Type+"/"+usage.Scope.ID+"-"+usage.UpdatedAt.Format("20060102T150405"), usage.Scope.Type, usage.Scope.ID, "summary", usage.ConcurrentPipelineRuns+usage.ConcurrentDeploymentRuns, usage.UpdatedAt, usage.UpdatedAt, usage.UpdatedAt)
-	_ = payload
-	return err
+	metrics := []struct {
+		name  string
+		count int64
+	}{
+		{name: "concurrent_pipeline_runs", count: int64(usage.ConcurrentPipelineRuns)},
+		{name: "concurrent_deployment_runs", count: int64(usage.ConcurrentDeploymentRuns)},
+		{name: "runners", count: int64(usage.Runners)},
+		{name: "artifacts_tracked", count: int64(usage.ArtifactsTracked)},
+		{name: "log_storage_bytes", count: usage.LogStorageBytes},
+	}
+	for _, metric := range metrics {
+		id := fmt.Sprintf("%s/%s-%s-%s", usage.Scope.Type, usage.Scope.ID, usage.UpdatedAt.UTC().Format("20060102T150405.000000000"), metric.name)
+		if _, err := s.pool.Exec(ctx, `INSERT INTO tenancy_usage_records (id, scope_type, scope_id, resource_type, resource_count, window_start, window_end, created_at)
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+			id, usage.Scope.Type, usage.Scope.ID, metric.name, metric.count, usage.UpdatedAt, usage.UpdatedAt, usage.UpdatedAt); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (s *TenancyStore) GetUsage(ctx context.Context, scopeType, scopeID string) (domaintenant.UsageSummary, error) {
-	var u domaintenant.UsageSummary
-	err := s.pool.QueryRow(ctx, `SELECT scope_type, scope_id, resource_count, created_at FROM tenancy_usage_records WHERE scope_type=$1 AND scope_id=$2 ORDER BY created_at DESC LIMIT 1`, scopeType, scopeID).
-		Scan(&u.Scope.Type, &u.Scope.ID, &u.ConcurrentPipelineRuns, &u.UpdatedAt)
-	if errors.Is(err, pgx.ErrNoRows) {
+	var latest sql.NullTime
+	if err := s.pool.QueryRow(ctx, `SELECT max(window_start) FROM tenancy_usage_records WHERE scope_type=$1 AND scope_id=$2`, scopeType, scopeID).Scan(&latest); err != nil {
+		return domaintenant.UsageSummary{}, err
+	}
+	if !latest.Valid {
 		return domaintenant.UsageSummary{}, nil
 	}
+	rows, err := s.pool.Query(ctx, `SELECT resource_type, resource_count, created_at FROM tenancy_usage_records WHERE scope_type=$1 AND scope_id=$2 AND window_start=$3`, scopeType, scopeID, latest.Time)
 	if err != nil {
+		return domaintenant.UsageSummary{}, err
+	}
+	defer rows.Close()
+	u := domaintenant.UsageSummary{Scope: domaintenant.Scope{Type: scopeType, ID: scopeID}, UpdatedAt: latest.Time}
+	for rows.Next() {
+		var resourceType string
+		var count int64
+		if err := rows.Scan(&resourceType, &count, &u.UpdatedAt); err != nil {
+			return domaintenant.UsageSummary{}, err
+		}
+		switch resourceType {
+		case "concurrent_pipeline_runs":
+			u.ConcurrentPipelineRuns = int(count)
+		case "concurrent_deployment_runs":
+			u.ConcurrentDeploymentRuns = int(count)
+		case "runners":
+			u.Runners = int(count)
+		case "artifacts_tracked":
+			u.ArtifactsTracked = int(count)
+		case "log_storage_bytes":
+			u.LogStorageBytes = count
+		case "summary":
+			u.ConcurrentPipelineRuns = int(count)
+		}
+	}
+	if err := rows.Err(); err != nil {
 		return domaintenant.UsageSummary{}, err
 	}
 	return u, nil

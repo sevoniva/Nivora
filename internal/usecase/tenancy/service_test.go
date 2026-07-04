@@ -53,3 +53,47 @@ func TestQuotaExceeded(t *testing.T) {
 		t.Fatalf("expected quota denial")
 	}
 }
+
+func TestQuotaAndUsageRecoverFromStore(t *testing.T) {
+	ctx := context.Background()
+	store := NewMemoryStore()
+	scope := domaintenant.Scope{Type: domaintenant.ScopeProject, ID: "project-recover"}
+	service := NewServiceWithStore(store)
+	if _, err := service.SetQuota(ctx, QuotaUpdateInput{
+		ScopeType:                   scope.Type,
+		ScopeID:                     scope.ID,
+		MaxConcurrentPipelineRuns:   7,
+		MaxConcurrentDeploymentRuns: 4,
+		MaxRunners:                  11,
+		MaxArtifactsTracked:         22,
+		MaxLogStorageBytes:          33,
+	}); err != nil {
+		t.Fatalf("set quota: %v", err)
+	}
+	if _, err := service.RecordUsage(ctx, UsageUpdate{
+		Scope:                    scope,
+		ConcurrentPipelineRuns:   2,
+		ConcurrentDeploymentRuns: 3,
+		Runners:                  5,
+		ArtifactsTracked:         8,
+		LogStorageBytes:          13,
+	}); err != nil {
+		t.Fatalf("record usage: %v", err)
+	}
+
+	restarted := NewServiceWithStore(store)
+	quota, err := restarted.Quota(ctx, ScopeInput{ScopeType: scope.Type, ScopeID: scope.ID})
+	if err != nil {
+		t.Fatalf("recover quota from store: %v", err)
+	}
+	if quota.MaxConcurrentPipelineRuns != 7 || quota.MaxConcurrentDeploymentRuns != 4 || quota.MaxLogStorageBytes != 33 {
+		t.Fatalf("recovered quota mismatch: %#v", quota)
+	}
+	usage, err := restarted.Usage(ctx, ScopeInput{ScopeType: scope.Type, ScopeID: scope.ID})
+	if err != nil {
+		t.Fatalf("recover usage from store: %v", err)
+	}
+	if usage.ConcurrentPipelineRuns != 2 || usage.ConcurrentDeploymentRuns != 3 || usage.Runners != 5 || usage.ArtifactsTracked != 8 || usage.LogStorageBytes != 13 {
+		t.Fatalf("recovered usage mismatch: %#v", usage)
+	}
+}

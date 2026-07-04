@@ -14,7 +14,7 @@ Current maturity: **hardened beta-candidate (0.9.0-rc.1), not production-ready**
 | Security | `usecase/security.Store` | `security.NewMemoryStore()` | `postgres.NewSecurityStore(pool)` | `runtime.WithConfig` | 000009 | security service tests, runtime test | Medium |
 | Approval | `usecase/approval.Store` | `approval.NewMemoryStore()` | `postgres.NewApprovalStore(pool)` | `runtime.WithConfig` | 000009 | approval service tests, approval_store_test.go, runtime test | Medium |
 | Cloud | `usecase/cloud.Store` | `cloud.NewMemoryStore()` | `postgres.NewCloudStore(pool)` | `runtime.WithConfig` | 000009 | cloud service tests, runtime test | Medium |
-| Tenancy | `usecase/tenancy.Store` | `tenancy.NewMemoryStore()` | `postgres.NewTenancyStore(pool)` | `runtime.WithConfig` | 000009 | tenancy service tests | Low |
+| Tenancy | `usecase/tenancy.Store` | `tenancy.NewMemoryStore()` | `postgres.NewTenancyStore(pool)` | `runtime.WithConfig` | 000009 | tenancy service tests, tenancy_store_test.go | Low |
 | Catalog | `usecase/catalog.Store` | `catalog.NewMemoryStore()` | `postgres.NewCatalogStore(pool)` | `runtime.WithConfig` | 000010 | catalog_store_test.go, runtime integration opt-in | Medium |
 | PipelineDefinitionCatalog | `usecase/pipeline.DefinitionCatalogStore` | `pipeline.NewDefinitionMemoryStore()` | `postgres.NewPipelineDefinitionStore(pool)` | `runtime.WithConfig` | 000010 | catalog_store_test.go, runtime integration opt-in | Medium |
 | ArtifactRegistryCatalog | `usecase/artifact.RegistryStore` | `artifact.NewRegistryMemoryStore()` | `postgres.NewArtifactRegistryStore(pool)` | `runtime.WithConfig` | 000011 | policy_artifact_registry_store_test.go, runtime integration opt-in | Medium |

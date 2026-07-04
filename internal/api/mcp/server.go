@@ -202,6 +202,8 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			"repository": stringProperty("repository substring"),
 			"digest":     stringProperty("resolved digest"),
 			"reference":  stringProperty("artifact reference substring"),
+			"limit":      integerProperty("page size, 1-100"),
+			"offset":     integerProperty("zero-based offset"),
 		}, nil)),
 		tool("nivora_get_artifact", "Read a tracked artifact by id", idSchema("id")),
 		tool("nivora_get_artifact_releases", "List releases bound to a tracked artifact", idSchema("id")),
@@ -212,6 +214,8 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			"subjectId":   stringProperty("optional subject id"),
 			"severity":    stringProperty("optional severity"),
 			"category":    stringProperty("optional category"),
+			"limit":       integerProperty("page size, 1-100"),
+			"offset":      integerProperty("zero-based offset"),
 		}, nil)),
 		tool("nivora_get_policy_result_summary", "Read policy gate decision summary from security scan records", objectSchema(map[string]any{
 			"subjectType": stringProperty("optional subject type"),
@@ -221,6 +225,8 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 		tool("nivora_list_evidence_bundles", "List persisted evidence bundles", objectSchema(map[string]any{
 			"subjectType": stringProperty("optional evidence subject type"),
 			"subjectId":   stringProperty("optional evidence subject id"),
+			"limit":       integerProperty("page size, 1-100"),
+			"offset":      integerProperty("zero-based offset"),
 		}, nil)),
 		tool("nivora_search_audit", "Search audit records visible to the subject", objectSchema(map[string]any{
 			"subject":       stringProperty("subject substring"),
@@ -372,11 +378,7 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 	case strings.HasPrefix(uri, "nivora://deployments/"):
 		return s.deploymentResource(ctx, strings.TrimPrefix(uri, "nivora://deployments/"))
 	case uri == "nivora://artifacts":
-		artifacts, err := s.services.Artifacts.ListArtifacts(ctx, s.scopedArtifactListInput(artifactusecase.ListArtifactsInput{}))
-		if err != nil {
-			return nil, err
-		}
-		return map[string]any{"artifacts": artifacts}, nil
+		return s.artifactList(ctx, artifactusecase.ListArtifactsInput{}, mcpPage{})
 	case strings.HasPrefix(uri, "nivora://artifacts/"):
 		return s.artifactResource(ctx, strings.TrimPrefix(uri, "nivora://artifacts/"))
 	case strings.HasPrefix(uri, "nivora://releases/executions/"):
@@ -389,17 +391,13 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 	case uri == "nivora://security/summary":
 		return s.securitySummary(ctx)
 	case uri == "nivora://security/findings":
-		return s.securityFindings(ctx, securityusecase.ListFindingsInput{})
+		return s.securityFindings(ctx, securityusecase.ListFindingsInput{}, mcpPage{})
 	case uri == "nivora://policy/results/summary":
 		return s.policyResultSummary(ctx, "", "")
 	case uri == "nivora://audit/search":
 		return s.auditSearch(ctx, complianceusecase.AuditSearchInput{}, mcpPage{})
 	case uri == "nivora://evidence/bundles":
-		bundles, err := s.services.Compliance.SearchEvidenceBundles(ctx, "", "")
-		if err != nil {
-			return nil, err
-		}
-		return map[string]any{"bundles": bundles, "count": len(bundles), "mutated": false}, nil
+		return s.evidenceBundleList(ctx, "", "", mcpPage{})
 	case strings.HasPrefix(uri, "nivora://evidence/bundles/"):
 		id := strings.TrimPrefix(uri, "nivora://evidence/bundles/")
 		return s.services.Compliance.GetEvidenceBundle(ctx, id)
@@ -576,6 +574,27 @@ func (s *Server) artifactResource(ctx context.Context, rest string) (any, error)
 	return artifact, nil
 }
 
+func (s *Server) artifactList(ctx context.Context, input artifactusecase.ListArtifactsInput, page mcpPage) (any, error) {
+	artifacts, err := s.services.Artifacts.ListArtifacts(ctx, s.scopedArtifactListInput(input))
+	if err != nil {
+		return nil, err
+	}
+	normalizedPage, err := normalizeMCPPage(page.Limit, page.Offset)
+	if err != nil {
+		return nil, err
+	}
+	limited, pagination, truncated := paginateMCPItems(artifacts, normalizedPage)
+	return map[string]any{
+		"artifacts":  limited,
+		"count":      len(artifacts),
+		"limit":      normalizedPage.Limit,
+		"offset":     normalizedPage.Offset,
+		"pagination": pagination,
+		"truncated":  truncated,
+		"mutated":    false,
+	}, nil
+}
+
 func (s *Server) callToolPayload(ctx context.Context, name string, arguments map[string]any) (any, error) {
 	switch name {
 	case "nivora_status":
@@ -679,18 +698,18 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		}
 		return s.releaseExecutionResource(ctx, id)
 	case "nivora_list_artifacts":
-		artifacts, err := s.services.Artifacts.ListArtifacts(ctx, s.scopedArtifactListInput(artifactusecase.ListArtifactsInput{
+		page, err := mcpPageFromArgs(arguments)
+		if err != nil {
+			return nil, err
+		}
+		return s.artifactList(ctx, artifactusecase.ListArtifactsInput{
 			Type:       stringArg(arguments, "type"),
 			Name:       stringArg(arguments, "name"),
 			Registry:   stringArg(arguments, "registry"),
 			Repository: stringArg(arguments, "repository"),
 			Digest:     stringArg(arguments, "digest"),
 			Reference:  stringArg(arguments, "reference"),
-		}))
-		if err != nil {
-			return nil, err
-		}
-		return map[string]any{"artifacts": artifacts, "mutated": false}, nil
+		}, page)
 	case "nivora_get_artifact":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
@@ -724,13 +743,17 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 	case "nivora_get_runner_summary":
 		return s.runnerSummary(ctx)
 	case "nivora_list_security_findings":
+		page, err := mcpPageFromArgs(arguments)
+		if err != nil {
+			return nil, err
+		}
 		return s.securityFindings(ctx, securityusecase.ListFindingsInput{
 			ScanID:      stringArg(arguments, "scanId"),
 			SubjectType: domainsecurity.SubjectType(stringArg(arguments, "subjectType")),
 			SubjectID:   stringArg(arguments, "subjectId"),
 			Severity:    domainsecurity.Severity(stringArg(arguments, "severity")),
 			Category:    domainsecurity.FindingCategory(stringArg(arguments, "category")),
-		})
+		}, page)
 	case "nivora_get_policy_result_summary":
 		return s.policyResultSummary(ctx, stringArg(arguments, "subjectType"), stringArg(arguments, "subjectId"))
 	case "nivora_get_evidence_bundle":
@@ -740,11 +763,11 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		}
 		return s.services.Compliance.GetEvidenceBundle(ctx, id)
 	case "nivora_list_evidence_bundles":
-		bundles, err := s.services.Compliance.SearchEvidenceBundles(ctx, stringArg(arguments, "subjectType"), stringArg(arguments, "subjectId"))
+		page, err := mcpPageFromArgs(arguments)
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"bundles": bundles, "count": len(bundles), "mutated": false}, nil
+		return s.evidenceBundleList(ctx, stringArg(arguments, "subjectType"), stringArg(arguments, "subjectId"), page)
 	case "nivora_search_audit":
 		page, err := mcpPageFromArgs(arguments)
 		if err != nil {
@@ -985,7 +1008,7 @@ func (s *Server) securitySummary(ctx context.Context) (any, error) {
 	}, nil
 }
 
-func (s *Server) securityFindings(ctx context.Context, input securityusecase.ListFindingsInput) (any, error) {
+func (s *Server) securityFindings(ctx context.Context, input securityusecase.ListFindingsInput, page mcpPage) (any, error) {
 	records, err := s.securityScanRecords(ctx, input)
 	if err != nil {
 		return nil, err
@@ -997,6 +1020,11 @@ func (s *Server) securityFindings(ctx context.Context, input securityusecase.Lis
 		severityCounts[string(finding.Severity)]++
 		categoryCounts[string(finding.Category)]++
 	}
+	normalizedPage, err := normalizeMCPPage(page.Limit, page.Offset)
+	if err != nil {
+		return nil, err
+	}
+	limited, pagination, truncated := paginateMCPItems(findings, normalizedPage)
 	return map[string]any{
 		"filters": map[string]string{
 			"scanId":      input.ScanID,
@@ -1010,8 +1038,13 @@ func (s *Server) securityFindings(ctx context.Context, input securityusecase.Lis
 			"severityCounts": severityCounts,
 			"categoryCounts": categoryCounts,
 		},
-		"findings": findings,
-		"mutated":  false,
+		"findings":   limited,
+		"count":      len(findings),
+		"limit":      normalizedPage.Limit,
+		"offset":     normalizedPage.Offset,
+		"pagination": pagination,
+		"truncated":  truncated,
+		"mutated":    false,
 	}, nil
 }
 
@@ -1308,6 +1341,27 @@ func (s *Server) auditSearch(ctx context.Context, input complianceusecase.AuditS
 	return map[string]any{
 		"items":      limited,
 		"count":      result.Count,
+		"limit":      normalizedPage.Limit,
+		"offset":     normalizedPage.Offset,
+		"pagination": pagination,
+		"truncated":  truncated,
+		"mutated":    false,
+	}, nil
+}
+
+func (s *Server) evidenceBundleList(ctx context.Context, subjectType string, subjectID string, page mcpPage) (any, error) {
+	bundles, err := s.services.Compliance.SearchEvidenceBundles(ctx, subjectType, subjectID)
+	if err != nil {
+		return nil, err
+	}
+	normalizedPage, err := normalizeMCPPage(page.Limit, page.Offset)
+	if err != nil {
+		return nil, err
+	}
+	limited, pagination, truncated := paginateMCPItems(bundles, normalizedPage)
+	return map[string]any{
+		"bundles":    limited,
+		"count":      len(bundles),
 		"limit":      normalizedPage.Limit,
 		"offset":     normalizedPage.Offset,
 		"pagination": pagination,

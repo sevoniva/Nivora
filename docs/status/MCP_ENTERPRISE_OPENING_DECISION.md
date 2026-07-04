@@ -23,8 +23,8 @@ This document separates Nivora's current MCP value from the controls required be
 | Tenant filters | partial | tenant scope review exists | resource ID ownership checks incomplete |
 | Rate limit | foundation | in-process per-subject MCP JSON-RPC rate limit exists | distributed rate limit across replicas missing |
 | Request timeout | foundation | shared MCP request timeout config exists | remote-specific timeout test depth limited |
-| Response size cap | foundation | shared MCP response cap config and tests exist | broader resource-level pagination still limited |
-| Pagination | partial | event/log/audit search tools support limit/offset pagination | evidence/artifact/security resource pagination and large-result scenarios still need work |
+| Response size cap | foundation | shared MCP response cap config and tests exist | broader list-like resource pagination still limited |
+| Pagination | partial | event/log/audit search plus artifact/security/evidence list tools support limit/offset pagination | remaining resource pagination and large-result scenarios still need work |
 | Audit chain | partial | compliance recorder, audit hash tests, and `TestPostgresIntegrationMCPAuditHashChain` exist | remote client attribution and tenant-safe audit search still missing |
 | Prompt injection defense | beta | prompt templates and scenarios | expand adversarial corpus |
 | Secret redaction | beta | sanitizer and scenario tests | keep central corpus current |
@@ -47,4 +47,4 @@ Remote MCP must stay disabled if any of these are true:
 
 ## Current Recommendation
 
-Use MCP as a **local read-only and plan-only operator assistant** and treat remote read-only MCP as an explicitly enabled experiment only. Do not broadly expose it until tenant-scoped read-only resources, distributed rate limits, broader resource pagination, and remote audit attribution are implemented and tested. Action MCP remains blocked.
+Use MCP as a **local read-only and plan-only operator assistant** and treat remote read-only MCP as an explicitly enabled experiment only. Do not broadly expose it until tenant-scoped read-only resources, distributed rate limits, broader list pagination, and remote audit attribution are implemented and tested. Action MCP remains blocked.

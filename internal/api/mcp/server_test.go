@@ -196,7 +196,7 @@ func TestMCPArtifactInventoryReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read artifact inventory resource: %v", err)
 	}
-	if !strings.Contains(resource.Text, artifactID) || !strings.Contains(resource.Text, "registry.example.com/team/demo") {
+	if !strings.Contains(resource.Text, artifactID) || !strings.Contains(resource.Text, "registry.example.com/team/demo") || !strings.Contains(resource.Text, `"pagination"`) {
 		t.Fatalf("artifact inventory resource body = %s", resource.Text)
 	}
 
@@ -212,8 +212,16 @@ func TestMCPArtifactInventoryReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list artifact tool transport error: %v", err)
 	}
-	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, artifactID) || !strings.Contains(listResult.Content[0].Text, `"mutated": false`) {
+	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, artifactID) || !strings.Contains(listResult.Content[0].Text, `"mutated": false`) || !strings.Contains(listResult.Content[0].Text, `"pagination"`) {
 		t.Fatalf("list artifact tool result = %#v", listResult)
+	}
+
+	pagedList, err := server.CallTool(ctx, "nivora_list_artifacts", map[string]any{"registry": "registry.example.com", "limit": 1, "offset": 0})
+	if err != nil {
+		t.Fatalf("paged artifact list transport error: %v", err)
+	}
+	if pagedList.IsError || !strings.Contains(pagedList.Content[0].Text, `"limit": 1`) || !strings.Contains(pagedList.Content[0].Text, `"offset": 0`) {
+		t.Fatalf("paged artifact list result = %#v", pagedList)
 	}
 
 	getResult, err := server.CallTool(ctx, "nivora_get_artifact", map[string]any{"id": artifactID})
@@ -383,7 +391,7 @@ func TestMCPSecurityPolicyAndRuntimeReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read security findings: %v", err)
 	}
-	if !strings.Contains(findingsResource.Text, "Privileged container requested") || !strings.Contains(findingsResource.Text, `"mutated": false`) {
+	if !strings.Contains(findingsResource.Text, "Privileged container requested") || !strings.Contains(findingsResource.Text, `"mutated": false`) || !strings.Contains(findingsResource.Text, `"pagination"`) {
 		t.Fatalf("security findings body = %s", findingsResource.Text)
 	}
 
@@ -400,6 +408,15 @@ func TestMCPSecurityPolicyAndRuntimeReadOnly(t *testing.T) {
 	}
 	if strings.Contains(findingsBody, "should-not-leak") || strings.Contains(findingsBody, "Authorization: Bearer") {
 		t.Fatalf("security findings leaked sensitive value: %s", findingsBody)
+	}
+
+	pagedFindings, err := server.CallTool(ctx, "nivora_list_security_findings", map[string]any{"limit": 1, "offset": 1})
+	if err != nil {
+		t.Fatalf("paged security findings transport error: %v", err)
+	}
+	pagedFindingsBody := pagedFindings.Content[0].Text
+	if pagedFindings.IsError || !strings.Contains(pagedFindingsBody, `"pagination"`) || !strings.Contains(pagedFindingsBody, `"limit": 1`) || !strings.Contains(pagedFindingsBody, `"offset": 1`) || !strings.Contains(pagedFindingsBody, `"total": 2`) {
+		t.Fatalf("paged security findings result = %#v body = %s", pagedFindings, pagedFindingsBody)
 	}
 
 	policyResource, err := server.ReadResource(ctx, "nivora://policy/results/summary")
@@ -938,11 +955,15 @@ func TestMCPEvidenceBundleRequiresAuditRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate evidence bundle: %v", err)
 	}
+	secondBundle, err := auditor.services.Compliance.EvidenceBundle(ctx, complianceusecase.EvidenceInput{SubjectType: "generic", SubjectID: "mcp-evidence-second"})
+	if err != nil {
+		t.Fatalf("generate second evidence bundle: %v", err)
+	}
 	listResource, err := auditor.ReadResource(ctx, "nivora://evidence/bundles")
 	if err != nil {
 		t.Fatalf("auditor read evidence list resource: %v", err)
 	}
-	if !strings.Contains(listResource.Text, bundle.ID) || !strings.Contains(listResource.Text, `"mutated": false`) {
+	if !strings.Contains(listResource.Text, bundle.ID) || !strings.Contains(listResource.Text, `"mutated": false`) || !strings.Contains(listResource.Text, `"pagination"`) {
 		t.Fatalf("evidence list resource body = %s", listResource.Text)
 	}
 	resource, err := auditor.ReadResource(ctx, "nivora://evidence/bundles/"+bundle.ID)
@@ -956,8 +977,19 @@ func TestMCPEvidenceBundleRequiresAuditRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("evidence list tool transport error: %v", err)
 	}
-	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, bundle.ID) || !strings.Contains(listResult.Content[0].Text, `"mutated": false`) {
+	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, bundle.ID) || !strings.Contains(listResult.Content[0].Text, `"mutated": false`) || !strings.Contains(listResult.Content[0].Text, `"pagination"`) {
 		t.Fatalf("evidence list tool result = %#v", listResult)
+	}
+	pagedList, err := auditor.CallTool(ctx, "nivora_list_evidence_bundles", map[string]any{"subjectType": "generic", "limit": 1, "offset": 1})
+	if err != nil {
+		t.Fatalf("paged evidence list transport error: %v", err)
+	}
+	pagedListBody := pagedList.Content[0].Text
+	if pagedList.IsError || !strings.Contains(pagedListBody, `"pagination"`) || !strings.Contains(pagedListBody, `"limit": 1`) || !strings.Contains(pagedListBody, `"offset": 1`) || !strings.Contains(pagedListBody, `"total": 2`) {
+		t.Fatalf("paged evidence list result = %#v body = %s", pagedList, pagedListBody)
+	}
+	if !strings.Contains(pagedListBody, bundle.ID) && !strings.Contains(pagedListBody, secondBundle.ID) {
+		t.Fatalf("paged evidence list did not include a known bundle: %s", pagedListBody)
 	}
 	result, err := auditor.CallTool(ctx, "nivora_get_evidence_bundle", map[string]any{"id": bundle.ID, "authorization": "Bearer should-not-leak"})
 	if err != nil {

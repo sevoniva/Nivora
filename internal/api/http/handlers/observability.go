@@ -18,12 +18,13 @@ import (
 
 func ListAuditLogs(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		scopeType, scopeID := ConstrainScopeToRequest(r, r.URL.Query().Get("scopeType"), r.URL.Query().Get("scopeId"))
 		result, err := service.SearchAudit(r.Context(), complianceusecase.AuditSearchInput{
 			Subject:       r.URL.Query().Get("subject"),
 			ActorID:       r.URL.Query().Get("actorId"),
 			Action:        r.URL.Query().Get("action"),
-			ScopeType:     r.URL.Query().Get("scopeType"),
-			ScopeID:       r.URL.Query().Get("scopeId"),
+			ScopeType:     scopeType,
+			ScopeID:       scopeID,
 			CorrelationID: r.URL.Query().Get("correlationId"),
 		})
 		if err != nil {
@@ -45,7 +46,7 @@ func ListAuditLogs(service *complianceusecase.Service) http.HandlerFunc {
 
 func ListEvents(pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, releases *releaseorchestration.Service, artifacts *artifactusecase.Service, security *securityusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		events, err := collectEvents(r.Context(), pipelines, deployments, releases, artifacts, security)
+		events, err := collectEvents(r.Context(), r, pipelines, deployments, releases, artifacts, security)
 		if err != nil {
 			RespondError(w, r, http.StatusInternalServerError, dto.ErrorResponse{Code: "events_list_failed", Message: err.Error(), Path: r.URL.Path})
 			return
@@ -66,7 +67,7 @@ func ListEvents(pipelines *pipelineusecase.Service, deployments *deploymentuseca
 
 func ListLogs(pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		logs, err := collectLogs(r.Context(), pipelines, deployments)
+		logs, err := collectLogs(r.Context(), r, pipelines, deployments)
 		if err != nil {
 			RespondError(w, r, http.StatusInternalServerError, dto.ErrorResponse{Code: "logs_list_failed", Message: err.Error(), Path: r.URL.Path})
 			return
@@ -85,10 +86,11 @@ func ListLogs(pipelines *pipelineusecase.Service, deployments *deploymentusecase
 	}
 }
 
-func collectEvents(ctx context.Context, pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, releases *releaseorchestration.Service, artifacts *artifactusecase.Service, security *securityusecase.Service) ([]domainevent.Event, error) {
+func collectEvents(ctx context.Context, r *http.Request, pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, releases *releaseorchestration.Service, artifacts *artifactusecase.Service, security *securityusecase.Service) ([]domainevent.Event, error) {
 	var events []domainevent.Event
+	scopeType, scopeID := TenantScopeFilter(r)
 	if pipelines != nil {
-		records, err := pipelines.List(ctx)
+		records, err := pipelines.ListFiltered(ctx, scopeType, scopeID)
 		if err != nil {
 			return nil, err
 		}
@@ -97,7 +99,7 @@ func collectEvents(ctx context.Context, pipelines *pipelineusecase.Service, depl
 		}
 	}
 	if deployments != nil {
-		records, err := deployments.List(ctx)
+		records, err := deployments.ListFiltered(ctx, scopeType, scopeID)
 		if err != nil {
 			return nil, err
 		}
@@ -110,11 +112,12 @@ func collectEvents(ctx context.Context, pipelines *pipelineusecase.Service, depl
 		if err != nil {
 			return nil, err
 		}
+		records = filterReleaseExecutionsForRequest(r, records)
 		for _, record := range records {
 			events = append(events, record.Events...)
 		}
 	}
-	if artifacts != nil {
+	if artifacts != nil && scopeType == "" {
 		records, err := artifacts.ListReleases(ctx)
 		if err != nil {
 			return nil, err
@@ -123,7 +126,7 @@ func collectEvents(ctx context.Context, pipelines *pipelineusecase.Service, depl
 			events = append(events, record.Events...)
 		}
 	}
-	if security != nil {
+	if security != nil && scopeType == "" {
 		records, err := security.List(ctx)
 		if err != nil {
 			return nil, err
@@ -136,10 +139,11 @@ func collectEvents(ctx context.Context, pipelines *pipelineusecase.Service, depl
 	return events, nil
 }
 
-func collectLogs(ctx context.Context, pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service) ([]domainevent.LogChunk, error) {
+func collectLogs(ctx context.Context, r *http.Request, pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service) ([]domainevent.LogChunk, error) {
 	var logs []domainevent.LogChunk
+	scopeType, scopeID := TenantScopeFilter(r)
 	if pipelines != nil {
-		records, err := pipelines.List(ctx)
+		records, err := pipelines.ListFiltered(ctx, scopeType, scopeID)
 		if err != nil {
 			return nil, err
 		}
@@ -148,7 +152,7 @@ func collectLogs(ctx context.Context, pipelines *pipelineusecase.Service, deploy
 		}
 	}
 	if deployments != nil {
-		records, err := deployments.List(ctx)
+		records, err := deployments.ListFiltered(ctx, scopeType, scopeID)
 		if err != nil {
 			return nil, err
 		}

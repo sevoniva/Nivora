@@ -12,7 +12,7 @@ Current status: **partially proven for local MCP RBAC, not proven for complete r
 | ReleaseExecution resources/tools | `project.read` or `deployment.create` | explicit ID reads and aggregate event searches check stored project/environment scope when present; HTTP plan/deploy project scope is copied to release targets and child DeploymentRuns; HTTP execution detail/timeline/target and visualization reads are guarded by stored scope | release/project/environment ownership check across all execution records | medium-high for remote |
 | runner summary | `project.read` | fleet summary | runner group/environment filter | high for remote |
 | security summary | `project.read` | service summary | project/environment filter | medium |
-| audit search | `audit.read` | filter arguments supported | mandatory scope filter and caps | high |
+| audit search | `audit.read` | HTTP scoped subjects are constrained to their own audit scope; MCP audit resource requires `audit.read` | mandatory remote scope filter and caps | high |
 | plugin capabilities | `project.read` | built-in metadata | usually global | low |
 | plan-only local tools | `deployment.create` | local input only | input size and scope policy | medium |
 | denied action tools | none | denied before permission grant | never expose action tier | low if kept denied |
@@ -32,16 +32,19 @@ Current status: **partially proven for local MCP RBAC, not proven for complete r
 - Aggregate MCP event and log searches filter out scoped PipelineRun records outside the subject project.
 - HTTP project-scoped service account can read its own PipelineRun detail, logs, events, timeline, and visualization DAG/timeline/summary.
 - HTTP project-scoped service account is denied when directly reading another project's PipelineRun detail and visualization endpoints by ID.
+- HTTP aggregate `/api/v1/events`, `/api/v1/logs`, and visualization audit timeline are scoped for PipelineRun records.
 - Project-scoped service account can read its own scoped DeploymentRun record, health, and diff.
 - Project-scoped service account is denied when reading another project's scoped DeploymentRun.
 - Aggregate MCP event and log searches filter out scoped DeploymentRun records outside the subject project.
 - HTTP project-scoped service account can read its own DeploymentRun detail, plan, resources, health, diff, snapshot, rollback plan, logs, events, timeline, and security summary.
 - HTTP project-scoped service account is denied when directly reading another project's DeploymentRun detail and visualization endpoints by ID.
+- HTTP aggregate `/api/v1/events`, `/api/v1/logs`, and visualization audit timeline use scoped DeploymentRun lists.
 - Project-scoped service account can read its own scoped ReleaseExecution record and timeline.
 - Project-scoped service account is denied when reading another project's scoped ReleaseExecution.
 - Aggregate MCP event searches filter out scoped ReleaseExecution records outside the subject project.
 - HTTP project-scoped service account can read its own ReleaseExecution detail, timeline, and target list.
 - HTTP project-scoped service account is denied when directly reading another project's ReleaseExecution detail and visualization endpoints by ID.
+- HTTP aggregate `/api/v1/events` and visualization audit timeline filter ReleaseExecution records by stored target project/environment scope.
 
 Evidence:
 
@@ -58,7 +61,7 @@ Evidence:
 | Gap | Impact | Required Work |
 |---|---|---|
 | Resource ID ownership not checked for every MCP read | A remote subject could request another tenant's ID if underlying stores do not filter | Extend the scoped PipelineRun/DeploymentRun/ReleaseExecution guard pattern to PipelineRun definitions, artifact bindings, security summaries, and evidence bundles. |
-| Audit search can be broad | Sensitive operational metadata could cross scopes | Enforce scope defaults and pagination before remote exposure. |
+| Audit and observability scope is not complete for every resource family | Sensitive operational metadata from artifact/security/evidence records could cross scopes if exposed remotely | Extend project/environment ownership metadata and tests to artifacts, security scans, and evidence bundles before remote MCP or broad tenant exposure. |
 | Runner summary is global | Runner fleet metadata can reveal other environments | Filter by runner group/project/environment. |
 | Capability/runtime documents are broad | Metadata can reveal unsupported or experimental areas | Decide what is safe for remote subjects. |
 | Plan-only tool input scope is local | Remote plan-only tools need body limits and policy checks | Add input size and subject-scope validation. |

@@ -28,3 +28,13 @@ func ScopedByTenant(r *http.Request) bool {
 	scopeType, _ := TenantScopeFilter(r)
 	return scopeType != ""
 }
+
+// ConstrainScopeToRequest keeps unscoped/admin requests unchanged and forces
+// scoped subjects to query only within their own tenant boundary.
+func ConstrainScopeToRequest(r *http.Request, scopeType, scopeID string) (string, string) {
+	requestScopeType, requestScopeID := TenantScopeFilter(r)
+	if requestScopeType == "" {
+		return scopeType, scopeID
+	}
+	return requestScopeType, requestScopeID
+}

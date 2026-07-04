@@ -69,12 +69,12 @@ Auth modes:
 | POST | `/api/v1/security/scans`, `/api/v1/policies/evaluate` | `policy.manage` | policy/security | user/service account | yes | no | yes | Noop/fake scanners are foundation only. |
 | GET/POST/PATCH/DELETE | `/api/v1/policies*` | `project.read` for list/get/attachments; `policy.manage` for create/update/disable/attach/evaluate | policy | user/service account | yes | no | yes | Policy catalog and scope attachments store built-in gate metadata only; no OPA/Kyverno integration. |
 | GET/POST | `/api/v1/cloud/*` | authenticated foundation routes | org/project | user/service account | yes | no | yes | Fake/skeleton inventory only; no cloud deployment. |
-| GET | `/api/v1/audit/search`, `/api/v1/evidence/*`, `/api/v1/retention-policy` | `audit.read` | org/project/environment | user/service account | yes | no | yes | Auditor role can read audit/evidence. |
-| GET | `/api/v1/audit-logs` | `audit.read` | org/project/environment | user/service account | yes | no | yes | Aggregate audit read path backed by the same compliance audit search. |
-| GET | `/api/v1/events`, `/api/v1/logs` | `project.read` | project/runtime | user/service account | yes | no | yes | Aggregate read-only runtime observability paths; scope filtering remains foundation-level. |
-| POST | `/api/v1/retention-policy` | `policy.manage` | org/project/environment | user/service account | yes | no | yes | Retention mutation is policy-sensitive. |
+| GET | `/api/v1/audit/search`, `/api/v1/evidence/*`, `/api/v1/retention-policy` | `audit.read` | org/project/environment | user/service account | yes | no | yes | Scoped subjects are constrained to their own audit/retention scope; evidence resource-family scope is still foundation-level. |
+| GET | `/api/v1/audit-logs` | `audit.read` | org/project/environment | user/service account | yes | no | yes | Aggregate audit read path backed by the same scoped compliance audit search. |
+| GET | `/api/v1/events`, `/api/v1/logs` | `project.read` | project/runtime | user/service account | yes | no | yes | Aggregate runtime observability filters PipelineRun, DeploymentRun, and ReleaseExecution records by stored scope; artifact/security ownership is future work. |
+| POST | `/api/v1/retention-policy` | `policy.manage` | org/project/environment | user/service account | yes | no | yes | Retention mutation is policy-sensitive and scoped subjects are constrained to their own scope. |
 | GET | `/api/v1/visualization` | `project.read` | read model | user/service account | yes | no | yes | Read-only backend visualization API index. |
-| GET | `/api/v1/visualization/*` | authenticated; audit timeline requires `audit.read` | read model | user/service account | yes | no | yes | Backend visualization only; PipelineRun, DeploymentRun, and ReleaseExecution ID reads are guarded by stored scope. No frontend production claim. |
+| GET | `/api/v1/visualization/*` | authenticated; audit timeline requires `audit.read` | read model | user/service account | yes | no | yes | Backend visualization only; PipelineRun, DeploymentRun, ReleaseExecution ID reads and audit timeline are guarded by stored scope. No frontend production claim. |
 | GET/POST | `/api/v1/plugins*` | authenticated foundation routes | system | user/service account | yes | no | yes | Registry/capability metadata only; no unsafe dynamic loading. |
 | GET/POST | `/api/v1/tenancy/*` | authenticated read; `project.write` for quota mutation | org/project | user/service account | yes | no | yes | Quotas are foundation-level. |
 

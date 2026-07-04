@@ -278,7 +278,7 @@ func GetVisualizationSecuritySummary(service *securityusecase.Service) http.Hand
 
 func GetVisualizationAuditTimeline(pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, releases *releaseorchestration.Service, security *securityusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		items, err := auditTimeline(r.Context(), pipelines, deployments, releases, security)
+		items, err := auditTimeline(r.Context(), r, pipelines, deployments, releases, security)
 		if err != nil {
 			respondVisualizationError(w, r, err)
 			return
@@ -450,16 +450,17 @@ func resourceNodes(resources []deploymentusecase.ManifestResourceSummary) []dto.
 	return nodes
 }
 
-func auditTimeline(ctx context.Context, pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, releases *releaseorchestration.Service, security *securityusecase.Service) ([]dto.TimelineItem, error) {
+func auditTimeline(ctx context.Context, r *http.Request, pipelines *pipelineusecase.Service, deployments *deploymentusecase.Service, releases *releaseorchestration.Service, security *securityusecase.Service) ([]dto.TimelineItem, error) {
 	items := []dto.TimelineItem{}
-	pipelineRuns, err := pipelines.List(ctx)
+	scopeType, scopeID := TenantScopeFilter(r)
+	pipelineRuns, err := pipelines.ListFiltered(ctx, scopeType, scopeID)
 	if err != nil {
 		return nil, err
 	}
 	for _, record := range pipelineRuns {
 		items = append(items, auditItems(record.Audits, "pipelineRun")...)
 	}
-	deploymentRuns, err := deployments.List(ctx)
+	deploymentRuns, err := deployments.ListFiltered(ctx, scopeType, scopeID)
 	if err != nil {
 		return nil, err
 	}
@@ -470,15 +471,18 @@ func auditTimeline(ctx context.Context, pipelines *pipelineusecase.Service, depl
 	if err != nil {
 		return nil, err
 	}
+	executions = filterReleaseExecutionsForRequest(r, executions)
 	for _, record := range executions {
 		items = append(items, auditItems(record.Audits, "releaseExecution")...)
 	}
-	scans, err := security.List(ctx)
-	if err != nil {
-		return nil, err
-	}
-	for _, record := range scans {
-		items = append(items, auditItems(record.Audits, "securityScan")...)
+	if scopeType == "" {
+		scans, err := security.List(ctx)
+		if err != nil {
+			return nil, err
+		}
+		for _, record := range scans {
+			items = append(items, auditItems(record.Audits, "securityScan")...)
+		}
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Time.Before(items[j].Time) })
 	return items, nil

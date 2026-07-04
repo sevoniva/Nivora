@@ -445,6 +445,45 @@ func TestTenantIsolationVisualizationAggregation(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationAggregateObservabilityRoutes(t *testing.T) {
+	router, auth := newIsoRouter(t)
+	developerA := createScopedToken(t, auth, "aggregate-dev-a", domainauth.RoleDeveloper, "project", "project-a")
+	developerB := createScopedToken(t, auth, "aggregate-dev-b", domainauth.RoleDeveloper, "project", "project-b")
+	auditorA := createScopedToken(t, auth, "aggregate-auditor-a", domainauth.RoleAuditor, "project", "project-a")
+
+	runA := createProjectPipelineRun(t, router, developerA, "aggregate-a")
+	runB := createProjectPipelineRun(t, router, developerB, "aggregate-b")
+
+	for _, path := range []string{"/api/v1/events", "/api/v1/logs"} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+developerA)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("project-A aggregate read %s got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, runA) {
+			t.Fatalf("project-A aggregate read %s should include own run %s body=%s", path, runA, body)
+		}
+		if strings.Contains(body, runB) || strings.Contains(body, "aggregate-b") {
+			t.Fatalf("project-A aggregate read %s leaked project-B run %s body=%s", path, runB, body)
+		}
+	}
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/visualization/audit/timeline", nil)
+	req.Header.Set("Authorization", "Bearer "+auditorA)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-A audit timeline got %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, runB) || strings.Contains(body, "aggregate-b") {
+		t.Fatalf("project-A audit timeline leaked project-B run %s body=%s", runB, body)
+	}
+}
+
 func createProjectPipelineRun(t *testing.T, router http.Handler, token, name string) string {
 	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipeline-runs", strings.NewReader(`{"apiVersion":"nivora.io/v1alpha1","kind":"Pipeline","metadata":{"name":"`+name+`"},"spec":{"stages":[{"name":"build","jobs":[{"name":"echo","executor":"shell","steps":[{"name":"say","run":"printf `+name+`"}]}]}]}}`))

@@ -11,14 +11,15 @@ import (
 
 func SearchAudit(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		scopeType, scopeID := ConstrainScopeToRequest(r, r.URL.Query().Get("scopeType"), r.URL.Query().Get("scopeId"))
 		input := complianceusecase.AuditSearchInput{
 			Subject:       r.URL.Query().Get("subject"),
 			SubjectType:   r.URL.Query().Get("subjectType"),
 			SubjectID:     r.URL.Query().Get("subjectId"),
 			ActorID:       r.URL.Query().Get("actorId"),
 			Action:        r.URL.Query().Get("action"),
-			ScopeType:     r.URL.Query().Get("scopeType"),
-			ScopeID:       r.URL.Query().Get("scopeId"),
+			ScopeType:     scopeType,
+			ScopeID:       scopeID,
 			RequestID:     r.URL.Query().Get("requestId"),
 			CorrelationID: r.URL.Query().Get("correlationId"),
 		}
@@ -137,7 +138,8 @@ func ExportEvidenceBundleByID(service *complianceusecase.Service) http.HandlerFu
 
 func GetRetentionPolicy(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		policy, err := service.RetentionPolicy(r.Context(), r.URL.Query().Get("scopeType"), r.URL.Query().Get("scopeId"))
+		scopeType, scopeID := ConstrainScopeToRequest(r, r.URL.Query().Get("scopeType"), r.URL.Query().Get("scopeId"))
+		policy, err := service.RetentionPolicy(r.Context(), scopeType, scopeID)
 		respondComplianceResult(w, r, policy, err)
 	}
 }
@@ -149,6 +151,7 @@ func SetRetentionPolicy(service *complianceusecase.Service) http.HandlerFunc {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a retention policy request"})
 			return
 		}
+		input.ScopeType, input.ScopeID = ConstrainScopeToRequest(r, input.ScopeType, input.ScopeID)
 		policy, err := service.SetRetentionPolicy(r.Context(), input)
 		respondComplianceResult(w, r, policy, err)
 	}
@@ -156,7 +159,8 @@ func SetRetentionPolicy(service *complianceusecase.Service) http.HandlerFunc {
 
 func VerifyAuditChain(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		result, err := service.VerifyAuditChain(r.Context(), r.URL.Query().Get("scopeType"), r.URL.Query().Get("scopeId"))
+		scopeType, scopeID := ConstrainScopeToRequest(r, r.URL.Query().Get("scopeType"), r.URL.Query().Get("scopeId"))
+		result, err := service.VerifyAuditChain(r.Context(), scopeType, scopeID)
 		respondComplianceResult(w, r, result, err)
 	}
 }

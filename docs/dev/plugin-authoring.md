@@ -60,7 +60,7 @@ go run ./cmd/nivora plugins validate --local --file examples/plugins/templates/s
 Server validation:
 
 ```sh
-go run ./cmd/nivora plugins validate --server http://localhost:8080 --file examples/plugins/templates/scanner-plugin.yaml
+go run ./cmd/nivora plugins validate --server http://localhost:8080 --file examples/plugins/templates/scanner-plugin.yaml --token-env NIVORA_AUTH_TOKEN
 ```
 
 ## Templates

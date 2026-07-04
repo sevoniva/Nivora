@@ -29,13 +29,13 @@ If the runtime store is `memory`, state from that server process is not recovera
 2. Inspect recoverable work:
 
 ```sh
-nivora runtime status
+nivora runtime status --token-env NIVORA_AUTH_TOKEN
 ```
 
 3. Run reconciliation:
 
 ```sh
-nivora runtime reconcile
+nivora runtime reconcile --token-env NIVORA_AUTH_TOKEN
 ```
 
 This checks queued work, expired leases, cancel requests, timeouts, and outbox records where the current runtime supports them.

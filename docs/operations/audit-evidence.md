@@ -48,20 +48,20 @@ Evidence bundles collect available runtime evidence for a subject:
 JSON export:
 
 ```bash
-go run ./cmd/nivora evidence generate --subject-type pipelineRun --subject-id <pipeline-run-id>
-go run ./cmd/nivora evidence export <evidence-bundle-id>
+go run ./cmd/nivora evidence generate --subject-type pipelineRun --subject-id <pipeline-run-id> --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora evidence export <evidence-bundle-id> --token-env NIVORA_AUTH_TOKEN
 ```
 
 Markdown summary:
 
 ```bash
-go run ./cmd/nivora evidence export <evidence-bundle-id> --format markdown
+go run ./cmd/nivora evidence export <evidence-bundle-id> --format markdown --token-env NIVORA_AUTH_TOKEN
 ```
 
 The legacy subject export path is still available:
 
 ```bash
-go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id>
+go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id> --token-env NIVORA_AUTH_TOKEN
 ```
 
 Evidence includes log references rather than raw log content by default. Secret-like values are redacted before export.
@@ -108,7 +108,7 @@ Coverage spans all 9 audit-producing stores (pipeline, deployment, release, rele
 curl "http://localhost:8080/api/v1/audit/verify?scopeType=pipeline"
 
 # CLI
-go run ./cmd/nivora audit verify --scope-type pipeline
+go run ./cmd/nivora audit verify --scope-type pipeline --token-env NIVORA_AUTH_TOKEN
 ```
 
 The verify endpoint validates the entire chain for a given scope and identifies the first broken record if tampering is detected.

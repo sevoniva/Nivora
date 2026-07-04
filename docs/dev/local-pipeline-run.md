@@ -55,15 +55,15 @@ curl -X POST http://localhost:8080/api/v1/pipeline-runs \
 Inspect the run:
 
 ```sh
-go run ./cmd/nivora pipeline get <pipeline-run-id> --server http://localhost:8080
-go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080
+go run ./cmd/nivora pipeline get <pipeline-run-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 go run ./cmd/nivora pipeline timeline <pipeline-run-id> --server http://localhost:8080
 ```
 
 ## Runner Commands
 
 ```sh
-go run ./cmd/nivora runner list --server http://localhost:8080
+go run ./cmd/nivora runner list --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 go run ./cmd/nivora runner heartbeat --name local-runner --server http://localhost:8080
 ```
 

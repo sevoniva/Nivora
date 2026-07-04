@@ -45,9 +45,9 @@ The matching API is `POST /api/v1/releases/{id}/cancel`. It marks the Release re
 Server-backed artifacts created through release binding can be listed and traced back to releases:
 
 ```bash
-nivora artifact list --registry registry.example.com
-nivora artifact get <artifact-id>
-nivora artifact releases <artifact-id>
+nivora artifact list --registry registry.example.com --token-env NIVORA_AUTH_TOKEN
+nivora artifact get <artifact-id> --token-env NIVORA_AUTH_TOKEN
+nivora artifact releases <artifact-id> --token-env NIVORA_AUTH_TOKEN
 ```
 
 The matching APIs are `GET /api/v1/artifacts`, `GET /api/v1/artifacts/{id}`, and `GET /api/v1/artifacts/{id}/releases`. This is a control-plane inventory of artifacts Nivora has seen through releases. It does not enumerate an external registry.

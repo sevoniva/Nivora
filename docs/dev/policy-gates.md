@@ -19,11 +19,11 @@ DeploymentRun and ReleaseExecution pre-checks can attach security decisions thro
 Policy definitions can also be managed through the server-backed foundation catalog:
 
 ```sh
-nivora policy create --name "Require digest" --project-id demo --environment-id prod --require-digest
-nivora policy attach policy-example --scope-type environment --scope-id prod
-nivora policy attachments policy-example --scope-type environment
-nivora policy list --project-id demo
-nivora policy disable policy-example
+nivora policy create --name "Require digest" --project-id demo --environment-id prod --require-digest --token-env NIVORA_AUTH_TOKEN
+nivora policy attach policy-example --scope-type environment --scope-id prod --token-env NIVORA_AUTH_TOKEN
+nivora policy attachments policy-example --scope-type environment --token-env NIVORA_AUTH_TOKEN
+nivora policy list --project-id demo --token-env NIVORA_AUTH_TOKEN
+nivora policy disable policy-example --token-env NIVORA_AUTH_TOKEN
 ```
 
 The catalog records built-in gate configuration and foundation scope attachments only. OPA, Kyverno, Gatekeeper, and external policy distribution are future work.

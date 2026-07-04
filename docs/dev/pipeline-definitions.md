@@ -14,7 +14,7 @@ go run ./cmd/nivora pipeline definition create \
 In token auth mode, pass a token through an environment variable:
 
 ```bash
-NIVORA_AUTH_TOKEN=... go run ./cmd/nivora pipeline definition list --server http://localhost:8080
+go run ./cmd/nivora pipeline definition list --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
 Do not put token values in command examples or committed files.
@@ -22,7 +22,7 @@ Do not put token values in command examples or committed files.
 ## Run A Saved Definition
 
 ```bash
-go run ./cmd/nivora pipeline definition run <pipeline-id> --server http://localhost:8080
+go run ./cmd/nivora pipeline definition run <pipeline-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
 The created PipelineRun records the catalog `pipelineId` and `pipelineVersionId` so later logs, events, audit entries, and timelines can be traced back to the saved definition.
@@ -30,7 +30,7 @@ The created PipelineRun records the catalog `pipelineId` and `pipelineVersionId`
 The shorthand command also supports catalog IDs when `--local=false`:
 
 ```bash
-go run ./cmd/nivora pipeline run --local=false --server http://localhost:8080 <pipeline-id>
+go run ./cmd/nivora pipeline run --local=false --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN <pipeline-id>
 ```
 
 If the argument is an existing local file path, the command keeps the older server behavior and posts that YAML directly to `/api/v1/pipeline-runs`.
@@ -38,7 +38,7 @@ If the argument is an existing local file path, the command keeps the older serv
 ## Versions
 
 ```bash
-go run ./cmd/nivora pipeline definition versions <pipeline-id> --server http://localhost:8080
+go run ./cmd/nivora pipeline definition versions <pipeline-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
 The endpoint returns the current saved version and hash. Full historical version browsing is still foundation-level; the response includes `historyComplete: false` until complete history storage is implemented.

@@ -13,7 +13,7 @@ nivora pipeline run --local examples/pipelines/simple-shell.yaml
 Inspect output:
 
 ```sh
-nivora pipeline logs <pipeline-run-id>
+nivora pipeline logs <pipeline-run-id> --token-env NIVORA_AUTH_TOKEN
 nivora pipeline timeline <pipeline-run-id>
 ```
 

@@ -813,8 +813,8 @@ make run-runner
 ```bash
 go run ./cmd/nivora version
 go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
-go run ./cmd/nivora pipeline get <pipeline-run-id> --server http://localhost:8080
-go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080
+go run ./cmd/nivora pipeline get <pipeline-run-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 go run ./cmd/nivora pipeline timeline <pipeline-run-id> --server http://localhost:8080
 go run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
 go run ./cmd/nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
@@ -1202,8 +1202,8 @@ go run ./cmd/nivora system diagnostics
 Phase 7.2 adds multi-tenancy and quota foundations:
 
 ```bash
-go run ./cmd/nivora quota view --scope-type project --scope-id demo
-go run ./cmd/nivora usage summary --scope-type project --scope-id demo
+go run ./cmd/nivora quota view --scope-type project --scope-id demo --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora usage summary --scope-type project --scope-id demo --token-env NIVORA_AUTH_TOKEN
 ```
 
 Scoped API tokens can be constrained to org/project/environment-style boundaries, and quota read models expose concurrency, runner, artifact, log storage, and rate-limit foundations. Persistent distributed quota enforcement remains future work.
@@ -1212,8 +1212,8 @@ Phase 7.3 adds compliance audit and evidence foundations:
 
 ```bash
 go run ./cmd/nivora audit search --subject <subject-id>
-go run ./cmd/nivora evidence list --subject-type pipelineRun --subject-id <pipeline-run-id>
-go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id> --format markdown
+go run ./cmd/nivora evidence list --subject-type pipelineRun --subject-id <pipeline-run-id> --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id> --format markdown --token-env NIVORA_AUTH_TOKEN
 ```
 
 Evidence bundles collect safe release, artifact, approval, policy, security, deployment, log-reference, event, and audit context. Secret-like values are redacted before export; immutable external audit storage and retention enforcement jobs remain future work.

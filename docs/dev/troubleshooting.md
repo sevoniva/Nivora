@@ -21,7 +21,7 @@ Check for:
 Inspect logs:
 
 ```sh
-go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080
+go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
 Shell commands return a non-zero exit code as a failed JobRun. Timeout failures usually show a deadline error.

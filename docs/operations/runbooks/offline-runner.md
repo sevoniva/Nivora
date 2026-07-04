@@ -11,7 +11,7 @@ Use this when a runner stops heartbeating or cannot claim jobs.
 ## Triage
 
 ```sh
-nivora runner list
+nivora runner list --token-env NIVORA_AUTH_TOKEN
 curl http://localhost:8080/api/v1/system/runtime/recovery
 ```
 

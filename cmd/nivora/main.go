@@ -101,6 +101,7 @@ func newAuditCommand() *cobra.Command {
 
 func newAuditVerifyCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var scopeType string
 	var scopeID string
 	cmd := &cobra.Command{
@@ -110,7 +111,7 @@ func newAuditVerifyCommand() *cobra.Command {
 			values := url.Values{}
 			values.Set("scopeType", scopeType)
 			values.Set("scopeId", scopeID)
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/audit/verify?"+values.Encode(), nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/audit/verify?"+values.Encode(), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -119,6 +120,7 @@ func newAuditVerifyCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server base URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&scopeType, "scope-type", "", "Audit scope type (pipeline, deployment, release, release_execution, auth, credential, security, approval, cloud)")
 	cmd.Flags().StringVar(&scopeID, "scope-id", "", "Audit scope ID (optional)")
 	return cmd
@@ -413,6 +415,7 @@ func newEvidenceListCommand() *cobra.Command {
 
 func newEvidenceGenerateCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var subjectType string
 	var subjectID string
 	var releaseID string
@@ -436,7 +439,7 @@ func newEvidenceGenerateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/evidence/bundles", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/evidence/bundles", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -445,6 +448,7 @@ func newEvidenceGenerateCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&subjectType, "subject-type", "", "Evidence subject type")
 	cmd.Flags().StringVar(&subjectID, "subject-id", "", "Evidence subject ID")
 	cmd.Flags().StringVar(&releaseID, "release", "", "Generate evidence for a Release")
@@ -454,6 +458,7 @@ func newEvidenceGenerateCommand() *cobra.Command {
 
 func newEvidenceExportCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var format string
 	cmd := &cobra.Command{
 		Use:   "export <bundle-id> | <subject-type> <subject-id>",
@@ -473,14 +478,14 @@ func newEvidenceExportCommand() *cobra.Command {
 				path = "/api/v1/evidence/" + args[0] + "/" + args[1] + query
 			}
 			if format == "markdown" {
-				body, err := doRaw(cmd.Context(), http.MethodGet, serverURL, path, nil)
+				body, err := doRawWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
 				_, _ = cmd.OutOrStdout().Write(body)
 				return nil
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -489,6 +494,7 @@ func newEvidenceExportCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&format, "format", "json", "export format: json or markdown")
 	return cmd
 }
@@ -570,6 +576,7 @@ func newUsageCommand() *cobra.Command {
 
 func newScopedGetCommand(name string, short string, path string) *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var scopeType string
 	var scopeID string
 	cmd := &cobra.Command{
@@ -583,7 +590,7 @@ func newScopedGetCommand(name string, short string, path string) *cobra.Command 
 				values.Set("scopeId", scopeID)
 				query = "?" + values.Encode()
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path+query, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path+query, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -592,6 +599,7 @@ func newScopedGetCommand(name string, short string, path string) *cobra.Command 
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&scopeType, "scope-type", "global", "tenant scope type")
 	cmd.Flags().StringVar(&scopeID, "scope-id", "", "tenant scope id")
 	return cmd
@@ -1292,6 +1300,7 @@ func newPluginsCommand() *cobra.Command {
 
 func newPluginsListCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var local bool
 	cmd := &cobra.Command{
 		Use:   "list",
@@ -1305,7 +1314,7 @@ func newPluginsListCommand() *cobra.Command {
 				printJSON(cmd.OutOrStdout(), plugins)
 				return nil
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/plugins", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/plugins", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -1314,12 +1323,14 @@ func newPluginsListCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().BoolVar(&local, "local", false, "use the local built-in registry without contacting a server")
 	return cmd
 }
 
 func newPluginsInspectCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var local bool
 	cmd := &cobra.Command{
 		Use:   "inspect <name>",
@@ -1334,7 +1345,7 @@ func newPluginsInspectCommand() *cobra.Command {
 				printJSON(cmd.OutOrStdout(), manifest)
 				return nil
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/plugins/"+args[0], nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/plugins/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -1343,12 +1354,14 @@ func newPluginsInspectCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().BoolVar(&local, "local", false, "use the local built-in registry without contacting a server")
 	return cmd
 }
 
 func newPluginsCapabilitiesCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var local bool
 	cmd := &cobra.Command{
 		Use:   "capabilities <name>",
@@ -1363,7 +1376,7 @@ func newPluginsCapabilitiesCommand() *cobra.Command {
 				printJSON(cmd.OutOrStdout(), capabilities)
 				return nil
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/plugins/"+args[0]+"/capabilities", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/plugins/"+url.PathEscape(args[0])+"/capabilities", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -1372,12 +1385,14 @@ func newPluginsCapabilitiesCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().BoolVar(&local, "local", false, "use the local built-in registry without contacting a server")
 	return cmd
 }
 
 func newPluginsValidateCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var file string
 	var local bool
 	cmd := &cobra.Command{
@@ -1412,7 +1427,7 @@ func newPluginsValidateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/plugins/validate", payload)
+			result, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/plugins/validate", payload, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -1421,6 +1436,7 @@ func newPluginsValidateCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&file, "file", "", "plugin manifest file")
 	cmd.Flags().BoolVar(&local, "local", false, "validate with the local built-in compatibility rules")
 	return cmd
@@ -2693,6 +2709,7 @@ func newPolicyCommand() *cobra.Command {
 func newPolicyAttachCommand() *cobra.Command {
 	var input policyusecase.AttachInput
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "attach <policy-id> --scope-type <scope> [--scope-id <id>]",
 		Short: "Attach a policy definition to a project, environment, target, or global scope",
@@ -2705,7 +2722,7 @@ func newPolicyAttachCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/policies/"+args[0]+"/attachments", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/policies/"+url.PathEscape(args[0])+"/attachments", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2717,6 +2734,7 @@ func newPolicyAttachCommand() *cobra.Command {
 	cmd.Flags().StringVar(&input.ScopeType, "scope-type", "", "attachment scope type: global, org, project, application, environment, target, release, or deployment")
 	cmd.Flags().StringVar(&input.ScopeID, "scope-id", "", "attachment scope id; required except for global")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -2724,6 +2742,7 @@ func newPolicyAttachmentsCommand() *cobra.Command {
 	var scopeType string
 	var scopeID string
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "attachments <policy-id>",
 		Short: "List policy attachments",
@@ -2736,11 +2755,11 @@ func newPolicyAttachmentsCommand() *cobra.Command {
 			if scopeID != "" {
 				query.Set("scopeId", scopeID)
 			}
-			path := "/api/v1/policies/" + args[0] + "/attachments"
+			path := "/api/v1/policies/" + url.PathEscape(args[0]) + "/attachments"
 			if encoded := query.Encode(); encoded != "" {
 				path += "?" + encoded
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2751,6 +2770,7 @@ func newPolicyAttachmentsCommand() *cobra.Command {
 	cmd.Flags().StringVar(&scopeType, "scope-type", "", "filter by attachment scope type")
 	cmd.Flags().StringVar(&scopeID, "scope-id", "", "filter by attachment scope id")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -2758,6 +2778,7 @@ func newPolicyListCommand() *cobra.Command {
 	var projectID string
 	var environmentID string
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List policy definitions from a Nivora server",
@@ -2773,7 +2794,7 @@ func newPolicyListCommand() *cobra.Command {
 			if encoded := query.Encode(); encoded != "" {
 				path += "?" + encoded
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2784,12 +2805,14 @@ func newPolicyListCommand() *cobra.Command {
 	cmd.Flags().StringVar(&projectID, "project-id", "", "filter policies by project id")
 	cmd.Flags().StringVar(&environmentID, "environment-id", "", "filter policies by environment id")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newPolicyCreateCommand() *cobra.Command {
 	var input policyusecase.CreateInput
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "create --name <name>",
 		Short: "Create a built-in policy gate definition",
@@ -2801,7 +2824,7 @@ func newPolicyCreateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/policies", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/policies", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2811,17 +2834,19 @@ func newPolicyCreateCommand() *cobra.Command {
 	}
 	bindPolicyCreateFlags(cmd, &input)
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newPolicyGetCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "get <policy-id>",
 		Short: "Get a policy definition",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/policies/"+args[0], nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/policies/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2830,6 +2855,7 @@ func newPolicyGetCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -2846,6 +2872,7 @@ func newPolicyUpdateCommand() *cobra.Command {
 	var approvalOnCritical bool
 	var enabled bool
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "update <policy-id>",
 		Short: "Update a policy definition",
@@ -2892,7 +2919,7 @@ func newPolicyUpdateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPatch, serverURL, "/api/v1/policies/"+args[0], body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPatch, serverURL, "/api/v1/policies/"+url.PathEscape(args[0]), body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2912,17 +2939,19 @@ func newPolicyUpdateCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&approvalOnCritical, "approval-on-critical", false, "require approval on critical findings")
 	cmd.Flags().BoolVar(&enabled, "enabled", true, "enable or disable the policy")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newPolicyDisableCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "disable <policy-id>",
 		Short: "Disable a policy definition without deleting it",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodDelete, serverURL, "/api/v1/policies/"+args[0], nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodDelete, serverURL, "/api/v1/policies/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2931,6 +2960,7 @@ func newPolicyDisableCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -2967,6 +2997,7 @@ func newArtifactListCommand() *cobra.Command {
 	var digest string
 	var reference string
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List artifacts tracked through release bindings",
@@ -2988,7 +3019,7 @@ func newArtifactListCommand() *cobra.Command {
 			if encoded := query.Encode(); encoded != "" {
 				path += "?" + encoded
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3003,17 +3034,19 @@ func newArtifactListCommand() *cobra.Command {
 	cmd.Flags().StringVar(&digest, "digest", "", "filter by digest")
 	cmd.Flags().StringVar(&reference, "reference", "", "filter by normalized reference")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newArtifactGetCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "get <artifact-id>",
 		Short: "Get an artifact tracked through a release binding",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/artifacts/"+args[0], nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/artifacts/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3022,17 +3055,19 @@ func newArtifactGetCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newArtifactReleasesCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "releases <artifact-id>",
 		Short: "List release bindings for an artifact",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/artifacts/"+args[0]+"/releases", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/artifacts/"+url.PathEscape(args[0])+"/releases", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3041,6 +3076,7 @@ func newArtifactReleasesCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -3117,6 +3153,7 @@ func newArtifactRegistryCommand() *cobra.Command {
 func newArtifactRegistryListCommand() *cobra.Command {
 	var projectID string
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List artifact registry definitions",
@@ -3125,7 +3162,7 @@ func newArtifactRegistryListCommand() *cobra.Command {
 			if projectID != "" {
 				path += "?projectId=" + url.QueryEscape(projectID)
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3135,6 +3172,7 @@ func newArtifactRegistryListCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&projectID, "project-id", "", "filter registries by project id")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -3142,6 +3180,7 @@ func newArtifactRegistryCreateCommand() *cobra.Command {
 	var input artifactusecase.RegistryCreateInput
 	var capabilities []string
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "create --name <name> --endpoint <endpoint>",
 		Short: "Create artifact registry metadata without secret values",
@@ -3157,7 +3196,7 @@ func newArtifactRegistryCreateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/artifact-registries", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/artifact-registries", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3167,17 +3206,19 @@ func newArtifactRegistryCreateCommand() *cobra.Command {
 	}
 	bindArtifactRegistryCreateFlags(cmd, &input, &capabilities)
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newArtifactRegistryGetCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "get <registry-id>",
 		Short: "Get artifact registry metadata",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/artifact-registries/"+args[0], nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/artifact-registries/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3186,6 +3227,7 @@ func newArtifactRegistryGetCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -3199,6 +3241,7 @@ func newArtifactRegistryUpdateCommand() *cobra.Command {
 	var enabled bool
 	var capabilities []string
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "update <registry-id>",
 		Short: "Update artifact registry metadata",
@@ -3236,7 +3279,7 @@ func newArtifactRegistryUpdateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPatch, serverURL, "/api/v1/artifact-registries/"+args[0], body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPatch, serverURL, "/api/v1/artifact-registries/"+url.PathEscape(args[0]), body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3253,17 +3296,19 @@ func newArtifactRegistryUpdateCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&enabled, "enabled", true, "enable or disable the registry")
 	cmd.Flags().StringSliceVar(&capabilities, "capability", nil, "registry capability, repeatable")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newArtifactRegistryDisableCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "disable <registry-id>",
 		Short: "Disable artifact registry metadata without deleting it",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodDelete, serverURL, "/api/v1/artifact-registries/"+args[0], nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodDelete, serverURL, "/api/v1/artifact-registries/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3272,12 +3317,14 @@ func newArtifactRegistryDisableCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newArtifactRegistryValidateCommand() *cobra.Command {
 	var input artifactusecase.RegistryCreateInput
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "validate --name <name> --endpoint <endpoint>",
 		Short: "Validate artifact registry configuration shape",
@@ -3291,7 +3338,7 @@ func newArtifactRegistryValidateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/artifact-registries/validate", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/artifact-registries/validate", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3304,6 +3351,7 @@ func newArtifactRegistryValidateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&input.Endpoint, "endpoint", "", "registry endpoint")
 	cmd.Flags().BoolVar(&input.Insecure, "insecure", false, "allow HTTP registry endpoint for local development")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -4128,12 +4176,13 @@ func runPipelineAgainstServer(ctx context.Context, serverURL string, idOrFile st
 
 func newPipelineGetCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "get <pipeline-run-id>",
 		Short: "Get a PipelineRun from a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/pipeline-runs/"+args[0], nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/pipeline-runs/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4142,17 +4191,19 @@ func newPipelineGetCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newPipelineInspectCommand(name string, short string, suffix string) *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   name + " <pipeline-run-id>",
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/pipeline-runs/"+args[0]+suffix, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/pipeline-runs/"+url.PathEscape(args[0])+suffix, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4161,17 +4212,19 @@ func newPipelineInspectCommand(name string, short string, suffix string) *cobra.
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newPipelineCancelCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "cancel <pipeline-run-id>",
 		Short: "Cancel a PipelineRun on a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/pipeline-runs/"+args[0]+"/cancel", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/pipeline-runs/"+url.PathEscape(args[0])+"/cancel", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4180,6 +4233,7 @@ func newPipelineCancelCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -5130,11 +5184,12 @@ func newRunnerCommand() *cobra.Command {
 
 func newRunnerListCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List runners from a Nivora server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/runners", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/runners", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -5143,11 +5198,13 @@ func newRunnerListCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newRunnerRegisterCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var name string
 	cmd := &cobra.Command{
 		Use:   "register --name <runner-id>",
@@ -5166,7 +5223,7 @@ func newRunnerRegisterCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/register", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/register", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -5175,18 +5232,20 @@ func newRunnerRegisterCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&name, "name", "local-runner", "runner ID")
 	return cmd
 }
 
 func newRunnerStatusCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "status <runner-id>",
 		Short: "Get runner status from a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/runners/"+args[0], nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/runners/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -5195,6 +5254,7 @@ func newRunnerStatusCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -5207,12 +5267,13 @@ func newRunnerTokenCommand() *cobra.Command {
 
 func newRunnerTokenRotateCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "rotate <runner-id>",
 		Short: "Rotate a runner token; the raw token is returned only once",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/"+args[0]+"/token/rotate", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/"+url.PathEscape(args[0])+"/token/rotate", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -5221,17 +5282,19 @@ func newRunnerTokenRotateCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newRunnerTokenRevokeCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "revoke <runner-id>",
 		Short: "Revoke a runner token",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/"+args[0]+"/token/revoke", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runners/"+url.PathEscape(args[0])+"/token/revoke", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -5240,6 +5303,7 @@ func newRunnerTokenRevokeCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
@@ -5306,13 +5370,14 @@ func newRunnerClaimCommand() *cobra.Command {
 
 func newRunnerOfflineDetectCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var timeoutSeconds int
 	cmd := &cobra.Command{
 		Use:   "offline-detect",
 		Short: "Mark stale online runners offline",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := fmt.Sprintf("/api/v1/runners/offline-detect?timeoutSeconds=%d", timeoutSeconds)
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, path, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, path, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -5321,6 +5386,7 @@ func newRunnerOfflineDetectCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().IntVar(&timeoutSeconds, "timeout-seconds", 60, "heartbeat age threshold in seconds")
 	return cmd
 }
@@ -5479,11 +5545,12 @@ func newRuntimeCommand() *cobra.Command {
 
 func newRuntimeInspectCommand(name string, short string, method string, path string) *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   name,
 		Short: short,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), method, serverURL, path, nil)
+			payload, err := doJSONWithToken(cmd.Context(), method, serverURL, path, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -5492,6 +5559,7 @@ func newRuntimeInspectCommand(name string, short string, method string, path str
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 

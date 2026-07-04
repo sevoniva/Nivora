@@ -5,7 +5,7 @@ Phase 5.2 adds recovery endpoints and CLI commands for the internal runtime foun
 ## Inspect Recovery State
 
 ```bash
-nivora runtime status --server http://localhost:8080
+nivora runtime status --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 curl http://localhost:8080/api/v1/system/runtime/recovery
 ```
 
@@ -14,7 +14,7 @@ The response reports queued PipelineRuns, stale running PipelineRuns, expired jo
 ## Run Reconciliation
 
 ```bash
-nivora runtime reconcile --server http://localhost:8080
+nivora runtime reconcile --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 curl -X POST http://localhost:8080/api/v1/system/runtime/reconcile
 ```
 

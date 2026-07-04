@@ -12,15 +12,15 @@ Use this when a PipelineRun remains queued or running longer than expected.
 
 ```sh
 curl http://localhost:8080/api/v1/system/runtime/recovery
-nivora runtime status
+nivora runtime status --token-env NIVORA_AUTH_TOKEN
 ```
 
 Check the run:
 
 ```sh
-nivora pipeline get <pipeline-run-id>
+nivora pipeline get <pipeline-run-id> --token-env NIVORA_AUTH_TOKEN
 nivora pipeline events <pipeline-run-id>
-nivora pipeline logs <pipeline-run-id>
+nivora pipeline logs <pipeline-run-id> --token-env NIVORA_AUTH_TOKEN
 ```
 
 ## Recovery
@@ -30,7 +30,7 @@ nivora pipeline logs <pipeline-run-id>
 3. Reconcile runtime state:
 
 ```sh
-nivora runtime reconcile
+nivora runtime reconcile --token-env NIVORA_AUTH_TOKEN
 ```
 
 4. If cancellation was requested, verify the run transitions to `Canceled`.

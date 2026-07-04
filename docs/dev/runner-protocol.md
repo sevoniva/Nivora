@@ -17,14 +17,14 @@ runner register
 ## Commands
 
 ```sh
-nivora runner register --name local-runner --server http://localhost:8080
+nivora runner register --name local-runner --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 export NIVORA_RUNNER_TOKEN='<token returned once by registration or rotation>'
 nivora runner heartbeat --name local-runner --server http://localhost:8080 --token-env NIVORA_RUNNER_TOKEN
 nivora runner claim --name local-runner --server http://localhost:8080 --token-env NIVORA_RUNNER_TOKEN
 nivora runner logs append <job-run-id> --runner-id local-runner --pipeline-run-id <pipeline-run-id> --content "hello" --token-env NIVORA_RUNNER_TOKEN
 nivora runner status update <job-run-id> --runner-id local-runner --status Running --token-env NIVORA_RUNNER_TOKEN
-nivora runner token rotate local-runner --server http://localhost:8080
-nivora runner token revoke local-runner --server http://localhost:8080
+nivora runner token rotate local-runner --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
+nivora runner token revoke local-runner --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
 ## API

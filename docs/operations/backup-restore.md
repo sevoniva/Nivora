@@ -108,7 +108,7 @@ The baseline unit test suite does not require PostgreSQL. Real database migratio
 Pending or failed event outbox records should be preserved during backup. After dependencies recover, run:
 
 ```sh
-nivora runtime reconcile
+nivora runtime reconcile --token-env NIVORA_AUTH_TOKEN
 ```
 
 or:

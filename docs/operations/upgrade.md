@@ -50,14 +50,14 @@ For non-disposable data:
 Check recovery state:
 
 ```sh
-nivora runtime status --server http://localhost:8080
+nivora runtime status --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 curl http://localhost:8080/api/v1/system/runtime/recovery
 ```
 
 Run one reconciliation pass after an upgrade if queued, stale, canceled, or timeout-candidate work is present:
 
 ```sh
-nivora runtime reconcile --server http://localhost:8080
+nivora runtime reconcile --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
 ## Rollback Direction

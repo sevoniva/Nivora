@@ -5,7 +5,7 @@ Phase 5.3 adds a secure runner fleet foundation.
 ## Register A Runner
 
 ```bash
-nivora runner register --name local-runner --server http://localhost:8080
+nivora runner register --name local-runner --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
 The response includes a raw runner token exactly once. Store it in an environment variable or secret manager outside the repository:
@@ -28,7 +28,7 @@ Runner-owned mutation endpoints require the token as `Authorization: Bearer <tok
 ## Rotation
 
 ```bash
-nivora runner token rotate local-runner
+nivora runner token rotate local-runner --token-env NIVORA_AUTH_TOKEN
 ```
 
 The new raw token is returned only in the rotation response. Old tokens stop validating.
@@ -36,7 +36,7 @@ The new raw token is returned only in the rotation response. Old tokens stop val
 Revoke a token when retiring a runner:
 
 ```bash
-nivora runner token revoke local-runner
+nivora runner token revoke local-runner --token-env NIVORA_AUTH_TOKEN
 ```
 
 ## Offline Detection
@@ -44,7 +44,7 @@ nivora runner token revoke local-runner
 The runtime reconciliation loop marks stale online runners offline after missed heartbeat. Operators can also call:
 
 ```bash
-curl -X POST 'http://localhost:8080/api/v1/runners/offline-detect?timeoutSeconds=60'
+nivora runner offline-detect --timeout-seconds 60 --token-env NIVORA_AUTH_TOKEN
 ```
 
 ## Limits

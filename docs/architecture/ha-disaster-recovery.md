@@ -49,7 +49,7 @@ These checks are intentionally lightweight. They validate configuration posture 
 | Scenario | Expected behavior | Operator action |
 | --- | --- | --- |
 | Server restart | API process can restart; in-memory state is lost unless persistent stores are configured. | Prefer PostgreSQL runtime store. Confirm `/readyz`, then inspect `/api/v1/system/runtime/recovery`. |
-| Worker restart | Queued/running work should be reconciled by the worker recovery loop where supported. | Run `POST /api/v1/system/runtime/reconcile` or `nivora runtime reconcile`. |
+| Worker restart | Queued/running work should be reconciled by the worker recovery loop where supported. | Run `POST /api/v1/system/runtime/reconcile` or `nivora runtime reconcile --token-env NIVORA_AUTH_TOKEN`. |
 | Runner disconnect | Runner heartbeat expires; offline detection can mark it offline. | Inspect runner dashboard/API and trigger offline detection if needed. |
 | DB unavailable | Readiness reports degraded when PostgreSQL config is incomplete; real DB liveness checks are future work. | Restore database connectivity before starting workers. |
 | Object store unavailable | Diagnostics reports config posture; live object store probing is future work. | Restore object snapshots before replaying deployments that reference stored artifacts. |

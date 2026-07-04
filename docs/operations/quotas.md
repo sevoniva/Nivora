@@ -5,7 +5,7 @@ Phase 7.2 adds quota and usage read models for tenant scopes. These are intended
 ## View Quota
 
 ```bash
-go run ./cmd/nivora quota view --scope-type project --scope-id demo
+go run ./cmd/nivora quota view --scope-type project --scope-id demo --token-env NIVORA_AUTH_TOKEN
 ```
 
 API:
@@ -18,6 +18,7 @@ curl "http://localhost:8080/api/v1/tenancy/quota?scopeType=project&scopeId=demo"
 
 ```bash
 go run ./cmd/nivora quota set --scope-type project --scope-id demo \
+  --token-env NIVORA_AUTH_TOKEN \
   --max-concurrent-pipeline-runs 10 \
   --max-concurrent-deployment-runs 5 \
   --max-runners 20 \
@@ -37,7 +38,7 @@ Quota updates are metadata-only. They do not carry secrets or credentials. In pr
 ## View Usage
 
 ```bash
-go run ./cmd/nivora usage summary --scope-type project --scope-id demo
+go run ./cmd/nivora usage summary --scope-type project --scope-id demo --token-env NIVORA_AUTH_TOKEN
 ```
 
 API:

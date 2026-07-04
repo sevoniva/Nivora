@@ -60,8 +60,8 @@ The server exposes HTTP APIs. The worker currently advances queued runs in the i
 Server-backed CLI inspection commands require a running server:
 
 ```sh
-go run ./cmd/nivora pipeline get <pipeline-run-id> --server http://localhost:8080
-go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080
+go run ./cmd/nivora pipeline get <pipeline-run-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora pipeline logs <pipeline-run-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 go run ./cmd/nivora pipeline events <pipeline-run-id> --server http://localhost:8080
 go run ./cmd/nivora pipeline timeline <pipeline-run-id> --server http://localhost:8080
 ```

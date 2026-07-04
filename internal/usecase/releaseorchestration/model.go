@@ -153,12 +153,14 @@ type TimelineEntry struct {
 
 type PlanInput struct {
 	Definition    Definition
+	ProjectID     string
 	ActorID       string
 	CorrelationID string
 }
 
 type DeployInput struct {
 	Definition    Definition
+	ProjectID     string
 	ActorID       string
 	CorrelationID string
 }

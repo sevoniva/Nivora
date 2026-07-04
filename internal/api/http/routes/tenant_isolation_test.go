@@ -248,11 +248,39 @@ func TestTenantIsolationListDeployments(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	tokenA := createScopedToken(t, auth, "deploy-list-a", domainauth.RoleDeveloper, "project", "project-a")
 
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/deployments", nil)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments", strings.NewReader(`{"apiVersion":"nivora.io/v1alpha1","kind":"Deployment","metadata":{"name":"deploy-list-a"},"spec":{"application":"app-a","environment":"dev","target":{"type":"kubernetes-yaml","name":"test","namespace":"default"},"manifests":["examples/yaml/configmap.yaml"],"options":{"dryRun":true,"apply":false}}}`))
 	req.Header.Set("Authorization", "Bearer "+tokenA)
+	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	t.Logf("project-A list deployments: %d", rec.Code)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for project-A create deployment, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/deployments", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for project-A list deployments, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "deploy-list-a") || !strings.Contains(body, "project-a") {
+		t.Fatalf("project-A list should contain its own deployment and project scope, body=%s", body)
+	}
+
+	tokenB := createScopedToken(t, auth, "deploy-list-b", domainauth.RoleDeveloper, "project", "project-b")
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/deployments", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("expected 200 for project-B list deployments, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	body = rec.Body.String()
+	if strings.Contains(body, "deploy-list-a") || strings.Contains(body, "project-a") {
+		t.Fatalf("project-B list should not contain project-A deployment, body=%s", body)
+	}
 }
 
 func TestTenantIsolationListReleases(t *testing.T) {

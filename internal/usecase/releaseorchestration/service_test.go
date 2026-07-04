@@ -9,6 +9,7 @@ import (
 	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
+	"github.com/sevoniva/nivora/internal/domain/environment"
 	"github.com/sevoniva/nivora/internal/domain/release"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
@@ -29,6 +30,33 @@ func TestPlanMultipleTargets(t *testing.T) {
 	}
 	if record.Plan.Ordering[0] != "dev-yaml" || record.Plan.Ordering[1] != "audit-only" {
 		t.Fatalf("ordering = %#v", record.Plan.Ordering)
+	}
+}
+
+func TestPlanAndDeployPersistProjectScope(t *testing.T) {
+	service := newTestService(allowPolicy{})
+	plan, err := service.Plan(context.Background(), PlanInput{Definition: testDefinition(false, StrategySequential), ProjectID: " project-a "})
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	for _, target := range plan.Plan.Targets {
+		if target.ProjectID != "project-a" {
+			t.Fatalf("target %s project id = %q", target.Name, target.ProjectID)
+		}
+	}
+	record, err := service.Deploy(context.Background(), DeployInput{Definition: testDefinition(false, StrategySequential), ProjectID: "project-a"})
+	if err != nil {
+		t.Fatalf("Deploy() error = %v", err)
+	}
+	for _, target := range record.Plan.Targets {
+		if target.ProjectID != "project-a" {
+			t.Fatalf("execution target %s project id = %q", target.Name, target.ProjectID)
+		}
+	}
+	for _, deployment := range record.Deployments {
+		if deployment.Environment.ProjectID != "project-a" || deployment.Target.ProjectID != "project-a" {
+			t.Fatalf("deployment scope not propagated: environment=%q target=%q", deployment.Environment.ProjectID, deployment.Target.ProjectID)
+		}
 	}
 }
 
@@ -360,6 +388,8 @@ func (fakeDeploymentService) CreateAndRun(ctx context.Context, input deploymentu
 		}
 	}
 	return deploymentusecase.CreateRunResult{Record: deploymentusecase.RunRecord{
+		Environment: environment.Environment{ProjectID: input.ProjectID},
+		Target:      environment.ReleaseTarget{ProjectID: input.ProjectID},
 		Run: domaindeployment.DeploymentRun{
 			ID:         "drun-" + input.Definition.Metadata.Name,
 			TargetType: input.Definition.Spec.Target.Type,

@@ -9,6 +9,7 @@ import (
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
+	"github.com/sevoniva/nivora/internal/domain/tenant"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 )
 
@@ -24,6 +25,7 @@ func PlanRelease(service *releaseorchestration.Service) http.HandlerFunc {
 		}
 		record, err := service.Plan(r.Context(), releaseorchestration.PlanInput{
 			Definition:    def,
+			ProjectID:     releaseProjectIDFromRequest(r),
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
 		})
 		respondReleaseOrchestrationResult(w, r, record, err)
@@ -42,6 +44,7 @@ func DeployRelease(service *releaseorchestration.Service) http.HandlerFunc {
 		}
 		record, err := service.Deploy(r.Context(), releaseorchestration.DeployInput{
 			Definition:    def,
+			ProjectID:     releaseProjectIDFromRequest(r),
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
 		})
 		if err == nil {
@@ -50,6 +53,14 @@ func DeployRelease(service *releaseorchestration.Service) http.HandlerFunc {
 		}
 		respondReleaseOrchestrationResult(w, r, nil, err)
 	}
+}
+
+func releaseProjectIDFromRequest(r *http.Request) string {
+	subject := apimiddleware.Subject(r.Context())
+	if subject.ScopeType == tenant.ScopeProject {
+		return subject.ScopeID
+	}
+	return ""
 }
 
 func GetReleasePlan(service *releaseorchestration.Service) http.HandlerFunc {

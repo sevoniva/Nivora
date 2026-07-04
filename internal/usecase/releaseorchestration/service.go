@@ -88,7 +88,7 @@ func (s *Service) Plan(ctx context.Context, input PlanInput) (PlanRecord, error)
 	if err != nil {
 		return PlanRecord{}, err
 	}
-	plan, err := s.buildPlan(ctx, input.Definition, releaseRecord)
+	plan, err := s.buildPlan(ctx, input.Definition, releaseRecord, input.ProjectID)
 	if err != nil {
 		return PlanRecord{}, err
 	}
@@ -116,7 +116,7 @@ func (s *Service) Plan(ctx context.Context, input PlanInput) (PlanRecord, error)
 }
 
 func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecord, error) {
-	planRecord, err := s.Plan(ctx, PlanInput{Definition: input.Definition, ActorID: input.ActorID, CorrelationID: input.CorrelationID})
+	planRecord, err := s.Plan(ctx, PlanInput{Definition: input.Definition, ProjectID: input.ProjectID, ActorID: input.ActorID, CorrelationID: input.CorrelationID})
 	if err != nil {
 		return ExecutionRecord{}, err
 	}
@@ -371,7 +371,7 @@ func (s *Service) runSequential(ctx context.Context, record ExecutionRecord, act
 			return ExecutionRecord{}, err
 		}
 		record, _ = s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionTargetStarted, "Target execution started", actorID, target.Name)
-		result, runErr := s.deployments.CreateAndRun(ctx, deploymentusecase.CreateRunInput{Definition: target.Deployment, CorrelationID: record.Execution.CorrelationID})
+		result, runErr := s.deployments.CreateAndRun(ctx, deploymentusecase.CreateRunInput{Definition: target.Deployment, ProjectID: firstTargetProjectID(record, target.Name), CorrelationID: record.Execution.CorrelationID})
 		status := mapDeploymentStatus(result.Record.Run.Status)
 		if runErr != nil {
 			status = ExecutionFailed
@@ -428,8 +428,9 @@ func (s *Service) resolveRelease(ctx context.Context, def Definition, actorID st
 	return s.artifacts.CreateRelease(ctx, artifactusecase.CreateReleaseInput{Definition: def.Spec.Release, ActorID: actorID})
 }
 
-func (s *Service) buildPlan(ctx context.Context, def Definition, releaseRecord artifactusecase.ReleaseRecord) (ReleasePlan, error) {
+func (s *Service) buildPlan(ctx context.Context, def Definition, releaseRecord artifactusecase.ReleaseRecord, projectID string) (ReleasePlan, error) {
 	envID := newID("env")
+	projectID = strings.TrimSpace(projectID)
 	plan := ReleasePlan{
 		ID:              newID("rplan"),
 		ReleaseID:       releaseRecord.Release.ID,
@@ -455,6 +456,7 @@ func (s *Service) buildPlan(ctx context.Context, def Definition, releaseRecord a
 	for _, target := range orderedTargets(def.Spec.Targets) {
 		releaseTarget := environment.ReleaseTarget{
 			ID:            newID("target"),
+			ProjectID:     projectID,
 			EnvironmentID: envID,
 			Name:          target.Name,
 			TargetType:    target.Type,
@@ -490,7 +492,7 @@ func (s *Service) buildPlan(ctx context.Context, def Definition, releaseRecord a
 			})
 			continue
 		}
-		result, err := s.deployments.Plan(ctx, deploymentusecase.CreateRunInput{Definition: target.Deployment})
+		result, err := s.deployments.Plan(ctx, deploymentusecase.CreateRunInput{Definition: target.Deployment, ProjectID: projectID})
 		if err != nil {
 			plan.Warnings = append(plan.Warnings, fmt.Sprintf("target %s plan failed: %v", target.Name, err))
 			continue
@@ -554,6 +556,15 @@ func initialTargetExecutions(targets []environment.ReleaseTarget) []TargetExecut
 		})
 	}
 	return executions
+}
+
+func firstTargetProjectID(record ExecutionRecord, targetName string) string {
+	for _, target := range record.Plan.Targets {
+		if target.Name == targetName {
+			return target.ProjectID
+		}
+	}
+	return ""
 }
 
 func (s *Service) markTargetStarted(record ExecutionRecord, name string) ExecutionRecord {

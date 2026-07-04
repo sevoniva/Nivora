@@ -27,6 +27,7 @@ type Store interface {
 	Save(ctx context.Context, record RunRecord) error
 	Get(ctx context.Context, id string) (RunRecord, error)
 	List(ctx context.Context) ([]RunRecord, error)
+	ListFiltered(ctx context.Context, scopeType, scopeID string) ([]RunRecord, error)
 	SaveHostGroup(ctx context.Context, group HostGroup) error
 	GetHostGroup(ctx context.Context, id string) (HostGroup, error)
 	ListHostGroups(ctx context.Context) ([]HostGroup, error)
@@ -109,6 +110,30 @@ func (s *MemoryStore) List(ctx context.Context) ([]RunRecord, error) {
 		return records[i].Run.CreatedAt.Before(records[j].Run.CreatedAt)
 	})
 	return records, nil
+}
+
+func (s *MemoryStore) ListFiltered(ctx context.Context, scopeType, scopeID string) ([]RunRecord, error) {
+	all, err := s.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if scopeType == "" {
+		return all, nil
+	}
+	filtered := make([]RunRecord, 0, len(all))
+	for _, record := range all {
+		switch scopeType {
+		case "project":
+			if record.Environment.ProjectID == scopeID || record.Target.ProjectID == scopeID {
+				filtered = append(filtered, record)
+			}
+		case "environment":
+			if record.Environment.ID == scopeID || record.Target.EnvironmentID == scopeID || record.Run.EnvironmentID == scopeID {
+				filtered = append(filtered, record)
+			}
+		}
+	}
+	return filtered, nil
 }
 
 func (s *MemoryStore) SaveHostGroup(ctx context.Context, group HostGroup) error {

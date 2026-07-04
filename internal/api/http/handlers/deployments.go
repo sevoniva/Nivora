@@ -11,6 +11,7 @@ import (
 	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
+	"github.com/sevoniva/nivora/internal/domain/tenant"
 	"github.com/sevoniva/nivora/internal/infra/telemetry"
 	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
@@ -29,6 +30,7 @@ func CreateDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 		start := time.Now()
 		result, err := service.CreateAndRun(r.Context(), deploymentusecase.CreateRunInput{
 			Definition:    def,
+			ProjectID:     projectIDFromRequest(r),
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
 		})
 		if err != nil {
@@ -74,6 +76,7 @@ func ApplyDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 		req.Definition.Spec.Options.DryRun = false
 		result, err := service.CreateAndRun(r.Context(), deploymentusecase.CreateRunInput{
 			Definition:    req.Definition,
+			ProjectID:     projectIDFromRequest(r),
 			AllowApply:    true,
 			Confirm:       true,
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
@@ -98,6 +101,7 @@ func PlanDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {
 		}
 		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{
 			Definition:    def,
+			ProjectID:     projectIDFromRequest(r),
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
 		})
 		if err != nil {
@@ -120,6 +124,7 @@ func PlanGitOpsDeployment(service *deploymentusecase.Service) http.HandlerFunc {
 		}
 		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{
 			Definition:    def,
+			ProjectID:     projectIDFromRequest(r),
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
 		})
 		if err != nil {
@@ -152,6 +157,7 @@ func CommitGitOpsDeployment(service *deploymentusecase.Service) http.HandlerFunc
 		req.Definition.Spec.GitOps.AllowPush = req.Definition.Spec.GitOps.AllowPush || req.AllowPush
 		result, err := service.CreateAndRun(r.Context(), deploymentusecase.CreateRunInput{
 			Definition:    req.Definition,
+			ProjectID:     projectIDFromRequest(r),
 			Confirm:       true,
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
 		})
@@ -177,6 +183,7 @@ func RollbackGitOpsDeployment(service *deploymentusecase.Service) http.HandlerFu
 		req.Definition.Spec.GitOps.Rollback = true
 		result, err := service.CreateAndRun(r.Context(), deploymentusecase.CreateRunInput{
 			Definition:    req.Definition,
+			ProjectID:     projectIDFromRequest(r),
 			Confirm:       true,
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
 		})
@@ -197,6 +204,7 @@ func PlanHostDeployment(service *deploymentusecase.Service) http.HandlerFunc {
 		}
 		result, err := service.Plan(r.Context(), deploymentusecase.CreateRunInput{
 			Definition:    def,
+			ProjectID:     projectIDFromRequest(r),
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
 		})
 		if err != nil {
@@ -235,12 +243,21 @@ func GetHostGroup(service *deploymentusecase.Service) http.HandlerFunc {
 
 func ListDeploymentRuns(service *deploymentusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		records, err := service.List(r.Context())
+		scopeType, scopeID := TenantScopeFilter(r)
+		records, err := service.ListFiltered(r.Context(), scopeType, scopeID)
 		if respondPaginated(w, r, records, err) {
 			return
 		}
 		respondDeploymentResult(w, r, nil, err)
 	}
+}
+
+func projectIDFromRequest(r *http.Request) string {
+	subject := apimiddleware.Subject(r.Context())
+	if subject.ScopeType == tenant.ScopeProject {
+		return subject.ScopeID
+	}
+	return ""
 }
 
 func GetDeploymentRun(service *deploymentusecase.Service) http.HandlerFunc {

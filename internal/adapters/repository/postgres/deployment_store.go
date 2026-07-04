@@ -55,6 +55,29 @@ func (s *DeploymentStore) List(ctx context.Context) ([]deploymentusecase.RunReco
 	return scanDeploymentRecords(rows)
 }
 
+func (s *DeploymentStore) ListFiltered(ctx context.Context, scopeType, scopeID string) ([]deploymentusecase.RunRecord, error) {
+	if scopeType == "" {
+		return s.List(ctx)
+	}
+	var (
+		rows pgx.Rows
+		err  error
+	)
+	switch scopeType {
+	case "project":
+		rows, err = s.pool.Query(ctx, `SELECT record FROM runtime_deployment_runs WHERE record->'environment'->>'projectId' = $1 OR record->'target'->>'projectId' = $1 ORDER BY created_at, id`, scopeID)
+	case "environment":
+		rows, err = s.pool.Query(ctx, `SELECT record FROM runtime_deployment_runs WHERE record->'environment'->>'id' = $1 OR record->'target'->>'environmentId' = $1 OR record->'run'->>'environmentId' = $1 ORDER BY created_at, id`, scopeID)
+	default:
+		return []deploymentusecase.RunRecord{}, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanDeploymentRecords(rows)
+}
+
 func (s *DeploymentStore) SaveHostGroup(ctx context.Context, group deploymentusecase.HostGroup) error {
 	raw, err := json.Marshal(group)
 	if err != nil {

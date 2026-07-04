@@ -70,6 +70,34 @@ func TestServiceCreateAndRunDryRunDeployment(t *testing.T) {
 	}
 }
 
+func TestServicePersistsProjectScope(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{
+		Definition: def,
+		ProjectID:  " project-a ",
+	})
+	if err != nil {
+		t.Fatalf("create and run: %v", err)
+	}
+	if result.Record.Environment.ProjectID != "project-a" || result.Record.Target.ProjectID != "project-a" {
+		t.Fatalf("project scope not persisted: environment=%q target=%q", result.Record.Environment.ProjectID, result.Record.Target.ProjectID)
+	}
+	own, err := service.ListFiltered(context.Background(), "project", "project-a")
+	if err != nil {
+		t.Fatalf("list own project: %v", err)
+	}
+	if len(own) != 1 || own[0].Run.ID != result.Record.Run.ID {
+		t.Fatalf("own project list = %#v", own)
+	}
+	other, err := service.ListFiltered(context.Background(), "project", "project-b")
+	if err != nil {
+		t.Fatalf("list other project: %v", err)
+	}
+	if len(other) != 0 {
+		t.Fatalf("other project list should be empty, got %#v", other)
+	}
+}
+
 func TestServiceDeploymentPlanWarnsForUnboundManifestImage(t *testing.T) {
 	service, def := newTestService(t, true, nil)
 	def.Spec.Artifacts = nil

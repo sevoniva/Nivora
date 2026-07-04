@@ -159,6 +159,7 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 		}
 	}
 	record := s.newRecord(input.Definition)
+	record = applyProjectScope(record, input.ProjectID)
 	record.Run.CorrelationID = input.CorrelationID
 	if err := s.store.Save(ctx, record); err != nil {
 		return CreateRunResult{}, err
@@ -193,6 +194,7 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 		return CreateRunResult{}, err
 	}
 	record := s.newRecord(input.Definition)
+	record = applyProjectScope(record, input.ProjectID)
 	record.Run.CorrelationID = input.CorrelationID
 	if input.Definition.Spec.Target.Type == "argocd" {
 		record.GitOpsPlan = s.buildGitOpsPlan(record.Run.ID, input.Definition, nil)
@@ -1208,6 +1210,9 @@ func (s *Service) processGitOps(ctx context.Context, record RunRecord, actorID s
 
 func (s *Service) Get(ctx context.Context, id string) (RunRecord, error) { return s.store.Get(ctx, id) }
 func (s *Service) List(ctx context.Context) ([]RunRecord, error)         { return s.store.List(ctx) }
+func (s *Service) ListFiltered(ctx context.Context, scopeType, scopeID string) ([]RunRecord, error) {
+	return s.store.ListFiltered(ctx, scopeType, scopeID)
+}
 func (s *Service) Logs(ctx context.Context, id string) ([]event.LogChunk, error) {
 	return s.store.Logs(ctx, id)
 }
@@ -1455,6 +1460,16 @@ func (s *Service) newRecord(def Definition) RunRecord {
 			UpdatedAt:           now,
 		},
 	}
+}
+
+func applyProjectScope(record RunRecord, projectID string) RunRecord {
+	projectID = strings.TrimSpace(projectID)
+	if projectID == "" {
+		return record
+	}
+	record.Environment.ProjectID = projectID
+	record.Target.ProjectID = projectID
+	return record
 }
 
 func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocument) DeploymentPlan {

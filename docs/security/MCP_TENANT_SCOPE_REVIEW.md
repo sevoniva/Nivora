@@ -8,8 +8,8 @@ Current status: **partially proven for local MCP RBAC, not proven for complete r
 |---|---|---|---|---|
 | capability/runtime/API inventory | `project.read` | global metadata summary | optional org/project redaction | medium |
 | PipelineRun resources/tools | `project.read` | explicit ID reads now check stored project scope when present; HTTP-created project-scoped runs persist project scope | broader application/environment ownership checks for pipeline-derived resources | medium-high for remote |
-| DeploymentRun resources/tools | `project.read` or `deployment.create` | explicit ID reads now check stored project/environment scope when present | broader project/environment/target ownership checks for all deployment-derived resources | medium-high for remote |
-| ReleaseExecution resources/tools | `project.read` or `deployment.create` | explicit ID reads and aggregate event searches check stored project/environment scope when present | release/project/environment ownership check across all execution records | medium-high for remote |
+| DeploymentRun resources/tools | `project.read` or `deployment.create` | explicit ID reads now check stored project/environment scope when present; HTTP-created project-scoped runs persist project scope | broader project/environment/target ownership checks for all deployment-derived resources | medium-high for remote |
+| ReleaseExecution resources/tools | `project.read` or `deployment.create` | explicit ID reads and aggregate event searches check stored project/environment scope when present; HTTP plan/deploy project scope is copied to release targets and child DeploymentRuns | release/project/environment ownership check across all execution records | medium-high for remote |
 | runner summary | `project.read` | fleet summary | runner group/environment filter | high for remote |
 | security summary | `project.read` | service summary | project/environment filter | medium |
 | audit search | `audit.read` | filter arguments supported | mandatory scope filter and caps | high |

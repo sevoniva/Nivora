@@ -33,6 +33,7 @@ import (
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
+	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	tenancyusecase "github.com/sevoniva/nivora/internal/usecase/tenancy"
@@ -134,6 +135,21 @@ func NewArtifactServiceWithStore(store artifactusecase.Store) *artifactusecase.S
 	return artifactusecase.NewService(store, ociartifact.New(ociartifact.WithSecretProvider(builtinsecret.New())), memory.New())
 }
 
+func NewArtifactRegistryService() *artifactusecase.RegistryService {
+	return artifactusecase.NewRegistryService(artifactusecase.NewRegistryMemoryStore())
+}
+
+func NewArtifactRegistryServiceWithConfig(ctx context.Context, cfg config.Config) (*artifactusecase.RegistryService, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewArtifactRegistryService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return artifactusecase.NewRegistryService(postgresrepo.NewArtifactRegistryStore(pool)), pool.Close, nil
+}
+
 func NewReleaseOrchestrationService() *releaseorchestration.Service {
 	return NewReleaseOrchestrationServiceWith(NewArtifactService(), NewDeploymentService())
 }
@@ -180,6 +196,21 @@ func NewSecurityServiceWithConfig(ctx context.Context, cfg config.Config) (*secu
 	}
 	bus := memory.New()
 	return securityusecase.NewService(postgresrepo.NewSecurityStore(pool), securitynoop.New(), securitynoop.SignatureVerifier{}, bus), pool.Close, nil
+}
+
+func NewPolicyCatalogService() *policyusecase.Service {
+	return policyusecase.NewService(policyusecase.NewMemoryStore())
+}
+
+func NewPolicyCatalogServiceWithConfig(ctx context.Context, cfg config.Config) (*policyusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewPolicyCatalogService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return policyusecase.NewService(postgresrepo.NewPolicyStore(pool)), pool.Close, nil
 }
 
 func NewCredentialService() *credentialusecase.Service {

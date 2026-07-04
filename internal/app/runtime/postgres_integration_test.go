@@ -12,8 +12,10 @@ import (
 
 	"github.com/jackc/pgx/v5/pgxpool"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 )
 
 func TestPostgresIntegrationRuntimeBootstrapUsesPostgresStores(t *testing.T) {
@@ -114,6 +116,54 @@ func TestPostgresIntegrationRuntimeBootstrapUsesPostgresStores(t *testing.T) {
 	}
 	if reloadedDefinition.Pipeline.ProjectID != project.ID || reloadedDefinition.Definition.Metadata.Name != "catalog-bootstrap" {
 		t.Fatalf("runtime bootstrap did not persist pipeline definition: %#v", reloadedDefinition)
+	}
+
+	registryService, closeRegistry, err := NewArtifactRegistryServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("bootstrap artifact registry service with postgres config: %v", err)
+	}
+	registry, err := registryService.Create(ctx, artifactusecase.RegistryCreateInput{ProjectID: project.ID, Name: "runtime-registry", Endpoint: "registry.example.invalid/team", CredentialRef: "cred-ref"})
+	if err != nil {
+		closeRegistry()
+		t.Fatalf("create artifact registry in postgres runtime: %v", err)
+	}
+	closeRegistry()
+
+	registryService, closeRegistry, err = NewArtifactRegistryServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("restart artifact registry service with postgres config: %v", err)
+	}
+	reloadedRegistry, err := registryService.Get(ctx, registry.ID)
+	closeRegistry()
+	if err != nil {
+		t.Fatalf("reload artifact registry from restarted postgres runtime: %v", err)
+	}
+	if reloadedRegistry.CredentialRef != "cred-ref" {
+		t.Fatalf("runtime bootstrap did not persist artifact registry: %#v", reloadedRegistry)
+	}
+
+	policyCatalog, closePolicyCatalog, err := NewPolicyCatalogServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("bootstrap policy catalog with postgres config: %v", err)
+	}
+	policy, err := policyCatalog.Create(ctx, policyusecase.CreateInput{ProjectID: project.ID, EnvironmentID: "prod", Name: "runtime-policy", RequireDigest: true})
+	if err != nil {
+		closePolicyCatalog()
+		t.Fatalf("create policy in postgres runtime: %v", err)
+	}
+	closePolicyCatalog()
+
+	policyCatalog, closePolicyCatalog, err = NewPolicyCatalogServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("restart policy catalog with postgres config: %v", err)
+	}
+	reloadedPolicy, err := policyCatalog.Get(ctx, policy.ID)
+	closePolicyCatalog()
+	if err != nil {
+		t.Fatalf("reload policy from restarted postgres runtime: %v", err)
+	}
+	if !reloadedPolicy.RequireDigest || reloadedPolicy.ProjectID != project.ID {
+		t.Fatalf("runtime bootstrap did not persist policy: %#v", reloadedPolicy)
 	}
 
 	prod := config.Default()

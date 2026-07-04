@@ -32,8 +32,10 @@ import (
 type Option func(*routeOptions)
 
 type routeOptions struct {
-	catalogService  *catalogusecase.Service
-	pipelineCatalog *pipelineusecase.DefinitionCatalog
+	catalogService          *catalogusecase.Service
+	pipelineCatalog         *pipelineusecase.DefinitionCatalog
+	policyCatalog           *policyusecase.Service
+	artifactRegistryCatalog *artifactusecase.RegistryService
 }
 
 func WithCatalogService(service *catalogusecase.Service) Option {
@@ -52,20 +54,38 @@ func WithPipelineDefinitionCatalog(catalog *pipelineusecase.DefinitionCatalog) O
 	}
 }
 
+func WithPolicyCatalog(service *policyusecase.Service) Option {
+	return func(options *routeOptions) {
+		if service != nil {
+			options.policyCatalog = service
+		}
+	}
+}
+
+func WithArtifactRegistryCatalog(service *artifactusecase.RegistryService) Option {
+	return func(options *routeOptions) {
+		if service != nil {
+			options.artifactRegistryCatalog = service
+		}
+	}
+}
+
 func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, tenancyService *tenancyusecase.Service, complianceService *complianceusecase.Service, pluginRegistry *pluginusecase.Registry, opts ...Option) http.Handler {
 	r := chi.NewRouter()
 	runtimeCenter := runtimecenter.NewService(pipelineService, deploymentService, releaseService)
 	routeConfig := routeOptions{
-		catalogService:  catalogusecase.NewService(catalogusecase.NewMemoryStore()),
-		pipelineCatalog: pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore()),
+		catalogService:          catalogusecase.NewService(catalogusecase.NewMemoryStore()),
+		pipelineCatalog:         pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore()),
+		policyCatalog:           policyusecase.NewService(policyusecase.NewMemoryStore()),
+		artifactRegistryCatalog: artifactusecase.NewRegistryService(artifactusecase.NewRegistryMemoryStore()),
 	}
 	for _, opt := range opts {
 		opt(&routeConfig)
 	}
 	catalogService := routeConfig.catalogService
 	pipelineCatalog := routeConfig.pipelineCatalog
-	policyCatalog := policyusecase.NewService(policyusecase.NewMemoryStore())
-	artifactRegistryCatalog := artifactusecase.NewRegistryService(artifactusecase.NewRegistryMemoryStore())
+	policyCatalog := routeConfig.policyCatalog
+	artifactRegistryCatalog := routeConfig.artifactRegistryCatalog
 	integrationService := integrationusecase.NewService(pluginRegistry)
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())

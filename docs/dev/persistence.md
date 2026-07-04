@@ -10,9 +10,10 @@ Persistence priority:
 2. DeploymentRun / DeploymentPlan / resources / logs / events / audit
 3. Release / ReleaseArtifact / ReleasePlan / ReleaseExecution
 4. Org / project / application / environment / repository / release target catalog metadata and Pipeline definitions
-5. Credential metadata / PolicyResult / approval and notification state
+5. Artifact registry catalog and policy catalog metadata
+6. Credential metadata / PolicyResult / approval and notification state
 
-The first four priorities now have PostgreSQL repository foundations under `internal/adapters/repository/postgres`. Runtime stores keep aggregate snapshots as JSONB for compatibility with the current usecase models and maintain normalized query tables for status, logs, events, audit, resources, artifacts, target state, and recovery scans. Catalog stores persist operational metadata directly in catalog tables so server restarts do not discard org, project, environment, release target, repository, or Pipeline definition records when `database.runtime_store: postgres` is configured.
+The first five priorities now have PostgreSQL repository foundations under `internal/adapters/repository/postgres`. Runtime stores keep aggregate snapshots as JSONB for compatibility with the current usecase models and maintain normalized query tables for status, logs, events, audit, resources, artifacts, target state, and recovery scans. Catalog stores persist operational metadata directly in catalog tables so server restarts do not discard org, project, environment, release target, repository, Pipeline definition, artifact registry, or policy catalog records when `database.runtime_store: postgres` is configured.
 
 ## Design Rules
 
@@ -33,9 +34,11 @@ Current tests validate:
 - migration presence and reversibility for the Phase 5.1 tables
 - migration presence and reversibility for DeploymentRun and ReleaseExecution runtime tables
 - migration presence and reversibility for catalog metadata and Pipeline definition tables
+- migration presence and reversibility for artifact registry and policy catalog tables
 - claim-state behavior used by the PostgreSQL store
 - status update behavior used by the PostgreSQL store
 - optional PostgreSQL restart-style recovery for catalog metadata and Pipeline definitions
+- optional PostgreSQL restart-style recovery for artifact registry and policy catalog records
 - production config rejects `database.runtime_store: memory`
 
 Future integration tests may use Docker or testcontainers only if the project explicitly accepts that dependency and keeps those tests optional for default CI.
@@ -61,8 +64,10 @@ When `database.runtime_store: postgres` is selected, the server wires:
 
 - `catalogusecase.Service` to `postgres.CatalogStore`
 - `pipelineusecase.DefinitionCatalog` to `postgres.PipelineDefinitionStore`
+- `artifactusecase.RegistryService` to `postgres.ArtifactRegistryStore`
+- `policyusecase.Service` to `postgres.PolicyStore`
 
-The migration `000010_catalog_persistence` adds tables for orgs, projects, applications, environments, repositories, release targets, and Pipeline definitions. This closes a restart-loss gap for control-plane metadata. It does not make external Git provider integrations, artifact registry catalog persistence, policy catalog persistence, or tenant lifecycle automation complete.
+The migration `000010_catalog_persistence` adds tables for orgs, projects, applications, environments, repositories, release targets, and Pipeline definitions. The migration `000011_policy_artifact_registry_catalog` adds artifact registry, policy, and policy attachment catalog tables. This closes a restart-loss gap for control-plane metadata. It does not make external Git provider integrations, registry product integrations, OPA/Kyverno/Gatekeeper integration, or tenant lifecycle automation complete.
 
 ## Runtime Store Selection
 

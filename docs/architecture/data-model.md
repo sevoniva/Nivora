@@ -42,7 +42,7 @@ Phase 5.1 started with a focused PostgreSQL persistence foundation for the Pipel
 
 The runtime persistence tables use text IDs because runtime IDs are domain-generated values such as `prun-*`, `job-*`, and `runner-*`. The earlier relational skeleton remains useful for future normalized models, while the `runtime_*` tables provide a reversible foundation for current runtime state.
 
-Catalog metadata now follows the same explicit-store approach. When `database.runtime_store: postgres` is configured, server route wiring uses PostgreSQL-backed stores for orgs, projects, applications, environments, repositories, release targets, and Pipeline definitions. Local memory stores remain available for fast tests and development.
+Catalog metadata now follows the same explicit-store approach. When `database.runtime_store: postgres` is configured, server route wiring uses PostgreSQL-backed stores for orgs, projects, applications, environments, repositories, release targets, Pipeline definitions, artifact registries, policies, and policy attachments. Local memory stores remain available for fast tests and development.
 
 Persisted in Phase 5.1:
 
@@ -76,6 +76,9 @@ Persisted by the catalog hardening pass:
 - repository metadata and CredentialRef linkage in `catalog_repositories`
 - release target metadata, safety flags, and CredentialRef linkage in `catalog_release_targets`
 - Pipeline definitions and version/hash metadata in `pipeline_definitions`
+- artifact registry metadata and CredentialRef linkage in `catalog_artifact_registries`
+- policy definitions in `catalog_policies`
+- policy attachment scope links in `catalog_policy_attachments`
 
 ## Transaction Boundaries
 
@@ -106,4 +109,4 @@ These queries are intended for worker recovery loops and future operational tool
 
 ## Remaining Work
 
-DeploymentRun, ReleaseExecution, catalog metadata, and Pipeline definitions now have PostgreSQL-backed repository foundations when `database.runtime_store: postgres` is configured. Remaining persistence priorities include Credential metadata, PolicyResult, policy catalog, artifact registry catalog, approval/notification state, richer idempotency use at API boundaries, and broader integration tests against a real PostgreSQL instance.
+DeploymentRun, ReleaseExecution, catalog metadata, Pipeline definitions, artifact registry metadata, and policy catalog state now have PostgreSQL-backed repository foundations when `database.runtime_store: postgres` is configured. Remaining persistence priorities include notification state, richer idempotency use at API boundaries, and broader integration tests against a real PostgreSQL instance.

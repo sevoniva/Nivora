@@ -68,6 +68,16 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer closePipelineCatalog()
+	artifactRegistryCatalog, closeArtifactRegistryCatalog, err := appruntime.NewArtifactRegistryServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeArtifactRegistryCatalog()
+	policyCatalog, closePolicyCatalog, err := appruntime.NewPolicyCatalogServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closePolicyCatalog()
 	releaseService, closeRelease, err := appruntime.NewReleaseOrchestrationServiceWithConfig(ctx, cfg, artifactService, deploymentService)
 	if err != nil {
 		return err
@@ -96,6 +106,8 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		pluginRegistry,
 		routes.WithCatalogService(catalogService),
 		routes.WithPipelineDefinitionCatalog(pipelineCatalog),
+		routes.WithArtifactRegistryCatalog(artifactRegistryCatalog),
+		routes.WithPolicyCatalog(policyCatalog),
 	)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.BindAddress,

@@ -25,8 +25,8 @@ Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/sta
 | Runner protocol | Partial; tokens, heartbeat, claim, logs, status, and isolation profiles exist; OS-level sandboxing is still operator work |
 | Kubernetes YAML | Experimental guarded apply/rollback foundation; no default destructive behavior |
 | GitOps / Argo CD | Experimental planning/status/guarded sync foundation; no production Argo automation |
-| Artifact / OCI | Partial; OCI parsing and digest foundation; no full registry product integration |
-| DevSecOps / policy | Foundation; noop/fake scanner paths and built-in rules; no Trivy/Cosign/SBOM production integration |
+| Artifact / OCI | Partial; OCI parsing, digest foundation, and PostgreSQL-backed registry catalog; no full registry product integration |
+| DevSecOps / policy | Foundation; noop/fake scanner paths, built-in rules, and PostgreSQL-backed policy catalog; no Trivy/Cosign/SBOM production integration |
 | Secrets / credentials | Partial; metadata, redaction, provider skeletons; production provider lifecycle remains future work |
 | Auth / RBAC | Partial; local/token/OIDC foundation and route tests; complete enterprise SSO remains future work |
 | Approvals / change windows / notifications | Foundation; backend-only, no ITSM workflow |

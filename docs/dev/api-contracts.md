@@ -28,12 +28,12 @@ The AsyncAPI spec (`api/asyncapi/asyncapi.yaml`) is validated for event document
 
 ## Security Scheme Coverage
 
-All mutation routes (POST/PUT/PATCH/DELETE) are wrapped with `RequirePermission` middleware. The OpenAPI security schemes document `BearerAuth` and `RunnerTokenAuth`. Route-level permission requirements are documented in `docs/security/ROUTE_PERMISSION_MATRIX.md`.
+Critical control-plane mutation routes (POST/PUT/PATCH/DELETE) are wrapped with `RequirePermission` middleware. A small number of shape-validation and runner-owned protocol routes use authentication without an additional user RBAC permission. The OpenAPI security schemes document `BearerAuth` and `RunnerTokenAuth`; route-level permission requirements are documented in `docs/security/ROUTE_PERMISSION_MATRIX.md`.
 
-### Public Routes (no auth required)
+### Routes Without Additional RBAC Permission
 - `GET /healthz`, `GET /readyz`, `GET /metrics`
-- `POST /api/v1/artifact-registries/validate`
-- Runner protocol: heartbeat, claim, log append, status update (use `X-Nivora-Runner-Token`)
+- `POST /api/v1/artifact-registries/validate` still passes through `/api/v1` authentication, but does not require an additional RBAC permission.
+- Runner protocol: heartbeat, claim, log append, status update (use `X-Nivora-Runner-Token`; user bearer tokens are not a substitute for the runner token on runner-owned mutation routes)
 
 ## Aggregate Runtime Queries
 

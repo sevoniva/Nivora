@@ -50,6 +50,17 @@ type RegistryUpdateInput struct {
 	Enabled       *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 }
 
+type RegistryValidationResult struct {
+	Valid      bool     `json:"valid"`
+	RegistryID string   `json:"registryId,omitempty"`
+	Name       string   `json:"name,omitempty"`
+	Type       string   `json:"type,omitempty"`
+	Endpoint   string   `json:"endpoint,omitempty"`
+	Insecure   bool     `json:"insecure,omitempty"`
+	Enabled    bool     `json:"enabled"`
+	Warnings   []string `json:"warnings,omitempty"`
+}
+
 type RegistryStore interface {
 	CreateRegistry(ctx context.Context, registry domainartifact.ArtifactRegistry) (domainartifact.ArtifactRegistry, error)
 	GetRegistry(ctx context.Context, id string) (domainartifact.ArtifactRegistry, error)
@@ -228,6 +239,34 @@ func (s *RegistryService) Update(ctx context.Context, id string, input RegistryU
 func (s *RegistryService) Disable(ctx context.Context, id string) (domainartifact.ArtifactRegistry, error) {
 	enabled := false
 	return s.Update(ctx, id, RegistryUpdateInput{Enabled: &enabled})
+}
+
+func (s *RegistryService) Validate(ctx context.Context, id string) (RegistryValidationResult, error) {
+	registry, err := s.store.GetRegistry(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return RegistryValidationResult{}, err
+	}
+	result := RegistryValidationResult{
+		Valid:      true,
+		RegistryID: registry.ID,
+		Name:       registry.Name,
+		Type:       registry.Type,
+		Endpoint:   registry.Endpoint,
+		Insecure:   registry.Insecure,
+		Enabled:    registry.Enabled,
+	}
+	if !registry.Enabled {
+		result.Valid = false
+		result.Warnings = append(result.Warnings, "artifact registry is disabled and cannot be used")
+	}
+	if registry.Insecure {
+		result.Warnings = append(result.Warnings, "insecure OCI registry configuration is for local development only")
+	}
+	if err := validateRegistryEndpoint(registry.Type, registry.Endpoint, registry.Insecure); err != nil {
+		result.Valid = false
+		result.Warnings = append(result.Warnings, err.Error())
+	}
+	return result, nil
 }
 
 func validateRegistryEndpoint(registryType string, endpoint string, insecure bool) error {

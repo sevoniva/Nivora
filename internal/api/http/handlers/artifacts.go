@@ -165,6 +165,13 @@ func DisableArtifactRegistry(service *artifactusecase.RegistryService) http.Hand
 	}
 }
 
+func ValidateSavedArtifactRegistry(service *artifactusecase.RegistryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := service.Validate(r.Context(), chi.URLParam(r, "id"))
+		respondArtifactResult(w, r, result, err)
+	}
+}
+
 func ValidateArtifactRegistry() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req artifactRegistryValidateRequest

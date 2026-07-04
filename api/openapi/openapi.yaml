@@ -1264,6 +1264,21 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ArtifactRegistry"
+  /api/v1/artifact-registries/{id}/validate:
+    post:
+      summary: Validate saved artifact registry metadata
+      description: Requires project.read permission. Validates stored registry metadata only; it does not resolve CredentialRef values or contact the external registry.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Saved registry metadata validation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRegistryValidationResult"
+        "404":
+          description: Saved registry metadata was not found
   /api/v1/artifact-registries/validate:
     post:
       summary: Validate generic OCI artifact registry configuration
@@ -5939,6 +5954,28 @@ components:
     ArtifactRegistryUpdateRequest:
       allOf:
         - $ref: "#/components/schemas/ArtifactRegistry"
+    ArtifactRegistryValidationResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        registryId:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [oci]
+        endpoint:
+          type: string
+        insecure:
+          type: boolean
+        enabled:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
     OCIRegistryConfig:
       type: object
       required: [name, type, endpoint]

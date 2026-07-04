@@ -3552,9 +3552,18 @@ func newArtifactRegistryValidateCommand() *cobra.Command {
 	var serverURL string
 	var tokenEnv string
 	cmd := &cobra.Command{
-		Use:   "validate --name <name> --endpoint <endpoint>",
-		Short: "Validate artifact registry configuration shape",
+		Use:   "validate [registry-id] --name <name> --endpoint <endpoint>",
+		Short: "Validate artifact registry metadata or configuration shape",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if len(args) == 1 {
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/artifact-registries/"+url.PathEscape(args[0])+"/validate", nil, os.Getenv(tokenEnv))
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), payload)
+				return nil
+			}
 			body, err := json.Marshal(map[string]any{
 				"name":     input.Name,
 				"type":     input.Type,

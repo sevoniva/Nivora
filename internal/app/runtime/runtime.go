@@ -94,26 +94,58 @@ func NewDeploymentService() *deploymentusecase.Service {
 }
 
 func NewDeploymentServiceWithConfig(ctx context.Context, cfg config.Config) (*deploymentusecase.Service, func(), error) {
+	securityService, closeSecurity, err := NewSecurityServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	approvalService, closeApproval, err := NewApprovalServiceWithConfig(ctx, cfg)
+	if err != nil {
+		closeSecurity()
+		return nil, nil, err
+	}
+	service, closeStore, err := NewDeploymentServiceWithConfigDependencies(ctx, cfg, securityService, approvalService)
+	if err != nil {
+		closeApproval()
+		closeSecurity()
+		return nil, nil, err
+	}
+	return service, func() {
+		closeStore()
+		closeApproval()
+		closeSecurity()
+	}, nil
+}
+
+func NewDeploymentServiceWithConfigDependencies(ctx context.Context, cfg config.Config, securityService *securityusecase.Service, approvalService *approvalusecase.Service) (*deploymentusecase.Service, func(), error) {
 	if cfg.Database.RuntimeStore != "postgres" {
-		return NewDeploymentService(), func() {}, nil
+		return NewDeploymentServiceWithStoreAndGovernance(deploymentusecase.NewMemoryStore(), securityService, approvalService), func() {}, nil
 	}
 	pool, err := db.Open(ctx, cfg.Database.URL)
 	if err != nil {
 		return nil, nil, err
 	}
-	return NewDeploymentServiceWithStore(postgresrepo.NewDeploymentStore(pool)), pool.Close, nil
+	return NewDeploymentServiceWithStoreAndGovernance(postgresrepo.NewDeploymentStore(pool), securityService, approvalService), pool.Close, nil
 }
 
 func NewDeploymentServiceWithStore(store deploymentusecase.Store) *deploymentusecase.Service {
+	return NewDeploymentServiceWithStoreAndGovernance(store, nil, nil)
+}
+
+func NewDeploymentServiceWithStoreAndGovernance(store deploymentusecase.Store, securityService *securityusecase.Service, approvalService *approvalusecase.Service) *deploymentusecase.Service {
 	bus := memory.New()
-	approvalService := NewApprovalService()
+	if securityService == nil {
+		securityService = NewSecurityService()
+	}
+	if approvalService == nil {
+		approvalService = NewApprovalService()
+	}
 	return deploymentusecase.NewService(
 		store,
 		deploymentusecase.NewStaticManifestRenderer(),
 		yamlapply.NoopManifestClient{},
 		allowAllPolicyEngine{},
 		bus,
-	).WithHostExecutor(hostexecutor.NewNoop()).WithGitOps(localgitops.New(), argocdadapter.NoopProvider{AllowSync: true}).WithSecurity(NewSecurityService()).WithGovernance(approvalService)
+	).WithHostExecutor(hostexecutor.NewNoop()).WithGitOps(localgitops.New(), argocdadapter.NoopProvider{AllowSync: true}).WithSecurity(securityService).WithGovernance(approvalService)
 }
 
 func NewArtifactService() *artifactusecase.Service {
@@ -159,26 +191,58 @@ func NewReleaseOrchestrationServiceWith(artifactService *artifactusecase.Service
 }
 
 func NewReleaseOrchestrationServiceWithConfig(ctx context.Context, cfg config.Config, artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) (*releaseorchestration.Service, func(), error) {
+	securityService, closeSecurity, err := NewSecurityServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return nil, nil, err
+	}
+	approvalService, closeApproval, err := NewApprovalServiceWithConfig(ctx, cfg)
+	if err != nil {
+		closeSecurity()
+		return nil, nil, err
+	}
+	service, closeStore, err := NewReleaseOrchestrationServiceWithConfigDependencies(ctx, cfg, artifactService, deploymentService, securityService, approvalService)
+	if err != nil {
+		closeApproval()
+		closeSecurity()
+		return nil, nil, err
+	}
+	return service, func() {
+		closeStore()
+		closeApproval()
+		closeSecurity()
+	}, nil
+}
+
+func NewReleaseOrchestrationServiceWithConfigDependencies(ctx context.Context, cfg config.Config, artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service, securityService *securityusecase.Service, approvalService *approvalusecase.Service) (*releaseorchestration.Service, func(), error) {
 	if cfg.Database.RuntimeStore != "postgres" {
-		return NewReleaseOrchestrationServiceWith(artifactService, deploymentService), func() {}, nil
+		return NewReleaseOrchestrationServiceWithStoreAndGovernance(releaseorchestration.NewMemoryStore(), artifactService, deploymentService, securityService, approvalService), func() {}, nil
 	}
 	pool, err := db.Open(ctx, cfg.Database.URL)
 	if err != nil {
 		return nil, nil, err
 	}
-	return NewReleaseOrchestrationServiceWithStore(postgresrepo.NewReleaseOrchestrationStore(pool), artifactService, deploymentService), pool.Close, nil
+	return NewReleaseOrchestrationServiceWithStoreAndGovernance(postgresrepo.NewReleaseOrchestrationStore(pool), artifactService, deploymentService, securityService, approvalService), pool.Close, nil
 }
 
 func NewReleaseOrchestrationServiceWithStore(store releaseorchestration.Store, artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) *releaseorchestration.Service {
+	return NewReleaseOrchestrationServiceWithStoreAndGovernance(store, artifactService, deploymentService, nil, nil)
+}
+
+func NewReleaseOrchestrationServiceWithStoreAndGovernance(store releaseorchestration.Store, artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service, securityService *securityusecase.Service, approvalService *approvalusecase.Service) *releaseorchestration.Service {
 	bus := memory.New()
-	approvalService := NewApprovalService()
+	if securityService == nil {
+		securityService = NewSecurityService()
+	}
+	if approvalService == nil {
+		approvalService = NewApprovalService()
+	}
 	return releaseorchestration.NewService(
 		store,
 		artifactService,
 		deploymentService,
 		allowAllPolicyEngine{},
 		bus,
-	).WithSecurity(NewSecurityService()).WithGovernance(approvalService)
+	).WithSecurity(securityService).WithGovernance(approvalService)
 }
 
 func NewSecurityService() *securityusecase.Service {

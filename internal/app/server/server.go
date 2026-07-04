@@ -41,22 +41,46 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer closePipeline()
-	deploymentService, closeDeployment, err := appruntime.NewDeploymentServiceWithConfig(ctx, cfg)
-	if err != nil {
-		return err
-	}
-	defer closeDeployment()
 	artifactService, closeArtifact, err := appruntime.NewArtifactServiceWithConfig(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer closeArtifact()
-	securityService := NewSecurityService()
-	credentialService := NewCredentialService()
-	authService := NewAuthService()
-	approvalService := NewApprovalService()
-	cloudService := NewCloudService()
-	tenancyService := NewTenancyService()
+	securityService, closeSecurity, err := appruntime.NewSecurityServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeSecurity()
+	credentialService, closeCredential, err := appruntime.NewCredentialServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeCredential()
+	authService, closeAuth, err := appruntime.NewAuthServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeAuth()
+	approvalService, closeApproval, err := appruntime.NewApprovalServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeApproval()
+	cloudService, closeCloud, err := appruntime.NewCloudServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeCloud()
+	tenancyService, closeTenancy, err := appruntime.NewTenancyServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeTenancy()
+	deploymentService, closeDeployment, err := appruntime.NewDeploymentServiceWithConfigDependencies(ctx, cfg, securityService, approvalService)
+	if err != nil {
+		return err
+	}
+	defer closeDeployment()
 	pluginRegistry := NewPluginRegistry()
 	catalogService, closeCatalog, err := appruntime.NewCatalogServiceWithConfig(ctx, cfg)
 	if err != nil {
@@ -78,7 +102,7 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer closePolicyCatalog()
-	releaseService, closeRelease, err := appruntime.NewReleaseOrchestrationServiceWithConfig(ctx, cfg, artifactService, deploymentService)
+	releaseService, closeRelease, err := appruntime.NewReleaseOrchestrationServiceWithConfigDependencies(ctx, cfg, artifactService, deploymentService, securityService, approvalService)
 	if err != nil {
 		return err
 	}

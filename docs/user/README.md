@@ -55,6 +55,15 @@ nivora release plan --file examples/releases/multi-target-release.yaml --local
 nivora release deploy --file examples/releases/sequential-release.yaml --local
 ```
 
+For a Release already saved on a Nivora server, safe noop/webhook planning can be started from the Release ID:
+
+```sh
+nivora release plan <release-id> --environment dev --target audit-only --local=false
+nivora release deploy <release-id> --environment dev --target audit-only --local=false
+```
+
+Release ID mode is server-backed. Targets that need a full Deployment spec, such as Kubernetes, Argo CD, or host targets, still use `--file` and remain guarded.
+
 Useful docs:
 
 - [Release concept](../concepts/release.md)

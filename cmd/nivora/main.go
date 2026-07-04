@@ -2801,18 +2801,19 @@ func newReleasePlanCommand() *cobra.Command {
 	var file string
 	var local bool
 	var serverURL string
+	var environment string
+	var strategy string
+	var targets []string
 	cmd := &cobra.Command{
-		Use:   "plan --file <release-orchestration.yaml>",
+		Use:   "plan [release-id] --file <release-orchestration.yaml> | --environment <env> --target <name[:type]>",
 		Short: "Create a multi-target ReleasePlan",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if file == "" {
-				return fmt.Errorf("--file is required")
-			}
-			def, err := releaseorchestration.LoadDefinitionFile(file)
+			def, useLocal, err := releaseDefinitionForCLI(cmd, args, file, local, environment, strategy, targets, releaseorchestration.StrategyPlanOnly)
 			if err != nil {
 				return err
 			}
-			if !local {
+			if !useLocal {
 				body, err := json.Marshal(def)
 				if err != nil {
 					return err
@@ -2839,6 +2840,9 @@ func newReleasePlanCommand() *cobra.Command {
 	cmd.Flags().StringVar(&file, "file", "", "release orchestration definition file")
 	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 2.7 local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&environment, "environment", "", "environment name for Release ID mode")
+	cmd.Flags().StringVar(&strategy, "strategy", "", "execution strategy for Release ID mode: plan-only, sequential, or parallel")
+	cmd.Flags().StringArrayVar(&targets, "target", nil, "target for Release ID mode, repeated as name[:type]; only noop/webhook targets are accepted without --file")
 	return cmd
 }
 
@@ -2846,18 +2850,19 @@ func newReleaseDeployCommand() *cobra.Command {
 	var file string
 	var local bool
 	var serverURL string
+	var environment string
+	var strategy string
+	var targets []string
 	cmd := &cobra.Command{
-		Use:   "deploy --file <release-orchestration.yaml> --local",
+		Use:   "deploy [release-id] --file <release-orchestration.yaml> | --environment <env> --target <name[:type]>",
 		Short: "Execute a multi-target release locally or against a Nivora server",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if file == "" {
-				return fmt.Errorf("--file is required")
-			}
-			def, err := releaseorchestration.LoadDefinitionFile(file)
+			def, useLocal, err := releaseDefinitionForCLI(cmd, args, file, local, environment, strategy, targets, releaseorchestration.StrategySequential)
 			if err != nil {
 				return err
 			}
-			if !local {
+			if !useLocal {
 				body, err := json.Marshal(def)
 				if err != nil {
 					return err
@@ -2892,7 +2897,103 @@ func newReleaseDeployCommand() *cobra.Command {
 	cmd.Flags().StringVar(&file, "file", "", "release orchestration definition file")
 	cmd.Flags().BoolVar(&local, "local", true, "deploy with the in-process Phase 2.7 local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&environment, "environment", "", "environment name for Release ID mode")
+	cmd.Flags().StringVar(&strategy, "strategy", "", "execution strategy for Release ID mode: plan-only, sequential, or parallel")
+	cmd.Flags().StringArrayVar(&targets, "target", nil, "target for Release ID mode, repeated as name[:type]; only noop/webhook targets are accepted without --file")
 	return cmd
+}
+
+func releaseDefinitionForCLI(cmd *cobra.Command, args []string, file string, local bool, environment string, strategy string, targets []string, defaultStrategy releaseorchestration.ExecutionStrategy) (releaseorchestration.Definition, bool, error) {
+	if file != "" {
+		def, err := releaseorchestration.LoadDefinitionFile(file)
+		if err != nil {
+			return releaseorchestration.Definition{}, false, err
+		}
+		if len(args) == 1 && def.Spec.ReleaseID == "" {
+			def.Spec.ReleaseID = strings.TrimSpace(args[0])
+		}
+		if def.Spec.ReleaseID != "" {
+			if err := def.Validate(); err != nil {
+				return releaseorchestration.Definition{}, false, err
+			}
+		}
+		return def, local, nil
+	}
+	if len(args) == 0 {
+		return releaseorchestration.Definition{}, false, fmt.Errorf("--file or release id is required")
+	}
+	if local && cmd.Flags().Changed("local") {
+		return releaseorchestration.Definition{}, false, fmt.Errorf("release ID mode requires server-backed release state; use --local=false or provide --file for local execution")
+	}
+	def, err := buildReleaseDefinitionFromCLIFlags(args[0], environment, strategy, targets, defaultStrategy)
+	if err != nil {
+		return releaseorchestration.Definition{}, false, err
+	}
+	return def, false, nil
+}
+
+func buildReleaseDefinitionFromCLIFlags(releaseID string, environment string, strategy string, targets []string, defaultStrategy releaseorchestration.ExecutionStrategy) (releaseorchestration.Definition, error) {
+	releaseID = strings.TrimSpace(releaseID)
+	environment = strings.TrimSpace(environment)
+	if releaseID == "" {
+		return releaseorchestration.Definition{}, fmt.Errorf("release id is required")
+	}
+	if environment == "" {
+		return releaseorchestration.Definition{}, fmt.Errorf("--environment is required in Release ID mode")
+	}
+	targetSpecs, err := releaseTargetsFromCLI(targets)
+	if err != nil {
+		return releaseorchestration.Definition{}, err
+	}
+	strategyValue := releaseorchestration.ExecutionStrategy(strings.TrimSpace(strategy))
+	if strategyValue == "" {
+		strategyValue = defaultStrategy
+	}
+	def := releaseorchestration.Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "ReleaseOrchestration",
+		Metadata:   releaseorchestration.Metadata{Name: releaseID + "-orchestration"},
+		Spec: releaseorchestration.Spec{
+			ReleaseID:   releaseID,
+			Environment: environment,
+			Strategy:    strategyValue,
+			Targets:     targetSpecs,
+		},
+	}
+	if err := def.Validate(); err != nil {
+		return releaseorchestration.Definition{}, err
+	}
+	return def, nil
+}
+
+func releaseTargetsFromCLI(raw []string) ([]releaseorchestration.TargetSpec, error) {
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("--target is required in Release ID mode")
+	}
+	targets := make([]releaseorchestration.TargetSpec, 0, len(raw))
+	for i, item := range raw {
+		item = strings.TrimSpace(item)
+		if item == "" {
+			return nil, fmt.Errorf("--target value cannot be empty")
+		}
+		name := item
+		targetType := "noop"
+		if before, after, ok := strings.Cut(item, ":"); ok {
+			name = strings.TrimSpace(before)
+			targetType = strings.TrimSpace(after)
+		} else if before, after, ok := strings.Cut(item, "="); ok {
+			name = strings.TrimSpace(before)
+			targetType = strings.TrimSpace(after)
+		}
+		if name == "" || targetType == "" {
+			return nil, fmt.Errorf("--target must be name[:type]")
+		}
+		if targetType != "noop" && targetType != "webhook" {
+			return nil, fmt.Errorf("Release ID mode supports only noop or webhook targets; use --file for %s target deployment specs", targetType)
+		}
+		targets = append(targets, releaseorchestration.TargetSpec{Name: name, Type: targetType, Order: i + 1})
+	}
+	return targets, nil
 }
 
 func newReleaseExecutionCommand() *cobra.Command {

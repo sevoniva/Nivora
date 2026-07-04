@@ -1896,6 +1896,7 @@ paths:
   /api/v1/releases/{id}/plan:
     post:
       summary: Create a multi-target ReleasePlan
+      description: Creates a ReleasePlan from a ReleaseOrchestration definition. The path id is used as spec.releaseId when the request body omits it. The request body must still provide environment and target selection; unsafe target execution remains guarded by the target Deployment spec and runtime safety flags.
       parameters:
         - $ref: "#/components/parameters/ID"
       requestBody:
@@ -1925,6 +1926,7 @@ paths:
   /api/v1/releases/{id}/deploy:
     post:
       summary: Create a ReleaseExecution across selected targets
+      description: Creates a ReleaseExecution from a ReleaseOrchestration definition. The path id is used as spec.releaseId when the request body omits it. This endpoint does not enable Kubernetes apply, Argo CD sync, remote host deployment, Git push, or rollback by default.
       parameters:
         - $ref: "#/components/parameters/ID"
       requestBody:

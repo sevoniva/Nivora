@@ -16,6 +16,16 @@ go run ./cmd/nivora release plan --file examples/releases/multi-target-release.y
 
 This creates a ReleasePlan from an inline Release and target definitions. It does not require Kubernetes, Argo CD, Git providers, registries, or cloud services.
 
+## Server-backed Release ID Planning
+
+After a Release has been created on a Nivora server, contributors can plan a safe noop/webhook orchestration without writing a separate orchestration file:
+
+```sh
+go run ./cmd/nivora release plan <release-id> --environment dev --target audit-only --local=false
+```
+
+Release ID mode is server-backed because the CLI local process does not retain previously saved Release records. Without `--file`, only `noop` and `webhook` targets are accepted; Kubernetes, Argo CD, and host targets still require an orchestration file with a full Deployment spec and the existing guarded execution flags.
+
 ## Local Execution
 
 ```sh
@@ -43,6 +53,14 @@ go run ./cmd/nivora target validate target-id
 ```
 
 These commands manage metadata only. They do not run apply, sync, remote host deployment, rollback, or Git push.
+
+For a saved server-side Release and safe noop/webhook targets:
+
+```sh
+go run ./cmd/nivora release deploy <release-id> --environment dev --target audit-only --local=false
+```
+
+This creates a ReleaseExecution through the server API. It does not enable Kubernetes apply, Argo CD sync, remote host deployment, Git push, rollback execution, or any external provider integration.
 
 ## Cancellation
 

@@ -19,6 +19,8 @@ Phase 2.5 supports explicit Release creation and ReleaseArtifact binding with op
 
 Phase 2.7 adds a ReleasePlan and ReleaseExecution foundation. A Release can now be planned across multiple ReleaseTargets and executed sequentially through target-level DeploymentRuns or safe placeholder targets. The orchestration layer owns aggregate status only; each DeploymentRun still owns target execution details.
 
+For a saved server-side Release, `nivora release plan <release-id> --environment <env> --target <name>` and `nivora release deploy <release-id> --environment <env> --target <name>` create a minimal ReleaseOrchestration request for safe noop/webhook targets. Targets that need a Deployment spec, such as Kubernetes, Argo CD, or host targets, still use an orchestration file and guarded execution flags.
+
 Release evidence can be generated through `POST /api/v1/releases/{id}/evidence` or `nivora release evidence <release-id>`. The evidence bundle reuses the compliance evidence store and includes available release, artifact, event, and audit references without secret values.
 
 Release records are still a partial foundation. Promotion workflows, advanced approval rules, full registry management APIs, and production release governance remain future work.

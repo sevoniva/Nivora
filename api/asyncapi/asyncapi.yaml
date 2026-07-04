@@ -313,6 +313,11 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.release.canceled:
+    address: devops.release.canceled
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.release.artifact.bound:
     address: devops.release.artifact.bound
     messages:

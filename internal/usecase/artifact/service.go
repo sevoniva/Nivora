@@ -27,6 +27,7 @@ const (
 	EventArtifactResolved                = "devops.artifact.resolved"
 	EventArtifactWarningDetected         = "devops.artifact.warning.detected"
 	EventArtifactMutableWarning          = "devops.artifact.mutable.warning"
+	EventReleaseCanceled                 = "devops.release.canceled"
 )
 
 type Service struct {
@@ -90,6 +91,9 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 		Metadata:            map[string]string{"phase": "2.5"},
 		CreatedAt:           now,
 		UpdatedAt:           now,
+	}
+	if projectID := strings.TrimSpace(input.ProjectID); projectID != "" {
+		rel.Metadata["projectId"] = projectID
 	}
 	record := ReleaseRecord{Release: rel}
 	var pendingEvents []struct {
@@ -252,6 +256,36 @@ func (s *Service) GetRelease(ctx context.Context, id string) (ReleaseRecord, err
 
 func (s *Service) ListReleases(ctx context.Context) ([]ReleaseRecord, error) {
 	return s.store.ListReleases(ctx)
+}
+
+func (s *Service) CancelRelease(ctx context.Context, id string, actorID string) (ReleaseRecord, error) {
+	record, err := s.store.GetRelease(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return ReleaseRecord{}, err
+	}
+	switch strings.TrimSpace(record.Release.Status) {
+	case "Canceled":
+		return record, nil
+	case "Succeeded", "Failed":
+		return ReleaseRecord{}, ErrReleaseAlreadyTerminal
+	}
+	now := s.now()
+	record.Release.Status = "Canceled"
+	record.Release.UpdatedAt = now
+	if record.Release.Metadata == nil {
+		record.Release.Metadata = map[string]string{}
+	}
+	record.Release.Metadata["canceledAt"] = now.UTC().Format(time.RFC3339)
+	if actorID = strings.TrimSpace(actorID); actorID != "" {
+		record.Release.Metadata["canceledBy"] = actorID
+	}
+	if err := s.store.SaveRelease(ctx, record); err != nil {
+		return ReleaseRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Release.ID, EventReleaseCanceled, "Release canceled", actorID, "Release canceled"); err != nil {
+		return ReleaseRecord{}, err
+	}
+	return s.store.GetRelease(ctx, record.Release.ID)
 }
 
 func (s *Service) ListArtifacts(ctx context.Context, input ListArtifactsInput) ([]domainartifact.Artifact, error) {

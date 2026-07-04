@@ -69,6 +69,16 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 		}
 	}
 
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/releases/"+releaseID+"/cancel", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("release cancel status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"status":"Canceled"`)) || !bytes.Contains(rec.Body.Bytes(), []byte("devops.release.canceled")) {
+		t.Fatalf("release cancel body = %s", rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/missing", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

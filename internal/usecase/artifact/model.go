@@ -45,6 +45,7 @@ type ReleaseArtifactSpec struct {
 type CreateReleaseInput struct {
 	Definition ReleaseDefinition
 	ActorID    string
+	ProjectID  string
 }
 
 type ListArtifactsInput struct {

@@ -7,7 +7,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
+	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
+	"github.com/sevoniva/nivora/internal/domain/tenant"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 )
 
@@ -164,7 +166,11 @@ func CreateRelease(service *artifactusecase.Service) http.HandlerFunc {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a release definition"})
 			return
 		}
-		record, err := service.CreateRelease(r.Context(), artifactusecase.CreateReleaseInput{Definition: def})
+		projectID := ""
+		if scopeType, scopeID := TenantScopeFilter(r); scopeType == tenant.ScopeProject {
+			projectID = scopeID
+		}
+		record, err := service.CreateRelease(r.Context(), artifactusecase.CreateReleaseInput{Definition: def, ProjectID: projectID, ActorID: apimiddleware.Subject(r.Context()).ID})
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "release_create_failed", Message: err.Error()})
 			return
@@ -176,21 +182,88 @@ func CreateRelease(service *artifactusecase.Service) http.HandlerFunc {
 func ListReleases(service *artifactusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		records, err := service.ListReleases(r.Context())
-		respondArtifactResult(w, r, records, err)
+		if err != nil {
+			respondArtifactResult(w, r, nil, err)
+			return
+		}
+		respondArtifactResult(w, r, filterReleaseRecordsForRequest(r, records), nil)
 	}
 }
 
 func GetRelease(service *artifactusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.GetRelease(r.Context(), chi.URLParam(r, "id"))
-		respondArtifactResult(w, r, record, err)
+		record, ok := getAuthorizedReleaseRecord(w, r, service)
+		if !ok {
+			return
+		}
+		respondArtifactResult(w, r, record, nil)
 	}
 }
 
 func GetReleaseArtifacts(service *artifactusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedReleaseRecord(w, r, service); !ok {
+			return
+		}
 		artifacts, err := service.ReleaseArtifacts(r.Context(), chi.URLParam(r, "id"))
 		respondArtifactResult(w, r, artifacts, err)
+	}
+}
+
+func CancelRelease(service *artifactusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, ok := getAuthorizedReleaseRecord(w, r, service)
+		if !ok {
+			return
+		}
+		record, err := service.CancelRelease(r.Context(), record.Release.ID, apimiddleware.Subject(r.Context()).ID)
+		respondArtifactResult(w, r, record, err)
+	}
+}
+
+func filterReleaseRecordsForRequest(r *http.Request, records []artifactusecase.ReleaseRecord) []artifactusecase.ReleaseRecord {
+	scopeType, _ := TenantScopeFilter(r)
+	if scopeType == "" {
+		return records
+	}
+	filtered := make([]artifactusecase.ReleaseRecord, 0, len(records))
+	for _, record := range records {
+		if releaseRecordInRequestScope(r, record) {
+			filtered = append(filtered, record)
+		}
+	}
+	return filtered
+}
+
+func getAuthorizedReleaseRecord(w http.ResponseWriter, r *http.Request, service *artifactusecase.Service) (artifactusecase.ReleaseRecord, bool) {
+	record, err := service.GetRelease(r.Context(), chi.URLParam(r, "id"))
+	if err != nil {
+		respondArtifactResult(w, r, nil, err)
+		return artifactusecase.ReleaseRecord{}, false
+	}
+	if releaseRecordInRequestScope(r, record) {
+		return record, true
+	}
+	RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{Code: "forbidden", Message: "release is outside requester scope", Path: r.URL.Path})
+	return artifactusecase.ReleaseRecord{}, false
+}
+
+func releaseRecordInRequestScope(r *http.Request, record artifactusecase.ReleaseRecord) bool {
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeType == "" {
+		return true
+	}
+	if scopeID == "" {
+		return false
+	}
+	switch scopeType {
+	case tenant.ScopeProject:
+		projectID := record.Release.Metadata["projectId"]
+		return projectID == "" || projectID == scopeID
+	case tenant.ScopeEnvironment:
+		return record.Release.EnvironmentID == "" || record.Release.EnvironmentID == scopeID
+	default:
+		return false
 	}
 }
 
@@ -204,6 +277,9 @@ func respondArtifactResult(w http.ResponseWriter, r *http.Request, payload any, 
 	if errors.Is(err, artifactusecase.ErrReleaseNotFound) {
 		status = http.StatusNotFound
 		code = "release_not_found"
+	} else if errors.Is(err, artifactusecase.ErrReleaseAlreadyTerminal) {
+		status = http.StatusConflict
+		code = "release_terminal"
 	} else if errors.Is(err, artifactusecase.ErrArtifactNotFound) {
 		status = http.StatusNotFound
 		code = "artifact_not_found"

@@ -30,6 +30,16 @@ nivora release evidence <release-id> --format markdown
 
 The matching API is `POST /api/v1/releases/{id}/evidence`. It creates a compliance evidence bundle for the release and includes available release, artifact binding, event, and audit references. It does not deploy, approve, roll back, or mutate ReleaseExecution state.
 
+## Cancel Release Intent
+
+Server-backed release records can be canceled without executing rollback or target actions:
+
+```bash
+nivora release cancel <release-id>
+```
+
+The matching API is `POST /api/v1/releases/{id}/cancel`. It marks the Release record `Canceled`, appends a release event, and records release audit evidence. Existing ReleaseExecutions are not automatically canceled by this endpoint; cancel those through the ReleaseExecution API when needed.
+
 ## Query Tracked Artifacts
 
 Server-backed artifacts created through release binding can be listed and traced back to releases:

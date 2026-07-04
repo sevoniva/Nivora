@@ -82,6 +82,7 @@ var criticalRoutes = []struct {
 	{"GET", "/api/v1/releases/rel-1/plan", domainauth.PermissionProjectRead, false},
 	{"GET", "/api/v1/releases/rel-1/executions", domainauth.PermissionProjectRead, false},
 	{"GET", "/api/v1/releases/rel-1/security", domainauth.PermissionProjectRead, false},
+	{"POST", "/api/v1/releases/rel-1/cancel", domainauth.PermissionDeploymentCancel, true},
 	{"GET", "/api/v1/releases/executions/rexec-1", domainauth.PermissionProjectRead, false},
 	{"GET", "/api/v1/releases/executions/rexec-1/timeline", domainauth.PermissionProjectRead, false},
 	{"GET", "/api/v1/releases/executions/rexec-1/targets", domainauth.PermissionProjectRead, false},

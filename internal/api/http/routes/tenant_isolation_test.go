@@ -412,6 +412,48 @@ func TestTenantIsolationListReleases(t *testing.T) {
 	t.Logf("project-A list releases: %d", rec.Code)
 }
 
+func TestTenantIsolationReleaseCancelRoutes(t *testing.T) {
+	router, auth := newIsoRouter(t)
+	tokenA := createScopedToken(t, auth, "release-cancel-a", domainauth.RoleDeveloper, "project", "project-a")
+	tokenB := createScopedToken(t, auth, "release-cancel-b", domainauth.RoleDeveloper, "project", "project-b")
+	releaseID := createProjectRelease(t, router, tokenA, "release-cancel-a")
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases/"+releaseID+"/cancel", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenB)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-B should be forbidden from canceling project-A release, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/releases/"+releaseID+"/cancel", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"Canceled"`) {
+		t.Fatalf("project-A should cancel own release, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/releases/"+releaseID, nil)
+	req.Header.Set("Authorization", "Bearer "+tokenB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-B should be forbidden from reading project-A release, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/releases", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-B should list scoped releases, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), releaseID) || strings.Contains(rec.Body.String(), "project-a") || strings.Contains(rec.Body.String(), "release-cancel-a") {
+		t.Fatalf("project-B release list leaked project-A release, body=%s", rec.Body.String())
+	}
+}
+
 func TestTenantIsolationReleaseExecutionDetailRoutes(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	tokenA := createScopedToken(t, auth, "rexec-detail-a", domainauth.RoleDeveloper, "project", "project-a")
@@ -715,6 +757,45 @@ func createProjectReleaseExecution(t *testing.T, router http.Handler, token, nam
 	id, ok := execution["id"].(string)
 	if !ok || id == "" {
 		t.Fatalf("release execution response missing execution id: %s", rec.Body.String())
+	}
+	return id
+}
+
+func createProjectRelease(t *testing.T, router http.Handler, token, name string) string {
+	t.Helper()
+	body := `{
+	  "apiVersion":"nivora.io/v1alpha1",
+	  "kind":"Release",
+	  "metadata":{"name":"` + name + `"},
+	  "spec":{
+	    "version":"1.0.0",
+	    "application":"app-a",
+	    "artifacts":[{"name":"` + name + `","type":"image","required":true,"reference":"registry.example.com/demo/app@sha256:abcdef"}]
+	  }
+	}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/releases", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for project release create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var response map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+		t.Fatalf("decode release response: %v", err)
+	}
+	releaseObj, ok := response["release"].(map[string]any)
+	if !ok {
+		t.Fatalf("release response missing release object: %s", rec.Body.String())
+	}
+	id, ok := releaseObj["id"].(string)
+	if !ok || id == "" {
+		t.Fatalf("release response missing release id: %s", rec.Body.String())
+	}
+	metadata, ok := releaseObj["metadata"].(map[string]any)
+	if !ok || metadata["projectId"] != "project-a" {
+		t.Fatalf("scoped release did not preserve project metadata: %s", rec.Body.String())
 	}
 	return id
 }

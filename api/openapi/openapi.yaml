@@ -1876,6 +1876,23 @@ paths:
                   $ref: "#/components/schemas/ReleaseArtifact"
         "404":
           description: Release not found
+  /api/v1/releases/{id}/cancel:
+    post:
+      summary: Cancel a Release record
+      description: Marks the Release record as Canceled and records release-level event and audit entries. This does not execute rollback, delete resources, or cancel already-created ReleaseExecutions.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Release canceled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CreateReleaseResponse"
+        "404":
+          description: Release not found
+        "409":
+          description: Release is already terminal
   /api/v1/releases/{id}/plan:
     post:
       summary: Create a multi-target ReleasePlan

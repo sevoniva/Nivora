@@ -2634,6 +2634,7 @@ func newReleaseCommand() *cobra.Command {
 	cmd.AddCommand(newReleaseCreateCommand())
 	cmd.AddCommand(newReleaseGetCommand())
 	cmd.AddCommand(newReleaseArtifactsCommand())
+	cmd.AddCommand(newReleaseCancelCommand())
 	cmd.AddCommand(newReleasePlanCommand())
 	cmd.AddCommand(newReleaseDeployCommand())
 	cmd.AddCommand(newReleaseSecurityCommand())
@@ -2715,6 +2716,25 @@ func newReleaseArtifactsCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+args[0]+"/artifacts", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newReleaseCancelCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "cancel <release-id>",
+		Short: "Cancel a Release record without executing rollback or deployment actions",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/"+args[0]+"/cancel", nil)
 			if err != nil {
 				return err
 			}

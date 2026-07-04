@@ -23,7 +23,7 @@ The AsyncAPI spec (`api/asyncapi/asyncapi.yaml`) is validated for event document
 | Check | Test Function | Status |
 |---|---|---|
 | File structure validation | `TestAsyncAPIEventDocumentation` | ✅ Channels/messages present |
-| Key event type coverage | `TestAsyncAPIEventDocumentation` | ✅ 16 key events checked |
+| Key event type coverage | `TestAsyncAPIEventDocumentation` | ✅ 17 key events checked, including release cancel |
 | Future/reserved labeling | `TestAsyncAPIEventDocumentation` | ✅ Warns if missing |
 
 ## Security Scheme Coverage

@@ -14,6 +14,7 @@ import (
 
 var ErrReleaseNotFound = errors.New("release not found")
 var ErrArtifactNotFound = errors.New("artifact not found")
+var ErrReleaseAlreadyTerminal = errors.New("release is already terminal")
 
 type Store interface {
 	SaveRelease(ctx context.Context, record ReleaseRecord) error

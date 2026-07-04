@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func TestReleaseCommandIncludesEvidence(t *testing.T) {
+func TestReleaseCommandIncludesEvidenceAndCancel(t *testing.T) {
 	cmd := newReleaseCommand()
 	var out bytes.Buffer
 	cmd.SetOut(&out)
@@ -15,8 +15,10 @@ func TestReleaseCommandIncludesEvidence(t *testing.T) {
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("release help failed: %v", err)
 	}
-	if !strings.Contains(out.String(), "evidence") {
-		t.Fatalf("release help missing evidence command: %s", out.String())
+	for _, command := range []string{"evidence", "cancel"} {
+		if !strings.Contains(out.String(), command) {
+			t.Fatalf("release help missing %s command: %s", command, out.String())
+		}
 	}
 }
 

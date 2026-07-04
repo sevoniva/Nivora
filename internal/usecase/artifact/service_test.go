@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
+	"github.com/sevoniva/nivora/internal/domain/audit"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	portartifact "github.com/sevoniva/nivora/internal/ports/artifact"
 )
@@ -189,6 +190,66 @@ func TestCreateReleaseBlocksMutableWhenConfigured(t *testing.T) {
 	if err == nil {
 		t.Fatal("expected blockMutable failure")
 	}
+}
+
+func TestCancelReleaseRecordsEventAndAudit(t *testing.T) {
+	service := NewService(NewMemoryStore(), fakeArtifactProvider{}, fakeEventBus{})
+	record, err := service.CreateRelease(context.Background(), CreateReleaseInput{Definition: ReleaseDefinition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Release",
+		Metadata:   ReleaseMetadata{Name: "demo"},
+		Spec: ReleaseSpec{
+			Version: "1.0.0",
+			Artifacts: []ReleaseArtifactSpec{{
+				Name:      "demo-app",
+				Type:      "image",
+				Reference: "registry.example.com/team/demo@sha256:abcdef",
+			}},
+		},
+	}, ProjectID: "project-a", ActorID: "creator"})
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+
+	canceled, err := service.CancelRelease(context.Background(), record.Release.ID, "operator")
+	if err != nil {
+		t.Fatalf("cancel release: %v", err)
+	}
+	if canceled.Release.Status != "Canceled" || canceled.Release.Metadata["projectId"] != "project-a" || canceled.Release.Metadata["canceledBy"] != "operator" {
+		t.Fatalf("canceled release = %#v", canceled.Release)
+	}
+	if !hasReleaseEvent(canceled.Events, EventReleaseCanceled) {
+		t.Fatalf("cancel event missing: %#v", canceled.Events)
+	}
+	if !hasReleaseAudit(canceled.Audits, "Release canceled") {
+		t.Fatalf("cancel audit missing: %#v", canceled.Audits)
+	}
+
+	again, err := service.CancelRelease(context.Background(), record.Release.ID, "operator")
+	if err != nil {
+		t.Fatalf("second cancel should be idempotent: %v", err)
+	}
+	if len(again.Events) != len(canceled.Events) || len(again.Audits) != len(canceled.Audits) {
+		t.Fatalf("second cancel should not duplicate evidence: events %d/%d audits %d/%d", len(again.Events), len(canceled.Events), len(again.Audits), len(canceled.Audits))
+	}
+}
+
+func hasReleaseEvent(events []event.Event, eventType string) bool {
+	for _, evt := range events {
+		if evt.Type == eventType {
+			return true
+		}
+	}
+	return false
+}
+
+func hasReleaseAudit(audits []audit.AuditLog, action string) bool {
+	for _, entry := range audits {
+		if entry.Action == action {
+			return true
+		}
+	}
+	return false
 }
 
 type fakeArtifactProvider struct{}

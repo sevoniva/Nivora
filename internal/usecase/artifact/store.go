@@ -17,6 +17,9 @@ var ErrArtifactNotFound = errors.New("artifact not found")
 var ErrReleaseAlreadyTerminal = errors.New("release is already terminal")
 
 type Store interface {
+	SaveArtifact(ctx context.Context, artifact domainartifact.Artifact) error
+	GetArtifact(ctx context.Context, id string) (domainartifact.Artifact, error)
+	ListArtifacts(ctx context.Context) ([]domainartifact.Artifact, error)
 	SaveRelease(ctx context.Context, record ReleaseRecord) error
 	GetRelease(ctx context.Context, id string) (ReleaseRecord, error)
 	ListReleases(ctx context.Context) ([]ReleaseRecord, error)
@@ -25,12 +28,61 @@ type Store interface {
 }
 
 type MemoryStore struct {
-	mu       sync.RWMutex
-	releases map[string]ReleaseRecord
+	mu        sync.RWMutex
+	releases  map[string]ReleaseRecord
+	artifacts map[string]domainartifact.Artifact
 }
 
 func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{releases: make(map[string]ReleaseRecord)}
+	return &MemoryStore{releases: make(map[string]ReleaseRecord), artifacts: make(map[string]domainartifact.Artifact)}
+}
+
+func (s *MemoryStore) SaveArtifact(ctx context.Context, artifact domainartifact.Artifact) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.artifacts[artifact.ID] = cloneArtifact(artifact)
+	return nil
+}
+
+func (s *MemoryStore) GetArtifact(ctx context.Context, id string) (domainartifact.Artifact, error) {
+	select {
+	case <-ctx.Done():
+		return domainartifact.Artifact{}, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	artifact, ok := s.artifacts[id]
+	if !ok {
+		return domainartifact.Artifact{}, ErrArtifactNotFound
+	}
+	return cloneArtifact(artifact), nil
+}
+
+func (s *MemoryStore) ListArtifacts(ctx context.Context) ([]domainartifact.Artifact, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	artifacts := make([]domainartifact.Artifact, 0, len(s.artifacts))
+	for _, artifact := range s.artifacts {
+		artifacts = append(artifacts, cloneArtifact(artifact))
+	}
+	sort.Slice(artifacts, func(i, j int) bool {
+		if artifacts[i].CreatedAt.Equal(artifacts[j].CreatedAt) {
+			return artifacts[i].ID < artifacts[j].ID
+		}
+		return artifacts[i].CreatedAt.Before(artifacts[j].CreatedAt)
+	})
+	return artifacts, nil
 }
 
 func (s *MemoryStore) SaveRelease(ctx context.Context, record ReleaseRecord) error {
@@ -41,7 +93,11 @@ func (s *MemoryStore) SaveRelease(ctx context.Context, record ReleaseRecord) err
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.releases[record.Release.ID] = cloneReleaseRecord(record)
+	cloned := cloneReleaseRecord(record)
+	s.releases[record.Release.ID] = cloned
+	for _, artifact := range cloned.Artifacts {
+		s.artifacts[artifact.ID] = cloneArtifact(artifact)
+	}
 	return nil
 }
 

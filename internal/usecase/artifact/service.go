@@ -69,6 +69,37 @@ func (s *Service) Resolve(ctx context.Context, reference string, artifactType do
 	return resolution, nil
 }
 
+func (s *Service) TrackArtifact(ctx context.Context, input TrackArtifactInput) (domainartifact.Artifact, error) {
+	inspection, err := s.Inspect(ctx, input.Reference, domainartifact.ArtifactType(input.Type))
+	if err != nil {
+		return domainartifact.Artifact{}, err
+	}
+	now := s.now()
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		name = inspection.Reference.Name
+	}
+	if name == "" {
+		name = inspection.Reference.Repository
+	}
+	artifact := domainartifact.Artifact{
+		ID:         defaultArtifactID(input.ID),
+		Type:       inspection.Reference.Type,
+		Name:       name,
+		Version:    inspection.Reference.Version,
+		Reference:  inspection.Reference.Normalized,
+		Digest:     inspection.Reference.Digest,
+		Registry:   inspection.Reference.Registry,
+		Repository: inspection.Reference.Repository,
+		Metadata:   cloneMap(input.Metadata),
+		CreatedAt:  now,
+	}
+	if err := s.store.SaveArtifact(ctx, artifact); err != nil {
+		return domainartifact.Artifact{}, err
+	}
+	return s.store.GetArtifact(ctx, artifact.ID)
+}
+
 func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (ReleaseRecord, error) {
 	if input.Definition.Metadata.Name == "" {
 		return ReleaseRecord{}, fmt.Errorf("release metadata.name is required")
@@ -325,18 +356,34 @@ func (s *Service) CancelRelease(ctx context.Context, id string, actorID string) 
 }
 
 func (s *Service) ListArtifacts(ctx context.Context, input ListArtifactsInput) ([]domainartifact.Artifact, error) {
+	standalone, err := s.store.ListArtifacts(ctx)
+	if err != nil {
+		return nil, err
+	}
 	records, err := s.store.ListReleases(ctx)
 	if err != nil {
 		return nil, err
 	}
 	filter := normalizeArtifactFilter(input)
-	artifacts := make([]domainartifact.Artifact, 0)
+	artifacts := make([]domainartifact.Artifact, 0, len(standalone))
+	seen := map[string]struct{}{}
+	for _, item := range standalone {
+		if !artifactMatches(item, filter) {
+			continue
+		}
+		artifacts = append(artifacts, cloneArtifact(item))
+		seen[item.ID] = struct{}{}
+	}
 	for _, record := range records {
 		for _, item := range record.Artifacts {
 			if !artifactMatches(item, filter) {
 				continue
 			}
+			if _, ok := seen[item.ID]; ok {
+				continue
+			}
 			artifacts = append(artifacts, cloneArtifact(item))
+			seen[item.ID] = struct{}{}
 		}
 	}
 	sort.Slice(artifacts, func(i, j int) bool {
@@ -353,6 +400,9 @@ func (s *Service) GetArtifact(ctx context.Context, id string) (domainartifact.Ar
 	if id == "" {
 		return domainartifact.Artifact{}, ErrArtifactNotFound
 	}
+	if artifact, err := s.store.GetArtifact(ctx, id); err == nil {
+		return cloneArtifact(artifact), nil
+	}
 	artifacts, err := s.ListArtifacts(ctx, ListArtifactsInput{})
 	if err != nil {
 		return domainartifact.Artifact{}, err
@@ -363,6 +413,24 @@ func (s *Service) GetArtifact(ctx context.Context, id string) (domainartifact.Ar
 		}
 	}
 	return domainartifact.Artifact{}, fmt.Errorf("%w: %s", ErrArtifactNotFound, id)
+}
+
+func defaultArtifactID(id string) string {
+	if strings.TrimSpace(id) != "" {
+		return strings.TrimSpace(id)
+	}
+	return newID("artifact")
+}
+
+func cloneMap(in map[string]string) map[string]string {
+	if in == nil {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for key, value := range in {
+		out[key] = value
+	}
+	return out
 }
 
 func (s *Service) ArtifactReleases(ctx context.Context, artifactID string) ([]ArtifactReleaseBinding, error) {

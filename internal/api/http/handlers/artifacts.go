@@ -58,6 +58,22 @@ func ListArtifacts(service *artifactusecase.Service) http.HandlerFunc {
 	}
 }
 
+func CreateArtifact(service *artifactusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input artifactusecase.TrackArtifactInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an artifact tracking request"})
+			return
+		}
+		artifact, err := service.TrackArtifact(r.Context(), input)
+		if err != nil {
+			respondArtifactResult(w, r, artifact, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, artifact)
+	}
+}
+
 func GetArtifact(service *artifactusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		artifact, err := service.GetArtifact(r.Context(), chi.URLParam(r, "id"))

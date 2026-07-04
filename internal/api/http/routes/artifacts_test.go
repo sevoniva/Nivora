@@ -27,6 +27,21 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 		t.Fatalf("inspect body = %s", rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/artifacts", bytes.NewReader([]byte(`{"name":"tracked-demo","type":"image","reference":"registry.example.com/team/tracked:1.0.0"}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create artifact status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var trackedArtifact map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &trackedArtifact); err != nil {
+		t.Fatalf("decode tracked artifact: %v", err)
+	}
+	trackedArtifactID := trackedArtifact["id"].(string)
+	if trackedArtifact["reference"].(string) != "registry.example.com/team/tracked:1.0.0" {
+		t.Fatalf("tracked artifact = %#v", trackedArtifact)
+	}
+
 	body := []byte(`{
 		"apiVersion": "nivora.io/v1alpha1",
 		"kind": "Release",
@@ -94,6 +109,8 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 		"/api/v1/releases/" + releaseID + "/artifacts",
 		"/api/v1/artifacts",
 		"/api/v1/artifacts?registry=registry.example.com",
+		"/api/v1/artifacts?reference=team/tracked",
+		"/api/v1/artifacts/" + trackedArtifactID,
 		"/api/v1/artifacts/" + artifactID,
 		"/api/v1/artifacts/" + artifactID + "/releases",
 	} {

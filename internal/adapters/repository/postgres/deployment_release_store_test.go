@@ -18,6 +18,8 @@ func TestDeploymentReleaseStoresImplementRuntimeInterfaces(t *testing.T) {
 func TestDeploymentReleaseRuntimeMigrationIsReversibleAndIndexed(t *testing.T) {
 	up := readMigration(t, "000007_deployment_release_runtime.up.sql")
 	down := readMigration(t, "000007_deployment_release_runtime.down.sql")
+	artifactUp := readMigration(t, "000013_runtime_artifact_catalog.up.sql")
+	artifactDown := readMigration(t, "000013_runtime_artifact_catalog.down.sql")
 
 	requiredTables := []string{
 		"runtime_deployment_runs",
@@ -43,6 +45,12 @@ func TestDeploymentReleaseRuntimeMigrationIsReversibleAndIndexed(t *testing.T) {
 			t.Fatalf("down migration missing table %s", table)
 		}
 	}
+	if !strings.Contains(artifactUp, "CREATE TABLE IF NOT EXISTS runtime_artifacts") {
+		t.Fatal("artifact catalog migration missing runtime_artifacts table")
+	}
+	if !strings.Contains(artifactDown, "DROP TABLE IF EXISTS runtime_artifacts") {
+		t.Fatal("artifact catalog down migration missing runtime_artifacts table drop")
+	}
 
 	for _, index := range []string{
 		"idx_runtime_deployment_runs_status_created_at",
@@ -58,6 +66,19 @@ func TestDeploymentReleaseRuntimeMigrationIsReversibleAndIndexed(t *testing.T) {
 		}
 		if !strings.Contains(down, index) {
 			t.Fatalf("down migration missing index %s", index)
+		}
+	}
+	for _, index := range []string{
+		"idx_runtime_artifacts_type_created_at",
+		"idx_runtime_artifacts_reference",
+		"idx_runtime_artifacts_digest",
+		"idx_runtime_artifacts_registry_repository",
+	} {
+		if !strings.Contains(artifactUp, index) {
+			t.Fatalf("artifact up migration missing index %s", index)
+		}
+		if !strings.Contains(artifactDown, index) {
+			t.Fatalf("artifact down migration missing index %s", index)
 		}
 	}
 }

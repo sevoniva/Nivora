@@ -91,6 +91,7 @@ var criticalRoutes = []struct {
 	{"POST", "/api/v1/releases/executions/rexec-1/resume", domainauth.PermissionDeploymentApprove, true},
 	{"POST", "/api/v1/releases/rel-1/evidence", domainauth.PermissionAuditRead, true},
 	{"GET", "/api/v1/artifacts", domainauth.PermissionProjectRead, false},
+	{"POST", "/api/v1/artifacts", domainauth.PermissionReleaseCreate, true},
 	{"GET", "/api/v1/artifacts/artifact-1", domainauth.PermissionProjectRead, false},
 	{"GET", "/api/v1/artifacts/artifact-1/releases", domainauth.PermissionProjectRead, false},
 	{"GET", "/api/v1/artifact-registries", domainauth.PermissionProjectRead, false},

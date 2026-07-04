@@ -7,6 +7,7 @@ import (
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
@@ -20,6 +21,48 @@ var _ artifactusecase.Store = (*ReleaseStore)(nil)
 
 func NewReleaseStore(pool *pgxpool.Pool) *ReleaseStore {
 	return &ReleaseStore{pool: pool}
+}
+
+func (s *ReleaseStore) SaveArtifact(ctx context.Context, artifact domainartifact.Artifact) error {
+	if artifact.ID == "" {
+		return errors.New("artifact id is required")
+	}
+	return s.withTx(ctx, func(tx pgx.Tx) error {
+		return s.insertArtifact(ctx, tx, artifact)
+	})
+}
+
+func (s *ReleaseStore) GetArtifact(ctx context.Context, id string) (domainartifact.Artifact, error) {
+	var raw []byte
+	err := s.pool.QueryRow(ctx, `SELECT payload FROM runtime_artifacts WHERE id = $1`, id).Scan(&raw)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return domainartifact.Artifact{}, artifactusecase.ErrArtifactNotFound
+	}
+	if err != nil {
+		return domainartifact.Artifact{}, err
+	}
+	return decodeArtifact(raw)
+}
+
+func (s *ReleaseStore) ListArtifacts(ctx context.Context) ([]domainartifact.Artifact, error) {
+	rows, err := s.pool.Query(ctx, `SELECT payload FROM runtime_artifacts ORDER BY created_at, id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var artifacts []domainartifact.Artifact
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		artifact, err := decodeArtifact(raw)
+		if err != nil {
+			return nil, err
+		}
+		artifacts = append(artifacts, artifact)
+	}
+	return artifacts, rows.Err()
 }
 
 func (s *ReleaseStore) SaveRelease(ctx context.Context, record artifactusecase.ReleaseRecord) error {
@@ -125,6 +168,11 @@ func (s *ReleaseStore) saveRelease(ctx context.Context, tx pgx.Tx, record artifa
 	if err != nil {
 		return err
 	}
+	for _, artifact := range record.Artifacts {
+		if err := s.insertArtifact(ctx, tx, artifact); err != nil {
+			return err
+		}
+	}
 	_, err = tx.Exec(ctx, `INSERT INTO runtime_releases (id, name, version_name, application_id, environment_id, status, record, created_at, updated_at)
 		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
 		ON CONFLICT (id) DO UPDATE SET name = EXCLUDED.name, version_name = EXCLUDED.version_name, application_id = EXCLUDED.application_id, environment_id = EXCLUDED.environment_id, status = EXCLUDED.status, record = EXCLUDED.record, updated_at = EXCLUDED.updated_at, version = runtime_releases.version + 1`,
@@ -158,6 +206,18 @@ func (s *ReleaseStore) saveRelease(ctx context.Context, tx pgx.Tx, record artifa
 	return nil
 }
 
+func (s *ReleaseStore) insertArtifact(ctx context.Context, tx pgx.Tx, artifact domainartifact.Artifact) error {
+	raw, err := json.Marshal(artifact)
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO runtime_artifacts (id, artifact_type, name, version_name, reference, digest, registry, repository, media_type, size_bytes, manifest_schema, payload, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		ON CONFLICT (id) DO UPDATE SET artifact_type = EXCLUDED.artifact_type, name = EXCLUDED.name, version_name = EXCLUDED.version_name, reference = EXCLUDED.reference, digest = EXCLUDED.digest, registry = EXCLUDED.registry, repository = EXCLUDED.repository, media_type = EXCLUDED.media_type, size_bytes = EXCLUDED.size_bytes, manifest_schema = EXCLUDED.manifest_schema, payload = EXCLUDED.payload`,
+		artifact.ID, string(artifact.Type), artifact.Name, artifact.Version, artifact.Reference, artifact.Digest, artifact.Registry, artifact.Repository, artifact.MediaType, artifact.SizeBytes, artifact.ManifestSchema, raw, artifact.CreatedAt)
+	return err
+}
+
 func (s *ReleaseStore) insertReleaseEvent(ctx context.Context, tx pgx.Tx, releaseID string, evt event.Event) error {
 	raw, err := json.Marshal(evt)
 	if err != nil {
@@ -186,4 +246,12 @@ func decodeReleaseRecord(raw []byte) (artifactusecase.ReleaseRecord, error) {
 		return artifactusecase.ReleaseRecord{}, err
 	}
 	return record, nil
+}
+
+func decodeArtifact(raw []byte) (domainartifact.Artifact, error) {
+	var artifact domainartifact.Artifact
+	if err := json.Unmarshal(raw, &artifact); err != nil {
+		return domainartifact.Artifact{}, err
+	}
+	return artifact, nil
 }

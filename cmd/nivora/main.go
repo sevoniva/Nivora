@@ -3002,12 +3002,50 @@ func bindPolicyCreateFlags(cmd *cobra.Command, input *policyusecase.CreateInput)
 
 func newArtifactCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "artifact", Short: "Artifact utilities"}
+	cmd.AddCommand(newArtifactCreateCommand())
 	cmd.AddCommand(newArtifactListCommand())
 	cmd.AddCommand(newArtifactGetCommand())
 	cmd.AddCommand(newArtifactReleasesCommand())
 	cmd.AddCommand(newArtifactInspectCommand())
 	cmd.AddCommand(newArtifactResolveCommand())
 	cmd.AddCommand(newArtifactRegistryCommand())
+	return cmd
+}
+
+func newArtifactCreateCommand() *cobra.Command {
+	var artifactType string
+	var name string
+	var reference string
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "create --reference <reference>",
+		Short: "Track an artifact reference in the Nivora catalog",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if strings.TrimSpace(reference) == "" {
+				return fmt.Errorf("--reference is required")
+			}
+			body, err := json.Marshal(map[string]string{
+				"name":      name,
+				"type":      artifactType,
+				"reference": reference,
+			})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/artifacts", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&artifactType, "type", "image", "artifact type")
+	cmd.Flags().StringVar(&name, "name", "", "artifact display name")
+	cmd.Flags().StringVar(&reference, "reference", "", "artifact reference")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 

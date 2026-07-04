@@ -37,6 +37,7 @@ func TestPostgresIntegrationMigrationUpDown(t *testing.T) {
 		"runtime_event_outbox",
 		"runtime_deployment_runs",
 		"runtime_deployment_logs",
+		"runtime_artifacts",
 		"runtime_releases",
 		"runtime_release_artifacts",
 		"runtime_release_plans",
@@ -64,6 +65,8 @@ func TestPostgresIntegrationMigrationUpDown(t *testing.T) {
 		"idx_runtime_job_runs_lease",
 		"idx_runtime_deployment_runs_status_created_at",
 		"idx_runtime_release_executions_status_created_at",
+		"idx_runtime_artifacts_reference",
+		"idx_runtime_artifacts_registry_repository",
 		"idx_compliance_evidence_subject",
 		"idx_compliance_audit_subject",
 		"idx_catalog_artifact_registries_project",
@@ -76,7 +79,7 @@ func TestPostgresIntegrationMigrationUpDown(t *testing.T) {
 	}
 
 	applyDownMigrations(t, db.pool)
-	for _, table := range []string{"runtime_pipeline_runs", "runtime_deployment_runs", "runtime_release_executions", "catalog_orgs", "pipeline_definitions", "pipeline_definition_versions", "catalog_artifact_registries", "catalog_policies", "compliance_evidence_bundles"} {
+	for _, table := range []string{"runtime_pipeline_runs", "runtime_deployment_runs", "runtime_artifacts", "runtime_release_executions", "catalog_orgs", "pipeline_definitions", "pipeline_definition_versions", "catalog_artifact_registries", "catalog_policies", "compliance_evidence_bundles"} {
 		assertRelationMissing(t, db.pool, table)
 	}
 }
@@ -236,6 +239,17 @@ func TestPostgresIntegrationReleaseExecutionRecovery(t *testing.T) {
 	}
 	if len(loadedRelease.Bindings) != 1 || loadedRelease.Bindings[0].Digest == "" {
 		t.Fatalf("release artifacts after restart = %#v", loadedRelease.Bindings)
+	}
+	loadedArtifact, err := releaseStore.GetArtifact(ctx, "artifact-1")
+	if err != nil {
+		t.Fatalf("reload artifact catalog record after restart: %v", err)
+	}
+	if loadedArtifact.Digest == "" || loadedArtifact.Reference != "registry.example.com/demo/app:1.0.0" {
+		t.Fatalf("artifact catalog record after restart = %#v", loadedArtifact)
+	}
+	artifacts, err := releaseStore.ListArtifacts(ctx)
+	if err != nil || len(artifacts) != 1 || artifacts[0].ID != "artifact-1" {
+		t.Fatalf("artifact catalog list after restart = %#v err=%v", artifacts, err)
 	}
 	loadedPlan, err := orchestrationStore.GetPlan(ctx, planRecord.Plan.ID)
 	if err != nil || loadedPlan.Plan.ReleaseID != planRecord.Plan.ReleaseID {

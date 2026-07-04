@@ -48,6 +48,14 @@ type CreateReleaseInput struct {
 	ProjectID  string
 }
 
+type TrackArtifactInput struct {
+	ID        string            `json:"id,omitempty"`
+	Name      string            `json:"name,omitempty"`
+	Type      string            `json:"type,omitempty"`
+	Reference string            `json:"reference"`
+	Metadata  map[string]string `json:"metadata,omitempty"`
+}
+
 type ListArtifactsInput struct {
 	Type       string
 	Name       string

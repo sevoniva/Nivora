@@ -1220,8 +1220,8 @@ paths:
           description: Invalid registry configuration
   /api/v1/artifacts:
     get:
-      summary: List artifacts tracked through release bindings
-      description: Lists artifact records known to Nivora through ReleaseArtifact bindings. This is not a full registry inventory scan.
+      summary: List artifacts tracked by the Nivora catalog
+      description: Lists standalone artifact records and artifacts known through ReleaseArtifact bindings. This is not a full registry inventory scan.
       parameters:
         - name: type
           in: query
@@ -1259,6 +1259,24 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/Artifact"
+    post:
+      summary: Create an artifact catalog record with release.create permission
+      description: Tracks an already-known artifact reference in the Nivora catalog without crawling a registry or resolving credentials.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtifactTrackRequest"
+      responses:
+        "201":
+          description: Artifact catalog record created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Artifact"
+        "400":
+          description: Invalid artifact reference
   /api/v1/artifacts/{id}:
     get:
       summary: Get a tracked artifact
@@ -5467,6 +5485,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/ArtifactWarning"
+    ArtifactTrackRequest:
+      type: object
+      required: [reference]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+          enum: [image, jar, binary, chart, yaml, tar, npm, maven, unknown]
+        reference:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
     ArtifactRegistry:
       type: object
       properties:

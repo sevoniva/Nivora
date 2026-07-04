@@ -153,6 +153,51 @@ func TestArtifactCatalogQueriesReleaseBindings(t *testing.T) {
 	}
 }
 
+func TestTrackArtifactCreatesStandaloneCatalogRecord(t *testing.T) {
+	service := NewService(NewMemoryStore(), fakeArtifactProvider{}, fakeEventBus{})
+	artifact, err := service.TrackArtifact(context.Background(), TrackArtifactInput{
+		ID:        "artifact-standalone",
+		Name:      "tracked-demo",
+		Type:      "image",
+		Reference: "registry.example.com/team/demo:1.0.0",
+		Metadata:  map[string]string{"source": "manual"},
+	})
+	if err != nil {
+		t.Fatalf("track artifact: %v", err)
+	}
+	if artifact.ID != "artifact-standalone" || artifact.Name != "tracked-demo" {
+		t.Fatalf("artifact identity = %#v", artifact)
+	}
+	if artifact.Reference != "registry.example.com/team/demo:1.0.0" || artifact.Registry != "registry.example.com" || artifact.Repository != "team/demo" {
+		t.Fatalf("artifact reference fields = %#v", artifact)
+	}
+	if artifact.Metadata["source"] != "manual" {
+		t.Fatalf("artifact metadata = %#v", artifact.Metadata)
+	}
+
+	listed, err := service.ListArtifacts(context.Background(), ListArtifactsInput{Registry: "registry.example.com", Repository: "team/demo"})
+	if err != nil {
+		t.Fatalf("list artifacts: %v", err)
+	}
+	if len(listed) != 1 || listed[0].ID != artifact.ID {
+		t.Fatalf("listed artifacts = %#v", listed)
+	}
+	got, err := service.GetArtifact(context.Background(), artifact.ID)
+	if err != nil {
+		t.Fatalf("get artifact: %v", err)
+	}
+	if got.ID != artifact.ID || got.Metadata["source"] != "manual" {
+		t.Fatalf("got artifact = %#v", got)
+	}
+	bindings, err := service.ArtifactReleases(context.Background(), artifact.ID)
+	if err != nil {
+		t.Fatalf("artifact releases: %v", err)
+	}
+	if len(bindings) != 0 {
+		t.Fatalf("standalone artifact should have no release bindings: %#v", bindings)
+	}
+}
+
 func TestCreateReleaseRequireDigestFailsWhenResolutionUnavailable(t *testing.T) {
 	service := NewService(NewMemoryStore(), fakeArtifactProvider{}, fakeEventBus{})
 	_, err := service.CreateRelease(context.Background(), CreateReleaseInput{Definition: ReleaseDefinition{

@@ -8,11 +8,13 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
+	domainevent "github.com/sevoniva/nivora/internal/domain/event"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/crypto"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
@@ -74,6 +76,8 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://system/runtime", "Runtime status", "Runtime configuration and recovery summary"),
 		resource("nivora://runtime/recovery", "Runtime recovery status", "Pipeline, deployment, release, and outbox recovery summary"),
 		resource("nivora://api/inventory", "API inventory", "Current public API inventory"),
+		resource("nivora://events", "Runtime events", "Aggregate runtime events with MCP response caps"),
+		resource("nivora://logs", "Runtime logs", "Aggregate runtime log chunks with MCP response caps"),
 		resource("nivora://catalog/summary", "Catalog summary", "Organization, project, application, environment, repository, and target summary"),
 		resource("nivora://pipelines/definitions", "Pipeline definitions", "Pipeline definition catalog"),
 		resource("nivora://pipelines/definitions/{id}", "Pipeline definition", "Pipeline definition record by id"),
@@ -123,6 +127,27 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 	tools := []Tool{
 		tool("nivora_status", "Read current Nivora runtime and capability status", nil),
 		tool("nivora_get_runtime_recovery_status", "Read runtime recovery status across pipeline, deployment, release, and outbox state", nil),
+		tool("nivora_search_events", "Search aggregate runtime events with MCP response caps", objectSchema(map[string]any{
+			"type":            stringProperty("event type substring"),
+			"source":          stringProperty("event source substring"),
+			"subject":         stringProperty("event subject substring"),
+			"runId":           stringProperty("pipeline or deployment run id"),
+			"pipelineRunId":   stringProperty("PipelineRun id"),
+			"deploymentRunId": stringProperty("DeploymentRun id"),
+			"releaseId":       stringProperty("Release id"),
+			"artifactId":      stringProperty("Artifact id"),
+			"securityScanId":  stringProperty("SecurityScan id"),
+		}, nil)),
+		tool("nivora_search_logs", "Search aggregate runtime logs with MCP response caps", objectSchema(map[string]any{
+			"runId":           stringProperty("pipeline or deployment run id"),
+			"pipelineRunId":   stringProperty("PipelineRun id"),
+			"deploymentRunId": stringProperty("DeploymentRun id"),
+			"stageRunId":      stringProperty("StageRun id"),
+			"jobRunId":        stringProperty("JobRun id"),
+			"stepRunId":       stringProperty("StepRun id"),
+			"stream":          stringProperty("stdout, stderr, or system"),
+			"contains":        stringProperty("case-insensitive log content substring"),
+		}, nil)),
 		tool("nivora_get_catalog_summary", "Read organization, project, application, environment, repository, and target catalog summary", objectSchema(map[string]any{
 			"orgId":     stringProperty("optional org id filter"),
 			"projectId": stringProperty("optional project id filter"),
@@ -279,6 +304,10 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 			return nil, err
 		}
 		return map[string]any{"content": string(body)}, nil
+	case uri == "nivora://events":
+		return s.eventSearch(ctx, mcpEventFilter{})
+	case uri == "nivora://logs":
+		return s.logSearch(ctx, mcpLogFilter{})
 	case uri == "nivora://catalog/summary":
 		return s.catalogSummary(ctx, "", "")
 	case uri == "nivora://pipelines/definitions":
@@ -421,6 +450,29 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		return map[string]any{"maturity": "hardened beta-candidate", "productionReady": false, "runtime": status}, nil
 	case "nivora_get_runtime_recovery_status":
 		return s.runtimeRecoveryStatus(ctx)
+	case "nivora_search_events":
+		return s.eventSearch(ctx, mcpEventFilter{
+			Type:            stringArg(arguments, "type"),
+			Source:          stringArg(arguments, "source"),
+			Subject:         stringArg(arguments, "subject"),
+			RunID:           stringArg(arguments, "runId"),
+			PipelineRunID:   stringArg(arguments, "pipelineRunId"),
+			DeploymentRunID: stringArg(arguments, "deploymentRunId"),
+			ReleaseID:       stringArg(arguments, "releaseId"),
+			ArtifactID:      stringArg(arguments, "artifactId"),
+			SecurityScanID:  stringArg(arguments, "securityScanId"),
+		})
+	case "nivora_search_logs":
+		return s.logSearch(ctx, mcpLogFilter{
+			RunID:           stringArg(arguments, "runId"),
+			PipelineRunID:   stringArg(arguments, "pipelineRunId"),
+			DeploymentRunID: stringArg(arguments, "deploymentRunId"),
+			StageRunID:      stringArg(arguments, "stageRunId"),
+			JobRunID:        stringArg(arguments, "jobRunId"),
+			StepRunID:       stringArg(arguments, "stepRunId"),
+			Stream:          stringArg(arguments, "stream"),
+			Contains:        stringArg(arguments, "contains"),
+		})
 	case "nivora_get_catalog_summary":
 		return s.catalogSummary(ctx, stringArg(arguments, "orgId"), stringArg(arguments, "projectId"))
 	case "nivora_list_pipeline_definitions":
@@ -819,6 +871,228 @@ func (s *Server) policyResultSummary(ctx context.Context, subjectType string, su
 	}, nil
 }
 
+const mcpAggregateResponseLimit = 100
+
+type mcpEventFilter struct {
+	Type            string
+	Source          string
+	Subject         string
+	RunID           string
+	PipelineRunID   string
+	DeploymentRunID string
+	ReleaseID       string
+	ArtifactID      string
+	SecurityScanID  string
+}
+
+type mcpLogFilter struct {
+	RunID           string
+	PipelineRunID   string
+	DeploymentRunID string
+	StageRunID      string
+	JobRunID        string
+	StepRunID       string
+	Stream          string
+	Contains        string
+}
+
+func (s *Server) eventSearch(ctx context.Context, filter mcpEventFilter) (any, error) {
+	var (
+		events   []domainevent.Event
+		warnings []string
+	)
+	if records, err := s.services.Pipelines.List(ctx); err != nil {
+		warnings = append(warnings, "pipeline events unavailable: "+err.Error())
+	} else {
+		for _, record := range records {
+			events = append(events, record.Events...)
+		}
+	}
+	if records, err := s.services.Deployments.List(ctx); err != nil {
+		warnings = append(warnings, "deployment events unavailable: "+err.Error())
+	} else {
+		for _, record := range records {
+			events = append(events, record.Events...)
+		}
+	}
+	if records, err := s.services.Releases.ListExecutions(ctx, ""); err != nil {
+		warnings = append(warnings, "release execution events unavailable: "+err.Error())
+	} else {
+		for _, record := range records {
+			events = append(events, record.Events...)
+		}
+	}
+	if records, err := s.services.Artifacts.ListReleases(ctx); err != nil {
+		warnings = append(warnings, "artifact events unavailable: "+err.Error())
+	} else {
+		for _, record := range records {
+			events = append(events, record.Events...)
+		}
+	}
+	if records, err := s.services.Security.List(ctx); err != nil {
+		warnings = append(warnings, "security events unavailable: "+err.Error())
+	} else {
+		for _, record := range records {
+			events = append(events, record.Events...)
+		}
+	}
+	sort.SliceStable(events, func(i, j int) bool {
+		if events[i].Time.Equal(events[j].Time) {
+			return events[i].ID < events[j].ID
+		}
+		return events[i].Time.Before(events[j].Time)
+	})
+	filtered := make([]domainevent.Event, 0, len(events))
+	for _, evt := range events {
+		if filterMCPEvent(evt, filter) {
+			filtered = append(filtered, evt)
+		}
+	}
+	limited, truncated := limitMCPItems(filtered, mcpAggregateResponseLimit)
+	return map[string]any{
+		"filters":   filter,
+		"events":    limited,
+		"count":     len(filtered),
+		"limit":     mcpAggregateResponseLimit,
+		"truncated": truncated,
+		"warnings":  warnings,
+		"mutated":   false,
+	}, nil
+}
+
+func (s *Server) logSearch(ctx context.Context, filter mcpLogFilter) (any, error) {
+	var (
+		logs     []domainevent.LogChunk
+		warnings []string
+	)
+	if records, err := s.services.Pipelines.List(ctx); err != nil {
+		warnings = append(warnings, "pipeline logs unavailable: "+err.Error())
+	} else {
+		for _, record := range records {
+			logs = append(logs, record.Logs...)
+		}
+	}
+	if records, err := s.services.Deployments.List(ctx); err != nil {
+		warnings = append(warnings, "deployment logs unavailable: "+err.Error())
+	} else {
+		for _, record := range records {
+			logs = append(logs, record.Logs...)
+		}
+	}
+	sort.SliceStable(logs, func(i, j int) bool {
+		if logs[i].CreatedAt.Equal(logs[j].CreatedAt) {
+			if logs[i].Sequence == logs[j].Sequence {
+				return logs[i].ID < logs[j].ID
+			}
+			return logs[i].Sequence < logs[j].Sequence
+		}
+		return logs[i].CreatedAt.Before(logs[j].CreatedAt)
+	})
+	filtered := make([]domainevent.LogChunk, 0, len(logs))
+	for _, log := range logs {
+		if filterMCPLog(log, filter) {
+			filtered = append(filtered, log)
+		}
+	}
+	limited, truncated := limitMCPItems(filtered, mcpAggregateResponseLimit)
+	return map[string]any{
+		"filters":   filter,
+		"logs":      truncateLogs(limited),
+		"count":     len(filtered),
+		"limit":     mcpAggregateResponseLimit,
+		"truncated": truncated,
+		"warnings":  warnings,
+		"mutated":   false,
+	}, nil
+}
+
+func filterMCPEvent(evt domainevent.Event, filter mcpEventFilter) bool {
+	if filter.Type != "" && !containsFoldMCP(evt.Type, filter.Type) {
+		return false
+	}
+	if filter.Source != "" && !containsFoldMCP(evt.Source, filter.Source) {
+		return false
+	}
+	if filter.Subject != "" && !containsFoldMCP(evt.Subject, filter.Subject) {
+		return false
+	}
+	for _, id := range []string{
+		filter.RunID,
+		filter.PipelineRunID,
+		filter.DeploymentRunID,
+		filter.ReleaseID,
+		filter.ArtifactID,
+		filter.SecurityScanID,
+	} {
+		if id != "" && !mcpEventMatchesIdentifier(evt, id) {
+			return false
+		}
+	}
+	return true
+}
+
+func filterMCPLog(log domainevent.LogChunk, filter mcpLogFilter) bool {
+	if filter.RunID != "" && log.PipelineRunID != filter.RunID && log.DeploymentRunID != filter.RunID {
+		return false
+	}
+	if filter.PipelineRunID != "" && log.PipelineRunID != filter.PipelineRunID {
+		return false
+	}
+	if filter.DeploymentRunID != "" && log.DeploymentRunID != filter.DeploymentRunID {
+		return false
+	}
+	if filter.StageRunID != "" && log.StageRunID != filter.StageRunID {
+		return false
+	}
+	if filter.JobRunID != "" && log.JobRunID != filter.JobRunID {
+		return false
+	}
+	if filter.StepRunID != "" && log.StepRunID != filter.StepRunID {
+		return false
+	}
+	if filter.Stream != "" && !strings.EqualFold(log.Stream, filter.Stream) {
+		return false
+	}
+	if filter.Contains != "" && !containsFoldMCP(log.Content, filter.Contains) {
+		return false
+	}
+	return true
+}
+
+func mcpEventMatchesIdentifier(evt domainevent.Event, id string) bool {
+	if evt.ID == id || evt.Subject == id {
+		return true
+	}
+	for _, value := range evt.Data {
+		if mcpAnyString(value) == id {
+			return true
+		}
+	}
+	return false
+}
+
+func mcpAnyString(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case fmt.Stringer:
+		return typed.String()
+	default:
+		return fmt.Sprint(value)
+	}
+}
+
+func containsFoldMCP(value string, needle string) bool {
+	return strings.Contains(strings.ToLower(value), strings.ToLower(needle))
+}
+
+func limitMCPItems[T any](items []T, limit int) ([]T, bool) {
+	if limit <= 0 || len(items) <= limit {
+		return items, false
+	}
+	return items[:limit], true
+}
+
 func (s *Server) catalogSummary(ctx context.Context, orgID string, projectID string) (any, error) {
 	orgs, err := s.services.Catalog.ListOrgs(ctx)
 	if err != nil {
@@ -890,6 +1164,8 @@ func (s *Server) toolPermission(name string) string {
 		return domainauth.PermissionDeploymentCreate
 	case "nivora_status",
 		"nivora_get_runtime_recovery_status",
+		"nivora_search_events",
+		"nivora_search_logs",
 		"nivora_get_catalog_summary",
 		"nivora_list_pipeline_definitions",
 		"nivora_get_pipeline_definition",

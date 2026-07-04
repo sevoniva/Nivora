@@ -3,6 +3,8 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -37,7 +39,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://events", "nivora://logs", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
 		if !hasResource(resources, want) {
 			t.Fatalf("resource %s missing from %#v", want, resources)
 		}
@@ -51,7 +53,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 			t.Fatalf("blocked action tool %s was exposed", blocked)
 		}
 	}
-	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
+	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_search_events", "nivora_search_logs", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
 		if !hasTool(tools, want) {
 			t.Fatalf("tool %s missing from %#v", want, tools)
 		}
@@ -314,6 +316,62 @@ func TestMCPSecurityPolicyAndRuntimeReadOnly(t *testing.T) {
 	}
 	if strings.Contains(runtimeBody, "should-not-leak") || strings.Contains(runtimeBody, "tokenHash") {
 		t.Fatalf("runtime recovery leaked sensitive value: %s", runtimeBody)
+	}
+}
+
+func TestMCPAggregateEventsAndLogsReadOnly(t *testing.T) {
+	ctx := context.Background()
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	pipelineRunID, deploymentRunID := createMCPObservabilityFixture(t, server)
+
+	eventsResource, err := server.ReadResource(ctx, "nivora://events")
+	if err != nil {
+		t.Fatalf("read events resource: %v", err)
+	}
+	if !strings.Contains(eventsResource.Text, pipelineRunID) || !strings.Contains(eventsResource.Text, deploymentRunID) || !strings.Contains(eventsResource.Text, `"mutated": false`) {
+		t.Fatalf("events resource body = %s", eventsResource.Text)
+	}
+
+	logsResource, err := server.ReadResource(ctx, "nivora://logs")
+	if err != nil {
+		t.Fatalf("read logs resource: %v", err)
+	}
+	if !strings.Contains(logsResource.Text, "mcp-observe-log") || !strings.Contains(logsResource.Text, "dry-run validation completed") || !strings.Contains(logsResource.Text, `"mutated": false`) {
+		t.Fatalf("logs resource body = %s", logsResource.Text)
+	}
+
+	eventResult, err := server.CallTool(ctx, "nivora_search_events", map[string]any{
+		"pipelineRunId": pipelineRunID,
+		"type":          "pipeline.run.completed",
+		"authorization": "Bearer should-not-leak",
+	})
+	if err != nil {
+		t.Fatalf("event search tool transport error: %v", err)
+	}
+	eventBody := eventResult.Content[0].Text
+	if eventResult.IsError || !strings.Contains(eventBody, pipelineRunID) || !strings.Contains(eventBody, `"mutated": false`) {
+		t.Fatalf("event search result = %#v", eventResult)
+	}
+
+	logResult, err := server.CallTool(ctx, "nivora_search_logs", map[string]any{
+		"deploymentRunId": deploymentRunID,
+		"contains":        "dry-run validation",
+		"token":           "should-not-leak",
+	})
+	if err != nil {
+		t.Fatalf("log search tool transport error: %v", err)
+	}
+	logBody := logResult.Content[0].Text
+	if logResult.IsError || !strings.Contains(logBody, deploymentRunID) || !strings.Contains(logBody, "dry-run validation completed") || !strings.Contains(logBody, `"mutated": false`) {
+		t.Fatalf("log search result = %#v", logResult)
+	}
+
+	for _, body := range []string{eventBody, logBody} {
+		for _, forbidden := range []string{"should-not-leak", "tokenHash", "BEGIN PRIVATE KEY", "Authorization: Bearer"} {
+			if strings.Contains(body, forbidden) {
+				t.Fatalf("aggregate observability MCP output leaked sensitive value %q: %s", forbidden, body)
+			}
+		}
 	}
 }
 
@@ -769,6 +827,67 @@ func createMCPArtifactFixture(t *testing.T, server *Server) (string, string) {
 		t.Fatalf("expected one artifact in fixture, got %#v", record.Artifacts)
 	}
 	return record.Artifacts[0].ID, record.Release.ID
+}
+
+func createMCPObservabilityFixture(t *testing.T, server *Server) (string, string) {
+	t.Helper()
+	ctx := context.Background()
+	pipelineRecord, err := server.services.Pipelines.CreateAndRun(ctx, pipelineusecase.CreateRunInput{
+		ActorID: "mcp-fixture",
+		Definition: pipelineusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Pipeline",
+			Metadata:   pipelineusecase.Metadata{Name: "mcp-observe-pipeline"},
+			Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+				Name: "observe",
+				Jobs: []pipelineusecase.Job{{
+					Name:     "emit-log",
+					Executor: "shell",
+					Steps:    []pipelineusecase.Step{{Name: "stdout", Run: `printf "mcp-observe-log"`}},
+				}},
+			}}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create pipeline observability fixture: %v", err)
+	}
+
+	manifest := filepath.Join(t.TempDir(), "configmap.yaml")
+	if err := os.WriteFile(manifest, []byte(`apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-observe-config
+data:
+  message: observed
+`), 0o600); err != nil {
+		t.Fatalf("write deployment manifest fixture: %v", err)
+	}
+	deploymentRecord, err := server.services.Deployments.CreateAndRun(ctx, deploymentusecase.CreateRunInput{
+		ActorID: "mcp-fixture",
+		Definition: deploymentusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Deployment",
+			Metadata:   deploymentusecase.Metadata{Name: "mcp-observe-deployment"},
+			Spec: deploymentusecase.Spec{
+				Application: "demo",
+				Environment: "dev",
+				Target: deploymentusecase.Target{
+					Type:      "kubernetes-yaml",
+					Name:      "local-noop",
+					Namespace: "default",
+				},
+				Manifests: []string{manifest},
+				Options: deploymentusecase.Options{
+					DryRun: true,
+					Apply:  false,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create deployment observability fixture: %v", err)
+	}
+	return pipelineRecord.Record.Run.ID, deploymentRecord.Record.Run.ID
 }
 
 func hasResource(resources []Resource, uri string) bool {

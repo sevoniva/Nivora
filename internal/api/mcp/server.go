@@ -14,6 +14,7 @@ import (
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/crypto"
+	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
@@ -72,6 +73,9 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://deployments/{id}/health", "Deployment health", "Deployment health by id"),
 		resource("nivora://deployments/{id}/diff", "Deployment diff", "Deployment diff by id"),
 		resource("nivora://releases/{id}", "Release", "Release record by id"),
+		resource("nivora://artifacts", "Artifacts", "Release-bound artifact inventory"),
+		resource("nivora://artifacts/{id}", "Artifact", "Tracked artifact by id"),
+		resource("nivora://artifacts/{id}/releases", "Artifact release bindings", "Release bindings for a tracked artifact"),
 		resource("nivora://releases/executions/{id}", "ReleaseExecution", "ReleaseExecution record by id"),
 		resource("nivora://releases/executions/{id}/timeline", "ReleaseExecution timeline", "ReleaseExecution timeline by id"),
 		resource("nivora://runners/summary", "Runner summary", "Runner fleet summary"),
@@ -108,6 +112,16 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 		tool("nivora_get_deployment_health", "Read DeploymentRun health by id", idSchema("id")),
 		tool("nivora_get_deployment_diff", "Read DeploymentRun diff by id", idSchema("id")),
 		tool("nivora_get_release_execution", "Read a ReleaseExecution by id", idSchema("id")),
+		tool("nivora_list_artifacts", "List release-bound artifacts tracked by Nivora", objectSchema(map[string]any{
+			"type":       stringProperty("artifact type"),
+			"name":       stringProperty("artifact name substring"),
+			"registry":   stringProperty("registry host"),
+			"repository": stringProperty("repository substring"),
+			"digest":     stringProperty("resolved digest"),
+			"reference":  stringProperty("artifact reference substring"),
+		}, nil)),
+		tool("nivora_get_artifact", "Read a tracked artifact by id", idSchema("id")),
+		tool("nivora_get_artifact_releases", "List releases bound to a tracked artifact", idSchema("id")),
 		tool("nivora_get_runner_summary", "Read runner fleet summary", nil),
 		tool("nivora_get_evidence_bundle", "Read a persisted evidence bundle by id", idSchema("id")),
 		tool("nivora_search_audit", "Search audit records visible to the subject", objectSchema(map[string]any{
@@ -228,6 +242,14 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 		return s.pipelineResource(ctx, strings.TrimPrefix(uri, "nivora://pipelines/runs/"))
 	case strings.HasPrefix(uri, "nivora://deployments/"):
 		return s.deploymentResource(ctx, strings.TrimPrefix(uri, "nivora://deployments/"))
+	case uri == "nivora://artifacts":
+		artifacts, err := s.services.Artifacts.ListArtifacts(ctx, artifactusecase.ListArtifactsInput{})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"artifacts": artifacts}, nil
+	case strings.HasPrefix(uri, "nivora://artifacts/"):
+		return s.artifactResource(ctx, strings.TrimPrefix(uri, "nivora://artifacts/"))
 	case strings.HasPrefix(uri, "nivora://releases/executions/"):
 		return s.releaseExecutionResource(ctx, strings.TrimPrefix(uri, "nivora://releases/executions/"))
 	case strings.HasPrefix(uri, "nivora://releases/"):
@@ -314,6 +336,19 @@ func (s *Server) releaseExecutionResource(ctx context.Context, rest string) (any
 	return s.services.Releases.GetExecution(ctx, rest)
 }
 
+func (s *Server) artifactResource(ctx context.Context, rest string) (any, error) {
+	if strings.HasSuffix(rest, "/releases") {
+		id := strings.TrimSuffix(rest, "/releases")
+		id = strings.TrimSuffix(id, "/")
+		bindings, err := s.services.Artifacts.ArtifactReleases(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"artifactId": id, "releases": bindings}, nil
+	}
+	return s.services.Artifacts.GetArtifact(ctx, rest)
+}
+
 func (s *Server) callToolPayload(ctx context.Context, name string, arguments map[string]any) (any, error) {
 	switch name {
 	case "nivora_status":
@@ -358,6 +393,39 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return s.services.Releases.GetExecution(ctx, id)
+	case "nivora_list_artifacts":
+		artifacts, err := s.services.Artifacts.ListArtifacts(ctx, artifactusecase.ListArtifactsInput{
+			Type:       stringArg(arguments, "type"),
+			Name:       stringArg(arguments, "name"),
+			Registry:   stringArg(arguments, "registry"),
+			Repository: stringArg(arguments, "repository"),
+			Digest:     stringArg(arguments, "digest"),
+			Reference:  stringArg(arguments, "reference"),
+		})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"artifacts": artifacts, "mutated": false}, nil
+	case "nivora_get_artifact":
+		id, err := requiredString(arguments, "id")
+		if err != nil {
+			return nil, err
+		}
+		artifact, err := s.services.Artifacts.GetArtifact(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"artifact": artifact, "mutated": false}, nil
+	case "nivora_get_artifact_releases":
+		id, err := requiredString(arguments, "id")
+		if err != nil {
+			return nil, err
+		}
+		bindings, err := s.services.Artifacts.ArtifactReleases(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"artifactId": id, "releases": bindings, "mutated": false}, nil
 	case "nivora_get_runner_summary":
 		return s.runnerSummary(ctx)
 	case "nivora_get_evidence_bundle":
@@ -566,6 +634,9 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_get_deployment_health",
 		"nivora_get_deployment_diff",
 		"nivora_get_release_execution",
+		"nivora_list_artifacts",
+		"nivora_get_artifact",
+		"nivora_get_artifact_releases",
 		"nivora_get_runner_summary",
 		"nivora_get_capability_status":
 		return domainauth.PermissionProjectRead

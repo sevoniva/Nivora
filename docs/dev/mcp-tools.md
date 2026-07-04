@@ -9,6 +9,7 @@ Read-only tools and resources expose control-plane state such as:
 - system status and runtime recovery status
 - runner summaries
 - DeploymentRun and ReleaseExecution inspection
+- release-bound artifact inventory and artifact-to-release bindings
 - security and audit summaries
 - persisted evidence bundles
 - capability status

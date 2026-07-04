@@ -10,6 +10,7 @@ import (
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 )
@@ -32,7 +33,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://deployments/{id}/health", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://deployments/{id}/health", "nivora://artifacts/{id}/releases", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
 		if !hasResource(resources, want) {
 			t.Fatalf("resource %s missing from %#v", want, resources)
 		}
@@ -46,7 +47,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 			t.Fatalf("blocked action tool %s was exposed", blocked)
 		}
 	}
-	for _, want := range []string{"nivora_status", "nivora_get_deployment_health", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
+	for _, want := range []string{"nivora_status", "nivora_get_deployment_health", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
 		if !hasTool(tools, want) {
 			t.Fatalf("tool %s missing from %#v", want, tools)
 		}
@@ -132,6 +133,58 @@ func TestMCPRBACReadAuditAndPlanBoundaries(t *testing.T) {
 	}
 	if planResult.IsError || !strings.Contains(planResult.Content[0].Text, `"mutated": false`) {
 		t.Fatalf("developer plan result = %#v", planResult)
+	}
+}
+
+func TestMCPArtifactInventoryReadOnly(t *testing.T) {
+	ctx := context.Background()
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	artifactID, releaseID := createMCPArtifactFixture(t, server)
+
+	resource, err := server.ReadResource(ctx, "nivora://artifacts")
+	if err != nil {
+		t.Fatalf("read artifact inventory resource: %v", err)
+	}
+	if !strings.Contains(resource.Text, artifactID) || !strings.Contains(resource.Text, "registry.example.com/team/demo") {
+		t.Fatalf("artifact inventory resource body = %s", resource.Text)
+	}
+
+	resource, err = server.ReadResource(ctx, "nivora://artifacts/"+artifactID+"/releases")
+	if err != nil {
+		t.Fatalf("read artifact releases resource: %v", err)
+	}
+	if !strings.Contains(resource.Text, releaseID) || !strings.Contains(resource.Text, artifactID) {
+		t.Fatalf("artifact releases resource body = %s", resource.Text)
+	}
+
+	listResult, err := server.CallTool(ctx, "nivora_list_artifacts", map[string]any{"registry": "registry.example.com"})
+	if err != nil {
+		t.Fatalf("list artifact tool transport error: %v", err)
+	}
+	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, artifactID) || !strings.Contains(listResult.Content[0].Text, `"mutated": false`) {
+		t.Fatalf("list artifact tool result = %#v", listResult)
+	}
+
+	getResult, err := server.CallTool(ctx, "nivora_get_artifact", map[string]any{"id": artifactID})
+	if err != nil {
+		t.Fatalf("get artifact tool transport error: %v", err)
+	}
+	if getResult.IsError || !strings.Contains(getResult.Content[0].Text, artifactID) || !strings.Contains(getResult.Content[0].Text, `"mutated": false`) {
+		t.Fatalf("get artifact tool result = %#v", getResult)
+	}
+
+	releasesResult, err := server.CallTool(ctx, "nivora_get_artifact_releases", map[string]any{"id": artifactID, "authorization": "Bearer should-not-leak"})
+	if err != nil {
+		t.Fatalf("get artifact releases tool transport error: %v", err)
+	}
+	body := releasesResult.Content[0].Text
+	if releasesResult.IsError || !strings.Contains(body, releaseID) || !strings.Contains(body, `"mutated": false`) {
+		t.Fatalf("get artifact releases tool result = %#v", releasesResult)
+	}
+	for _, forbidden := range []string{"should-not-leak", "tokenHash", "BEGIN PRIVATE KEY", "password"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("artifact MCP output leaked sensitive value %q: %s", forbidden, body)
+		}
 	}
 }
 
@@ -484,6 +537,42 @@ func newTestMCPServerWithRecorderAndServices(t *testing.T, subject domainauth.Su
 		Plugins:     runtime.NewPluginRegistry(),
 		Audit:       recorder,
 	}, nil)
+}
+
+func createMCPArtifactFixture(t *testing.T, server *Server) (string, string) {
+	t.Helper()
+	record, err := server.services.Artifacts.CreateRelease(context.Background(), artifactusecase.CreateReleaseInput{
+		ActorID: "mcp-fixture",
+		Definition: artifactusecase.ReleaseDefinition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Release",
+			Metadata: artifactusecase.ReleaseMetadata{
+				Name: "mcp-artifact-release",
+			},
+			Spec: artifactusecase.ReleaseSpec{
+				Version:     "1.2.3",
+				Application: "demo",
+				Environment: "staging",
+				Artifacts: []artifactusecase.ReleaseArtifactSpec{{
+					Name:      "demo-image",
+					Type:      "image",
+					Role:      "runtime",
+					Required:  true,
+					Reference: "registry.example.com/team/demo:1.2.3@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					Metadata: map[string]string{
+						"component": "api",
+					},
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create artifact fixture release: %v", err)
+	}
+	if len(record.Artifacts) != 1 {
+		t.Fatalf("expected one artifact in fixture, got %#v", record.Artifacts)
+	}
+	return record.Artifacts[0].ID, record.Release.ID
 }
 
 func hasResource(resources []Resource, uri string) bool {

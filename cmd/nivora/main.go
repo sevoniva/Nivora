@@ -25,6 +25,7 @@ import (
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+	integrationusecase "github.com/sevoniva/nivora/internal/usecase/integration"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
@@ -70,6 +71,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newPolicyCommand())
 	root.AddCommand(newSecretCommand())
 	root.AddCommand(newCredentialCommand())
+	root.AddCommand(newIntegrationsCommand())
 	root.AddCommand(newPluginsCommand())
 	root.AddCommand(newMCPCommand())
 	root.AddCommand(newDeploymentCommand())
@@ -1203,6 +1205,42 @@ func newCloudAccountInspectCommand(name string, short string, suffix string) *co
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&region, "region", "", "optional cloud region filter")
+	return cmd
+}
+
+func newIntegrationsCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "integrations", Short: "Read-only integration capability index"}
+	cmd.AddCommand(newIntegrationsListCommand())
+	return cmd
+}
+
+func newIntegrationsListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var local bool
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List configured adapter and plugin capability metadata",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if local {
+				result, err := integrationusecase.NewService(pluginusecase.NewDefaultRegistry()).List(cmd.Context())
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), result)
+				return nil
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/integrations", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().BoolVar(&local, "local", false, "use the local built-in registry without contacting a server")
 	return cmd
 }
 

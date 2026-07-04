@@ -573,6 +573,11 @@ All external systems should connect through ports and adapters. The adapter name
 
 The read-only `/api/v1/integrations` endpoint exposes the current adapter/plugin capability index. It is metadata only: it does not configure providers, call external services, or return credentials. Skeleton, noop, foundation-only, and experimental adapters are labeled as such.
 
+```bash
+go run ./cmd/nivora integrations list --local
+go run ./cmd/nivora integrations list --server http://localhost:8080
+```
+
 ```mermaid
 flowchart LR
     subgraph CORE["Core Use Cases"]

@@ -59,7 +59,7 @@ Production configuration now also fails closed when MCP is enabled with `mcp.rea
 17. Unknown resource structured error test for every URI class.
 18. Remote transport no-mutation proof for plan-only tool aliases; local alias non-mutation is covered by `TestMCPPlanOnlyToolsReturnMutatedFalseAndDoNotCreateDeploymentRuns`.
 19. Remote TLS/deployment profile smoke test.
-20. Remote MCP per-client audit attribution test.
+20. Remote MCP per-client request/correlation audit attribution test.
 
 ## Next 3 Goals
 
@@ -74,7 +74,7 @@ Production configuration now also fails closed when MCP is enabled with `mcp.rea
    - Acceptance: cross-tenant fixture tests fail closed.
 
 3. **MCP Remote Audit Contract Hardening**
-   - Scope: remote-style actor/client metadata, tenant scope, pagination, and audit attribution tests on top of the existing Postgres MCP hash-chain proof.
+   - Scope: remote-style actor/client metadata, tenant scope, pagination, and richer request/correlation audit attribution tests on top of the existing Postgres MCP hash-chain proof.
    - Non-goals: new audit product features or action-tier MCP.
    - Acceptance: remote MCP remains disabled by default and audit contract tests fail closed for missing identity or scope.
 
@@ -84,7 +84,7 @@ Production configuration now also fails closed when MCP is enabled with `mcp.rea
 |---:|---|---|---|
 | 1 | Expand remote MCP OIDC/service-account auth contract tests | security | current bearer route tests |
 | 2 | Add tenant fixture model for MCP resources | test | auth scopes |
-| 3 | Add remote MCP audit attribution tests | test | remote auth contract |
+| 3 | Add richer remote MCP client/request audit attribution tests | test | current basic remote actor attribution |
 | 4 | Add pagination to remaining list-like MCP resources | code | current search/artifact/security/evidence pagination |
 | 5 | Add large-result MCP pagination scenarios | test | current event/log/audit/artifact/security/evidence pagination |
 | 6 | Add remote-scale pagination contract tests across resources | test | current response cap |

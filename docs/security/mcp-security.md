@@ -60,7 +60,7 @@ Runtime wiring records MCP audit through the compliance service. In PostgreSQL r
 
 ## Response and Timeout Controls
 
-The MCP foundation enforces a configured request body cap, a response cap at both resource/tool text boundaries and the JSON-RPC response boundary, a request timeout, and an in-process per-subject request rate limit. The default examples use `mcp.max_request_bytes: 1048576`, `mcp.max_response_bytes: 262144`, `mcp.request_timeout: 15s`, and `mcp.max_requests_per_minute: 120`. These controls reduce accidental abuse in local AI workflows and the experimental remote JSON-RPC endpoint, but they are not proof that broad remote MCP exposure is safe. Remote MCP still needs deeper tenant filters, distributed rate limits, pagination, remote transport tests, and remote audit attribution tests before broad exposure.
+The MCP foundation enforces a configured request body cap, a response cap at both resource/tool text boundaries and the JSON-RPC response boundary, a request timeout, and an in-process per-subject request rate limit. The default examples use `mcp.max_request_bytes: 1048576`, `mcp.max_response_bytes: 262144`, `mcp.request_timeout: 15s`, and `mcp.max_requests_per_minute: 120`. These controls reduce accidental abuse in local AI workflows and the experimental remote JSON-RPC endpoint, but they are not proof that broad remote MCP exposure is safe. Remote MCP still needs deeper tenant filters, distributed rate limits, broader pagination, remote transport tests, and richer remote client/request audit attribution before broad exposure.
 
 See [MCP Permission Matrix](MCP_PERMISSION_MATRIX.md) for the resource, tool, prompt, permission, and audit-event mapping.
 

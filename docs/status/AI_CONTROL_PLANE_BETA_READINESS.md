@@ -60,7 +60,7 @@ Current scenario evidence:
 ## Remaining Top Risks
 
 1. Remote MCP has an opt-in bearer-gated read-only JSON-RPC foundation, but broad remote identity lifecycle and tenant filtering are not fully proven.
-2. Remote MCP audit attribution is not yet fully proven because richer remote client metadata is still future work.
+2. Remote MCP audit attribution has basic actor/operation coverage, but richer remote client metadata and request/correlation attribution are still future work.
 3. Prompt-injection resilience is mostly prompt guidance and scenario coverage, not a full adversarial test corpus.
 4. AI can still misinterpret unknown live state if prompts are ignored.
 5. Runner shell execution is hardened but not an OS-level sandbox.
@@ -73,5 +73,5 @@ Proceed with **Remote Read-Only MCP Design Validation** before any action-tier w
 - add OAuth/OIDC or service-account scoped remote auth contract tests
 - add tenant-filtered MCP resource tests
 - add remote response-size, request-timeout, and rate-limit contract tests
-- add remote MCP audit attribution and scope contract tests on top of the existing Postgres hash-chain proof
+- add richer remote MCP client/request attribution and scope contract tests on top of the existing Postgres hash-chain proof
 - expand adversarial log/prompt-injection fixtures

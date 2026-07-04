@@ -1256,6 +1256,37 @@ func newTestRouter(cfg config.Config) http.Handler {
 	return newTestRouterWithAuth(cfg, authusecase.NewService(authusecase.NewMemoryStore(), memory.New()))
 }
 
+func newTestRouterWithCompliance(cfg config.Config) (http.Handler, *complianceusecase.Service) {
+	authService := authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+	pipelineService := newTestPipelineService()
+	artifactService := newTestArtifactService()
+	deploymentService := newTestDeploymentService()
+	approvalService := approvalusecase.NewService(approvalusecase.NewMemoryStore(), noopnotification.New(), memory.New())
+	deploymentService.WithGovernance(approvalService)
+	securityService := securityusecase.NewService(securityusecase.NewMemoryStore(), fakeSecurityScanner{}, nil, memory.New())
+	releaseService := newTestReleaseOrchestrationService(artifactService, deploymentService)
+	releaseService.WithGovernance(approvalService)
+	complianceService := complianceusecase.NewService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService)
+	router := New(
+		cfg,
+		version.Current(),
+		slog.New(slog.NewTextHandler(io.Discard, nil)),
+		pipelineService,
+		deploymentService,
+		artifactService,
+		releaseService,
+		securityService,
+		credentialusecase.NewService(credentialusecase.NewMemoryStore(), builtinsecret.New(), memory.New()),
+		authService,
+		approvalService,
+		newTestCloudService(),
+		tenancyusecase.NewService(),
+		complianceService,
+		pluginusecase.NewDefaultRegistry(),
+	)
+	return router, complianceService
+}
+
 func newTestRouterWithAuth(cfg config.Config, authService *authusecase.Service) http.Handler {
 	return newTestRouterWithPipelineAndAuth(cfg, newTestPipelineService(), authService)
 }

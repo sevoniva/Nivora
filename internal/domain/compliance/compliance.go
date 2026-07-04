@@ -15,22 +15,28 @@ const (
 )
 
 type EvidenceBundle struct {
-	ID               string           `json:"id" yaml:"id"`
-	SubjectType      string           `json:"subjectType" yaml:"subjectType"`
-	SubjectID        string           `json:"subjectId" yaml:"subjectId"`
-	ScopeType        string           `json:"scopeType,omitempty" yaml:"scopeType,omitempty"`
-	ScopeID          string           `json:"scopeId,omitempty" yaml:"scopeId,omitempty"`
-	Summary          string           `json:"summary" yaml:"summary"`
-	Release          any              `json:"release,omitempty" yaml:"release,omitempty"`
-	Artifacts        []any            `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
-	Approvals        []any            `json:"approvals,omitempty" yaml:"approvals,omitempty"`
-	PolicyResults    []any            `json:"policyResults,omitempty" yaml:"policyResults,omitempty"`
-	SecurityFindings []any            `json:"securityFindings,omitempty" yaml:"securityFindings,omitempty"`
-	DeploymentPlans  []any            `json:"deploymentPlans,omitempty" yaml:"deploymentPlans,omitempty"`
-	LogReferences    []LogReference   `json:"logReferences,omitempty" yaml:"logReferences,omitempty"`
-	Events           []event.Event    `json:"events,omitempty" yaml:"events,omitempty"`
-	Audits           []audit.AuditLog `json:"audits,omitempty" yaml:"audits,omitempty"`
-	GeneratedAt      time.Time        `json:"generatedAt" yaml:"generatedAt"`
+	ID                string           `json:"id" yaml:"id"`
+	SubjectType       string           `json:"subjectType" yaml:"subjectType"`
+	SubjectID         string           `json:"subjectId" yaml:"subjectId"`
+	ScopeType         string           `json:"scopeType,omitempty" yaml:"scopeType,omitempty"`
+	ScopeID           string           `json:"scopeId,omitempty" yaml:"scopeId,omitempty"`
+	Summary           string           `json:"summary" yaml:"summary"`
+	SubjectSummary    map[string]any   `json:"subjectSummary,omitempty" yaml:"subjectSummary,omitempty"`
+	Release           any              `json:"release,omitempty" yaml:"release,omitempty"`
+	ReleasePlans      []any            `json:"releasePlans,omitempty" yaml:"releasePlans,omitempty"`
+	ReleaseExecutions []any            `json:"releaseExecutions,omitempty" yaml:"releaseExecutions,omitempty"`
+	DeploymentRuns    []any            `json:"deploymentRuns,omitempty" yaml:"deploymentRuns,omitempty"`
+	Artifacts         []any            `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
+	Approvals         []any            `json:"approvals,omitempty" yaml:"approvals,omitempty"`
+	PolicyResults     []any            `json:"policyResults,omitempty" yaml:"policyResults,omitempty"`
+	SecurityFindings  []any            `json:"securityFindings,omitempty" yaml:"securityFindings,omitempty"`
+	DeploymentPlans   []any            `json:"deploymentPlans,omitempty" yaml:"deploymentPlans,omitempty"`
+	LogReferences     []LogReference   `json:"logReferences,omitempty" yaml:"logReferences,omitempty"`
+	Events            []event.Event    `json:"events,omitempty" yaml:"events,omitempty"`
+	Audits            []audit.AuditLog `json:"audits,omitempty" yaml:"audits,omitempty"`
+	Digest            string           `json:"digest,omitempty" yaml:"digest,omitempty"`
+	GeneratedBy       string           `json:"generatedBy" yaml:"generatedBy"`
+	GeneratedAt       time.Time        `json:"generatedAt" yaml:"generatedAt"`
 }
 
 type LogReference struct {

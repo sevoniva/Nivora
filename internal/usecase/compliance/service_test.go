@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/event"
 	domainnotification "github.com/sevoniva/nivora/internal/domain/notification"
@@ -120,6 +121,134 @@ func TestEvidenceBundleRedactsSecrets(t *testing.T) {
 	}
 }
 
+func TestReleaseEvidenceBundleIncludesExecutionDeploymentAndDigest(t *testing.T) {
+	service := newTestComplianceService(nil)
+	fixed := time.Date(2026, 7, 4, 9, 0, 0, 0, time.UTC)
+	service.now = func() time.Time { return fixed }
+
+	execution, err := service.releases.Deploy(context.Background(), releaseusecase.DeployInput{
+		Definition: releaseEvidenceDefinition(false),
+		ActorID:    "release-operator",
+	})
+	if err != nil {
+		t.Fatalf("deploy release: %v", err)
+	}
+	if execution.Execution.Status != releaseusecase.ExecutionSucceeded {
+		t.Fatalf("execution status = %s", execution.Execution.Status)
+	}
+
+	bundle, err := service.EvidenceBundle(context.Background(), EvidenceInput{SubjectType: "release", SubjectID: execution.Release.ID})
+	if err != nil {
+		t.Fatalf("release evidence: %v", err)
+	}
+	if bundle.GeneratedBy != "nivora" || !strings.HasPrefix(bundle.Digest, "sha256:") {
+		t.Fatalf("bundle metadata missing generatedBy/digest: %#v", bundle)
+	}
+	if len(bundle.ReleaseExecutions) != 1 || len(bundle.ReleasePlans) != 1 {
+		t.Fatalf("release execution evidence missing: executions=%d plans=%d", len(bundle.ReleaseExecutions), len(bundle.ReleasePlans))
+	}
+	if len(bundle.DeploymentRuns) != 1 || len(bundle.DeploymentPlans) == 0 || len(bundle.LogReferences) == 0 {
+		t.Fatalf("deployment evidence missing: deployments=%d plans=%d logs=%d", len(bundle.DeploymentRuns), len(bundle.DeploymentPlans), len(bundle.LogReferences))
+	}
+	if len(bundle.PolicyResults) == 0 || len(bundle.Events) == 0 || len(bundle.Audits) == 0 {
+		t.Fatalf("policy/event/audit evidence missing: policies=%d events=%d audits=%d", len(bundle.PolicyResults), len(bundle.Events), len(bundle.Audits))
+	}
+	if got := bundle.SubjectSummary["executionCount"]; got != 1 {
+		t.Fatalf("subject summary executionCount = %#v, want 1", got)
+	}
+
+	again, err := service.EvidenceBundle(context.Background(), EvidenceInput{SubjectType: "release", SubjectID: execution.Release.ID})
+	if err != nil {
+		t.Fatalf("second release evidence: %v", err)
+	}
+	if again.Digest != bundle.Digest {
+		t.Fatalf("evidence digest should be stable: %s != %s", again.Digest, bundle.Digest)
+	}
+	markdown := service.ExportMarkdown(bundle)
+	if !strings.Contains(markdown, "Digest") || !strings.Contains(markdown, "Deployment runs") {
+		t.Fatalf("markdown summary missing v2 fields: %s", markdown)
+	}
+}
+
+func TestReleaseEvidenceBundleIncludesApprovalGate(t *testing.T) {
+	service := newTestComplianceService(nil)
+	service.releases.WithGovernance(testReleaseGovernance{})
+
+	execution, err := service.releases.Deploy(context.Background(), releaseusecase.DeployInput{
+		Definition: releaseEvidenceDefinition(true),
+		ActorID:    "release-operator",
+	})
+	if err != nil {
+		t.Fatalf("deploy release waiting approval: %v", err)
+	}
+	if execution.Execution.Status != releaseusecase.ExecutionWaitingApproval {
+		t.Fatalf("execution status = %s", execution.Execution.Status)
+	}
+
+	bundle, err := service.EvidenceBundle(context.Background(), EvidenceInput{SubjectType: "release", SubjectID: execution.Release.ID})
+	if err != nil {
+		t.Fatalf("release evidence: %v", err)
+	}
+	if len(bundle.ReleaseExecutions) != 1 || len(bundle.Approvals) != 1 {
+		t.Fatalf("approval evidence missing: executions=%d approvals=%d", len(bundle.ReleaseExecutions), len(bundle.Approvals))
+	}
+}
+
+func releaseEvidenceDefinition(approvalRequired bool) releaseusecase.Definition {
+	return releaseusecase.Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "ReleaseOrchestration",
+		Metadata:   releaseusecase.Metadata{Name: "evidence-release"},
+		Spec: releaseusecase.Spec{
+			Environment:      "dev",
+			Strategy:         releaseusecase.StrategySequential,
+			ApprovalRequired: approvalRequired,
+			Release: artifactusecase.ReleaseDefinition{
+				APIVersion: "nivora.io/v1alpha1",
+				Kind:       "Release",
+				Metadata:   artifactusecase.ReleaseMetadata{Name: "evidence-demo"},
+				Spec: artifactusecase.ReleaseSpec{
+					Version:     "1.0.0",
+					Application: "demo",
+					Environment: "dev",
+					Artifacts: []artifactusecase.ReleaseArtifactSpec{{
+						Name:      "demo",
+						Type:      "image",
+						Required:  true,
+						Reference: "registry.example.com/demo/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					}},
+				},
+			},
+			Targets: []releaseusecase.TargetSpec{{
+				Name:  "dev-yaml",
+				Type:  "kubernetes-yaml",
+				Order: 1,
+				Deployment: deploymentusecase.Definition{
+					APIVersion: "nivora.io/v1alpha1",
+					Kind:       "Deployment",
+					Metadata:   deploymentusecase.Metadata{Name: "evidence-deployment"},
+					Spec: deploymentusecase.Spec{
+						Application: "demo",
+						Environment: "dev",
+						Target: deploymentusecase.Target{
+							Type:      "kubernetes-yaml",
+							Name:      "dev-yaml",
+							Namespace: "default",
+						},
+						Artifacts: []deploymentusecase.Artifact{{
+							Name:      "demo",
+							Type:      "image",
+							Reference: "registry.example.com/demo/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+						}},
+						Manifests: []string{"../../../examples/yaml/deployment.yaml"},
+						Options:   deploymentusecase.Options{DryRun: true, Apply: false},
+					},
+				},
+			}},
+		},
+	}
+}
+
 func newTestComplianceService(pipelines *pipelineusecase.Service) *Service {
 	if pipelines == nil {
 		pipelines = pipelineusecase.NewService(pipelineusecase.NewMemoryStore(), fakeRunner{}, fakeEventBus{})
@@ -130,6 +259,24 @@ func newTestComplianceService(pipelines *pipelineusecase.Service) *Service {
 	approvals := approvalusecase.NewService(approvalusecase.NewMemoryStore(), fakeNotificationProvider{}, fakeEventBus{})
 	releases := newTestReleaseService(artifacts, deployments)
 	return NewService(pipelines, deployments, artifacts, releases, security, approvals)
+}
+
+type testReleaseGovernance struct{}
+
+func (testReleaseGovernance) RequestApproval(ctx context.Context, subjectType string, subjectID string, environmentID string, requestedBy string, reason string) (domainapproval.ApprovalRequest, error) {
+	if err := ctx.Err(); err != nil {
+		return domainapproval.ApprovalRequest{}, err
+	}
+	return domainapproval.ApprovalRequest{
+		ID:               "appr-evidence",
+		SubjectType:      subjectType,
+		SubjectID:        subjectID,
+		EnvironmentID:    environmentID,
+		RequiredByPolicy: true,
+		Status:           domainapproval.StatusPending,
+		RequestedBy:      requestedBy,
+		Reason:           reason,
+	}, nil
 }
 
 func newTestDeploymentService() *deploymentusecase.Service {

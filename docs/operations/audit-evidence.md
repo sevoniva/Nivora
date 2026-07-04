@@ -31,7 +31,11 @@ go run ./cmd/nivora audit search --subject run
 
 Evidence bundles collect available runtime evidence for a subject:
 
+- subject summary
 - release metadata
+- release plans
+- release executions
+- deployment runs
 - artifacts
 - approvals
 - policy results
@@ -61,6 +65,8 @@ go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id>
 ```
 
 Evidence includes log references rather than raw log content by default. Secret-like values are redacted before export.
+
+Release evidence now also follows the ReleaseExecution records for the same release when the release orchestration service is configured. It includes execution records, release plans, target DeploymentRun summaries, DeploymentPlans, approval gates, policy results, security findings, events, audits, and log references that are already present in the runtime services. Each bundle includes a deterministic `digest` over the redacted evidence content and `generatedBy: nivora`.
 
 ## Retention Policy
 
@@ -108,7 +114,7 @@ The verify endpoint validates the entire chain for a given scope and identifies 
 
 ## Limitations
 
-- Hash chain verification is available at API level; not yet tested in CI with real PostgreSQL.
+- Hash chain verification is available at API level and in the PostgreSQL integration job.
 - Retention policy is modeled but not enforced by a background deletion job yet.
-- Evidence bundles include records available in the current runtime services.
+- Evidence bundles include records available in the current runtime services; they do not fetch external registries, clusters, Git providers, or scanners.
 - Nivora remains a hardened beta-candidate and is not production-ready.

@@ -2,6 +2,8 @@ package compliance
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"sort"
@@ -126,6 +128,7 @@ func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (doma
 		SubjectType: input.SubjectType,
 		SubjectID:   input.SubjectID,
 		Summary:     fmt.Sprintf("Evidence bundle for %s %s", input.SubjectType, input.SubjectID),
+		GeneratedBy: "nivora",
 		GeneratedAt: s.now(),
 	}
 	switch input.SubjectType {
@@ -133,6 +136,11 @@ func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (doma
 		record, err := s.pipelines.Get(ctx, input.SubjectID)
 		if err != nil {
 			return bundle, err
+		}
+		bundle.SubjectSummary = map[string]any{
+			"pipelineRunId": record.Run.ID,
+			"pipelineId":    record.Pipeline.ID,
+			"status":        record.Run.Status,
 		}
 		bundle.Events = record.Events
 		bundle.Audits = record.Audits
@@ -142,7 +150,14 @@ func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (doma
 		if err != nil {
 			return bundle, err
 		}
+		bundle.SubjectSummary = map[string]any{
+			"deploymentRunId": record.Run.ID,
+			"releaseId":       record.Run.ReleaseID,
+			"targetType":      record.Run.TargetType,
+			"status":          record.Run.Status,
+		}
 		bundle.Release = sanitizeAny(record.Release)
+		bundle.DeploymentRuns = []any{sanitizeAny(record.Run)}
 		bundle.Artifacts = anySlice(record.Artifacts)
 		bundle.PolicyResults = []any{sanitizeAny(record.Policy)}
 		if len(record.Security.Scan.Findings) > 0 {
@@ -160,14 +175,28 @@ func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (doma
 		if err != nil {
 			return bundle, err
 		}
+		bundle.SubjectSummary = map[string]any{
+			"releaseId": record.Release.ID,
+			"name":      record.Release.Name,
+			"version":   record.Release.Version,
+			"status":    record.Release.Status,
+		}
 		bundle.Release = sanitizeAny(record.Release)
 		bundle.Artifacts = append(anySlice(record.Artifacts), anySlice(record.Bindings)...)
 		bundle.Events = record.Events
 		bundle.Audits = record.Audits
+		bundle = s.appendReleaseExecutionEvidence(ctx, bundle, input.SubjectID)
 	case "security", "securityScan":
 		record, err := s.security.Get(ctx, input.SubjectID)
 		if err != nil {
 			return bundle, err
+		}
+		bundle.SubjectSummary = map[string]any{
+			"scanId":      record.Scan.ID,
+			"subjectType": record.Scan.SubjectType,
+			"subjectId":   record.Scan.SubjectID,
+			"status":      record.Scan.Status,
+			"findings":    record.Scan.Summary.Total,
 		}
 		bundle.SecurityFindings = anySlice(record.Scan.Findings)
 		bundle.PolicyResults = []any{sanitizeAny(record.Policy)}
@@ -180,10 +209,6 @@ func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (doma
 		}
 		bundle.Audits = audits.Items
 	}
-	bundle.Events = sanitizeEvents(bundle.Events)
-	for i, entry := range bundle.Audits {
-		bundle.Audits[i] = sanitizeAudit(entry)
-	}
 	scope, err := s.SubjectScope(ctx, input.SubjectType, input.SubjectID)
 	if err != nil {
 		return domaincompliance.EvidenceBundle{}, err
@@ -192,10 +217,70 @@ func (s *Service) EvidenceBundle(ctx context.Context, input EvidenceInput) (doma
 		bundle.ScopeType = scope.ScopeType
 		bundle.ScopeID = scope.ScopeID
 	}
+	bundle = finalizeEvidenceBundle(bundle)
 	if err := s.store.SaveEvidenceBundle(ctx, bundle); err != nil {
 		return domaincompliance.EvidenceBundle{}, err
 	}
 	return bundle, nil
+}
+
+func (s *Service) appendReleaseExecutionEvidence(ctx context.Context, bundle domaincompliance.EvidenceBundle, releaseID string) domaincompliance.EvidenceBundle {
+	if s.releases == nil {
+		return bundle
+	}
+	records, err := s.releases.ListExecutions(ctx, releaseID)
+	if err != nil {
+		return bundle
+	}
+	for _, record := range records {
+		bundle.ReleaseExecutions = append(bundle.ReleaseExecutions, sanitizeAny(record.Execution))
+		if record.Plan.ID != "" {
+			bundle.ReleasePlans = append(bundle.ReleasePlans, sanitizeAny(record.Plan))
+			bundle.PolicyResults = append(bundle.PolicyResults, anySlice(record.Plan.PolicyResults)...)
+		}
+		if record.Approval.ID != "" {
+			bundle.Approvals = append(bundle.Approvals, sanitizeAny(record.Approval))
+		}
+		if len(record.Security.Scan.Findings) > 0 {
+			bundle.SecurityFindings = append(bundle.SecurityFindings, anySlice(record.Security.Scan.Findings)...)
+			bundle.PolicyResults = append(bundle.PolicyResults, sanitizeAny(record.Security.Policy))
+		}
+		bundle.Events = append(bundle.Events, record.Events...)
+		bundle.Audits = append(bundle.Audits, record.Audits...)
+		for _, deployment := range record.Deployments {
+			bundle = appendDeploymentEvidence(bundle, deployment)
+		}
+	}
+	if bundle.SubjectSummary != nil {
+		bundle.SubjectSummary["executionCount"] = len(records)
+	}
+	return bundle
+}
+
+func appendDeploymentEvidence(bundle domaincompliance.EvidenceBundle, record deploymentusecase.RunRecord) domaincompliance.EvidenceBundle {
+	if record.Run.ID != "" {
+		bundle.DeploymentRuns = append(bundle.DeploymentRuns, sanitizeAny(record.Run))
+	}
+	if record.Plan.DeploymentRunID != "" {
+		bundle.DeploymentPlans = append(bundle.DeploymentPlans, sanitizeAny(record.Plan))
+	}
+	if len(record.Artifacts) > 0 {
+		bundle.Artifacts = append(bundle.Artifacts, anySlice(record.Artifacts)...)
+	}
+	if record.Policy.Allowed || len(record.Policy.Reasons) > 0 {
+		bundle.PolicyResults = append(bundle.PolicyResults, sanitizeAny(record.Policy))
+	}
+	if len(record.Security.Scan.Findings) > 0 {
+		bundle.SecurityFindings = append(bundle.SecurityFindings, anySlice(record.Security.Scan.Findings)...)
+		bundle.PolicyResults = append(bundle.PolicyResults, sanitizeAny(record.Security.Policy))
+	}
+	if record.Approval.ID != "" {
+		bundle.Approvals = append(bundle.Approvals, sanitizeAny(record.Approval))
+	}
+	bundle.Events = append(bundle.Events, record.Events...)
+	bundle.Audits = append(bundle.Audits, record.Audits...)
+	bundle.LogReferences = append(bundle.LogReferences, logReferences(record.Run.ID, record.Logs)...)
+	return bundle
 }
 
 func (s *Service) SubjectScope(ctx context.Context, subjectType string, subjectID string) (SubjectScopeResult, error) {
@@ -297,6 +382,14 @@ func (s *Service) ExportMarkdown(bundle domaincompliance.EvidenceBundle) string 
 	fmt.Fprintf(&b, "# Evidence Bundle\n\n")
 	fmt.Fprintf(&b, "- Subject: `%s/%s`\n", bundle.SubjectType, bundle.SubjectID)
 	fmt.Fprintf(&b, "- Generated: `%s`\n", bundle.GeneratedAt.Format(time.RFC3339))
+	if bundle.Digest != "" {
+		fmt.Fprintf(&b, "- Digest: `%s`\n", bundle.Digest)
+	}
+	fmt.Fprintf(&b, "- Release executions: `%d`\n", len(bundle.ReleaseExecutions))
+	fmt.Fprintf(&b, "- Deployment runs: `%d`\n", len(bundle.DeploymentRuns))
+	fmt.Fprintf(&b, "- Policy results: `%d`\n", len(bundle.PolicyResults))
+	fmt.Fprintf(&b, "- Approvals: `%d`\n", len(bundle.Approvals))
+	fmt.Fprintf(&b, "- Security findings: `%d`\n", len(bundle.SecurityFindings))
 	fmt.Fprintf(&b, "- Audits: `%d`\n", len(bundle.Audits))
 	fmt.Fprintf(&b, "- Events: `%d`\n", len(bundle.Events))
 	fmt.Fprintf(&b, "- Log references: `%d`\n\n", len(bundle.LogReferences))
@@ -435,6 +528,65 @@ func logReferences(subjectID string, logs []event.LogChunk) []domaincompliance.L
 		refs = append(refs, domaincompliance.LogReference{ID: log.ID, SubjectID: subjectID, Stream: log.Stream, Sequence: log.Sequence, CreatedAt: log.CreatedAt})
 	}
 	return refs
+}
+
+func finalizeEvidenceBundle(bundle domaincompliance.EvidenceBundle) domaincompliance.EvidenceBundle {
+	bundle.Release = sanitizeAny(bundle.Release)
+	bundle.SubjectSummary = sanitizeAnyMap(bundle.SubjectSummary)
+	bundle.ReleasePlans = sanitizeAnySlice(bundle.ReleasePlans)
+	bundle.ReleaseExecutions = sanitizeAnySlice(bundle.ReleaseExecutions)
+	bundle.DeploymentRuns = sanitizeAnySlice(bundle.DeploymentRuns)
+	bundle.Artifacts = sanitizeAnySlice(bundle.Artifacts)
+	bundle.Approvals = sanitizeAnySlice(bundle.Approvals)
+	bundle.PolicyResults = sanitizeAnySlice(bundle.PolicyResults)
+	bundle.SecurityFindings = sanitizeAnySlice(bundle.SecurityFindings)
+	bundle.DeploymentPlans = sanitizeAnySlice(bundle.DeploymentPlans)
+	bundle.Events = sanitizeEvents(bundle.Events)
+	sort.Slice(bundle.Events, func(i, j int) bool {
+		if bundle.Events[i].Time.Equal(bundle.Events[j].Time) {
+			return bundle.Events[i].ID < bundle.Events[j].ID
+		}
+		return bundle.Events[i].Time.Before(bundle.Events[j].Time)
+	})
+	for i, entry := range bundle.Audits {
+		bundle.Audits[i] = sanitizeAudit(entry)
+	}
+	sort.Slice(bundle.Audits, func(i, j int) bool {
+		if bundle.Audits[i].CreatedAt.Equal(bundle.Audits[j].CreatedAt) {
+			return bundle.Audits[i].ID < bundle.Audits[j].ID
+		}
+		return bundle.Audits[i].CreatedAt.Before(bundle.Audits[j].CreatedAt)
+	})
+	sort.Slice(bundle.LogReferences, func(i, j int) bool {
+		if bundle.LogReferences[i].CreatedAt.Equal(bundle.LogReferences[j].CreatedAt) {
+			if bundle.LogReferences[i].Sequence == bundle.LogReferences[j].Sequence {
+				return bundle.LogReferences[i].ID < bundle.LogReferences[j].ID
+			}
+			return bundle.LogReferences[i].Sequence < bundle.LogReferences[j].Sequence
+		}
+		return bundle.LogReferences[i].CreatedAt.Before(bundle.LogReferences[j].CreatedAt)
+	})
+	bundle.Digest = evidenceBundleDigest(bundle)
+	return bundle
+}
+
+func evidenceBundleDigest(bundle domaincompliance.EvidenceBundle) string {
+	bundle.Digest = ""
+	bundle.GeneratedAt = time.Time{}
+	raw, err := json.Marshal(bundle)
+	if err != nil {
+		return ""
+	}
+	sum := sha256.Sum256(raw)
+	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+func sanitizeAnySlice(values []any) []any {
+	out := make([]any, 0, len(values))
+	for _, value := range values {
+		out = append(out, sanitizeAny(value))
+	}
+	return out
 }
 
 func anySlice[T any](values []T) []any {

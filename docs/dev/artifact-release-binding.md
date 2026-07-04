@@ -28,7 +28,7 @@ nivora release evidence <release-id>
 nivora release evidence <release-id> --format markdown
 ```
 
-The matching API is `POST /api/v1/releases/{id}/evidence`. It creates a compliance evidence bundle for the release and includes available release, artifact binding, event, and audit references. It does not deploy, approve, roll back, or mutate ReleaseExecution state.
+The matching API is `POST /api/v1/releases/{id}/evidence`. It creates a compliance evidence bundle for the release and includes available release, artifact binding, ReleaseExecution, DeploymentRun, policy, approval, security finding, log reference, event, and audit references. The bundle includes a deterministic digest over redacted evidence content. It does not deploy, approve, roll back, or mutate ReleaseExecution state.
 
 ## Cancel Release Intent
 

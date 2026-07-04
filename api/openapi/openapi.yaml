@@ -4967,8 +4967,23 @@ components:
           type: string
         summary:
           type: string
+        subjectSummary:
+          type: object
+          additionalProperties: true
         release:
           type: object
+        releasePlans:
+          type: array
+          items:
+            type: object
+        releaseExecutions:
+          type: array
+          items:
+            type: object
+        deploymentRuns:
+          type: array
+          items:
+            type: object
         artifacts:
           type: array
           items:
@@ -5001,6 +5016,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AuditLog"
+        digest:
+          type: string
+        generatedBy:
+          type: string
         generatedAt:
           type: string
           format: date-time

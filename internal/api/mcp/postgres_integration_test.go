@@ -211,6 +211,13 @@ func loadMCPAuditRecords(t *testing.T, pool *pgxpool.Pool) []mcpAuditRecordRow {
 }
 
 func computeMCPAuditRecordHash(record mcpAuditRecordRow) string {
+	createdAt := record.createdAt
+	if strings.HasPrefix(record.id, "mcp-audit-") {
+		parsed, err := time.Parse("20060102150405.000000000", strings.TrimPrefix(record.id, "mcp-audit-"))
+		if err == nil {
+			createdAt = parsed
+		}
+	}
 	canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
 		record.previousHash,
 		record.actorID,
@@ -219,7 +226,7 @@ func computeMCPAuditRecordHash(record mcpAuditRecordRow) string {
 		record.subjectID,
 		record.scopeType,
 		record.scopeID,
-		record.createdAt.UTC().Format(time.RFC3339Nano))
+		createdAt.UTC().Format(time.RFC3339Nano))
 	hash := sha256.Sum256([]byte(canonical))
 	return hex.EncodeToString(hash[:])
 }

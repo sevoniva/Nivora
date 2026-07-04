@@ -4028,12 +4028,13 @@ func newDeploymentCommand() *cobra.Command {
 
 func newHostGroupsCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{Use: "host-groups", Short: "Host group utilities"}
 	cmd.AddCommand(&cobra.Command{
 		Use:   "list",
 		Short: "List host groups from a Nivora server",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/host-groups", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/host-groups", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4041,8 +4042,97 @@ func newHostGroupsCommand() *cobra.Command {
 			return nil
 		},
 	})
+	cmd.AddCommand(newHostGroupCreateCommand(&serverURL, &tokenEnv))
+	cmd.AddCommand(newHostGroupGetCommand(&serverURL, &tokenEnv))
 	cmd.PersistentFlags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.PersistentFlags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
+}
+
+func newHostGroupCreateCommand(serverURL *string, tokenEnv *string) *cobra.Command {
+	var name string
+	var environmentID string
+	var credentialRef string
+	var labels map[string]string
+	var hosts []string
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create host group metadata without secret values",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			bodyMap, err := buildHostGroupCreateBody(name, environmentID, credentialRef, labels, hosts)
+			if err != nil {
+				return err
+			}
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, *serverURL, "/api/v1/host-groups", body, os.Getenv(*tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "host group name")
+	cmd.Flags().StringVar(&environmentID, "env", "", "environment id")
+	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef metadata for hosts")
+	cmd.Flags().StringToStringVar(&labels, "label", nil, "host group label as key=value pairs")
+	cmd.Flags().StringArrayVar(&hosts, "host", nil, "host metadata as name=address; repeatable")
+	return cmd
+}
+
+func newHostGroupGetCommand(serverURL *string, tokenEnv *string) *cobra.Command {
+	return &cobra.Command{
+		Use:   "get <host-group-id>",
+		Short: "Get host group metadata",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, *serverURL, "/api/v1/host-groups/"+args[0], nil, os.Getenv(*tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+}
+
+func buildHostGroupCreateBody(name string, environmentID string, credentialRef string, labels map[string]string, hostSpecs []string) (map[string]any, error) {
+	if strings.TrimSpace(name) == "" {
+		return nil, fmt.Errorf("host group name is required")
+	}
+	hosts := make([]map[string]string, 0, len(hostSpecs))
+	for _, spec := range hostSpecs {
+		hostName, address, ok := strings.Cut(spec, "=")
+		hostName = strings.TrimSpace(hostName)
+		address = strings.TrimSpace(address)
+		if !ok || hostName == "" || address == "" {
+			return nil, fmt.Errorf("host must be formatted as name=address")
+		}
+		host := map[string]string{"name": hostName, "address": address}
+		if credentialRef != "" {
+			host["credentialRef"] = credentialRef
+		}
+		if environmentID != "" {
+			host["environmentId"] = environmentID
+		}
+		hosts = append(hosts, host)
+	}
+	if len(hosts) == 0 {
+		return nil, fmt.Errorf("at least one --host name=address is required")
+	}
+	body := map[string]any{
+		"name":  name,
+		"hosts": hosts,
+	}
+	setBodyString(body, "environmentId", environmentID)
+	setBodyString(body, "credentialRef", credentialRef)
+	if len(labels) > 0 {
+		body["labels"] = labels
+	}
+	return body, nil
 }
 
 func newDeploymentHostCommand() *cobra.Command {

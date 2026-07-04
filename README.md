@@ -1190,6 +1190,13 @@ go run ./cmd/nivora auth token create --subject-id <service-account-id>
 
 Dev auth is not production authentication. Static token mode reads token values from environment variables. OIDC is provider-configured backend foundation work; full browser SSO and provider lifecycle operations remain future work.
 
+System diagnostics can be read through CLI or HTTP:
+
+```bash
+go run ./cmd/nivora system runtime
+go run ./cmd/nivora system diagnostics
+```
+
 Phase 7.2 adds multi-tenancy and quota foundations:
 
 ```bash

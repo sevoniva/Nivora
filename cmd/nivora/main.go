@@ -79,6 +79,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newGitOpsCommand())
 	root.AddCommand(newArgoCDCommand())
 	root.AddCommand(newRunnerCommand())
+	root.AddCommand(newSystemCommand())
 	root.AddCommand(newRuntimeCommand())
 	root.AddCommand(newQuotaCommand())
 	root.AddCommand(newUsageCommand())
@@ -5337,6 +5338,37 @@ func runnerTokenFromEnv(name string) (string, error) {
 		return "", fmt.Errorf("%s is not set", name)
 	}
 	return token, nil
+}
+
+func newSystemCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "system",
+		Short: "System metadata and diagnostics utilities",
+	}
+	cmd.AddCommand(newSystemInspectCommand("info", "Show system metadata", "/api/v1/system/info"))
+	cmd.AddCommand(newSystemInspectCommand("runtime", "Show runtime and telemetry metadata", "/api/v1/system/runtime"))
+	cmd.AddCommand(newSystemInspectCommand("diagnostics", "Show diagnostics and dependency checks", "/api/v1/system/diagnostics"))
+	return cmd
+}
+
+func newSystemInspectCommand(name string, short string, path string) *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   name,
+		Short: short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
 }
 
 func newRuntimeCommand() *cobra.Command {

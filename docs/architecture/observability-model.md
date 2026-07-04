@@ -47,6 +47,7 @@ Operational endpoints:
 - `GET /metrics` exposes lightweight local counters.
 - `GET /api/v1/system/runtime` returns runtime mode and telemetry configuration.
 - `GET /api/v1/system/diagnostics` returns runtime context, metrics snapshot, and simple diagnostic checks.
+- `nivora system info`, `nivora system runtime`, and `nivora system diagnostics` provide CLI access to the same read-only system metadata.
 
 ## Timelines
 

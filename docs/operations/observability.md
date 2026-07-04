@@ -72,6 +72,9 @@ These are recommended starting SLOs for beta environments, not GA commitments:
 Use:
 
 ```sh
+nivora system info
+nivora system runtime
+nivora system diagnostics
 curl http://localhost:8080/api/v1/system/runtime
 curl http://localhost:8080/api/v1/system/diagnostics
 curl http://localhost:8080/metrics

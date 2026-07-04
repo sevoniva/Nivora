@@ -52,6 +52,8 @@ Auth modes:
 | POST | `/api/v1/runners/{id}/jobs/{job_id}/status` | runner token and job ownership | runner/job | runner | yes | yes | no | Runner cannot update unrelated jobs. |
 | POST | `/api/v1/jobs/{id}/logs`, `/api/v1/jobs/{id}/status` | `runner.manage` | runner/job | user/service account | yes | no | yes | Admin compatibility endpoints. |
 | GET/POST | `/api/v1/releases*` | authenticated reads; `release.create` for create/plan/deploy | release/project | user/service account | yes | no | yes | ReleaseExecution remains foundation-level. |
+| POST | `/api/v1/releases/executions/{execution_id}/cancel` | `deployment.cancel` | release execution/project | user/service account | yes | no | yes | Cancels a ReleaseExecution; now covered by route-level RBAC tests. |
+| POST | `/api/v1/releases/executions/{execution_id}/resume` | `deployment.approve` | release execution/approval | user/service account | yes | no | yes | Applies an approval decision to resume or stop a ReleaseExecution; now covered by route-level RBAC tests. |
 | POST | `/api/v1/releases/{id}/evidence` | `audit.read` | release/audit | user/service account | yes | no | yes | Generates a release evidence bundle; does not deploy or mutate ReleaseExecution state. |
 | GET | `/api/v1/artifacts`, `/api/v1/artifacts/{id}`, `/api/v1/artifacts/{id}/releases` | `project.read` | release/artifact | user/service account | yes | no | yes | Read-only inventory derived from release bindings; not an external registry crawl. |
 | GET/POST/PATCH/DELETE | `/api/v1/artifact-registries*` | `project.read` for list/get; `credential.manage` for create/update/disable | project/credential | user/service account | yes | no | yes | Registry records contain CredentialRef metadata only; no registry secret values. |

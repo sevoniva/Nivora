@@ -1612,7 +1612,13 @@ func newSecurityCommand() *cobra.Command {
 	scan := &cobra.Command{Use: "scan", Short: "Run local security scans"}
 	scan.AddCommand(newSecurityScanArtifactCommand())
 	scan.AddCommand(newSecurityScanManifestCommand())
+	scans := &cobra.Command{Use: "scans", Short: "Query stored security scans"}
+	scans.AddCommand(newSecurityScansListCommand())
+	findings := &cobra.Command{Use: "findings", Short: "Query stored security findings"}
+	findings.AddCommand(newSecurityFindingsListCommand())
 	cmd.AddCommand(scan)
+	cmd.AddCommand(scans)
+	cmd.AddCommand(findings)
 	return cmd
 }
 
@@ -1653,6 +1659,116 @@ func newSecurityScanManifestCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().Bool("local", true, "use the in-process Phase 3.0 noop scanner")
+	return cmd
+}
+
+func newSecurityScansListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var subjectType string
+	var subjectID string
+	var status string
+	var limit int
+	var offset int
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List stored security scans from the Nivora API",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			if subjectType != "" {
+				values.Set("subjectType", subjectType)
+			}
+			if subjectID != "" {
+				values.Set("subjectId", subjectID)
+			}
+			if status != "" {
+				values.Set("status", status)
+			}
+			if cmd.Flags().Changed("limit") {
+				values.Set("limit", fmt.Sprintf("%d", limit))
+			}
+			if cmd.Flags().Changed("offset") {
+				values.Set("offset", fmt.Sprintf("%d", offset))
+			}
+			query := ""
+			if len(values) > 0 {
+				query = "?" + values.Encode()
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/security/scans"+query, nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&subjectType, "subject-type", "", "filter by subject type")
+	cmd.Flags().StringVar(&subjectID, "subject-id", "", "filter by subject id")
+	cmd.Flags().StringVar(&status, "status", "", "filter by scan status")
+	cmd.Flags().IntVar(&limit, "limit", 0, "maximum rows to return")
+	cmd.Flags().IntVar(&offset, "offset", 0, "rows to skip")
+	return cmd
+}
+
+func newSecurityFindingsListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var scanID string
+	var subjectType string
+	var subjectID string
+	var severity string
+	var category string
+	var limit int
+	var offset int
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List stored security findings from the Nivora API",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			if scanID != "" {
+				values.Set("scanId", scanID)
+			}
+			if subjectType != "" {
+				values.Set("subjectType", subjectType)
+			}
+			if subjectID != "" {
+				values.Set("subjectId", subjectID)
+			}
+			if severity != "" {
+				values.Set("severity", severity)
+			}
+			if category != "" {
+				values.Set("category", category)
+			}
+			if cmd.Flags().Changed("limit") {
+				values.Set("limit", fmt.Sprintf("%d", limit))
+			}
+			if cmd.Flags().Changed("offset") {
+				values.Set("offset", fmt.Sprintf("%d", offset))
+			}
+			query := ""
+			if len(values) > 0 {
+				query = "?" + values.Encode()
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/security/findings"+query, nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&scanID, "scan-id", "", "filter by scan id")
+	cmd.Flags().StringVar(&subjectType, "subject-type", "", "filter by subject type")
+	cmd.Flags().StringVar(&subjectID, "subject-id", "", "filter by subject id")
+	cmd.Flags().StringVar(&severity, "severity", "", "filter by severity")
+	cmd.Flags().StringVar(&category, "category", "", "filter by category")
+	cmd.Flags().IntVar(&limit, "limit", 0, "maximum rows to return")
+	cmd.Flags().IntVar(&offset, "offset", 0, "rows to skip")
 	return cmd
 }
 

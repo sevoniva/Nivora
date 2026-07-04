@@ -31,10 +31,68 @@ func CreateSecurityScan(service *securityusecase.Service) http.HandlerFunc {
 	}
 }
 
+func ListSecurityScans(service *securityusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		records, err := service.ListScans(r.Context(), securityusecase.ListScansInput{
+			SubjectType: domainsecurity.SubjectType(query.Get("subjectType")),
+			SubjectID:   query.Get("subjectId"),
+			Status:      domainsecurity.ScanStatus(query.Get("status")),
+		})
+		if err != nil {
+			respondSecurityResult(w, r, nil, err)
+			return
+		}
+		page, pageErr := parsePagination(r)
+		if pageErr != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_pagination", Message: pageErr.Error()})
+			return
+		}
+		payload := map[string]any{"scans": records}
+		if page.Enabled {
+			page.Total = len(records)
+			paged := paginatedPayload(records, page).(map[string]any)
+			payload["scans"] = paged["items"]
+			payload["pagination"] = paged["pagination"]
+		}
+		RespondJSON(w, http.StatusOK, payload)
+	}
+}
+
 func GetSecurityScan(service *securityusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
 		respondSecurityResult(w, r, record, err)
+	}
+}
+
+func ListSecurityFindings(service *securityusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		query := r.URL.Query()
+		findings, err := service.ListFindings(r.Context(), securityusecase.ListFindingsInput{
+			ScanID:      query.Get("scanId"),
+			SubjectType: domainsecurity.SubjectType(query.Get("subjectType")),
+			SubjectID:   query.Get("subjectId"),
+			Severity:    domainsecurity.Severity(query.Get("severity")),
+			Category:    domainsecurity.FindingCategory(query.Get("category")),
+		})
+		if err != nil {
+			respondSecurityResult(w, r, nil, err)
+			return
+		}
+		page, pageErr := parsePagination(r)
+		if pageErr != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_pagination", Message: pageErr.Error()})
+			return
+		}
+		payload := map[string]any{"findings": findings}
+		if page.Enabled {
+			page.Total = len(findings)
+			paged := paginatedPayload(findings, page).(map[string]any)
+			payload["findings"] = paged["items"]
+			payload["pagination"] = paged["pagination"]
+		}
+		RespondJSON(w, http.StatusOK, payload)
 	}
 }
 

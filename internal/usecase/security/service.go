@@ -170,12 +170,76 @@ func (s *Service) List(ctx context.Context) ([]ScanRecord, error) {
 	return s.store.List(ctx)
 }
 
+func (s *Service) ListScans(ctx context.Context, input ListScansInput) ([]ScanRecord, error) {
+	records, err := s.store.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]ScanRecord, 0, len(records))
+	for _, record := range records {
+		if input.SubjectType != "" && record.Scan.SubjectType != input.SubjectType {
+			continue
+		}
+		if input.SubjectID != "" && record.Scan.SubjectID != input.SubjectID {
+			continue
+		}
+		if input.Status != "" && record.Scan.Status != input.Status {
+			continue
+		}
+		out = append(out, record)
+	}
+	return out, nil
+}
+
 func (s *Service) Findings(ctx context.Context, id string) ([]domainsecurity.SecurityFinding, error) {
 	record, err := s.store.Get(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	return append([]domainsecurity.SecurityFinding(nil), record.Scan.Findings...), nil
+}
+
+func (s *Service) ListFindings(ctx context.Context, input ListFindingsInput) ([]domainsecurity.SecurityFinding, error) {
+	var records []ScanRecord
+	if strings.TrimSpace(input.ScanID) != "" {
+		record, err := s.store.Get(ctx, strings.TrimSpace(input.ScanID))
+		if err != nil {
+			return nil, err
+		}
+		records = []ScanRecord{record}
+	} else {
+		var err error
+		records, err = s.ListScans(ctx, ListScansInput{SubjectType: input.SubjectType, SubjectID: input.SubjectID})
+		if err != nil {
+			return nil, err
+		}
+	}
+	findings := make([]domainsecurity.SecurityFinding, 0)
+	for _, record := range records {
+		for _, finding := range record.Scan.Findings {
+			if input.Severity != "" && finding.Severity != input.Severity {
+				continue
+			}
+			if input.Category != "" && finding.Category != input.Category {
+				continue
+			}
+			copied := finding
+			if copied.Metadata == nil {
+				copied.Metadata = map[string]string{}
+			} else {
+				metadata := make(map[string]string, len(copied.Metadata)+3)
+				for key, value := range copied.Metadata {
+					metadata[key] = value
+				}
+				copied.Metadata = metadata
+			}
+			copied.Metadata["scanId"] = record.Scan.ID
+			copied.Metadata["subjectType"] = string(record.Scan.SubjectType)
+			copied.Metadata["subjectId"] = record.Scan.SubjectID
+			findings = append(findings, copied)
+		}
+	}
+	return findings, nil
 }
 
 func (s *Service) EvaluateAndStore(ctx context.Context, input EvaluateInput) (domainsecurity.PolicyResult, error) {

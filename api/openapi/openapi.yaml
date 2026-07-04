@@ -1191,6 +1191,40 @@ paths:
         "200":
           description: Artifact resolution result
   /api/v1/security/scans:
+    get:
+      summary: List stored security scans
+      description: Returns security scan records captured by the configured security scan store. This is a query endpoint only and does not invoke an external scanner.
+      parameters:
+        - name: subjectType
+          in: query
+          schema:
+            type: string
+            enum: [artifact, manifest, deployment_plan, release]
+        - name: subjectId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [Pending, Running, Succeeded, Failed, Canceled]
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Stored security scans
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  scans:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SecurityScanRecord"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
     post:
       summary: Create a security scan using the configured scanner foundation
       requestBody:
@@ -1206,6 +1240,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SecurityScanRecord"
+  /api/v1/security/findings:
+    get:
+      summary: List stored security findings
+      description: Returns findings from stored security scans. Filtering is local to the Nivora scan store and does not invoke an external scanner.
+      parameters:
+        - name: scanId
+          in: query
+          schema:
+            type: string
+        - name: subjectType
+          in: query
+          schema:
+            type: string
+            enum: [artifact, manifest, deployment_plan, release]
+        - name: subjectId
+          in: query
+          schema:
+            type: string
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [Unknown, Low, Medium, High, Critical]
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [vulnerability, secret, misconfiguration, license, signature, sbom, policy]
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Stored security findings
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  findings:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SecurityFinding"
+                  pagination:
+                    $ref: "#/components/schemas/Pagination"
   /api/v1/security/scans/{id}:
     get:
       summary: Get a security scan

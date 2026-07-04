@@ -52,6 +52,20 @@ type ScanRecord struct {
 	Warnings  []string                      `json:"warnings,omitempty"`
 }
 
+type ListScansInput struct {
+	SubjectType domainsecurity.SubjectType `json:"subjectType,omitempty" yaml:"subjectType,omitempty"`
+	SubjectID   string                     `json:"subjectId,omitempty" yaml:"subjectId,omitempty"`
+	Status      domainsecurity.ScanStatus  `json:"status,omitempty" yaml:"status,omitempty"`
+}
+
+type ListFindingsInput struct {
+	ScanID      string                         `json:"scanId,omitempty" yaml:"scanId,omitempty"`
+	SubjectType domainsecurity.SubjectType     `json:"subjectType,omitempty" yaml:"subjectType,omitempty"`
+	SubjectID   string                         `json:"subjectId,omitempty" yaml:"subjectId,omitempty"`
+	Severity    domainsecurity.Severity        `json:"severity,omitempty" yaml:"severity,omitempty"`
+	Category    domainsecurity.FindingCategory `json:"category,omitempty" yaml:"category,omitempty"`
+}
+
 type EvaluateInput struct {
 	SubjectType domainsecurity.SubjectType       `json:"subjectType" yaml:"subjectType"`
 	SubjectID   string                           `json:"subjectId" yaml:"subjectId"`

@@ -207,14 +207,16 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			"offset":        integerProperty("zero-based offset"),
 		}, nil)),
 		tool("nivora_list_artifacts", "List release-bound artifacts tracked by Nivora", objectSchema(map[string]any{
-			"type":       stringProperty("artifact type"),
-			"name":       stringProperty("artifact name substring"),
-			"registry":   stringProperty("registry host"),
-			"repository": stringProperty("repository substring"),
-			"digest":     stringProperty("resolved digest"),
-			"reference":  stringProperty("artifact reference substring"),
-			"limit":      integerProperty("page size, 1-100"),
-			"offset":     integerProperty("zero-based offset"),
+			"type":          stringProperty("artifact type"),
+			"name":          stringProperty("artifact name substring"),
+			"registry":      stringProperty("registry host"),
+			"repository":    stringProperty("repository substring"),
+			"digest":        stringProperty("resolved digest"),
+			"reference":     stringProperty("artifact reference substring"),
+			"projectId":     stringProperty("optional project id filter"),
+			"environmentId": stringProperty("optional environment id filter"),
+			"limit":         integerProperty("page size, 1-100"),
+			"offset":        integerProperty("zero-based offset"),
 		}, nil)),
 		tool("nivora_get_artifact", "Read a tracked artifact by id", idSchema("id")),
 		tool("nivora_get_artifact_releases", "List releases bound to a tracked artifact", idSchema("id")),
@@ -605,7 +607,8 @@ func (s *Server) pipelineDefinitionList(ctx context.Context, projectID string, p
 }
 
 func (s *Server) artifactList(ctx context.Context, input artifactusecase.ListArtifactsInput, page mcpPage) (any, error) {
-	artifacts, err := s.services.Artifacts.ListArtifacts(ctx, s.scopedArtifactListInput(input))
+	scopedInput := s.scopedArtifactListInput(input)
+	artifacts, err := s.services.Artifacts.ListArtifacts(ctx, scopedInput)
 	if err != nil {
 		return nil, err
 	}
@@ -615,6 +618,16 @@ func (s *Server) artifactList(ctx context.Context, input artifactusecase.ListArt
 	}
 	limited, pagination, truncated := paginateMCPItems(artifacts, normalizedPage)
 	return map[string]any{
+		"filters": map[string]string{
+			"type":          scopedInput.Type,
+			"name":          scopedInput.Name,
+			"registry":      scopedInput.Registry,
+			"repository":    scopedInput.Repository,
+			"digest":        scopedInput.Digest,
+			"reference":     scopedInput.Reference,
+			"projectId":     scopedInput.ProjectID,
+			"environmentId": scopedInput.EnvironmentID,
+		},
 		"artifacts":  limited,
 		"count":      len(artifacts),
 		"limit":      normalizedPage.Limit,
@@ -778,12 +791,14 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return s.artifactList(ctx, artifactusecase.ListArtifactsInput{
-			Type:       stringArg(arguments, "type"),
-			Name:       stringArg(arguments, "name"),
-			Registry:   stringArg(arguments, "registry"),
-			Repository: stringArg(arguments, "repository"),
-			Digest:     stringArg(arguments, "digest"),
-			Reference:  stringArg(arguments, "reference"),
+			Type:          stringArg(arguments, "type"),
+			Name:          stringArg(arguments, "name"),
+			Registry:      stringArg(arguments, "registry"),
+			Repository:    stringArg(arguments, "repository"),
+			Digest:        stringArg(arguments, "digest"),
+			Reference:     stringArg(arguments, "reference"),
+			ProjectID:     stringArg(arguments, "projectId"),
+			EnvironmentID: stringArg(arguments, "environmentId"),
 		}, page)
 	case "nivora_get_artifact":
 		id, err := requiredString(arguments, "id")

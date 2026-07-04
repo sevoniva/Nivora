@@ -15,7 +15,7 @@ Read-only tools and resources expose control-plane state such as:
 - runner summaries
 - DeploymentRun and ReleaseExecution inspection
 - filtered Release inventory
-- release-bound artifact inventory and artifact-to-release bindings
+- filtered release-bound artifact inventory and artifact-to-release bindings
 - security finding summaries, policy gate decision summaries, and audit summaries
 - persisted evidence bundles
 - capability status

@@ -50,7 +50,7 @@ func TestArtifactListHelpIncludesInventoryFilters(t *testing.T) {
 		t.Fatalf("artifact list help failed: %v", err)
 	}
 	help := out.String()
-	for _, flag := range []string{"--type", "--registry", "--repository", "--digest", "--reference"} {
+	for _, flag := range []string{"--type", "--registry", "--repository", "--digest", "--reference", "--project-id", "--environment-id"} {
 		if !strings.Contains(help, flag) {
 			t.Fatalf("artifact list help missing %s: %s", flag, help)
 		}

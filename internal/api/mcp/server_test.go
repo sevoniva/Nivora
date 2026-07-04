@@ -212,7 +212,7 @@ func TestMCPArtifactInventoryReadOnly(t *testing.T) {
 	if err != nil {
 		t.Fatalf("list artifact tool transport error: %v", err)
 	}
-	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, artifactID) || !strings.Contains(listResult.Content[0].Text, `"mutated": false`) || !strings.Contains(listResult.Content[0].Text, `"pagination"`) {
+	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, artifactID) || !strings.Contains(listResult.Content[0].Text, `"mutated": false`) || !strings.Contains(listResult.Content[0].Text, `"pagination"`) || !strings.Contains(listResult.Content[0].Text, `"filters"`) {
 		t.Fatalf("list artifact tool result = %#v", listResult)
 	}
 
@@ -992,6 +992,24 @@ func TestMCPTenantScopeFiltersArtifactsAndReleaseEvents(t *testing.T) {
 	}
 	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, artifactA) || strings.Contains(listResult.Content[0].Text, artifactB) {
 		t.Fatalf("artifact list tool did not honor project scope: %#v", listResult)
+	}
+
+	crossRequestedList, err := projectA.CallTool(ctx, "nivora_list_artifacts", map[string]any{
+		"projectId":     "project-b",
+		"environmentId": "staging",
+		"registry":      "registry.example.com",
+		"limit":         1,
+		"offset":        0,
+	})
+	if err != nil {
+		t.Fatalf("cross-requested artifact list transport error: %v", err)
+	}
+	crossBody := crossRequestedList.Content[0].Text
+	if crossRequestedList.IsError || !strings.Contains(crossBody, artifactA) || strings.Contains(crossBody, artifactB) || strings.Contains(crossBody, "project-b") {
+		t.Fatalf("artifact list tool ignored MCP project scope override: %s", crossBody)
+	}
+	if !strings.Contains(crossBody, `"projectId": "project-a"`) || !strings.Contains(crossBody, `"environmentId": ""`) || !strings.Contains(crossBody, `"limit": 1`) || !strings.Contains(crossBody, `"mutated": false`) {
+		t.Fatalf("artifact list tool missing scoped filters or pagination metadata: %s", crossBody)
 	}
 
 	getResult, err := projectA.CallTool(ctx, "nivora_get_artifact", map[string]any{"id": artifactB})

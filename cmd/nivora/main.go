@@ -3328,6 +3328,8 @@ func newArtifactListCommand() *cobra.Command {
 	var repository string
 	var digest string
 	var reference string
+	var projectID string
+	var environmentID string
 	var serverURL string
 	var tokenEnv string
 	cmd := &cobra.Command{
@@ -3336,12 +3338,14 @@ func newArtifactListCommand() *cobra.Command {
 		RunE: func(cmd *cobra.Command, args []string) error {
 			query := url.Values{}
 			for key, value := range map[string]string{
-				"type":       artifactType,
-				"name":       name,
-				"registry":   registry,
-				"repository": repository,
-				"digest":     digest,
-				"reference":  reference,
+				"type":          artifactType,
+				"name":          name,
+				"registry":      registry,
+				"repository":    repository,
+				"digest":        digest,
+				"reference":     reference,
+				"projectId":     projectID,
+				"environmentId": environmentID,
 			} {
 				if value != "" {
 					query.Set(key, value)
@@ -3365,6 +3369,8 @@ func newArtifactListCommand() *cobra.Command {
 	cmd.Flags().StringVar(&repository, "repository", "", "filter by repository")
 	cmd.Flags().StringVar(&digest, "digest", "", "filter by digest")
 	cmd.Flags().StringVar(&reference, "reference", "", "filter by normalized reference")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "filter by project id")
+	cmd.Flags().StringVar(&environmentID, "environment-id", "", "filter by environment id")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd

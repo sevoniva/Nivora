@@ -30,6 +30,18 @@ nivora release evidence <release-id> --format markdown
 
 The matching API is `POST /api/v1/releases/{id}/evidence`. It creates a compliance evidence bundle for the release and includes available release, artifact binding, event, and audit references. It does not deploy, approve, roll back, or mutate ReleaseExecution state.
 
+## Query Tracked Artifacts
+
+Server-backed artifacts created through release binding can be listed and traced back to releases:
+
+```bash
+nivora artifact list --registry registry.example.com
+nivora artifact get <artifact-id>
+nivora artifact releases <artifact-id>
+```
+
+The matching APIs are `GET /api/v1/artifacts`, `GET /api/v1/artifacts/{id}`, and `GET /api/v1/artifacts/{id}/releases`. This is a control-plane inventory of artifacts Nivora has seen through releases. It does not enumerate an external registry.
+
 ## Deployment Planning With Artifacts
 
 Deployment specs can include artifact references. Phase 2.2 verifies simple Kubernetes workload image references against those artifacts and adds warnings to the DeploymentPlan when:

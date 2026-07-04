@@ -5,6 +5,8 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
 
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
@@ -252,12 +254,127 @@ func (s *Service) ListReleases(ctx context.Context) ([]ReleaseRecord, error) {
 	return s.store.ListReleases(ctx)
 }
 
+func (s *Service) ListArtifacts(ctx context.Context, input ListArtifactsInput) ([]domainartifact.Artifact, error) {
+	records, err := s.store.ListReleases(ctx)
+	if err != nil {
+		return nil, err
+	}
+	filter := normalizeArtifactFilter(input)
+	artifacts := make([]domainartifact.Artifact, 0)
+	for _, record := range records {
+		for _, item := range record.Artifacts {
+			if !artifactMatches(item, filter) {
+				continue
+			}
+			artifacts = append(artifacts, cloneArtifact(item))
+		}
+	}
+	sort.Slice(artifacts, func(i, j int) bool {
+		if artifacts[i].CreatedAt.Equal(artifacts[j].CreatedAt) {
+			return artifacts[i].ID < artifacts[j].ID
+		}
+		return artifacts[i].CreatedAt.Before(artifacts[j].CreatedAt)
+	})
+	return artifacts, nil
+}
+
+func (s *Service) GetArtifact(ctx context.Context, id string) (domainartifact.Artifact, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return domainartifact.Artifact{}, ErrArtifactNotFound
+	}
+	artifacts, err := s.ListArtifacts(ctx, ListArtifactsInput{})
+	if err != nil {
+		return domainartifact.Artifact{}, err
+	}
+	for _, item := range artifacts {
+		if item.ID == id {
+			return cloneArtifact(item), nil
+		}
+	}
+	return domainartifact.Artifact{}, fmt.Errorf("%w: %s", ErrArtifactNotFound, id)
+}
+
+func (s *Service) ArtifactReleases(ctx context.Context, artifactID string) ([]ArtifactReleaseBinding, error) {
+	artifact, err := s.GetArtifact(ctx, artifactID)
+	if err != nil {
+		return nil, err
+	}
+	records, err := s.store.ListReleases(ctx)
+	if err != nil {
+		return nil, err
+	}
+	bindings := make([]ArtifactReleaseBinding, 0)
+	for _, record := range records {
+		for _, binding := range record.Bindings {
+			if binding.ArtifactID != artifact.ID {
+				continue
+			}
+			bindings = append(bindings, ArtifactReleaseBinding{
+				Release: record.Release,
+				Binding: binding,
+			})
+		}
+	}
+	sort.Slice(bindings, func(i, j int) bool {
+		if bindings[i].Release.CreatedAt.Equal(bindings[j].Release.CreatedAt) {
+			return bindings[i].Release.ID < bindings[j].Release.ID
+		}
+		return bindings[i].Release.CreatedAt.Before(bindings[j].Release.CreatedAt)
+	})
+	return bindings, nil
+}
+
 func (s *Service) ReleaseArtifacts(ctx context.Context, id string) ([]release.ReleaseArtifact, error) {
 	record, err := s.store.GetRelease(ctx, id)
 	if err != nil {
 		return nil, err
 	}
 	return append([]release.ReleaseArtifact(nil), record.Bindings...), nil
+}
+
+func normalizeArtifactFilter(input ListArtifactsInput) ListArtifactsInput {
+	return ListArtifactsInput{
+		Type:       strings.TrimSpace(strings.ToLower(input.Type)),
+		Name:       strings.TrimSpace(strings.ToLower(input.Name)),
+		Registry:   strings.TrimSpace(strings.ToLower(input.Registry)),
+		Repository: strings.TrimSpace(strings.ToLower(input.Repository)),
+		Digest:     strings.TrimSpace(input.Digest),
+		Reference:  strings.TrimSpace(strings.ToLower(input.Reference)),
+	}
+}
+
+func artifactMatches(item domainartifact.Artifact, filter ListArtifactsInput) bool {
+	if filter.Type != "" && strings.ToLower(string(item.Type)) != filter.Type {
+		return false
+	}
+	if filter.Name != "" && !strings.Contains(strings.ToLower(item.Name), filter.Name) {
+		return false
+	}
+	if filter.Registry != "" && strings.ToLower(item.Registry) != filter.Registry {
+		return false
+	}
+	if filter.Repository != "" && !strings.Contains(strings.ToLower(item.Repository), filter.Repository) {
+		return false
+	}
+	if filter.Digest != "" && item.Digest != filter.Digest {
+		return false
+	}
+	if filter.Reference != "" && !strings.Contains(strings.ToLower(item.Reference), filter.Reference) {
+		return false
+	}
+	return true
+}
+
+func cloneArtifact(item domainartifact.Artifact) domainartifact.Artifact {
+	if item.Metadata != nil {
+		out := make(map[string]string, len(item.Metadata))
+		for key, value := range item.Metadata {
+			out[key] = value
+		}
+		item.Metadata = out
+	}
+	return item
 }
 
 func (s *Service) recordEventAndAudit(ctx context.Context, subject string, eventType string, action string, actorID string, message string) error {

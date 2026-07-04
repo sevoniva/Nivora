@@ -14,7 +14,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | DeploymentRun | `POST /api/v1/deployments`, plan/apply, get, resources, health, diff, snapshot, rollback plan, logs/events/timeline/cancel/resume | apply and rollback remain guarded |
 | Release orchestration | releases, release artifacts, plan/deploy, executions, targets, timeline, cancel/resume, release evidence | sequential local orchestration foundation |
 | Release target catalog | `GET/POST /api/v1/release-targets`, get/update/disable/validate | metadata only; unsafe flags default false |
-| Artifact / release binding | inspect, resolve, release create/list/get/artifacts, registry validate | OCI-compatible foundation; vendor management APIs are not implemented |
+| Artifact / release binding | inspect, resolve, artifact list/get/release bindings, release create/list/get/artifacts, registry validate | OCI-compatible foundation; artifact inventory is derived from release bindings; vendor management APIs and registry crawling are not implemented |
 | Security / policy | scans, findings, stored scan/finding queries, policy catalog, policy attachments, policy evaluate, release/deployment security | noop/fake scanners and built-in policy rules; no external policy distribution |
 | Auth / RBAC | whoami, permissions, token info, users, roles, permissions, memberships, service accounts, API tokens | local/token/OIDC-foundation only |
 | Secrets / credentials | secrets, secret refs, provider validate, rotate/delete, credentials CRUD/validate | values are not returned by normal APIs |

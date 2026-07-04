@@ -47,6 +47,20 @@ type CreateReleaseInput struct {
 	ActorID    string
 }
 
+type ListArtifactsInput struct {
+	Type       string
+	Name       string
+	Registry   string
+	Repository string
+	Digest     string
+	Reference  string
+}
+
+type ArtifactReleaseBinding struct {
+	Release release.Release         `json:"release"`
+	Binding release.ReleaseArtifact `json:"binding"`
+}
+
 type ReleaseRecord struct {
 	Release     release.Release             `json:"release"`
 	Artifacts   []domainartifact.Artifact   `json:"artifacts"`

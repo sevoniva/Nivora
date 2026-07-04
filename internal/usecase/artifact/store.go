@@ -13,6 +13,7 @@ import (
 )
 
 var ErrReleaseNotFound = errors.New("release not found")
+var ErrArtifactNotFound = errors.New("artifact not found")
 
 type Store interface {
 	SaveRelease(ctx context.Context, record ReleaseRecord) error

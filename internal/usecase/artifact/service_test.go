@@ -98,6 +98,56 @@ func TestCreateReleaseResolvesDigestWhenRequested(t *testing.T) {
 	}
 }
 
+func TestArtifactCatalogQueriesReleaseBindings(t *testing.T) {
+	service := NewService(NewMemoryStore(), fakeArtifactProvider{}, fakeEventBus{})
+	record, err := service.CreateRelease(context.Background(), CreateReleaseInput{Definition: ReleaseDefinition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Release",
+		Metadata:   ReleaseMetadata{Name: "demo"},
+		Spec: ReleaseSpec{
+			Version: "1.0.0",
+			Artifacts: []ReleaseArtifactSpec{{
+				Name:      "demo-app",
+				Type:      "image",
+				Required:  true,
+				Reference: "registry.example.com/team/demo@sha256:abcdef",
+			}},
+		},
+	}})
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+	artifactID := record.Artifacts[0].ID
+
+	artifacts, err := service.ListArtifacts(context.Background(), ListArtifactsInput{Registry: "registry.example.com", Repository: "team/demo"})
+	if err != nil {
+		t.Fatalf("list artifacts: %v", err)
+	}
+	if len(artifacts) != 1 || artifacts[0].ID != artifactID {
+		t.Fatalf("unexpected artifacts: %+v", artifacts)
+	}
+
+	artifact, err := service.GetArtifact(context.Background(), artifactID)
+	if err != nil {
+		t.Fatalf("get artifact: %v", err)
+	}
+	if artifact.Reference != "registry.example.com/team/demo@sha256:abcdef" {
+		t.Fatalf("artifact = %+v", artifact)
+	}
+
+	bindings, err := service.ArtifactReleases(context.Background(), artifactID)
+	if err != nil {
+		t.Fatalf("artifact releases: %v", err)
+	}
+	if len(bindings) != 1 || bindings[0].Release.ID != record.Release.ID || bindings[0].Binding.ArtifactID != artifactID {
+		t.Fatalf("bindings = %+v", bindings)
+	}
+
+	if _, err := service.GetArtifact(context.Background(), "missing"); err == nil {
+		t.Fatal("expected missing artifact error")
+	}
+}
+
 func TestCreateReleaseRequireDigestFailsWhenResolutionUnavailable(t *testing.T) {
 	service := NewService(NewMemoryStore(), fakeArtifactProvider{}, fakeEventBus{})
 	_, err := service.CreateRelease(context.Background(), CreateReleaseInput{Definition: ReleaseDefinition{

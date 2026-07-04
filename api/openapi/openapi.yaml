@@ -1160,6 +1160,78 @@ paths:
           description: Registry configuration shape is valid
         "400":
           description: Invalid registry configuration
+  /api/v1/artifacts:
+    get:
+      summary: List artifacts tracked through release bindings
+      description: Lists artifact records known to Nivora through ReleaseArtifact bindings. This is not a full registry inventory scan.
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: name
+          in: query
+          schema:
+            type: string
+        - name: registry
+          in: query
+          schema:
+            type: string
+        - name: repository
+          in: query
+          schema:
+            type: string
+        - name: digest
+          in: query
+          schema:
+            type: string
+        - name: reference
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Tracked artifacts
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  artifacts:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Artifact"
+  /api/v1/artifacts/{id}:
+    get:
+      summary: Get a tracked artifact
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Tracked artifact
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Artifact"
+        "404":
+          description: Artifact not found
+  /api/v1/artifacts/{id}/releases:
+    get:
+      summary: List releases bound to a tracked artifact
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Release bindings for the artifact
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  releases:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ArtifactReleaseBinding"
   /api/v1/artifacts/inspect:
     post:
       summary: Inspect and normalize an artifact reference without requiring registry access
@@ -5204,6 +5276,16 @@ components:
           type: object
           additionalProperties:
             type: string
+        createdAt:
+          type: string
+          format: date-time
+    ArtifactReleaseBinding:
+      type: object
+      properties:
+        release:
+          $ref: "#/components/schemas/Release"
+        binding:
+          $ref: "#/components/schemas/ReleaseArtifact"
     Release:
       type: object
       properties:

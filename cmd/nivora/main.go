@@ -2066,9 +2066,97 @@ func bindPolicyCreateFlags(cmd *cobra.Command, input *policyusecase.CreateInput)
 
 func newArtifactCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "artifact", Short: "Artifact utilities"}
+	cmd.AddCommand(newArtifactListCommand())
+	cmd.AddCommand(newArtifactGetCommand())
+	cmd.AddCommand(newArtifactReleasesCommand())
 	cmd.AddCommand(newArtifactInspectCommand())
 	cmd.AddCommand(newArtifactResolveCommand())
 	cmd.AddCommand(newArtifactRegistryCommand())
+	return cmd
+}
+
+func newArtifactListCommand() *cobra.Command {
+	var artifactType string
+	var name string
+	var registry string
+	var repository string
+	var digest string
+	var reference string
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List artifacts tracked through release bindings",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			query := url.Values{}
+			for key, value := range map[string]string{
+				"type":       artifactType,
+				"name":       name,
+				"registry":   registry,
+				"repository": repository,
+				"digest":     digest,
+				"reference":  reference,
+			} {
+				if value != "" {
+					query.Set(key, value)
+				}
+			}
+			path := "/api/v1/artifacts"
+			if encoded := query.Encode(); encoded != "" {
+				path += "?" + encoded
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&artifactType, "type", "", "filter by artifact type")
+	cmd.Flags().StringVar(&name, "name", "", "filter by artifact name")
+	cmd.Flags().StringVar(&registry, "registry", "", "filter by registry host")
+	cmd.Flags().StringVar(&repository, "repository", "", "filter by repository")
+	cmd.Flags().StringVar(&digest, "digest", "", "filter by digest")
+	cmd.Flags().StringVar(&reference, "reference", "", "filter by normalized reference")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newArtifactGetCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "get <artifact-id>",
+		Short: "Get an artifact tracked through a release binding",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/artifacts/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newArtifactReleasesCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "releases <artifact-id>",
+		Short: "List release bindings for an artifact",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/artifacts/"+args[0]+"/releases", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	return cmd
 }
 

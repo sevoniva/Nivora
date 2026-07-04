@@ -40,6 +40,34 @@ func ResolveArtifact(service *artifactusecase.Service) http.HandlerFunc {
 	}
 }
 
+func ListArtifacts(service *artifactusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		artifacts, err := service.ListArtifacts(r.Context(), artifactusecase.ListArtifactsInput{
+			Type:       r.URL.Query().Get("type"),
+			Name:       r.URL.Query().Get("name"),
+			Registry:   r.URL.Query().Get("registry"),
+			Repository: r.URL.Query().Get("repository"),
+			Digest:     r.URL.Query().Get("digest"),
+			Reference:  r.URL.Query().Get("reference"),
+		})
+		respondArtifactResult(w, r, map[string]any{"artifacts": artifacts}, err)
+	}
+}
+
+func GetArtifact(service *artifactusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		artifact, err := service.GetArtifact(r.Context(), chi.URLParam(r, "id"))
+		respondArtifactResult(w, r, artifact, err)
+	}
+}
+
+func GetArtifactReleases(service *artifactusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		bindings, err := service.ArtifactReleases(r.Context(), chi.URLParam(r, "id"))
+		respondArtifactResult(w, r, map[string]any{"releases": bindings}, err)
+	}
+}
+
 type artifactRegistryValidateRequest struct {
 	Name     string `json:"name"`
 	Type     string `json:"type"`
@@ -176,6 +204,9 @@ func respondArtifactResult(w http.ResponseWriter, r *http.Request, payload any, 
 	if errors.Is(err, artifactusecase.ErrReleaseNotFound) {
 		status = http.StatusNotFound
 		code = "release_not_found"
+	} else if errors.Is(err, artifactusecase.ErrArtifactNotFound) {
+		status = http.StatusNotFound
+		code = "artifact_not_found"
 	} else if errors.Is(err, artifactusecase.ErrRegistryNotFound) {
 		status = http.StatusNotFound
 		code = "artifact_registry_not_found"

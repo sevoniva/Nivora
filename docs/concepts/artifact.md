@@ -23,6 +23,8 @@ Phase 2.5 supports a small artifact model, OCI image reference parsing, generic 
 
 The current backend also has a foundation artifact registry catalog at `/api/v1/artifact-registries` and `nivora artifact registry`. It records registry metadata, explicit `insecure` settings for local HTTP registries, capabilities, and `CredentialRef` values. It never stores or returns registry passwords or tokens through registry records.
 
+Artifacts bound to releases are queryable through `/api/v1/artifacts`, `/api/v1/artifacts/{id}`, `/api/v1/artifacts/{id}/releases`, and `nivora artifact list/get/releases`. This inventory is derived from ReleaseArtifact bindings that Nivora already knows about. It is not a full registry crawl.
+
 Nivora does not implement Harbor management APIs, Nexus, JFrog, ECR, ACR, TCR, signing, scanning, or full registry administration.
 
 ## Common Confusion

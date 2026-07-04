@@ -49,14 +49,31 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 	}
 	releaseObj := created["release"].(map[string]any)
 	releaseID := releaseObj["id"].(string)
+	artifactList := created["artifacts"].([]any)
+	artifactID := artifactList[0].(map[string]any)["id"].(string)
 
-	for _, path := range []string{"/api/v1/releases", "/api/v1/releases/" + releaseID, "/api/v1/releases/" + releaseID + "/artifacts"} {
+	for _, path := range []string{
+		"/api/v1/releases",
+		"/api/v1/releases/" + releaseID,
+		"/api/v1/releases/" + releaseID + "/artifacts",
+		"/api/v1/artifacts",
+		"/api/v1/artifacts?registry=registry.example.com",
+		"/api/v1/artifacts/" + artifactID,
+		"/api/v1/artifacts/" + artifactID + "/releases",
+	} {
 		req = httptest.NewRequest(http.MethodGet, path, nil)
 		rec = httptest.NewRecorder()
 		router.ServeHTTP(rec, req)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("%s status = %d body = %s", path, rec.Code, rec.Body.String())
 		}
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/missing", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("missing artifact status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/releases/"+releaseID+"/evidence", nil)

@@ -343,6 +343,48 @@ func TestRunnerRoutes(t *testing.T) {
 	if bytes.Contains(rec.Body.Bytes(), []byte("tokenHash")) {
 		t.Fatalf("token hash leaked after rotate body = %s", rec.Body.String())
 	}
+	var rotated map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &rotated); err != nil {
+		t.Fatalf("decode rotate response: %v", err)
+	}
+	rotatedToken, ok := rotated["token"].(map[string]any)["token"].(string)
+	if !ok || rotatedToken == "" || rotatedToken == token {
+		t.Fatalf("rotation did not return a new one-time token body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-api/heartbeat", nil)
+	req.Header.Set("X-Nivora-Runner-Token", token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("heartbeat with old token after rotate status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-api/heartbeat", nil)
+	req.Header.Set("X-Nivora-Runner-Token", rotatedToken)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("heartbeat with rotated token status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-api/token/revoke", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("revoke status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if bytes.Contains(rec.Body.Bytes(), []byte("tokenHash")) || bytes.Contains(rec.Body.Bytes(), []byte(rotatedToken)) {
+		t.Fatalf("token material leaked after revoke body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-api/heartbeat", nil)
+	req.Header.Set("X-Nivora-Runner-Token", rotatedToken)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Fatalf("heartbeat with revoked token status = %d body = %s", rec.Code, rec.Body.String())
+	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/offline-detect?timeoutSeconds=0", nil)
 	rec = httptest.NewRecorder()

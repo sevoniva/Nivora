@@ -64,7 +64,7 @@ No row in this matrix should be read as a GA production claim.
 | RBAC | beta | permission evaluator/middleware | route matrix tests | route matrix docs | Coverage broad but not every tenant path | Auto-generate route/permission drift reports | Security |
 | Service account | foundation | auth model/store | focused tests plus Postgres token lifecycle test | auth docs | Token lifecycle analytics limited | Expiry and audit proof | Security |
 | API token | foundation | token metadata/hash paths | token tests plus Postgres rotation/revoke persistence test | auth docs | Use analytics limited | Expiry/audit evidence expansion | Security |
-| Runner token | beta | token hash/runner routes | negative tests | runner security docs | Token storage and revocation need operational proof | Rotation/revoke e2e | Runner |
+| Runner token | beta | token hash/runner routes | negative, rotation, and revoke route tests | runner security docs | Token operations are covered in-memory and Postgres auth tokens, but operational distribution remains sensitive | Runner token distribution/rotation runbook drill | Runner |
 | Secret management | foundation | ports/providers/redaction | provider/redaction tests | secret docs | External providers not production-validated | Vault/KMS contract tests | Security |
 | Credential management | foundation | metadata store/API | route/safety tests | credential docs | Validation adapter coverage limited | Provider-specific validation contracts | Security |
 | Redaction | beta | redaction helpers/tests | API/MCP/secret tests | security docs | New fields can drift | Central sensitive-key corpus gate | Security |

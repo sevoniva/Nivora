@@ -11,15 +11,17 @@ Available foundation adapters:
 ## Test Notification
 
 ```sh
-nivora notification list
-nivora notification test --channel noop
+nivora notification list --token-env NIVORA_AUTH_TOKEN
+nivora notification test --channel noop --token-env NIVORA_AUTH_TOKEN
 ```
 
 Equivalent API:
 
 ```sh
-curl -s http://localhost:8080/api/v1/notifications
+curl -s http://localhost:8080/api/v1/notifications \
+  -H "Authorization: Bearer ${NIVORA_AUTH_TOKEN}"
 curl -s http://localhost:8080/api/v1/notifications/test \
+  -H "Authorization: Bearer ${NIVORA_AUTH_TOKEN}" \
   -H 'content-type: application/json' \
   -d '{"type":"test","channel":"noop","subject":"Nivora test notification","recipients":["local"]}'
 ```

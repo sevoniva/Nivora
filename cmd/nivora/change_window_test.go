@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestChangeWindowCommandIncludesManagementCommands(t *testing.T) {
@@ -28,11 +30,15 @@ func TestChangeWindowCommandIncludesManagementCommands(t *testing.T) {
 }
 
 func TestChangeWindowCreateFromFlagsPostsServerRoute(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "change-window-token")
 	var called bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/change-windows" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer change-window-token" {
+			t.Fatalf("Authorization header = %q", got)
 		}
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -59,6 +65,7 @@ func TestChangeWindowCreateFromFlagsPostsServerRoute(t *testing.T) {
 	cmd.SetErr(&out)
 	cmd.SetArgs([]string{
 		"--server", server.URL,
+		"--token-env", "NIVORA_TEST_TOKEN",
 		"--name", "prod-business-hours",
 		"--env", "prod",
 		"--timezone", "UTC",
@@ -80,9 +87,13 @@ func TestChangeWindowCreateFromFlagsPostsServerRoute(t *testing.T) {
 }
 
 func TestChangeWindowListAndGetUseServerRoutes(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "change-window-read-token")
 	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		paths = append(paths, r.Method+" "+r.URL.Path)
+		if got := r.Header.Get("Authorization"); got != "Bearer change-window-read-token" {
+			t.Fatalf("Authorization header = %q", got)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/api/v1/change-windows":
@@ -99,7 +110,7 @@ func TestChangeWindowListAndGetUseServerRoutes(t *testing.T) {
 	var out bytes.Buffer
 	listCmd.SetOut(&out)
 	listCmd.SetErr(&out)
-	listCmd.SetArgs([]string{"--server", server.URL})
+	listCmd.SetArgs([]string{"--server", server.URL, "--token-env", "NIVORA_TEST_TOKEN"})
 	if err := listCmd.Execute(); err != nil {
 		t.Fatalf("change-window list failed: %v output=%s", err, out.String())
 	}
@@ -108,7 +119,7 @@ func TestChangeWindowListAndGetUseServerRoutes(t *testing.T) {
 	out.Reset()
 	getCmd.SetOut(&out)
 	getCmd.SetErr(&out)
-	getCmd.SetArgs([]string{"cwin-1", "--server", server.URL})
+	getCmd.SetArgs([]string{"cwin-1", "--server", server.URL, "--token-env", "NIVORA_TEST_TOKEN"})
 	if err := getCmd.Execute(); err != nil {
 		t.Fatalf("change-window get failed: %v output=%s", err, out.String())
 	}
@@ -121,6 +132,53 @@ func TestChangeWindowListAndGetUseServerRoutes(t *testing.T) {
 		if paths[i] != want[i] {
 			t.Fatalf("path[%d] = %q, want %q", i, paths[i], want[i])
 		}
+	}
+}
+
+func TestChangeWindowEvaluateUsesBearerToken(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "change-window-evaluate-token")
+	var called bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		called = true
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/change-windows/evaluate" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer change-window-evaluate-token" {
+			t.Fatalf("Authorization header = %q", got)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"allowed":true}`))
+	}))
+	defer server.Close()
+
+	cmd := newChangeWindowEvaluateCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--server", server.URL, "--token-env", "NIVORA_TEST_TOKEN", "--env", "prod"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("change-window evaluate failed: %v output=%s", err, out.String())
+	}
+	if !called {
+		t.Fatal("expected change-window evaluate to call server")
+	}
+}
+
+func TestChangeWindowCommandsExposeTokenEnv(t *testing.T) {
+	for _, tt := range []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{name: "list", cmd: newChangeWindowListCommand()},
+		{name: "create", cmd: newChangeWindowCreateCommand()},
+		{name: "get", cmd: newChangeWindowGetCommand()},
+		{name: "evaluate", cmd: newChangeWindowEvaluateCommand()},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			if flag := tt.cmd.Flags().Lookup("token-env"); flag == nil {
+				t.Fatalf("%s missing --token-env flag", tt.name)
+			}
+		})
 	}
 }
 

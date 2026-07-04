@@ -6,6 +6,7 @@ Phase 6.3 hardens the backend-only approval foundation.
 
 ```sh
 curl -s http://localhost:8080/api/v1/approvals \
+  -H "Authorization: Bearer ${NIVORA_AUTH_TOKEN}" \
   -H 'content-type: application/json' \
   -d '{"subjectType":"deployment","subjectId":"drun-local","environmentId":"prod","requestedBy":"local-user","reason":"production deployment"}'
 ```
@@ -14,6 +15,7 @@ Approve, reject, cancel, or expire:
 
 ```sh
 curl -s http://localhost:8080/api/v1/approvals/<id>/approve \
+  -H "Authorization: Bearer ${NIVORA_AUTH_TOKEN}" \
   -H 'content-type: application/json' \
   -d '{"approver":"reviewer","comment":"approved for local test"}'
 ```
@@ -22,10 +24,12 @@ DeploymentRun and ReleaseExecution records that are waiting for approval can be 
 
 ```sh
 curl -s http://localhost:8080/api/v1/deployments/<deployment-run-id>/resume \
+  -H "Authorization: Bearer ${NIVORA_AUTH_TOKEN}" \
   -H 'content-type: application/json' \
   -d '{"subjectType":"deployment","subjectId":"<deployment-run-id>","status":"Approved"}'
 
 curl -s http://localhost:8080/api/v1/releases/executions/<execution-id>/resume \
+  -H "Authorization: Bearer ${NIVORA_AUTH_TOKEN}" \
   -H 'content-type: application/json' \
   -d '{"subjectType":"release","subjectId":"<execution-id>","status":"Rejected"}'
 ```
@@ -33,7 +37,8 @@ curl -s http://localhost:8080/api/v1/releases/executions/<execution-id>/resume \
 The approval service also exposes a subject resume helper. It reads the stored approval request by approval id and applies the terminal decision to the referenced DeploymentRun, ReleaseExecution, or PipelineRun:
 
 ```sh
-curl -s -X POST http://localhost:8080/api/v1/approvals/<id>/resume-subject
+curl -s -X POST http://localhost:8080/api/v1/approvals/<id>/resume-subject \
+  -H "Authorization: Bearer ${NIVORA_AUTH_TOKEN}"
 ```
 
 This helper rejects Pending approvals. For PipelineRun subjects, approved decisions move a `Paused` PipelineRun back to `Queued`; rejected or expired decisions fail the run; canceled decisions cancel it. The helper does not execute shell steps directly.
@@ -46,14 +51,15 @@ nivora approvals create \
   --subject-id drun-local \
   --env prod \
   --requested-by local-user \
-  --reason "production deployment"
-nivora approvals list
-nivora approvals get <id>
-nivora approvals approve <id> --comment "approved"
-nivora approvals reject <id> --comment "not ready"
-nivora approvals cancel <id> --comment "superseded"
-nivora approvals expire <id> --comment "expired"
-nivora approvals resume <id>
+  --reason "production deployment" \
+  --token-env NIVORA_AUTH_TOKEN
+nivora approvals list --token-env NIVORA_AUTH_TOKEN
+nivora approvals get <id> --token-env NIVORA_AUTH_TOKEN
+nivora approvals approve <id> --comment "approved" --token-env NIVORA_AUTH_TOKEN
+nivora approvals reject <id> --comment "not ready" --token-env NIVORA_AUTH_TOKEN
+nivora approvals cancel <id> --comment "superseded" --token-env NIVORA_AUTH_TOKEN
+nivora approvals expire <id> --comment "expired" --token-env NIVORA_AUTH_TOKEN
+nivora approvals resume <id> --token-env NIVORA_AUTH_TOKEN
 nivora deployment resume <deployment-run-id> --approval-status Approved
 nivora release execution resume <execution-id> --approval-status Approved
 ```

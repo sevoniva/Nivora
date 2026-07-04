@@ -25,21 +25,22 @@ nivora approvals create \
   --subject-type deployment \
   --subject-id drun-prod \
   --env prod \
-  --reason "manual production gate"
-nivora approvals list
-nivora approvals get <approval-id>
-nivora approvals approve <id> --comment "approved for current window"
-nivora approvals reject <id> --comment "policy exception not accepted"
-nivora approvals cancel <id> --comment "superseded"
-nivora approvals expire <id> --comment "window expired"
+  --reason "manual production gate" \
+  --token-env NIVORA_AUTH_TOKEN
+nivora approvals list --token-env NIVORA_AUTH_TOKEN
+nivora approvals get <approval-id> --token-env NIVORA_AUTH_TOKEN
+nivora approvals approve <id> --comment "approved for current window" --token-env NIVORA_AUTH_TOKEN
+nivora approvals reject <id> --comment "policy exception not accepted" --token-env NIVORA_AUTH_TOKEN
+nivora approvals cancel <id> --comment "superseded" --token-env NIVORA_AUTH_TOKEN
+nivora approvals expire <id> --comment "window expired" --token-env NIVORA_AUTH_TOKEN
 nivora deployment resume <deployment-run-id> --approval-status Approved
 nivora release execution resume <execution-id> --approval-status Approved
-nivora change-window create --file examples/change-windows/prod-window.yaml
-nivora change-window list
-nivora change-window get <change-window-id>
-nivora change-window evaluate --env prod --at 2026-05-18T02:00:00Z
-nivora notification list
-nivora notification test --channel noop
+nivora change-window create --file examples/change-windows/prod-window.yaml --token-env NIVORA_AUTH_TOKEN
+nivora change-window list --token-env NIVORA_AUTH_TOKEN
+nivora change-window get <change-window-id> --token-env NIVORA_AUTH_TOKEN
+nivora change-window evaluate --env prod --at 2026-05-18T02:00:00Z --token-env NIVORA_AUTH_TOKEN
+nivora notification list --token-env NIVORA_AUTH_TOKEN
+nivora notification test --channel noop --token-env NIVORA_AUTH_TOKEN
 ```
 
 ## Safety

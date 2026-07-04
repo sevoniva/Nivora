@@ -9,17 +9,19 @@ Prefer environment variables so values do not appear in shell history:
 Set NIVORA_TOKEN in your shell, then run:
 
 ```bash
-go run ./cmd/nivora secret put --name local-registry-token --value-env NIVORA_TOKEN
+go run ./cmd/nivora secret put --name local-registry-token --value-env NIVORA_TOKEN --token-env NIVORA_AUTH_TOKEN
 ```
 
 The response is a `SecretRef`. It does not include the secret value.
+
+For in-process development without a server, add `--local`.
 
 ## Rotate A Secret
 
 Rotation also uses environment variable indirection:
 
 ```bash
-go run ./cmd/nivora secret rotate <secret-id> --value-env NIVORA_ROTATED_TOKEN
+go run ./cmd/nivora secret rotate <secret-id> --value-env NIVORA_ROTATED_TOKEN --token-env NIVORA_AUTH_TOKEN
 ```
 
 The response is the updated `SecretRef` metadata. It does not include the new value.
@@ -27,7 +29,7 @@ The response is the updated `SecretRef` metadata. It does not include the new va
 ## Validate The Secret Provider
 
 ```bash
-go run ./cmd/nivora secret provider validate
+go run ./cmd/nivora secret provider validate --token-env NIVORA_AUTH_TOKEN
 ```
 
 Provider validation reports the configured provider name, capability metadata, and whether the provider is configured. It must not return secret values.
@@ -35,15 +37,15 @@ Provider validation reports the configured provider name, capability metadata, a
 ## Create Credential Metadata
 
 ```bash
-go run ./cmd/nivora credential create --file examples/credentials/registry-credential.yaml --local
+go run ./cmd/nivora credential create --file examples/credentials/registry-credential.yaml --token-env NIVORA_AUTH_TOKEN
 ```
 
-The example references a placeholder key. Before server-backed validation, create a matching secret with `secret put`.
+The example references a placeholder key. Before validation, create a matching secret with `secret put`. For in-process development without a server, add `--local`.
 
 ## Validate A Credential
 
 ```bash
-go run ./cmd/nivora credential validate <credential-id>
+go run ./cmd/nivora credential validate <credential-id> --token-env NIVORA_AUTH_TOKEN
 ```
 
 Validation only checks that the `SecretRef` can be resolved by the configured provider. It does not call Harbor, Argo CD, Kubernetes, cloud APIs, or SSH hosts in this phase.

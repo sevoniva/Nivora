@@ -1169,12 +1169,12 @@ These commands use noop/fake-friendly scanner foundations and built-in policy ga
 Phase 3.1 adds SecretRef and Credential metadata:
 
 ```bash
-go run ./cmd/nivora secret put --name local-registry-token --value-env NIVORA_TOKEN
-go run ./cmd/nivora secret provider validate
-go run ./cmd/nivora credential create --file examples/credentials/registry-credential.yaml --local
+go run ./cmd/nivora secret put --name local-registry-token --value-env NIVORA_TOKEN --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora secret provider validate --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora credential create --file examples/credentials/registry-credential.yaml --token-env NIVORA_AUTH_TOKEN
 ```
 
-Secret values are accepted only at creation and rotation boundaries and are not returned by normal APIs. The builtin provider is development-only. Phase 7.1 adds Vault and Kubernetes Secret adapter foundations plus cloud KMS placeholders; production external secret storage remains future work.
+Secret values are accepted only at creation and rotation boundaries and are not returned by normal APIs. Server-backed commands should use `--token-env` so API tokens stay out of shell history; in-process development paths can use `--local` where the command supports it. The builtin provider is development-only. Phase 7.1 adds Vault and Kubernetes Secret adapter foundations plus cloud KMS placeholders; production external secret storage remains future work.
 
 Phase 7.0 hardens the local auth and RBAC foundations:
 

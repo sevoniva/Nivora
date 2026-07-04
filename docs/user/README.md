@@ -90,8 +90,8 @@ Useful docs:
 Approval, change window, and notification foundations model human governance. They do not implement a full ITSM workflow.
 
 ```sh
-nivora approvals list
-nivora change-window evaluate --env prod
+nivora approvals list --token-env NIVORA_AUTH_TOKEN
+nivora change-window evaluate --env prod --token-env NIVORA_AUTH_TOKEN
 ```
 
 Useful docs:

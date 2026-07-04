@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestApprovalsCommandIncludesResume(t *testing.T) {
@@ -26,11 +28,15 @@ func TestApprovalsCommandIncludesResume(t *testing.T) {
 }
 
 func TestApprovalCreatePostsServerRoute(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "approval-token")
 	var called bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/approvals" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer approval-token" {
+			t.Fatalf("Authorization header = %q", got)
 		}
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -53,6 +59,7 @@ func TestApprovalCreatePostsServerRoute(t *testing.T) {
 	cmd.SetErr(&out)
 	cmd.SetArgs([]string{
 		"--server", server.URL,
+		"--token-env", "NIVORA_TEST_TOKEN",
 		"--subject-type", "deployment",
 		"--subject-id", "drun-1",
 		"--env", "prod",
@@ -93,11 +100,15 @@ func TestApprovalCreateRequiresSubject(t *testing.T) {
 }
 
 func TestApprovalGetUsesServerRoute(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "approval-read-token")
 	var called bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		if r.Method != http.MethodGet || r.URL.Path != "/api/v1/approvals/appr-1" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer approval-read-token" {
+			t.Fatalf("Authorization header = %q", got)
 		}
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"id":"appr-1","status":"Pending"}`))
@@ -108,7 +119,7 @@ func TestApprovalGetUsesServerRoute(t *testing.T) {
 	var out bytes.Buffer
 	cmd.SetOut(&out)
 	cmd.SetErr(&out)
-	cmd.SetArgs([]string{"appr-1", "--server", server.URL})
+	cmd.SetArgs([]string{"appr-1", "--server", server.URL, "--token-env", "NIVORA_TEST_TOKEN"})
 	if err := cmd.Execute(); err != nil {
 		t.Fatalf("approval get failed: %v output=%s", err, out.String())
 	}
@@ -117,6 +128,78 @@ func TestApprovalGetUsesServerRoute(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "appr-1") {
 		t.Fatalf("approval get output missing id: %s", out.String())
+	}
+}
+
+func TestApprovalProtectedCommandsUseBearerToken(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "approval-command-token")
+	tests := []struct {
+		name       string
+		cmd        *cobra.Command
+		args       []string
+		wantMethod string
+		wantPath   string
+		response   string
+	}{
+		{
+			name:       "list",
+			cmd:        newApprovalListCommand(),
+			args:       []string{"--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/v1/approvals",
+			response:   `[{"id":"appr-1"}]`,
+		},
+		{
+			name:       "approve",
+			cmd:        newApprovalDecisionCommand("approve", "Approve an approval request", "/approve"),
+			args:       []string{"appr-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN", "--comment", "ok"},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/v1/approvals/appr-1/approve",
+			response:   `{"id":"appr-1","status":"Approved"}`,
+		},
+		{
+			name:       "resume",
+			cmd:        newApprovalResumeSubjectCommand(),
+			args:       []string{"appr-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/v1/approvals/appr-1/resume-subject",
+			response:   `{"resumed":true}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var called bool
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				if r.Method != tt.wantMethod || r.URL.Path != tt.wantPath {
+					t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+				}
+				if got := r.Header.Get("Authorization"); got != "Bearer approval-command-token" {
+					t.Fatalf("Authorization header = %q", got)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tt.response))
+			}))
+			defer server.Close()
+
+			args := append([]string(nil), tt.args...)
+			for i, arg := range args {
+				if arg == "SERVER_URL" {
+					args[i] = server.URL
+				}
+			}
+			var out bytes.Buffer
+			tt.cmd.SetOut(&out)
+			tt.cmd.SetErr(&out)
+			tt.cmd.SetArgs(args)
+			if err := tt.cmd.Execute(); err != nil {
+				t.Fatalf("%s failed: %v output=%s", tt.name, err, out.String())
+			}
+			if !called {
+				t.Fatalf("%s did not call server", tt.name)
+			}
+		})
 	}
 }
 

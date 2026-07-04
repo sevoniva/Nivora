@@ -76,6 +76,26 @@ func GenerateEvidenceBundle(service *complianceusecase.Service) http.HandlerFunc
 	}
 }
 
+func ListEvidenceBundles(service *complianceusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		bundles, err := service.SearchEvidenceBundles(r.Context(), r.URL.Query().Get("subjectType"), r.URL.Query().Get("subjectId"))
+		if err != nil {
+			respondComplianceResult(w, r, nil, err)
+			return
+		}
+		page, pageErr := parsePagination(r)
+		if pageErr != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_pagination", Message: pageErr.Error()})
+			return
+		}
+		if page.Enabled {
+			RespondJSON(w, http.StatusOK, paginatedPayload(bundles, page))
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{"bundles": bundles, "count": len(bundles)})
+	}
+}
+
 func GenerateReleaseEvidenceBundle(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		releaseID := chi.URLParam(r, "id")

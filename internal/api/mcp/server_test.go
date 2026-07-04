@@ -37,7 +37,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results/summary", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
 		if !hasResource(resources, want) {
 			t.Fatalf("resource %s missing from %#v", want, resources)
 		}
@@ -51,7 +51,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 			t.Fatalf("blocked action tool %s was exposed", blocked)
 		}
 	}
-	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
+	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
 		if !hasTool(tools, want) {
 			t.Fatalf("tool %s missing from %#v", want, tools)
 		}
@@ -320,6 +320,9 @@ func TestMCPSecurityPolicyAndRuntimeReadOnly(t *testing.T) {
 func TestMCPEvidenceBundleRequiresAuditRead(t *testing.T) {
 	ctx := context.Background()
 	viewer := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	if _, err := viewer.ReadResource(ctx, "nivora://evidence/bundles"); err == nil {
+		t.Fatal("viewer read evidence list unexpectedly allowed")
+	}
 	if _, err := viewer.ReadResource(ctx, "nivora://evidence/bundles/evb-missing"); err == nil {
 		t.Fatal("viewer read evidence unexpectedly allowed")
 	}
@@ -329,12 +332,26 @@ func TestMCPEvidenceBundleRequiresAuditRead(t *testing.T) {
 	if err != nil {
 		t.Fatalf("generate evidence bundle: %v", err)
 	}
+	listResource, err := auditor.ReadResource(ctx, "nivora://evidence/bundles")
+	if err != nil {
+		t.Fatalf("auditor read evidence list resource: %v", err)
+	}
+	if !strings.Contains(listResource.Text, bundle.ID) || !strings.Contains(listResource.Text, `"mutated": false`) {
+		t.Fatalf("evidence list resource body = %s", listResource.Text)
+	}
 	resource, err := auditor.ReadResource(ctx, "nivora://evidence/bundles/"+bundle.ID)
 	if err != nil {
 		t.Fatalf("auditor read evidence resource: %v", err)
 	}
 	if !strings.Contains(resource.Text, bundle.ID) {
 		t.Fatalf("evidence resource body = %s", resource.Text)
+	}
+	listResult, err := auditor.CallTool(ctx, "nivora_list_evidence_bundles", map[string]any{"subjectType": "generic", "subjectId": "mcp-evidence"})
+	if err != nil {
+		t.Fatalf("evidence list tool transport error: %v", err)
+	}
+	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, bundle.ID) || !strings.Contains(listResult.Content[0].Text, `"mutated": false`) {
+		t.Fatalf("evidence list tool result = %#v", listResult)
 	}
 	result, err := auditor.CallTool(ctx, "nivora_get_evidence_bundle", map[string]any{"id": bundle.ID, "authorization": "Bearer should-not-leak"})
 	if err != nil {

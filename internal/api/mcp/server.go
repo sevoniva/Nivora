@@ -96,6 +96,7 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://security/findings", "Security findings", "Security findings summary and current finding list"),
 		resource("nivora://policy/results/summary", "Policy result summary", "Policy gate decision summary derived from security scan records"),
 		resource("nivora://audit/search", "Audit search", "Audit records visible to the MCP subject"),
+		resource("nivora://evidence/bundles", "Evidence bundles", "Persisted evidence bundles visible to the MCP subject"),
 		resource("nivora://evidence/bundles/{id}", "Evidence bundle", "Persisted evidence bundle by id"),
 		resource("nivora://plugins/capabilities", "Plugin capabilities", "Built-in plugin capability metadata"),
 	}, nil
@@ -159,12 +160,19 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			"subjectId":   stringProperty("optional subject id"),
 		}, nil)),
 		tool("nivora_get_evidence_bundle", "Read a persisted evidence bundle by id", idSchema("id")),
+		tool("nivora_list_evidence_bundles", "List persisted evidence bundles", objectSchema(map[string]any{
+			"subjectType": stringProperty("optional evidence subject type"),
+			"subjectId":   stringProperty("optional evidence subject id"),
+		}, nil)),
 		tool("nivora_search_audit", "Search audit records visible to the subject", objectSchema(map[string]any{
 			"subject":       stringProperty("subject substring"),
+			"subjectType":   stringProperty("subject type"),
+			"subjectId":     stringProperty("subject id"),
 			"actorId":       stringProperty("actor id"),
 			"action":        stringProperty("action substring"),
 			"scopeType":     stringProperty("scope type"),
 			"scopeId":       stringProperty("scope id"),
+			"requestId":     stringProperty("request id"),
 			"correlationId": stringProperty("correlation id"),
 		}, nil)),
 		tool("nivora_get_capability_status", "Read the current capability status document", nil),
@@ -309,6 +317,12 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 		return s.policyResultSummary(ctx, "", "")
 	case uri == "nivora://audit/search":
 		return s.services.Compliance.SearchAudit(ctx, complianceusecase.AuditSearchInput{})
+	case uri == "nivora://evidence/bundles":
+		bundles, err := s.services.Compliance.SearchEvidenceBundles(ctx, "", "")
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"bundles": bundles, "count": len(bundles), "mutated": false}, nil
 	case strings.HasPrefix(uri, "nivora://evidence/bundles/"):
 		id := strings.TrimPrefix(uri, "nivora://evidence/bundles/")
 		return s.services.Compliance.GetEvidenceBundle(ctx, id)
@@ -512,13 +526,22 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return s.services.Compliance.GetEvidenceBundle(ctx, id)
+	case "nivora_list_evidence_bundles":
+		bundles, err := s.services.Compliance.SearchEvidenceBundles(ctx, stringArg(arguments, "subjectType"), stringArg(arguments, "subjectId"))
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"bundles": bundles, "count": len(bundles), "mutated": false}, nil
 	case "nivora_search_audit":
 		return s.services.Compliance.SearchAudit(ctx, complianceusecase.AuditSearchInput{
 			Subject:       stringArg(arguments, "subject"),
+			SubjectType:   stringArg(arguments, "subjectType"),
+			SubjectID:     stringArg(arguments, "subjectId"),
 			ActorID:       stringArg(arguments, "actorId"),
 			Action:        stringArg(arguments, "action"),
 			ScopeType:     stringArg(arguments, "scopeType"),
 			ScopeID:       stringArg(arguments, "scopeId"),
+			RequestID:     stringArg(arguments, "requestId"),
 			CorrelationID: stringArg(arguments, "correlationId"),
 		})
 	case "nivora_get_capability_status":
@@ -845,7 +868,7 @@ func (s *Server) catalogSummary(ctx context.Context, orgID string, projectID str
 }
 
 func (s *Server) checkResourcePermission(ctx context.Context, uri string) error {
-	if uri == "nivora://audit/search" || strings.HasPrefix(uri, "nivora://evidence/bundles/") {
+	if uri == "nivora://audit/search" || uri == "nivora://evidence/bundles" || strings.HasPrefix(uri, "nivora://evidence/bundles/") {
 		return s.require(ctx, domainauth.PermissionAuditRead, "mcp.resource", uri)
 	}
 	return s.require(ctx, domainauth.PermissionProjectRead, "mcp.resource", uri)
@@ -853,7 +876,7 @@ func (s *Server) checkResourcePermission(ctx context.Context, uri string) error 
 
 func (s *Server) toolPermission(name string) string {
 	switch name {
-	case "nivora_search_audit", "nivora_get_evidence_bundle":
+	case "nivora_search_audit", "nivora_get_evidence_bundle", "nivora_list_evidence_bundles":
 		return domainauth.PermissionAuditRead
 	case "nivora_explain_pipeline_failure",
 		"nivora_explain_deployment",

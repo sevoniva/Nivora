@@ -190,6 +190,23 @@ func (s *Service) GetEvidenceBundle(ctx context.Context, id string) (domaincompl
 	return s.store.GetEvidenceBundle(ctx, id)
 }
 
+func (s *Service) SearchEvidenceBundles(ctx context.Context, subjectType string, subjectID string) ([]domaincompliance.EvidenceBundle, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	bundles, err := s.store.SearchEvidenceBundles(ctx, subjectType, subjectID)
+	if err != nil {
+		return nil, err
+	}
+	for i := range bundles {
+		bundles[i].Events = sanitizeEvents(bundles[i].Events)
+		for j, entry := range bundles[i].Audits {
+			bundles[i].Audits[j] = sanitizeAudit(entry)
+		}
+	}
+	return bundles, nil
+}
+
 func (s *Service) ExportMarkdown(bundle domaincompliance.EvidenceBundle) string {
 	var b strings.Builder
 	fmt.Fprintf(&b, "# Evidence Bundle\n\n")

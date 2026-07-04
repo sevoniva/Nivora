@@ -290,8 +290,41 @@ func newLogsSearchCommand() *cobra.Command {
 
 func newEvidenceCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "evidence", Short: "Evidence bundle utilities"}
+	cmd.AddCommand(newEvidenceListCommand())
 	cmd.AddCommand(newEvidenceGenerateCommand())
 	cmd.AddCommand(newEvidenceExportCommand())
+	return cmd
+}
+
+func newEvidenceListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var subjectType string
+	var subjectID string
+	var limit int
+	var offset int
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List persisted evidence bundles",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			setQueryValue(values, "subjectType", subjectType)
+			setQueryValue(values, "subjectId", subjectID)
+			setPaginationValues(values, limit, offset)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, withQuery("/api/v1/evidence/bundles", values), nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&subjectType, "subject-type", "", "subject type filter")
+	cmd.Flags().StringVar(&subjectID, "subject-id", "", "subject id filter")
+	cmd.Flags().IntVar(&limit, "limit", 0, "page size, 1-500")
+	cmd.Flags().IntVar(&offset, "offset", 0, "zero-based page offset")
 	return cmd
 }
 

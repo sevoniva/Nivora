@@ -1195,6 +1195,7 @@ Phase 7.3 adds compliance audit and evidence foundations:
 
 ```bash
 go run ./cmd/nivora audit search --subject <subject-id>
+go run ./cmd/nivora evidence list --subject-type pipelineRun --subject-id <pipeline-run-id>
 go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id> --format markdown
 ```
 

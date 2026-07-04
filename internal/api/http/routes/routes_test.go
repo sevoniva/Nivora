@@ -255,6 +255,24 @@ func TestComplianceEvidenceRoutes(t *testing.T) {
 	if bundle.ID == "" {
 		t.Fatalf("generated evidence bundle missing id: %s", rec.Body.String())
 	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/bundles?subjectType=pipelineRun&subjectId="+created.Run.ID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list evidence bundles status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), bundle.ID) || !strings.Contains(rec.Body.String(), `"count":1`) {
+		t.Fatalf("list evidence bundles body = %s", rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/bundles?subjectType=pipelineRun&subjectId="+created.Run.ID+"&limit=1", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("paginated evidence bundles status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"pagination"`) || !strings.Contains(rec.Body.String(), bundle.ID) {
+		t.Fatalf("paginated evidence bundles body = %s", rec.Body.String())
+	}
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/evidence/bundles/"+bundle.ID, nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

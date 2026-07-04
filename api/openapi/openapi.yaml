@@ -254,6 +254,33 @@ paths:
               schema:
                 type: string
   /api/v1/evidence/bundles:
+    get:
+      summary: List persisted evidence bundles
+      parameters:
+        - name: subjectType
+          in: query
+          schema:
+            type: string
+        - name: subjectId
+          in: query
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: Evidence bundles matching the filters
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bundles:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/EvidenceBundle"
+                  count:
+                    type: integer
     post:
       summary: Generate and persist an evidence bundle
       requestBody:

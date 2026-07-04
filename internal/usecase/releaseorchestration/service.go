@@ -52,15 +52,16 @@ type DeploymentService interface {
 }
 
 type Service struct {
-	store       Store
-	artifacts   ArtifactService
-	deployments DeploymentService
-	policy      policy.Engine
-	security    *securityusecase.Service
-	policies    SecurityPolicyCatalog
-	governance  Governance
-	eventBus    eventbus.EventBus
-	now         func() time.Time
+	store          Store
+	artifacts      ArtifactService
+	deployments    DeploymentService
+	policy         policy.Engine
+	security       *securityusecase.Service
+	policies       SecurityPolicyCatalog
+	governance     Governance
+	releaseTargets ReleaseTargetCatalog
+	eventBus       eventbus.EventBus
+	now            func() time.Time
 }
 
 type Governance interface {
@@ -69,6 +70,10 @@ type Governance interface {
 
 type SecurityPolicyCatalog interface {
 	ResolveEnabledForScope(ctx context.Context, input policyusecase.ResolveInput) (domainpolicy.Policy, bool, error)
+}
+
+type ReleaseTargetCatalog interface {
+	GetReleaseTarget(ctx context.Context, id string) (environment.ReleaseTarget, error)
 }
 
 func (s *Service) WithSecurity(securityService *securityusecase.Service) *Service {
@@ -83,6 +88,11 @@ func (s *Service) WithPolicyCatalog(catalog SecurityPolicyCatalog) *Service {
 
 func (s *Service) WithGovernance(governance Governance) *Service {
 	s.governance = governance
+	return s
+}
+
+func (s *Service) WithReleaseTargetCatalog(catalog ReleaseTargetCatalog) *Service {
+	s.releaseTargets = catalog
 	return s
 }
 
@@ -564,53 +574,134 @@ func (s *Service) buildPlan(ctx context.Context, def Definition, releaseRecord a
 		}
 		plan.ArtifactSummary = append(plan.ArtifactSummary, ref)
 	}
+	environmentResolvedFromCatalog := false
 	for _, target := range orderedTargets(def.Spec.Targets) {
-		releaseTarget := environment.ReleaseTarget{
-			ID:            newID("target"),
-			ProjectID:     projectID,
-			EnvironmentID: envID,
-			Name:          target.Name,
-			TargetType:    target.Type,
-			Context:       target.Deployment.Spec.Target.Context,
-			Namespace:     target.Deployment.Spec.Target.Namespace,
-			Labels:        cloneStringMap(target.Labels),
-			Enabled:       true,
-			CreatedAt:     plan.CreatedAt,
-			UpdatedAt:     plan.CreatedAt,
+		releaseTarget, resolvedTarget, err := s.resolveReleaseTarget(ctx, target, projectID, plan.EnvironmentID, plan.CreatedAt)
+		if err != nil {
+			return ReleasePlan{}, err
+		}
+		if target.TargetID != "" && releaseTarget.EnvironmentID != "" {
+			if !environmentResolvedFromCatalog {
+				previousEnvironmentID := plan.EnvironmentID
+				plan.EnvironmentID = releaseTarget.EnvironmentID
+				environmentResolvedFromCatalog = true
+				for i := range plan.Targets {
+					if plan.Targets[i].EnvironmentID == previousEnvironmentID {
+						plan.Targets[i].EnvironmentID = plan.EnvironmentID
+					}
+				}
+			} else if plan.EnvironmentID != releaseTarget.EnvironmentID {
+				return ReleasePlan{}, fmt.Errorf("release catalog targets must use one environment: %q and %q", plan.EnvironmentID, releaseTarget.EnvironmentID)
+			}
+		}
+		if projectID != "" && releaseTarget.ProjectID != "" && releaseTarget.ProjectID != projectID {
+			return ReleasePlan{}, fmt.Errorf("release target %q is outside project %q", releaseTarget.ID, projectID)
+		}
+		if releaseTarget.ProjectID == "" {
+			releaseTarget.ProjectID = projectID
 		}
 		plan.Targets = append(plan.Targets, releaseTarget)
-		plan.Ordering = append(plan.Ordering, target.Name)
+		plan.Ordering = append(plan.Ordering, resolvedTarget.Name)
 		policyResult, err := s.policy.Evaluate(ctx, policy.Request{
 			Subject: releaseRecord.Release.ID,
 			Action:  "release.plan",
-			Context: map[string]any{"target": target.Name, "targetType": target.Type},
+			Context: map[string]any{"target": resolvedTarget.Name, "targetType": resolvedTarget.Type},
 		})
 		if err != nil {
 			return ReleasePlan{}, err
 		}
-		plan.PolicyResults = append(plan.PolicyResults, PolicyResult{Target: target.Name, Allowed: policyResult.Allowed, Reasons: policyResult.Reasons})
+		plan.PolicyResults = append(plan.PolicyResults, PolicyResult{Target: resolvedTarget.Name, Allowed: policyResult.Allowed, Reasons: policyResult.Reasons})
 		if !policyResult.Allowed {
-			plan.Warnings = append(plan.Warnings, "release policy denied target "+target.Name)
+			plan.Warnings = append(plan.Warnings, "release policy denied target "+resolvedTarget.Name)
 			continue
 		}
-		if target.Type == "noop" || target.Type == "webhook" {
+		if resolvedTarget.Type == "noop" || resolvedTarget.Type == "webhook" {
 			plan.DeploymentPlans = append(plan.DeploymentPlans, deploymentusecase.DeploymentPlan{
 				DeploymentRunID: newID("drun"),
-				TargetType:      target.Type,
+				TargetType:      resolvedTarget.Type,
 				Actions:         []string{"record target placeholder"},
 				Warnings:        []string{"target execution is a Phase 2.7 placeholder"},
 				DiffSummary:     "placeholder target has no live diff",
 			})
 			continue
 		}
-		result, err := s.deployments.Plan(ctx, deploymentusecase.CreateRunInput{Definition: target.Deployment, ProjectID: projectID})
+		if resolvedTarget.Deployment.Kind == "" {
+			return ReleasePlan{}, fmt.Errorf("release catalog target %q type %q requires an inline deployment spec", resolvedTarget.Name, resolvedTarget.Type)
+		}
+		fillDeploymentTargetFromCatalog(&resolvedTarget.Deployment, releaseTarget)
+		if err := resolvedTarget.Deployment.Validate(); err != nil {
+			return ReleasePlan{}, fmt.Errorf("release orchestration target %q deployment invalid: %w", resolvedTarget.Name, err)
+		}
+		result, err := s.deployments.Plan(ctx, deploymentusecase.CreateRunInput{Definition: resolvedTarget.Deployment, ProjectID: releaseTarget.ProjectID})
 		if err != nil {
-			plan.Warnings = append(plan.Warnings, fmt.Sprintf("target %s plan failed: %v", target.Name, err))
+			plan.Warnings = append(plan.Warnings, fmt.Sprintf("target %s plan failed: %v", resolvedTarget.Name, err))
 			continue
 		}
 		plan.DeploymentPlans = append(plan.DeploymentPlans, result.Record.Plan)
 	}
 	return plan, nil
+}
+
+func (s *Service) resolveReleaseTarget(ctx context.Context, target TargetSpec, projectID string, environmentID string, now time.Time) (environment.ReleaseTarget, TargetSpec, error) {
+	if strings.TrimSpace(target.TargetID) != "" {
+		if s.releaseTargets == nil {
+			return environment.ReleaseTarget{}, TargetSpec{}, fmt.Errorf("release target catalog is not configured")
+		}
+		catalogTarget, err := s.releaseTargets.GetReleaseTarget(ctx, strings.TrimSpace(target.TargetID))
+		if err != nil {
+			return environment.ReleaseTarget{}, TargetSpec{}, err
+		}
+		if !catalogTarget.Enabled {
+			return environment.ReleaseTarget{}, TargetSpec{}, fmt.Errorf("release target %q is disabled", catalogTarget.ID)
+		}
+		if projectID != "" && catalogTarget.ProjectID != "" && catalogTarget.ProjectID != projectID {
+			return environment.ReleaseTarget{}, TargetSpec{}, fmt.Errorf("release target %q is outside project %q", catalogTarget.ID, projectID)
+		}
+		resolved := target
+		if resolved.Name == "" {
+			resolved.Name = catalogTarget.Name
+		}
+		if resolved.Type == "" {
+			resolved.Type = catalogTarget.TargetType
+		}
+		catalogTarget.Labels = mergeStringMaps(catalogTarget.Labels, target.Labels)
+		if catalogTarget.ProjectID == "" {
+			catalogTarget.ProjectID = projectID
+		}
+		if catalogTarget.EnvironmentID == "" {
+			catalogTarget.EnvironmentID = environmentID
+		}
+		return catalogTarget, resolved, nil
+	}
+	releaseTarget := environment.ReleaseTarget{
+		ID:            newID("target"),
+		ProjectID:     projectID,
+		EnvironmentID: environmentID,
+		Name:          target.Name,
+		TargetType:    target.Type,
+		Context:       target.Deployment.Spec.Target.Context,
+		Namespace:     target.Deployment.Spec.Target.Namespace,
+		Labels:        cloneStringMap(target.Labels),
+		Enabled:       true,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	return releaseTarget, target, nil
+}
+
+func fillDeploymentTargetFromCatalog(def *deploymentusecase.Definition, target environment.ReleaseTarget) {
+	if def.Spec.Target.Type == "" {
+		def.Spec.Target.Type = target.TargetType
+	}
+	if def.Spec.Target.Name == "" {
+		def.Spec.Target.Name = target.Name
+	}
+	if def.Spec.Target.Context == "" {
+		def.Spec.Target.Context = target.Context
+	}
+	if def.Spec.Target.Namespace == "" {
+		def.Spec.Target.Namespace = target.Namespace
+	}
 }
 
 func (s *Service) securityScanInput(ctx context.Context, def Definition, releaseID string, projectID string, actorID string, plan ReleasePlan) (securityusecase.ScanInput, error) {
@@ -861,6 +952,20 @@ func cloneStringMap(values map[string]string) map[string]string {
 	}
 	out := make(map[string]string, len(values))
 	for key, value := range values {
+		out[key] = value
+	}
+	return out
+}
+
+func mergeStringMaps(base map[string]string, override map[string]string) map[string]string {
+	if len(base) == 0 && len(override) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(base)+len(override))
+	for key, value := range base {
+		out[key] = value
+	}
+	for key, value := range override {
 		out[key] = value
 	}
 	return out

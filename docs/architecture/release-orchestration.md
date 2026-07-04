@@ -31,6 +31,7 @@ Release orchestration owns aggregate planning and aggregate status. DeploymentRu
 - ReleasePlan records selected targets, artifact summary, policy results, deployment plans, ordering, strategy, and warnings.
 - ReleaseExecution records aggregate status, target execution status, DeploymentRun IDs, events, audit, and timeline.
 - DeploymentRun continues to own Kubernetes YAML, GitOps, logs, resource inventory, health, diff, and rollback-plan details for one target.
+- ReleasePlan may reference an existing ReleaseTarget catalog record by `targetId`; the server resolves enabled target metadata and preserves project/environment scope.
 
 ## Strategies
 
@@ -55,3 +56,4 @@ Approval is modeled as a backend gate: a release orchestration definition may re
 - No Helm or Kustomize execution.
 - No destructive rollback orchestration.
 - No production readiness claims.
+- ReleaseTarget catalog metadata alone does not make `kubernetes-yaml`, `argocd`, or `host` targets executable; those target types still need explicit Deployment specs and guarded runtime flags.

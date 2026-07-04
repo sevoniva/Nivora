@@ -60,6 +60,7 @@ type Spec struct {
 }
 
 type TargetSpec struct {
+	TargetID     string                       `json:"targetId,omitempty" yaml:"targetId,omitempty"`
 	Name         string                       `json:"name" yaml:"name"`
 	Type         string                       `json:"type" yaml:"type"`
 	Order        int                          `json:"order,omitempty" yaml:"order,omitempty"`

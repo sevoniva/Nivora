@@ -89,6 +89,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	artifactRegistryCatalog := routeConfig.artifactRegistryCatalog
 	deploymentService.WithPolicyCatalog(policyCatalog)
 	releaseService.WithPolicyCatalog(policyCatalog)
+	releaseService.WithReleaseTargetCatalog(catalogService)
 	integrationService := integrationusecase.NewService(pluginRegistry)
 	mcpServer := apimcp.NewServer(apimcp.Services{
 		Config:       cfg,

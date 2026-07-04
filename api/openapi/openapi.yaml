@@ -6129,6 +6129,9 @@ components:
     ReleaseTargetSpec:
       type: object
       properties:
+        targetId:
+          type: string
+          description: Existing ReleaseTarget catalog id. When set without type, the server resolves target metadata from the catalog.
         name:
           type: string
         type:

@@ -3705,12 +3705,13 @@ func newReleasePlanCommand() *cobra.Command {
 	var environment string
 	var strategy string
 	var targets []string
+	var catalogTargets []string
 	cmd := &cobra.Command{
-		Use:   "plan [release-id] --file <release-orchestration.yaml> | --environment <env> --target <name[:type]>",
+		Use:   "plan [release-id] --file <release-orchestration.yaml> | --environment <env> (--target <name[:type]> | --catalog-target <id>)",
 		Short: "Create a multi-target ReleasePlan",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			def, useLocal, err := releaseDefinitionForCLI(cmd, args, file, local, environment, strategy, targets, releaseorchestration.StrategyPlanOnly)
+			def, useLocal, err := releaseDefinitionForCLI(cmd, args, file, local, environment, strategy, targets, catalogTargets, releaseorchestration.StrategyPlanOnly)
 			if err != nil {
 				return err
 			}
@@ -3745,6 +3746,7 @@ func newReleasePlanCommand() *cobra.Command {
 	cmd.Flags().StringVar(&environment, "environment", "", "environment name for Release ID mode")
 	cmd.Flags().StringVar(&strategy, "strategy", "", "execution strategy for Release ID mode: plan-only, sequential, or parallel")
 	cmd.Flags().StringArrayVar(&targets, "target", nil, "target for Release ID mode, repeated as name[:type]; only noop/webhook targets are accepted without --file")
+	cmd.Flags().StringArrayVar(&catalogTargets, "catalog-target", nil, "ReleaseTarget catalog id for Release ID mode, repeated")
 	return cmd
 }
 
@@ -3756,12 +3758,13 @@ func newReleaseDeployCommand() *cobra.Command {
 	var environment string
 	var strategy string
 	var targets []string
+	var catalogTargets []string
 	cmd := &cobra.Command{
-		Use:   "deploy [release-id] --file <release-orchestration.yaml> | --environment <env> --target <name[:type]>",
+		Use:   "deploy [release-id] --file <release-orchestration.yaml> | --environment <env> (--target <name[:type]> | --catalog-target <id>)",
 		Short: "Execute a multi-target release locally or against a Nivora server",
 		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			def, useLocal, err := releaseDefinitionForCLI(cmd, args, file, local, environment, strategy, targets, releaseorchestration.StrategySequential)
+			def, useLocal, err := releaseDefinitionForCLI(cmd, args, file, local, environment, strategy, targets, catalogTargets, releaseorchestration.StrategySequential)
 			if err != nil {
 				return err
 			}
@@ -3804,10 +3807,11 @@ func newReleaseDeployCommand() *cobra.Command {
 	cmd.Flags().StringVar(&environment, "environment", "", "environment name for Release ID mode")
 	cmd.Flags().StringVar(&strategy, "strategy", "", "execution strategy for Release ID mode: plan-only, sequential, or parallel")
 	cmd.Flags().StringArrayVar(&targets, "target", nil, "target for Release ID mode, repeated as name[:type]; only noop/webhook targets are accepted without --file")
+	cmd.Flags().StringArrayVar(&catalogTargets, "catalog-target", nil, "ReleaseTarget catalog id for Release ID mode, repeated")
 	return cmd
 }
 
-func releaseDefinitionForCLI(cmd *cobra.Command, args []string, file string, local bool, environment string, strategy string, targets []string, defaultStrategy releaseorchestration.ExecutionStrategy) (releaseorchestration.Definition, bool, error) {
+func releaseDefinitionForCLI(cmd *cobra.Command, args []string, file string, local bool, environment string, strategy string, targets []string, catalogTargets []string, defaultStrategy releaseorchestration.ExecutionStrategy) (releaseorchestration.Definition, bool, error) {
 	if file != "" {
 		def, err := releaseorchestration.LoadDefinitionFile(file)
 		if err != nil {
@@ -3829,14 +3833,14 @@ func releaseDefinitionForCLI(cmd *cobra.Command, args []string, file string, loc
 	if local && cmd.Flags().Changed("local") {
 		return releaseorchestration.Definition{}, false, fmt.Errorf("release ID mode requires server-backed release state; use --local=false or provide --file for local execution")
 	}
-	def, err := buildReleaseDefinitionFromCLIFlags(args[0], environment, strategy, targets, defaultStrategy)
+	def, err := buildReleaseDefinitionFromCLIFlags(args[0], environment, strategy, targets, catalogTargets, defaultStrategy)
 	if err != nil {
 		return releaseorchestration.Definition{}, false, err
 	}
 	return def, false, nil
 }
 
-func buildReleaseDefinitionFromCLIFlags(releaseID string, environment string, strategy string, targets []string, defaultStrategy releaseorchestration.ExecutionStrategy) (releaseorchestration.Definition, error) {
+func buildReleaseDefinitionFromCLIFlags(releaseID string, environment string, strategy string, targets []string, catalogTargets []string, defaultStrategy releaseorchestration.ExecutionStrategy) (releaseorchestration.Definition, error) {
 	releaseID = strings.TrimSpace(releaseID)
 	environment = strings.TrimSpace(environment)
 	if releaseID == "" {
@@ -3845,7 +3849,7 @@ func buildReleaseDefinitionFromCLIFlags(releaseID string, environment string, st
 	if environment == "" {
 		return releaseorchestration.Definition{}, fmt.Errorf("--environment is required in Release ID mode")
 	}
-	targetSpecs, err := releaseTargetsFromCLI(targets)
+	targetSpecs, err := releaseTargetsFromCLI(targets, catalogTargets)
 	if err != nil {
 		return releaseorchestration.Definition{}, err
 	}
@@ -3870,11 +3874,11 @@ func buildReleaseDefinitionFromCLIFlags(releaseID string, environment string, st
 	return def, nil
 }
 
-func releaseTargetsFromCLI(raw []string) ([]releaseorchestration.TargetSpec, error) {
-	if len(raw) == 0 {
-		return nil, fmt.Errorf("--target is required in Release ID mode")
+func releaseTargetsFromCLI(raw []string, catalogTargetIDs []string) ([]releaseorchestration.TargetSpec, error) {
+	if len(raw) == 0 && len(catalogTargetIDs) == 0 {
+		return nil, fmt.Errorf("--target or --catalog-target is required in Release ID mode")
 	}
-	targets := make([]releaseorchestration.TargetSpec, 0, len(raw))
+	targets := make([]releaseorchestration.TargetSpec, 0, len(raw)+len(catalogTargetIDs))
 	for i, item := range raw {
 		item = strings.TrimSpace(item)
 		if item == "" {
@@ -3896,6 +3900,13 @@ func releaseTargetsFromCLI(raw []string) ([]releaseorchestration.TargetSpec, err
 			return nil, fmt.Errorf("Release ID mode supports only noop or webhook targets; use --file for %s target deployment specs", targetType)
 		}
 		targets = append(targets, releaseorchestration.TargetSpec{Name: name, Type: targetType, Order: i + 1})
+	}
+	for i, id := range catalogTargetIDs {
+		id = strings.TrimSpace(id)
+		if id == "" {
+			return nil, fmt.Errorf("--catalog-target value cannot be empty")
+		}
+		targets = append(targets, releaseorchestration.TargetSpec{TargetID: id, Order: len(raw) + i + 1})
 	}
 	return targets, nil
 }

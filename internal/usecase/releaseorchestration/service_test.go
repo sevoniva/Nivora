@@ -3,6 +3,7 @@ package releaseorchestration
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 	"time"
 
@@ -414,6 +415,130 @@ func TestDefinitionAllowsHostTarget(t *testing.T) {
 	}
 }
 
+func TestDefinitionAllowsCatalogTargetIDOnly(t *testing.T) {
+	def := testDefinition(false, StrategySequential)
+	def.Spec.Targets = []TargetSpec{{TargetID: "target-catalog", Order: 1}}
+	if err := def.Validate(); err != nil {
+		t.Fatalf("catalog target id should validate before service resolution: %v", err)
+	}
+}
+
+func TestPlanResolvesCatalogReleaseTarget(t *testing.T) {
+	def := testDefinition(false, StrategyPlanOnly)
+	def.Spec.Targets = []TargetSpec{{
+		TargetID: "target-catalog",
+		Order:    1,
+		Labels:   map[string]string{"source": "orchestration"},
+	}}
+	service := newTestService(allowPolicy{}).WithReleaseTargetCatalog(fakeReleaseTargetCatalog{
+		targets: map[string]environment.ReleaseTarget{
+			"target-catalog": {
+				ID:            "target-catalog",
+				ProjectID:     "project-a",
+				EnvironmentID: "env-prod",
+				Name:          "catalog-noop",
+				TargetType:    "noop",
+				Labels:        map[string]string{"catalog": "true"},
+				Enabled:       true,
+			},
+		},
+	})
+	record, err := service.Plan(context.Background(), PlanInput{Definition: def, ProjectID: "project-a"})
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	if record.Plan.EnvironmentID != "env-prod" {
+		t.Fatalf("environment id = %q, want env-prod", record.Plan.EnvironmentID)
+	}
+	if len(record.Plan.Targets) != 1 {
+		t.Fatalf("targets = %#v", record.Plan.Targets)
+	}
+	target := record.Plan.Targets[0]
+	if target.ID != "target-catalog" || target.Name != "catalog-noop" || target.TargetType != "noop" || target.ProjectID != "project-a" {
+		t.Fatalf("resolved target = %#v", target)
+	}
+	if target.Labels["catalog"] != "true" || target.Labels["source"] != "orchestration" {
+		t.Fatalf("resolved labels = %#v", target.Labels)
+	}
+	if len(record.Plan.DeploymentPlans) != 1 || record.Plan.DeploymentPlans[0].TargetType != "noop" {
+		t.Fatalf("deployment plans = %#v", record.Plan.DeploymentPlans)
+	}
+	if len(record.Plan.Ordering) != 1 || record.Plan.Ordering[0] != "catalog-noop" {
+		t.Fatalf("ordering = %#v", record.Plan.Ordering)
+	}
+}
+
+func TestPlanUsesCatalogEnvironmentForEarlierInlineTargets(t *testing.T) {
+	def := testDefinition(false, StrategyPlanOnly)
+	def.Spec.Targets = []TargetSpec{
+		def.Spec.Targets[0],
+		{TargetID: "target-catalog", Order: 2},
+	}
+	service := newTestService(allowPolicy{}).WithReleaseTargetCatalog(fakeReleaseTargetCatalog{
+		targets: map[string]environment.ReleaseTarget{
+			"target-catalog": {
+				ID:            "target-catalog",
+				ProjectID:     "project-a",
+				EnvironmentID: "env-prod",
+				Name:          "catalog-noop",
+				TargetType:    "noop",
+				Enabled:       true,
+			},
+		},
+	})
+	record, err := service.Plan(context.Background(), PlanInput{Definition: def, ProjectID: "project-a"})
+	if err != nil {
+		t.Fatalf("Plan() error = %v", err)
+	}
+	for _, target := range record.Plan.Targets {
+		if target.EnvironmentID != "env-prod" {
+			t.Fatalf("target %s environment = %q, want env-prod", target.Name, target.EnvironmentID)
+		}
+	}
+}
+
+func TestPlanRejectsCatalogTargetOutsideProject(t *testing.T) {
+	def := testDefinition(false, StrategyPlanOnly)
+	def.Spec.Targets = []TargetSpec{{TargetID: "target-other-project", Order: 1}}
+	service := newTestService(allowPolicy{}).WithReleaseTargetCatalog(fakeReleaseTargetCatalog{
+		targets: map[string]environment.ReleaseTarget{
+			"target-other-project": {
+				ID:            "target-other-project",
+				ProjectID:     "project-b",
+				EnvironmentID: "env-prod",
+				Name:          "catalog-noop",
+				TargetType:    "noop",
+				Enabled:       true,
+			},
+		},
+	})
+	_, err := service.Plan(context.Background(), PlanInput{Definition: def, ProjectID: "project-a"})
+	if err == nil || !strings.Contains(err.Error(), "outside project") {
+		t.Fatalf("expected project mismatch, got %v", err)
+	}
+}
+
+func TestPlanRejectsExecutableCatalogTargetWithoutDeploymentSpec(t *testing.T) {
+	def := testDefinition(false, StrategyPlanOnly)
+	def.Spec.Targets = []TargetSpec{{TargetID: "target-k8s", Order: 1}}
+	service := newTestService(allowPolicy{}).WithReleaseTargetCatalog(fakeReleaseTargetCatalog{
+		targets: map[string]environment.ReleaseTarget{
+			"target-k8s": {
+				ID:            "target-k8s",
+				ProjectID:     "project-a",
+				EnvironmentID: "env-prod",
+				Name:          "prod-k8s",
+				TargetType:    "kubernetes-yaml",
+				Enabled:       true,
+			},
+		},
+	})
+	_, err := service.Plan(context.Background(), PlanInput{Definition: def, ProjectID: "project-a"})
+	if err == nil || !strings.Contains(err.Error(), "requires an inline deployment spec") {
+		t.Fatalf("expected inline deployment spec error, got %v", err)
+	}
+}
+
 func newTestService(policyEngine policy.Engine) *Service {
 	return NewService(NewMemoryStore(), fakeArtifactService{}, fakeDeploymentService{}, policyEngine, nil)
 }
@@ -531,6 +656,18 @@ type testGovernance struct{}
 
 func (testGovernance) RequestApproval(ctx context.Context, subjectType string, subjectID string, environmentID string, requestedBy string, reason string) (domainapproval.ApprovalRequest, error) {
 	return domainapproval.ApprovalRequest{ID: "appr-release-test", SubjectType: subjectType, SubjectID: subjectID, EnvironmentID: environmentID, RequiredByPolicy: true, Status: domainapproval.StatusPending, RequestedBy: requestedBy, Reason: reason}, nil
+}
+
+type fakeReleaseTargetCatalog struct {
+	targets map[string]environment.ReleaseTarget
+}
+
+func (f fakeReleaseTargetCatalog) GetReleaseTarget(ctx context.Context, id string) (environment.ReleaseTarget, error) {
+	target, ok := f.targets[id]
+	if !ok {
+		return environment.ReleaseTarget{}, errors.New("release target not found")
+	}
+	return target, nil
 }
 
 type fakeArtifactService struct{}

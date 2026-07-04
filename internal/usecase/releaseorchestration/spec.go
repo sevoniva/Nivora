@@ -72,18 +72,25 @@ func (d Definition) Validate() error {
 	}
 	seen := map[string]struct{}{}
 	for i, target := range d.Spec.Targets {
-		if target.Name == "" {
-			return fmt.Errorf("release orchestration target %d name is required", i)
+		identity := target.Name
+		if identity == "" {
+			identity = target.TargetID
 		}
-		if _, ok := seen[target.Name]; ok {
-			return fmt.Errorf("release orchestration target %q is duplicated", target.Name)
+		if identity == "" {
+			return fmt.Errorf("release orchestration target %d name or targetId is required", i)
 		}
-		seen[target.Name] = struct{}{}
+		if _, ok := seen[identity]; ok {
+			return fmt.Errorf("release orchestration target %q is duplicated", identity)
+		}
+		seen[identity] = struct{}{}
+		if target.TargetID != "" && target.Type == "" {
+			continue
+		}
 		if target.Type == "" {
-			return fmt.Errorf("release orchestration target %q type is required", target.Name)
+			return fmt.Errorf("release orchestration target %q type is required", identity)
 		}
 		if target.Type != "kubernetes-yaml" && target.Type != "argocd" && target.Type != "host" && target.Type != "noop" && target.Type != "webhook" {
-			return fmt.Errorf("release orchestration target %q type %q is not supported in Phase 2.7", target.Name, target.Type)
+			return fmt.Errorf("release orchestration target %q type %q is not supported in Phase 2.7", identity, target.Type)
 		}
 		if target.Enabled != nil && !*target.Enabled {
 			continue
@@ -92,7 +99,7 @@ func (d Definition) Validate() error {
 			continue
 		}
 		if err := target.Deployment.Validate(); err != nil {
-			return fmt.Errorf("release orchestration target %q deployment invalid: %w", target.Name, err)
+			return fmt.Errorf("release orchestration target %q deployment invalid: %w", identity, err)
 		}
 	}
 	return nil

@@ -24,7 +24,13 @@ After a Release has been created on a Nivora server, contributors can plan a saf
 go run ./cmd/nivora release plan <release-id> --environment dev --target audit-only --local=false --token-env NIVORA_AUTH_TOKEN
 ```
 
-Release ID mode is server-backed because the CLI local process does not retain previously saved Release records. It reads the Nivora API bearer token from `--token-env`. Without `--file`, only `noop` and `webhook` targets are accepted; Kubernetes, Argo CD, and host targets still require an orchestration file with a full Deployment spec and the existing guarded execution flags.
+Release ID mode can also resolve saved ReleaseTarget catalog records by id:
+
+```sh
+go run ./cmd/nivora release plan <release-id> --environment dev --catalog-target target-id --local=false --token-env NIVORA_AUTH_TOKEN
+```
+
+Release ID mode is server-backed because the CLI local process does not retain previously saved Release records or target catalog records. It reads the Nivora API bearer token from `--token-env`. Without `--file`, inline `--target` values are limited to `noop` and `webhook`. A `--catalog-target` is resolved by the server. If the saved target is `kubernetes-yaml`, `argocd`, or `host`, the request still needs an orchestration file with a full Deployment spec and the existing guarded execution flags; the server will not invent an executable deployment from metadata alone.
 
 ## Local Execution
 
@@ -58,6 +64,7 @@ For a saved server-side Release and safe noop/webhook targets:
 
 ```sh
 go run ./cmd/nivora release deploy <release-id> --environment dev --target audit-only --local=false --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora release deploy <release-id> --environment dev --catalog-target target-id --local=false --token-env NIVORA_AUTH_TOKEN
 ```
 
 This creates a ReleaseExecution through the server API. It does not enable Kubernetes apply, Argo CD sync, remote host deployment, Git push, rollback execution, or any external provider integration.

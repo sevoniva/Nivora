@@ -14,6 +14,8 @@ Phase 2.4 adds resource inventory and health output for Kubernetes YAML targets.
 
 Phase 2.7 uses ReleaseTargets in ReleasePlan and ReleaseExecution records. The catalog and orchestration foundation recognize `kubernetes-yaml`, `argocd`, `host`, `noop`, and `webhook` targets, while real execution remains constrained by each target's guarded runtime.
 
+Release orchestration can now reference an existing catalog target by `targetId`. The server resolves the saved target metadata, verifies it is enabled, and preserves project/environment scope in the ReleasePlan. Metadata-only catalog targets can plan safe `noop` and `webhook` targets directly. Executable target types such as `kubernetes-yaml`, `argocd`, and `host` still require an inline Deployment spec; catalog metadata alone is not enough to run them.
+
 The current catalog foundation also exposes ReleaseTarget metadata through:
 
 - `GET /api/v1/release-targets`
@@ -31,4 +33,4 @@ Phase 3.5 adds the `host` target foundation for VM and bare-metal delivery. It s
 
 A Release Target is not always a Kubernetes cluster. GitOps, host, cloud, and webhook targets are different delivery modes with different adapters and safety requirements.
 
-The catalog is still foundation-level. Current runtime wiring uses an in-memory catalog store; production-grade target persistence and full target lifecycle policy remain future work.
+The catalog is still foundation-level. When the server is configured with the PostgreSQL runtime store, ReleaseTarget metadata can be persisted with the rest of the catalog. Full target lifecycle policy, environment promotion rules, and production-grade external target execution remain future work.

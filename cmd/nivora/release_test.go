@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -52,7 +53,7 @@ func TestReleasePlanHelpIncludesReleaseIDModeFlags(t *testing.T) {
 		t.Fatalf("release plan help failed: %v", err)
 	}
 	help := out.String()
-	for _, want := range []string{"[release-id]", "--environment", "--target", "--file"} {
+	for _, want := range []string{"[release-id]", "--environment", "--target", "--catalog-target", "--file"} {
 		if !strings.Contains(help, want) {
 			t.Fatalf("release plan help missing %q: %s", want, help)
 		}
@@ -60,7 +61,7 @@ func TestReleasePlanHelpIncludesReleaseIDModeFlags(t *testing.T) {
 }
 
 func TestBuildReleaseDefinitionFromCLIFlags(t *testing.T) {
-	def, err := buildReleaseDefinitionFromCLIFlags("rel-123", "staging", "", []string{"audit-only", "notify:webhook"}, "plan-only")
+	def, err := buildReleaseDefinitionFromCLIFlags("rel-123", "staging", "", []string{"audit-only", "notify:webhook"}, nil, "plan-only")
 	if err != nil {
 		t.Fatalf("build definition: %v", err)
 	}
@@ -78,10 +79,69 @@ func TestBuildReleaseDefinitionFromCLIFlags(t *testing.T) {
 	}
 }
 
+func TestBuildReleaseDefinitionFromCLIFlagsWithCatalogTargets(t *testing.T) {
+	def, err := buildReleaseDefinitionFromCLIFlags("rel-123", "staging", "", nil, []string{"target-prod", " target-audit "}, "plan-only")
+	if err != nil {
+		t.Fatalf("build definition: %v", err)
+	}
+	if len(def.Spec.Targets) != 2 {
+		t.Fatalf("targets = %#v", def.Spec.Targets)
+	}
+	if def.Spec.Targets[0].TargetID != "target-prod" || def.Spec.Targets[0].Name != "" || def.Spec.Targets[0].Type != "" {
+		t.Fatalf("first catalog target = %#v", def.Spec.Targets[0])
+	}
+	if def.Spec.Targets[1].TargetID != "target-audit" || def.Spec.Targets[1].Order != 2 {
+		t.Fatalf("second catalog target = %#v", def.Spec.Targets[1])
+	}
+}
+
 func TestReleaseIDModeRejectsTargetsThatNeedDeploymentSpec(t *testing.T) {
-	_, err := buildReleaseDefinitionFromCLIFlags("rel-123", "staging", "", []string{"cluster:kubernetes-yaml"}, "plan-only")
+	_, err := buildReleaseDefinitionFromCLIFlags("rel-123", "staging", "", []string{"cluster:kubernetes-yaml"}, nil, "plan-only")
 	if err == nil || !strings.Contains(err.Error(), "use --file") {
 		t.Fatalf("expected file mode error, got %v", err)
+	}
+}
+
+func TestReleasePlanCommandSendsCatalogTargetID(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "release-token")
+	var requestBody string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/releases/rel-1/plan" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer release-token" {
+			t.Fatalf("Authorization header = %q", got)
+		}
+		body, err := io.ReadAll(r.Body)
+		if err != nil {
+			t.Fatalf("read body: %v", err)
+		}
+		requestBody = string(body)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"rplan-1"}`))
+	}))
+	defer server.Close()
+
+	cmd := newReleasePlanCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{
+		"rel-1",
+		"--environment", "prod",
+		"--catalog-target", "target-prod",
+		"--local=false",
+		"--server", server.URL,
+		"--token-env", "NIVORA_TEST_TOKEN",
+	})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("release plan failed: %v output=%s", err, out.String())
+	}
+	if !strings.Contains(requestBody, `"targetId":"target-prod"`) {
+		t.Fatalf("request body missing catalog target id: %s", requestBody)
+	}
+	if strings.Contains(requestBody, `"type":"noop"`) || strings.Contains(requestBody, `"name":"target-prod"`) {
+		t.Fatalf("catalog target should not be expanded by CLI: %s", requestBody)
 	}
 }
 

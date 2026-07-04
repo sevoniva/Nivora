@@ -7,7 +7,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 | Area | Decision | Reason |
 |---|---|---|
 | Local stdio MCP | go for local maintainer use | read-only/plan-only resources and tools are tested; blocked actions are denied |
-| Local AI operator demo | go with scripted local data | 21 validated scenarios and golden answers exist |
+| Local AI operator demo | go with scripted local data | 26 validated scenarios and golden answers exist |
 | Remote read-only MCP | no-go until next hardening phase | auth, tenant filters, rate limits, response caps, and remote audit tests are missing |
 | Remote plan-only MCP | no-go | plan tools need remote abuse controls |
 | Action MCP | no-go | apply, sync, rollback, approval, token, secret, runner, host, Git, prune, and delete actions remain blocked |
@@ -35,6 +35,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 18. Golden answers can drift if scenarios are not maintained.
 19. New tools could bypass mutated=false unless tests stay strict.
 20. Documentation could overstate beta capabilities if not reviewed.
+21. Tenant IDOR, cross-project audit, missing resource, massive log, and evidence-bundle scenarios must stay in the corpus.
 
 ## Top 20 Missing Tests
 

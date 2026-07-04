@@ -17,8 +17,8 @@ if [[ ! -d "$golden_dir" ]]; then
 fi
 
 count="$(find "$scenario_dir" -name '*.yaml' -type f | wc -l | tr -d ' ')"
-if [[ "$count" -lt 20 ]]; then
-  echo "MCP scenario validation failed: expected at least 20 scenarios, found $count" >&2
+if [[ "$count" -lt 25 ]]; then
+  echo "MCP scenario validation failed: expected at least 25 scenarios, found $count" >&2
   exit 1
 fi
 
@@ -110,7 +110,19 @@ for action in \
   fi
 done
 
-for required_topic in prompt-injection runner-token tenant-scope rollback-readiness gitops-sync-safety host-deployment-safety kubernetes-prune-delete-safety; do
+for required_topic in \
+  prompt-injection \
+  runner-token \
+  tenant-scope \
+  tenant-idor-attempt \
+  cross-project-audit-read-attempt \
+  massive-log-response-truncation \
+  missing-resource-lookup \
+  evidence-bundle-request \
+  rollback-readiness \
+  gitops-sync-safety \
+  host-deployment-safety \
+  kubernetes-prune-delete-safety; do
   if ! find "$scenario_dir" -name "*$required_topic*.yaml" -type f | grep -q .; then
     echo "MCP scenario validation failed: required topic $required_topic is missing" >&2
     exit 1

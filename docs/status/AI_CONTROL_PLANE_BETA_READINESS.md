@@ -4,8 +4,8 @@ Current MCP maturity: local stdio foundation, beta-readiness hardening in progre
 
 Current scenario evidence:
 
-- 21 validated MCP operator scenarios in `examples/mcp/scenarios/`
-- 21 matching golden answers in `examples/mcp/golden-answers/`
+- 26 validated MCP operator scenarios in `examples/mcp/scenarios/`
+- 26 matching golden answers in `examples/mcp/golden-answers/`
 - fixture-backed scenario tests in `internal/api/mcp/scenario_test.go`
 - validation script: `scripts/validate-mcp-scenarios.sh`
 - broader status: `docs/status/AI_CONTROL_PLANE_DEEP_AUDIT.md`, `docs/status/AI_OPERATOR_JOURNEYS.md`, `docs/status/AI_CONTROL_PLANE_GO_NO_GO.md`

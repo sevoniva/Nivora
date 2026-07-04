@@ -12,6 +12,8 @@ Current maturity: **hardened beta-candidate foundation**. Nivora is **not produc
 
 Future `v1.0.0` documents are planning checklists, not proof that GA has been reached. The current source of truth is [Capability Status](docs/status/CAPABILITY_STATUS.md), with historical audit context in [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md).
 
+Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/status/ENTERPRISE_PRODUCTION_BASELINE.md), [Enterprise Readiness Matrix](docs/status/ENTERPRISE_READINESS_MATRIX.md), [Enterprise Production Readiness Review](docs/status/ENTERPRISE_PRODUCTION_READINESS_REVIEW.md), and [Enterprise Risk Register](docs/status/ENTERPRISE_RISK_REGISTER.md). These documents are release hardening evidence, not production approval.
+
 ## Current Status
 
 | Area | Status |
@@ -30,7 +32,7 @@ Future `v1.0.0` documents are planning checklists, not proof that GA has been re
 | Multi-cloud | Placeholder/foundation inventory only; no cloud deployment |
 | Host deployment | Experimental plan/dry-run/noop and guarded SSH surface |
 | Web console | Experimental minimal UI that consumes backend APIs |
-| MCP control plane | Foundation; local stdio read-only and plan-only AI access, denied action tools, runner-token rejection, compliance-backed audit, and 21 validated operator scenarios with golden answers |
+| MCP control plane | Foundation; local stdio read-only and plan-only AI access, denied action tools, runner-token rejection, compliance-backed audit, and 26 validated operator scenarios with golden answers; remote MCP remains no-go |
 | Packaging | Partial; Docker Compose, Helm, production-like values, and smoke checks exist |
 | Observability / audit | Partial; diagnostics, metrics, runbooks, audit/evidence foundations; production retention/export still needs hardening |
 
@@ -64,6 +66,9 @@ Status references:
 - [AI Operator Journeys](docs/status/AI_OPERATOR_JOURNEYS.md)
 - [AI Control Plane Go / No-Go](docs/status/AI_CONTROL_PLANE_GO_NO_GO.md)
 - [Remote MCP Readiness Audit](docs/status/REMOTE_MCP_READINESS_AUDIT.md)
+- [MCP Enterprise Opening Decision](docs/status/MCP_ENTERPRISE_OPENING_DECISION.md)
+- [Enterprise Production Readiness Review](docs/status/ENTERPRISE_PRODUCTION_READINESS_REVIEW.md)
+- [Enterprise Next Goals](docs/status/ENTERPRISE_NEXT_GOALS.md)
 - [Security Threat Model](docs/security/threat-model.md)
 - [MCP Threat Model](docs/security/mcp-threat-model.md)
 - [Security Review Checklist](docs/security/security-review-checklist.md)
@@ -219,7 +224,7 @@ Nivora is not:
 - a cloud-provider-specific system
 - a frontend-first project
 - a black-box automation tool
-- a claim that every modeled integration is production-ready
+- a statement that every modeled integration has completed production validation
 
 Nivora should integrate with existing systems through explicit ports and adapters.
 

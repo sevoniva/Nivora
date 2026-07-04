@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestCloudAccountCommandIncludesMetadataCommands(t *testing.T) {
@@ -26,11 +28,15 @@ func TestCloudAccountCommandIncludesMetadataCommands(t *testing.T) {
 }
 
 func TestCloudAccountCreatePostsMetadataOnly(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "cloud-create-token")
 	var called bool
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		called = true
 		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/cloud/accounts" {
 			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		if got := r.Header.Get("Authorization"); got != "Bearer cloud-create-token" {
+			t.Fatalf("Authorization header = %q", got)
 		}
 		var body map[string]any
 		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
@@ -67,6 +73,7 @@ func TestCloudAccountCreatePostsMetadataOnly(t *testing.T) {
 	cmd.SetErr(&out)
 	cmd.SetArgs([]string{
 		"--server", server.URL,
+		"--token-env", "NIVORA_TEST_TOKEN",
 		"--name", "dev-aws",
 		"--provider", "aws",
 		"--credential-ref", "cred-cloud-placeholder",
@@ -110,9 +117,13 @@ func TestCloudAccountCreateRequiresNameAndProvider(t *testing.T) {
 }
 
 func TestCloudAccountListAndGetUseServerRoutes(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "cloud-read-token")
 	var paths []string
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		paths = append(paths, r.Method+" "+r.URL.Path)
+		if got := r.Header.Get("Authorization"); got != "Bearer cloud-read-token" {
+			t.Fatalf("Authorization header = %q", got)
+		}
 		w.Header().Set("Content-Type", "application/json")
 		switch r.URL.Path {
 		case "/api/v1/cloud/accounts":
@@ -129,7 +140,7 @@ func TestCloudAccountListAndGetUseServerRoutes(t *testing.T) {
 	var out bytes.Buffer
 	listCmd.SetOut(&out)
 	listCmd.SetErr(&out)
-	listCmd.SetArgs([]string{"--server", server.URL})
+	listCmd.SetArgs([]string{"--server", server.URL, "--token-env", "NIVORA_TEST_TOKEN"})
 	if err := listCmd.Execute(); err != nil {
 		t.Fatalf("cloud account list failed: %v output=%s", err, out.String())
 	}
@@ -138,7 +149,7 @@ func TestCloudAccountListAndGetUseServerRoutes(t *testing.T) {
 	out.Reset()
 	getCmd.SetOut(&out)
 	getCmd.SetErr(&out)
-	getCmd.SetArgs([]string{"cloudacct-1", "--server", server.URL})
+	getCmd.SetArgs([]string{"cloudacct-1", "--server", server.URL, "--token-env", "NIVORA_TEST_TOKEN"})
 	if err := getCmd.Execute(); err != nil {
 		t.Fatalf("cloud account get failed: %v output=%s", err, out.String())
 	}
@@ -151,5 +162,82 @@ func TestCloudAccountListAndGetUseServerRoutes(t *testing.T) {
 		if paths[i] != want[i] {
 			t.Fatalf("path[%d] = %q, want %q", i, paths[i], want[i])
 		}
+	}
+}
+
+func TestCloudProtectedCommandsUseBearerToken(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "cloud-command-token")
+	tests := []struct {
+		name       string
+		cmd        *cobra.Command
+		args       []string
+		wantMethod string
+		wantPath   string
+		wantQuery  string
+		response   string
+	}{
+		{
+			name:       "providers",
+			cmd:        newCloudGetCommand("providers", "List configured cloud provider types", "/api/v1/cloud/providers"),
+			args:       []string{"--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/v1/cloud/providers",
+			response:   `[{"type":"aws"}]`,
+		},
+		{
+			name:       "validate",
+			cmd:        newCloudAccountValidateCommand(),
+			args:       []string{"cloudacct-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/v1/cloud/accounts/cloudacct-1/validate",
+			response:   `{"valid":true}`,
+		},
+		{
+			name:       "inventory",
+			cmd:        newCloudAccountInspectCommand("inventory", "Get a cloud inventory snapshot", "/inventory"),
+			args:       []string{"cloudacct-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN", "--region", "us test/1"},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/v1/cloud/accounts/cloudacct-1/inventory",
+			wantQuery:  "region=us+test%2F1",
+			response:   `{"accountId":"cloudacct-1"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var called bool
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				if r.Method != tt.wantMethod || r.URL.Path != tt.wantPath {
+					t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+				}
+				if tt.wantQuery != "" && r.URL.RawQuery != tt.wantQuery {
+					t.Fatalf("query = %q, want %q", r.URL.RawQuery, tt.wantQuery)
+				}
+				if got := r.Header.Get("Authorization"); got != "Bearer cloud-command-token" {
+					t.Fatalf("Authorization header = %q", got)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tt.response))
+			}))
+			defer server.Close()
+
+			args := append([]string(nil), tt.args...)
+			for i, arg := range args {
+				if arg == "SERVER_URL" {
+					args[i] = server.URL
+				}
+			}
+			var out bytes.Buffer
+			tt.cmd.SetOut(&out)
+			tt.cmd.SetErr(&out)
+			tt.cmd.SetArgs(args)
+			if err := tt.cmd.Execute(); err != nil {
+				t.Fatalf("%s failed: %v output=%s", tt.name, err, out.String())
+			}
+			if !called {
+				t.Fatalf("%s did not call server", tt.name)
+			}
+		})
 	}
 }

@@ -1028,11 +1028,12 @@ func newCloudAccountCommand() *cobra.Command {
 
 func newCloudAccountListCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "list",
 		Short: "List cloud account metadata",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/cloud/accounts", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/cloud/accounts", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -1041,11 +1042,13 @@ func newCloudAccountListCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newCloudAccountCreateCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var name string
 	var provider string
 	var credentialRef string
@@ -1098,7 +1101,7 @@ func newCloudAccountCreateCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/cloud/accounts", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/cloud/accounts", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -1115,17 +1118,19 @@ func newCloudAccountCreateCommand() *cobra.Command {
 	cmd.Flags().StringSliceVar(&regions, "region", nil, "allowed or preferred region metadata; repeatable")
 	cmd.Flags().StringToStringVar(&metadata, "metadata", nil, "account metadata as key=value pairs")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newCloudAccountGetCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "get <id>",
 		Short: "Get cloud account metadata",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/cloud/accounts/"+url.PathEscape(args[0]), nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/cloud/accounts/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -1134,11 +1139,13 @@ func newCloudAccountGetCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newCloudGetCommand(name string, short string, path string) *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var local bool
 	cmd := &cobra.Command{
 		Use:   name,
@@ -1152,7 +1159,7 @@ func newCloudGetCommand(name string, short string, path string) *cobra.Command {
 				printJSON(cmd.OutOrStdout(), providers)
 				return nil
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -1161,18 +1168,20 @@ func newCloudGetCommand(name string, short string, path string) *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().BoolVar(&local, "local", false, "use local provider metadata without contacting a server")
 	return cmd
 }
 
 func newCloudAccountValidateCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "validate <id>",
 		Short: "Validate a cloud account credential reference",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/cloud/accounts/"+args[0]+"/validate", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/cloud/accounts/"+url.PathEscape(args[0])+"/validate", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -1181,22 +1190,26 @@ func newCloudAccountValidateCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newCloudAccountInspectCommand(name string, short string, suffix string) *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var region string
 	cmd := &cobra.Command{
 		Use:   name + " <account-id>",
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			path := "/api/v1/cloud/accounts/" + args[0] + suffix
+			path := "/api/v1/cloud/accounts/" + url.PathEscape(args[0]) + suffix
 			if region != "" {
-				path += "?region=" + region
+				values := url.Values{}
+				values.Set("region", region)
+				path += "?" + values.Encode()
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -1205,6 +1218,7 @@ func newCloudAccountInspectCommand(name string, short string, suffix string) *co
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&region, "region", "", "optional cloud region filter")
 	return cmd
 }

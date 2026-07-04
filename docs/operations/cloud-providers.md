@@ -24,9 +24,18 @@ Provider metadata is available through:
 go run ./cmd/nivora cloud providers --local
 ```
 
+Server-backed cloud APIs are RBAC-protected. Use `--token-env` for server calls instead of passing tokens directly:
+
+```sh
+go run ./cmd/nivora cloud providers --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora cloud account list --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora cloud account get <account-id> --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora cloud account validate <account-id> --token-env NIVORA_AUTH_TOKEN
+```
+
 ## Credentials
 
-Cloud accounts must reference credentials through `CredentialRef` or future `SecretRef`-backed configuration. Secret values must not be placed in cloud account specs, logs, audit records, examples, or API responses.
+Cloud accounts must reference credentials through `CredentialRef` or future `SecretRef`-backed configuration. Secret values must not be placed in cloud account specs, logs, audit records, examples, or API responses. `--token-env` carries the Nivora API token for RBAC and is separate from provider credentials.
 
 ## Provider Adapters
 
@@ -39,10 +48,10 @@ Real cloud SDK calls remain optional future work and must stay inside `internal/
 Inventory snapshots include regions, clusters, hosts, registries, warnings, and target binding metadata. Target bindings prepare future release targets to bind to discovered resources, but Phase 8.0 does not execute cloud deployments.
 
 ```sh
-go run ./cmd/nivora cloud inventory <account-id>
-go run ./cmd/nivora cloud clusters <account-id>
-go run ./cmd/nivora cloud hosts <account-id>
-go run ./cmd/nivora cloud registries <account-id>
+go run ./cmd/nivora cloud inventory <account-id> --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora cloud clusters <account-id> --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora cloud hosts <account-id> --token-env NIVORA_AUTH_TOKEN
+go run ./cmd/nivora cloud registries <account-id> --token-env NIVORA_AUTH_TOKEN
 ```
 
 ## Limitations

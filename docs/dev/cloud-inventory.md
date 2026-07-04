@@ -5,35 +5,46 @@ Phase 8.0 supports local cloud inventory APIs and CLI commands backed by determi
 ## API
 
 ```sh
-curl -s http://localhost:8080/api/v1/cloud/providers
+curl -s http://localhost:8080/api/v1/cloud/providers \
+  -H "Authorization: Bearer ${NIVORA_AUTH_TOKEN}"
 curl -s http://localhost:8080/api/v1/cloud/accounts \
+  -H "Authorization: Bearer ${NIVORA_AUTH_TOKEN}" \
   -H 'content-type: application/json' \
   -d '{"name":"dev-aws","provider":"aws","credentialRef":"credential-ref-placeholder"}'
-curl -s http://localhost:8080/api/v1/cloud/accounts/<id>/inventory
+curl -s http://localhost:8080/api/v1/cloud/accounts/<id>/inventory \
+  -H "Authorization: Bearer ${NIVORA_AUTH_TOKEN}"
 ```
 
 ## CLI
 
+Local provider metadata can be inspected without contacting the server:
+
 ```sh
-nivora cloud providers
+nivora cloud providers --local
+```
+
+Server-backed cloud account and inventory commands are RBAC-protected. Use `--token-env` so the token stays out of shell history:
+
+```sh
 nivora cloud account create \
   --name dev-aws \
   --provider aws \
   --credential-ref credential-ref-placeholder \
   --default-region us-test-1 \
-  --metadata owner=platform
-nivora cloud account list
-nivora cloud account get <account-id>
-nivora cloud account validate <account-id>
-nivora cloud inventory <account-id>
-nivora cloud clusters <account-id>
-nivora cloud hosts <account-id>
-nivora cloud registries <account-id>
+  --metadata owner=platform \
+  --token-env NIVORA_AUTH_TOKEN
+nivora cloud account list --token-env NIVORA_AUTH_TOKEN
+nivora cloud account get <account-id> --token-env NIVORA_AUTH_TOKEN
+nivora cloud account validate <account-id> --token-env NIVORA_AUTH_TOKEN
+nivora cloud inventory <account-id> --token-env NIVORA_AUTH_TOKEN
+nivora cloud clusters <account-id> --token-env NIVORA_AUTH_TOKEN
+nivora cloud hosts <account-id> --token-env NIVORA_AUTH_TOKEN
+nivora cloud registries <account-id> --token-env NIVORA_AUTH_TOKEN
 ```
 
 ## Credentials
 
-Cloud credentials should be represented by `CredentialRef` or `SecretRef`. The CLI account create command accepts `--credential-ref` metadata only; it does not accept provider access keys, passwords, bearer tokens, private keys, or kubeconfigs. Do not put access keys, secret keys, tokens, or realistic fake credentials in example files, config files, logs, or audit records.
+Cloud credentials should be represented by `CredentialRef` or `SecretRef`. The CLI account create command accepts `--credential-ref` metadata only; it does not accept provider access keys, passwords, bearer tokens, private keys, or kubeconfigs. `--token-env` is for the Nivora API bearer token only. Do not put access keys, secret keys, tokens, or realistic fake credentials in example files, config files, logs, or audit records.
 
 ## Limits
 

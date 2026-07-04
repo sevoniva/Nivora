@@ -13,7 +13,7 @@ MCP makes Nivora easier for AI tools to inspect. That also creates a new trust b
 - Token hashes are never returned.
 - Kubeconfigs, private keys, Authorization headers, access keys, and bearer tokens are redacted.
 - Logs are truncated before output.
-- MCP responses are capped by `mcp.max_response_bytes`; over-limit responses return a structured truncation object.
+- MCP responses are capped by `mcp.max_response_bytes`; resource/tool text returns a structured truncation object and over-limit JSON-RPC transport responses return a structured `mcp_response_too_large` error.
 - MCP requests use `mcp.request_timeout` when configured.
 
 ## Blocked Tool Classes
@@ -58,7 +58,7 @@ Runtime wiring records MCP audit through the compliance service. In PostgreSQL r
 
 ## Response and Timeout Controls
 
-The local stdio MCP foundation enforces a configured response cap and request timeout. The default examples use `mcp.max_response_bytes: 262144` and `mcp.request_timeout: 15s`. These controls reduce accidental large responses in local AI workflows, but they are not proof that a future remote MCP transport is safe. Remote MCP still needs authentication, tenant filters, rate limits, pagination, transport-level body limits, and remote audit tests before exposure.
+The local stdio MCP foundation enforces a configured response cap at both resource/tool text boundaries and the JSON-RPC response boundary, plus a request timeout. The default examples use `mcp.max_response_bytes: 262144` and `mcp.request_timeout: 15s`. These controls reduce accidental large responses in local AI workflows, but they are not proof that a future remote MCP transport is safe. Remote MCP still needs authentication, tenant filters, rate limits, pagination, request body limits, and remote audit tests before exposure.
 
 See [MCP Permission Matrix](MCP_PERMISSION_MATRIX.md) for the resource, tool, prompt, permission, and audit-event mapping.
 

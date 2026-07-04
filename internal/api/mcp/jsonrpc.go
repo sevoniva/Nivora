@@ -49,19 +49,22 @@ func (s *Server) ServeStdio(ctx context.Context, in io.Reader, out io.Writer) er
 func (s *Server) HandleJSONRPC(ctx context.Context, body []byte) jsonRPCResponse {
 	ctx, cancel := s.requestContext(ctx)
 	defer cancel()
+	finalize := func(response jsonRPCResponse) jsonRPCResponse {
+		return s.capJSONRPCResponse(response)
+	}
 
 	var request jsonRPCRequest
 	if err := json.Unmarshal(body, &request); err != nil {
-		return jsonRPCResponse{JSONRPC: "2.0", Error: rpcError(rpcParseError, "parse error", err.Error())}
+		return finalize(jsonRPCResponse{JSONRPC: "2.0", Error: rpcError(rpcParseError, "parse error", err.Error())})
 	}
 	if request.JSONRPC != "2.0" || request.Method == "" {
-		return jsonRPCResponse{JSONRPC: "2.0", ID: request.ID, Error: rpcError(rpcInvalidRequest, "invalid request", nil)}
+		return finalize(jsonRPCResponse{JSONRPC: "2.0", ID: request.ID, Error: rpcError(rpcInvalidRequest, "invalid request", nil)})
 	}
 	result, err := s.dispatchJSONRPC(ctx, request.Method, request.Params)
 	if err != nil {
-		return jsonRPCResponse{JSONRPC: "2.0", ID: request.ID, Error: rpcErrorFrom(err)}
+		return finalize(jsonRPCResponse{JSONRPC: "2.0", ID: request.ID, Error: rpcErrorFrom(err)})
 	}
-	return jsonRPCResponse{JSONRPC: "2.0", ID: request.ID, Result: result}
+	return finalize(jsonRPCResponse{JSONRPC: "2.0", ID: request.ID, Result: result})
 }
 
 func (s *Server) dispatchJSONRPC(ctx context.Context, method string, params json.RawMessage) (any, error) {
@@ -173,4 +176,32 @@ func rpcErrorFrom(err error) *jsonRPCError {
 
 func rpcError(code int, message string, data any) *jsonRPCError {
 	return &jsonRPCError{Code: code, Message: message, Data: data}
+}
+
+func (s *Server) capJSONRPCResponse(response jsonRPCResponse) jsonRPCResponse {
+	limit := s.services.Config.MCP.MaxResponseBytes
+	if limit <= 0 {
+		return response
+	}
+	body, err := json.Marshal(response)
+	if err != nil || len(body) <= limit {
+		return response
+	}
+	capped := jsonRPCResponse{
+		JSONRPC: "2.0",
+		ID:      response.ID,
+		Error: rpcError(rpcInternalError, "MCP response exceeded configured max_response_bytes", map[string]any{
+			"code":               "mcp_response_too_large",
+			"max_response_bytes": limit,
+		}),
+	}
+	cappedBody, err := json.Marshal(capped)
+	if err == nil && len(cappedBody) <= limit {
+		return capped
+	}
+	return jsonRPCResponse{
+		JSONRPC: "2.0",
+		ID:      response.ID,
+		Error:   rpcError(rpcInternalError, "MCP response too large", nil),
+	}
 }

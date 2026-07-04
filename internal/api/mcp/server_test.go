@@ -1,6 +1,7 @@
 package mcp
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -684,6 +685,44 @@ func TestMCPResponseCapReturnsStructuredTruncation(t *testing.T) {
 	}
 	if result.IsError || !strings.Contains(result.Content[0].Text, `"truncated": true`) {
 		t.Fatalf("expected capped tool response, got %#v", result)
+	}
+}
+
+func TestMCPJSONRPCResponseCapAppliesToCatalogResponses(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	server.services.Config.MCP.MaxResponseBytes = 320
+
+	response := server.HandleJSONRPC(context.Background(), []byte(`{"jsonrpc":"2.0","id":7,"method":"resources/list","params":{}}`))
+	if response.Error == nil {
+		t.Fatalf("expected capped JSON-RPC error, got %#v", response)
+	}
+	if response.Error.Code != rpcInternalError {
+		t.Fatalf("unexpected error code = %d", response.Error.Code)
+	}
+	body := mustMarshal(t, response)
+	if len([]byte(body)) > server.services.Config.MCP.MaxResponseBytes {
+		t.Fatalf("capped response length = %d, want <= %d: %s", len([]byte(body)), server.services.Config.MCP.MaxResponseBytes, body)
+	}
+	if !strings.Contains(body, "mcp_response_too_large") || strings.Contains(body, "nivora://capabilities/current") {
+		t.Fatalf("unexpected capped response body: %s", body)
+	}
+}
+
+func TestMCPServeStdioAppliesTransportResponseCap(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	server.services.Config.MCP.MaxResponseBytes = 320
+	input := bytes.NewBufferString(`{"jsonrpc":"2.0","id":"req-1","method":"tools/list","params":{}}` + "\n")
+	var output bytes.Buffer
+
+	if err := server.ServeStdio(context.Background(), input, &output); err != nil {
+		t.Fatalf("ServeStdio: %v", err)
+	}
+	body := output.String()
+	if len([]byte(strings.TrimSpace(body))) > server.services.Config.MCP.MaxResponseBytes {
+		t.Fatalf("stdio response length = %d, want <= %d: %s", len([]byte(strings.TrimSpace(body))), server.services.Config.MCP.MaxResponseBytes, body)
+	}
+	if !strings.Contains(body, "mcp_response_too_large") || strings.Contains(body, "nivora_status") {
+		t.Fatalf("unexpected stdio capped response: %s", body)
 	}
 }
 

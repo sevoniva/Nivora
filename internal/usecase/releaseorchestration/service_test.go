@@ -182,6 +182,43 @@ func TestCancelExecution(t *testing.T) {
 	}
 }
 
+func TestCancelExecutionsForReleaseCancelsOnlyNonTerminalRecords(t *testing.T) {
+	service := newTestService(allowPolicy{}).WithGovernance(testGovernance{})
+	waitingDef := testDefinition(false, StrategySequential)
+	waitingDef.Spec.ApprovalRequired = true
+	waiting, err := service.Deploy(context.Background(), DeployInput{Definition: waitingDef, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("create waiting execution: %v", err)
+	}
+	terminal, err := service.Deploy(context.Background(), DeployInput{Definition: testDefinition(false, StrategyPlanOnly), ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("create terminal execution: %v", err)
+	}
+
+	canceled, err := service.CancelExecutionsForRelease(context.Background(), waiting.Execution.ReleaseID, "operator")
+	if err != nil {
+		t.Fatalf("CancelExecutionsForRelease() error = %v", err)
+	}
+	if len(canceled) != 1 {
+		t.Fatalf("canceled executions = %d, want 1", len(canceled))
+	}
+	if canceled[0].Execution.ID != waiting.Execution.ID || canceled[0].Execution.Status != ExecutionCanceled {
+		t.Fatalf("unexpected canceled execution: %#v", canceled[0].Execution)
+	}
+	for _, target := range canceled[0].Execution.Targets {
+		if target.Status != ExecutionCanceled {
+			t.Fatalf("target %s status = %s, want %s", target.TargetName, target.Status, ExecutionCanceled)
+		}
+	}
+	loadedTerminal, err := service.GetExecution(context.Background(), terminal.Execution.ID)
+	if err != nil {
+		t.Fatalf("load terminal execution: %v", err)
+	}
+	if loadedTerminal.Execution.Status != ExecutionSucceeded {
+		t.Fatalf("terminal execution status = %s, want %s", loadedTerminal.Execution.Status, ExecutionSucceeded)
+	}
+}
+
 func TestParseDefinition(t *testing.T) {
 	def, err := LoadDefinitionFile("../../../examples/releases/sequential-release.yaml")
 	if err != nil {

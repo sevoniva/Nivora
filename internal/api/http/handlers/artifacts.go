@@ -1,6 +1,7 @@
 package handlers
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/tenant"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 )
 
 type artifactRequest struct {
@@ -210,15 +212,53 @@ func GetReleaseArtifacts(service *artifactusecase.Service) http.HandlerFunc {
 	}
 }
 
-func CancelRelease(service *artifactusecase.Service) http.HandlerFunc {
+type releaseExecutionCanceler interface {
+	CancelExecutionsForRelease(ctx context.Context, releaseID string, actorID string) ([]releaseorchestration.ExecutionRecord, error)
+}
+
+func CancelRelease(service *artifactusecase.Service, executions releaseExecutionCanceler) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		record, ok := getAuthorizedReleaseRecord(w, r, service)
 		if !ok {
 			return
 		}
-		record, err := service.CancelRelease(r.Context(), record.Release.ID, apimiddleware.Subject(r.Context()).ID)
-		respondArtifactResult(w, r, record, err)
+		actorID := apimiddleware.Subject(r.Context()).ID
+		record, err := service.CancelRelease(r.Context(), record.Release.ID, actorID)
+		if err != nil {
+			respondArtifactResult(w, r, record, err)
+			return
+		}
+		var canceled []releaseorchestration.ExecutionRecord
+		if executions != nil {
+			canceled, err = executions.CancelExecutionsForRelease(r.Context(), record.Release.ID, actorID)
+			if err != nil {
+				respondArtifactResult(w, r, nil, err)
+				return
+			}
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{
+			"release":              record.Release,
+			"artifacts":            record.Artifacts,
+			"bindings":             record.Bindings,
+			"inspections":          record.Inspections,
+			"resolutions":          record.Resolutions,
+			"warnings":             record.Warnings,
+			"events":               record.Events,
+			"audits":               record.Audits,
+			"canceledExecutions":   canceled,
+			"canceledExecutionIds": releaseExecutionIDs(canceled),
+		})
 	}
+}
+
+func releaseExecutionIDs(records []releaseorchestration.ExecutionRecord) []string {
+	ids := make([]string, 0, len(records))
+	for _, record := range records {
+		if record.Execution.ID != "" {
+			ids = append(ids, record.Execution.ID)
+		}
+	}
+	return ids
 }
 
 func filterReleaseRecordsForRequest(r *http.Request, records []artifactusecase.ReleaseRecord) []artifactusecase.ReleaseRecord {

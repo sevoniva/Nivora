@@ -1879,7 +1879,7 @@ paths:
   /api/v1/releases/{id}/cancel:
     post:
       summary: Cancel a Release record
-      description: Marks the Release record as Canceled and records release-level event and audit entries. This does not execute rollback, delete resources, or cancel already-created ReleaseExecutions.
+      description: Marks the Release record as Canceled, records release-level event and audit entries, and cancels non-terminal ReleaseExecutions for the same Release. This does not execute rollback, delete resources, or mutate already-terminal ReleaseExecutions.
       parameters:
         - $ref: "#/components/parameters/ID"
       responses:
@@ -1888,7 +1888,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/CreateReleaseResponse"
+                $ref: "#/components/schemas/ReleaseCancelResponse"
         "404":
           description: Release not found
         "409":
@@ -5661,6 +5661,19 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/AuditLog"
+    ReleaseCancelResponse:
+      allOf:
+        - $ref: "#/components/schemas/CreateReleaseResponse"
+        - type: object
+          properties:
+            canceledExecutions:
+              type: array
+              items:
+                $ref: "#/components/schemas/ReleaseExecutionRecord"
+            canceledExecutionIds:
+              type: array
+              items:
+                type: string
     ReleaseOrchestrationDefinition:
       type: object
       properties:

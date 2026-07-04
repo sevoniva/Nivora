@@ -320,6 +320,29 @@ func (s *Service) Cancel(ctx context.Context, id string, actorID string) (Execut
 	if isTerminal(record.Execution.Status) {
 		return record, ErrExecutionTerminal
 	}
+	return s.cancelRecord(ctx, record, actorID)
+}
+
+func (s *Service) CancelExecutionsForRelease(ctx context.Context, releaseID string, actorID string) ([]ExecutionRecord, error) {
+	records, err := s.store.ListExecutions(ctx, strings.TrimSpace(releaseID))
+	if err != nil {
+		return nil, err
+	}
+	canceled := make([]ExecutionRecord, 0, len(records))
+	for _, record := range records {
+		if isTerminal(record.Execution.Status) {
+			continue
+		}
+		updated, err := s.cancelRecord(ctx, record, actorID)
+		if err != nil {
+			return nil, err
+		}
+		canceled = append(canceled, updated)
+	}
+	return canceled, nil
+}
+
+func (s *Service) cancelRecord(ctx context.Context, record ExecutionRecord, actorID string) (ExecutionRecord, error) {
 	record.Execution.Status = ExecutionCanceled
 	record.Execution.Reason = "canceled by request"
 	now := s.now()

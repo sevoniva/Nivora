@@ -52,6 +52,33 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 	artifactList := created["artifacts"].([]any)
 	artifactID := artifactList[0].(map[string]any)["id"].(string)
 
+	deployBody := []byte(`{
+		"apiVersion": "nivora.io/v1alpha1",
+		"kind": "ReleaseOrchestration",
+		"metadata": {"name": "cancel-cascade"},
+		"spec": {
+			"releaseId": "` + releaseID + `",
+			"environment": "dev",
+			"approvalRequired": true,
+			"targets": [{"name": "approval-noop", "type": "noop"}]
+		}
+	}`)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/releases/"+releaseID+"/deploy", bytes.NewReader(deployBody))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create release execution status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var executionCreated map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &executionCreated); err != nil {
+		t.Fatalf("decode release execution: %v", err)
+	}
+	executionObj := executionCreated["execution"].(map[string]any)
+	executionID := executionObj["id"].(string)
+	if executionObj["status"].(string) != "WaitingApproval" {
+		t.Fatalf("execution status = %s, want WaitingApproval", executionObj["status"].(string))
+	}
+
 	for _, path := range []string{
 		"/api/v1/releases",
 		"/api/v1/releases/" + releaseID,
@@ -77,6 +104,9 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 	}
 	if !bytes.Contains(rec.Body.Bytes(), []byte(`"status":"Canceled"`)) || !bytes.Contains(rec.Body.Bytes(), []byte("devops.release.canceled")) {
 		t.Fatalf("release cancel body = %s", rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"canceledExecutionIds":["`+executionID+`"]`)) {
+		t.Fatalf("release cancel should include canceled execution id %s: %s", executionID, rec.Body.String())
 	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/missing", nil)

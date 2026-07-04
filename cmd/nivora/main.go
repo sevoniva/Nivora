@@ -84,6 +84,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newEventsCommand())
 	root.AddCommand(newLogsCommand())
 	root.AddCommand(newEvidenceCommand())
+	root.AddCommand(newRetentionPolicyCommand())
 	root.AddCommand(newDoctorCommand())
 	return root
 }
@@ -293,6 +294,85 @@ func newEvidenceCommand() *cobra.Command {
 	cmd.AddCommand(newEvidenceListCommand())
 	cmd.AddCommand(newEvidenceGenerateCommand())
 	cmd.AddCommand(newEvidenceExportCommand())
+	return cmd
+}
+
+func newRetentionPolicyCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "retention-policy", Short: "Retention policy metadata utilities"}
+	cmd.AddCommand(newRetentionPolicyGetCommand())
+	cmd.AddCommand(newRetentionPolicySetCommand())
+	return cmd
+}
+
+func newRetentionPolicyGetCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var scopeType string
+	var scopeID string
+	cmd := &cobra.Command{
+		Use:   "get",
+		Short: "Get retention policy metadata for a scope",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			setQueryValue(values, "scopeType", scopeType)
+			setQueryValue(values, "scopeId", scopeID)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, withQuery("/api/v1/retention-policy", values), nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&scopeType, "scope-type", "global", "retention scope type")
+	cmd.Flags().StringVar(&scopeID, "scope-id", "", "retention scope id")
+	return cmd
+}
+
+func newRetentionPolicySetCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var scopeType string
+	var scopeID string
+	var logDays int
+	var auditDays int
+	var eventDays int
+	var evidenceDays int
+	cmd := &cobra.Command{
+		Use:   "set",
+		Short: "Set retention policy metadata for a scope",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			bodyMap := map[string]any{
+				"scopeType":      scopeType,
+				"scopeId":        scopeID,
+				"immutableAudit": true,
+			}
+			setBodyInt(bodyMap, "logDays", logDays)
+			setBodyInt(bodyMap, "auditDays", auditDays)
+			setBodyInt(bodyMap, "eventDays", eventDays)
+			setBodyInt(bodyMap, "evidenceDays", evidenceDays)
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/retention-policy", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&scopeType, "scope-type", "global", "retention scope type")
+	cmd.Flags().StringVar(&scopeID, "scope-id", "", "retention scope id")
+	cmd.Flags().IntVar(&logDays, "log-days", 0, "log retention days; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&auditDays, "audit-days", 0, "audit retention days; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&eventDays, "event-days", 0, "event retention days; omit or set 0 to use server default")
+	cmd.Flags().IntVar(&evidenceDays, "evidence-days", 0, "evidence retention days; omit or set 0 to use server default")
 	return cmd
 }
 
@@ -612,6 +692,12 @@ func newApprovalResumeSubjectCommand() *cobra.Command {
 
 func setBodyString(body map[string]any, key string, value string) {
 	if value != "" {
+		body[key] = value
+	}
+}
+
+func setBodyInt(body map[string]any, key string, value int) {
+	if value > 0 {
 		body[key] = value
 	}
 }

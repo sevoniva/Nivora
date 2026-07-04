@@ -83,6 +83,15 @@ API:
 curl "http://localhost:8080/api/v1/retention-policy?scopeType=project&scopeId=demo"
 ```
 
+CLI:
+
+```bash
+go run ./cmd/nivora retention-policy get --scope-type project --scope-id demo
+go run ./cmd/nivora retention-policy set --scope-type project --scope-id demo --log-days 30 --audit-days 365 --event-days 90 --evidence-days 730
+```
+
+The CLI sends only retention metadata. It does not accept secret material and does not perform background deletion by itself. Actual cleanup enforcement and automated retention jobs remain production hardening work.
+
 ## Tamper-Evident Audit Hash Chain
 
 All audit writes are protected by a SHA-256 hash chain stored in `compliance_audit_records`. Each record includes:

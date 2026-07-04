@@ -2,7 +2,7 @@
 
 ## Subsequent Hardening Note
 
-This is a historical delta audit. Later hardening added production-like Helm and Compose profiles, production-profile smoke scripts, stricter production config validation, PostgreSQL-backed governance/runtime stores, and broader audit hash-chain wiring. Nivora remains **not production-ready** because production-scale restore drills, OS-level runner sandboxing, live install validation, and real external adapter integrations are still incomplete. Use `CAPABILITY_STATUS.md` for the current summary.
+This is a historical delta audit. Later hardening added production-like Helm and Compose profiles, production-profile smoke scripts, stricter production config validation, PostgreSQL-backed governance/runtime stores, broader audit hash-chain wiring, and opt-in PostgreSQL recovery coverage for approval/change-window/notification/event/audit records. Nivora remains **not production-ready** because production-scale restore drills, OS-level runner sandboxing, live install validation, and real external adapter integrations are still incomplete. Use `CAPABILITY_STATUS.md` for the current summary.
 
 ## 1. Executive Summary
 

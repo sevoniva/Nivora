@@ -12,7 +12,7 @@ Current maturity: **hardened beta-candidate (0.9.0-rc.1), not production-ready**
 | Auth | `usecase/auth.Store` | `auth.NewMemoryStore()` | `postgres.NewAuthStore(pool)` | `runtime.WithConfig` | 000009 | auth service tests, runtime test | Medium |
 | Credential | `usecase/credential.Store` | `credential.NewMemoryStore()` | `postgres.NewCredentialStore(pool)` | `runtime.WithConfig` | 000009 | credential service tests, runtime test | Medium |
 | Security | `usecase/security.Store` | `security.NewMemoryStore()` | `postgres.NewSecurityStore(pool)` | `runtime.WithConfig` | 000009 | security service tests, runtime test | Medium |
-| Approval | `usecase/approval.Store` | `approval.NewMemoryStore()` | `postgres.NewApprovalStore(pool)` | `runtime.WithConfig` | 000009 | approval service tests, runtime test | Medium |
+| Approval | `usecase/approval.Store` | `approval.NewMemoryStore()` | `postgres.NewApprovalStore(pool)` | `runtime.WithConfig` | 000009 | approval service tests, approval_store_test.go, runtime test | Medium |
 | Cloud | `usecase/cloud.Store` | `cloud.NewMemoryStore()` | `postgres.NewCloudStore(pool)` | `runtime.WithConfig` | 000009 | cloud service tests, runtime test | Medium |
 | Tenancy | `usecase/tenancy.Store` | `tenancy.NewMemoryStore()` | `postgres.NewTenancyStore(pool)` | `runtime.WithConfig` | 000009 | tenancy service tests | Low |
 | Catalog | `usecase/catalog.Store` | `catalog.NewMemoryStore()` | `postgres.NewCatalogStore(pool)` | `runtime.WithConfig` | 000010 | catalog_store_test.go, runtime integration opt-in | Medium |
@@ -41,4 +41,4 @@ All 9 audit-producing stores now produce hash-chained `compliance_audit_records`
 1. **Multi-process recovery not proven in CI**: Postgres integration tests exist but require a live database; CI job runs separately from `make verify`.
 2. **Runner sandboxing is config-level, not OS-level**: Workspace isolation, env blocklist, and process group cleanup are enforced, but no container/VM sandbox.
 3. **Production install smoke test not automated**: Helm templates validated statically (11/11 checks) but no automated install+healthcheck test exists.
-4. **Some adjunct state remains memory-backed**: Notification delivery state and some adapter-specific transient state still use memory or placeholder implementations.
+4. **Some adapter-specific transient state remains memory-backed or placeholder-only**: Approval notification records are persisted by `ApprovalStore` in Postgres mode and covered by an opt-in recovery test, but external notification adapters and provider-specific runtime state remain foundation-only.

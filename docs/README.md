@@ -123,6 +123,13 @@ For a quick path through the project:
 - [Developer Guide](developer/README.md)
 - [Tutorials](tutorials/README.md)
 
+## Developer Checks
+
+- [API Contract Checks](dev/api-contract.md)
+- [MCP Tools](dev/mcp-tools.md)
+- [Runtime Recovery Tests](dev/runtime-recovery-tests.md)
+- [Testing Strategy](dev/testing-strategy.md)
+
 ## Operations Docs
 
 - [Configuration](operations/configuration.md)

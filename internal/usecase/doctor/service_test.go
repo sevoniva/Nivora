@@ -65,6 +65,32 @@ func TestCheckConfigFileRedactsSecretLikeEvidence(t *testing.T) {
 	}
 }
 
+func TestCheckConfigIncludesEnterpriseClosureChecks(t *testing.T) {
+	report := CheckConfig(safeProductionConfig())
+	for _, id := range []string{
+		"audit.persistence",
+		"event_outbox.persistence",
+		"runner.identity_config",
+		"secret_provider.posture",
+		"runner.token_storage",
+		"api.openapi_route_contract",
+		"security.secret_scan",
+	} {
+		if !hasCheck(report, id) {
+			t.Fatalf("missing doctor check %s in %#v", id, report)
+		}
+	}
+	if !hasCheckStatus(report, "secret_provider.posture", StatusNotChecked) {
+		t.Fatalf("secret provider posture should be explicit but not overclaimed: %#v", report)
+	}
+	if !hasCheckStatus(report, "api.openapi_route_contract", StatusNotChecked) {
+		t.Fatalf("OpenAPI route contract should point to test verification: %#v", report)
+	}
+	if report.Status != StatusPass {
+		t.Fatalf("not-checked live checks should not make safe profile fail: %#v", report)
+	}
+}
+
 func safeProductionConfig() config.Config {
 	cfg := config.Default()
 	cfg.Env = "production"
@@ -81,6 +107,15 @@ func safeProductionConfig() config.Config {
 func hasCheckStatus(report Report, id string, status string) bool {
 	for _, check := range report.Checks {
 		if check.ID == id && check.Status == status {
+			return true
+		}
+	}
+	return false
+}
+
+func hasCheck(report Report, id string) bool {
+	for _, check := range report.Checks {
+		if check.ID == id {
 			return true
 		}
 	}

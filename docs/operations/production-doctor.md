@@ -23,10 +23,13 @@ Current checks cover:
 - local shell, privileged executor, Kubernetes apply, Argo sync, remote host deploy, and global insecure registry flags are disabled in production-like installs.
 - MCP action tools are disabled.
 - event bus and object store types are explicit.
+- audit and evidence persistence are tied to PostgreSQL for production-like installs.
+- event outbox persistence is tied to PostgreSQL for production-like installs.
+- runner identity and heartbeat settings are explicit.
 - secret-like evidence values are redacted from command output.
-- database connectivity, migration status, runner heartbeat freshness, and audit-chain verification are reported as `NOT_CHECKED` by the local config doctor because they require a running server or database.
+- secret provider posture, runner token hash storage, OpenAPI route contract verification, repository secret scanning, database connectivity, migration status, runner heartbeat freshness, and audit-chain verification are reported as `NOT_CHECKED` by the local config doctor because they require live runtime state, repository checks, or CI verification.
 
 Limitations:
 
-- Database connectivity, migration drift, runner heartbeat freshness, and audit chain status are still checked through the existing API/scripts rather than this local config command.
+- Database connectivity, migration drift, runner token storage, route contract drift, secret scan status, runner heartbeat freshness, and audit chain status are still checked through the existing API, scripts, tests, or CI rather than this local config command.
 - The doctor command is a posture check. Passing it is not a production-readiness claim.

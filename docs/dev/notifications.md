@@ -11,12 +11,14 @@ Available foundation adapters:
 ## Test Notification
 
 ```sh
+nivora notification list
 nivora notification test --channel noop
 ```
 
 Equivalent API:
 
 ```sh
+curl -s http://localhost:8080/api/v1/notifications
 curl -s http://localhost:8080/api/v1/notifications/test \
   -H 'content-type: application/json' \
   -d '{"type":"test","channel":"noop","subject":"Nivora test notification","recipients":["local"]}'

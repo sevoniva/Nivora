@@ -563,7 +563,26 @@ func newChangeWindowEvaluateCommand() *cobra.Command {
 
 func newNotificationCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "notification", Short: "Notification utilities"}
+	cmd.AddCommand(newNotificationListCommand())
 	cmd.AddCommand(newNotificationTestCommand())
+	return cmd
+}
+
+func newNotificationListCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List recorded notification metadata",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/notifications", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	return cmd
 }
 

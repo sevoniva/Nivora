@@ -29,6 +29,7 @@ nivora approvals expire <id> --comment "window expired"
 nivora deployment resume <deployment-run-id> --approval-status Approved
 nivora release execution resume <execution-id> --approval-status Approved
 nivora change-window evaluate --env prod --at 2026-05-18T02:00:00Z
+nivora notification list
 nivora notification test --channel noop
 ```
 

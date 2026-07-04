@@ -16,6 +16,9 @@ import (
 	portexecutor "github.com/sevoniva/nivora/internal/ports/executor"
 	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	portsecurity "github.com/sevoniva/nivora/internal/ports/security"
+	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
 func TestServiceCreateAndRunDryRunDeployment(t *testing.T) {
@@ -183,6 +186,70 @@ func TestServiceApprovalRequiredBlocksDeployment(t *testing.T) {
 	}
 	if result.Record.Approval.Status != domainapproval.StatusPending || result.Record.Approval.SubjectID != result.Record.Run.ID {
 		t.Fatalf("approval = %#v", result.Record.Approval)
+	}
+}
+
+func TestSavedPolicyAttachmentRequiresDeploymentApproval(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	catalog := policyusecase.NewService(policyusecase.NewMemoryStore())
+	policyDef, err := catalog.Create(context.Background(), policyusecase.CreateInput{
+		ID:            "policy-deploy-approval",
+		Name:          "Deployment digest approval",
+		Mode:          "require_approval",
+		RequireDigest: true,
+	})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	if _, err := catalog.Attach(context.Background(), policyDef.ID, policyusecase.AttachInput{ScopeType: "environment", ScopeID: "dev"}); err != nil {
+		t.Fatalf("attach policy: %v", err)
+	}
+	service.WithSecurity(securityusecase.NewService(securityusecase.NewMemoryStore(), testSecurityScanner{}, nil, nil)).
+		WithPolicyCatalog(catalog).
+		WithGovernance(testGovernance{})
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ProjectID: "project-a", ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("create and run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunWaitingApproval {
+		t.Fatalf("status = %s, want WaitingApproval", result.Record.Run.Status)
+	}
+	if result.Record.Security.Policy.PolicyID != policyDef.ID {
+		t.Fatalf("policy id = %q, want %q", result.Record.Security.Policy.PolicyID, policyDef.ID)
+	}
+	if result.Record.Approval.Status != domainapproval.StatusPending || result.Record.Approval.Reason != "artifact digest is required" {
+		t.Fatalf("approval = %#v", result.Record.Approval)
+	}
+}
+
+func TestSavedPolicyAttachmentDeniesDeployment(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	catalog := policyusecase.NewService(policyusecase.NewMemoryStore())
+	policyDef, err := catalog.Create(context.Background(), policyusecase.CreateInput{
+		ID:            "policy-deploy-deny",
+		Name:          "Deployment digest deny",
+		Mode:          "deny",
+		RequireDigest: true,
+	})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	if _, err := catalog.Attach(context.Background(), policyDef.ID, policyusecase.AttachInput{ScopeType: "environment", ScopeID: "dev"}); err != nil {
+		t.Fatalf("attach policy: %v", err)
+	}
+	service.WithSecurity(securityusecase.NewService(securityusecase.NewMemoryStore(), testSecurityScanner{}, nil, nil)).
+		WithPolicyCatalog(catalog)
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ProjectID: "project-a", ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("create and run should persist failed run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("status = %s, want Failed", result.Record.Run.Status)
+	}
+	if result.Record.Security.Policy.PolicyID != policyDef.ID {
+		t.Fatalf("policy id = %q, want %q", result.Record.Security.Policy.PolicyID, policyDef.ID)
 	}
 }
 
@@ -850,6 +917,24 @@ type testManifestClient struct {
 	applyErr    error
 	rolloutErr  error
 	rollbackErr error
+}
+
+type testSecurityScanner struct{}
+
+func (testSecurityScanner) ScanArtifact(ctx context.Context, request portsecurity.ScanRequest) (portsecurity.ScanResult, error) {
+	return portsecurity.ScanResult{Scanner: "test"}, nil
+}
+
+func (testSecurityScanner) ScanManifest(ctx context.Context, request portsecurity.ScanRequest) (portsecurity.ScanResult, error) {
+	return portsecurity.ScanResult{Scanner: "test"}, nil
+}
+
+func (testSecurityScanner) ScanDeploymentPlan(ctx context.Context, request portsecurity.ScanRequest) (portsecurity.ScanResult, error) {
+	return portsecurity.ScanResult{Scanner: "test"}, nil
+}
+
+func (testSecurityScanner) GetCapabilities(ctx context.Context) ([]portsecurity.Capability, error) {
+	return nil, nil
 }
 
 func (c testManifestClient) ServerDryRun(ctx context.Context, request ManifestRequest) (KubernetesDryRunResult, error) {

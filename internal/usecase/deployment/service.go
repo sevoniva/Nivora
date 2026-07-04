@@ -15,12 +15,15 @@ import (
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/environment"
 	"github.com/sevoniva/nivora/internal/domain/event"
+	domainpolicy "github.com/sevoniva/nivora/internal/domain/policy"
 	"github.com/sevoniva/nivora/internal/domain/release"
+	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	portargocd "github.com/sevoniva/nivora/internal/ports/argocd"
 	"github.com/sevoniva/nivora/internal/ports/eventbus"
 	portexecutor "github.com/sevoniva/nivora/internal/ports/executor"
 	portgitops "github.com/sevoniva/nivora/internal/ports/gitops"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
@@ -101,6 +104,7 @@ type Service struct {
 	gitops     portgitops.WorkingTree
 	argocd     portargocd.Provider
 	security   *securityusecase.Service
+	policies   SecurityPolicyCatalog
 	governance Governance
 	now        func() time.Time
 }
@@ -108,6 +112,10 @@ type Service struct {
 type Governance interface {
 	RequestApproval(ctx context.Context, subjectType string, subjectID string, environmentID string, requestedBy string, reason string) (domainapproval.ApprovalRequest, error)
 	EvaluateChangeWindow(ctx context.Context, environmentID string) (domainapproval.ChangeWindowResult, error)
+}
+
+type SecurityPolicyCatalog interface {
+	ResolveEnabledForScope(ctx context.Context, input policyusecase.ResolveInput) (domainpolicy.Policy, bool, error)
 }
 
 func NewService(store Store, renderer ManifestRenderer, client ManifestClient, policyEngine policy.Engine, bus eventbus.EventBus) *Service {
@@ -134,6 +142,11 @@ func (s *Service) WithHostExecutor(executor portexecutor.HostExecutor) *Service 
 
 func (s *Service) WithSecurity(securityService *securityusecase.Service) *Service {
 	s.security = securityService
+	return s
+}
+
+func (s *Service) WithPolicyCatalog(catalog SecurityPolicyCatalog) *Service {
+	s.policies = catalog
 	return s
 }
 
@@ -531,22 +544,23 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 	record.Plan = s.buildPlan(record.Run.ID, record.Definition, documents)
 	record = s.attachResourceObservability(record, record.Definition, documents)
 	if s.security != nil {
-		securityRecord, err := s.security.Scan(ctx, securityusecase.ScanInput{
-			SubjectType: "deployment_plan",
-			SubjectID:   record.Run.ID,
-			Reference:   strings.Join(record.Plan.Artifacts, ","),
-			Policy:      securityusecase.DefaultPolicyConfig(),
-			ActorID:     actorID,
-		})
+		scanInput, err := s.securityScanInput(ctx, record, actorID)
+		if err != nil {
+			return s.fail(ctx, record, actorID, err.Error())
+		}
+		securityRecord, err := s.security.Scan(ctx, scanInput)
 		if err != nil {
 			return s.fail(ctx, record, actorID, err.Error())
 		}
 		record.Security = securityRecord
-		if securityRecord.Policy.Decision == "deny" {
+		if securityRecord.Policy.Decision == domainsecurity.GateDeny {
 			record.Plan.Warnings = append(record.Plan.Warnings, securityRecord.Policy.Reason)
 			return s.fail(ctx, record, actorID, securityRecord.Policy.Reason)
 		}
-		if securityRecord.Policy.Decision == "warn" || securityRecord.Policy.Decision == "require_approval" {
+		if securityRecord.Policy.Decision == domainsecurity.GateRequireApproval {
+			record.Definition.Spec.Options.ApprovalRequired = true
+			record.Plan.Warnings = append(record.Plan.Warnings, securityRecord.Policy.Reason)
+		} else if securityRecord.Policy.Decision == domainsecurity.GateWarn {
 			record.Plan.Warnings = append(record.Plan.Warnings, securityRecord.Policy.Reason)
 		}
 	}
@@ -620,7 +634,11 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 		}
 	}
 	if record.Definition.Spec.Options.ApprovalRequired && s.governance != nil {
-		approval, err := s.governance.RequestApproval(ctx, domainapproval.SubjectDeployment, record.Run.ID, record.Run.EnvironmentID, actorID, "deployment approval required")
+		approvalReason := "deployment approval required"
+		if record.Security.Policy.Decision == domainsecurity.GateRequireApproval && record.Security.Policy.Reason != "" {
+			approvalReason = record.Security.Policy.Reason
+		}
+		approval, err := s.governance.RequestApproval(ctx, domainapproval.SubjectDeployment, record.Run.ID, record.Run.EnvironmentID, actorID, approvalReason)
 		if err != nil {
 			return s.fail(ctx, record, actorID, err.Error())
 		}
@@ -628,7 +646,7 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 		if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunWaitingApproval, s.now(), "approval required"); err != nil {
 			return RunRecord{}, err
 		}
-		record.Run.Reason = "approval required"
+		record.Run.Reason = approvalReason
 		if err := s.store.Save(ctx, record); err != nil {
 			return RunRecord{}, err
 		}
@@ -948,6 +966,35 @@ func (s *Service) executeHostStep(ctx context.Context, record RunRecord, step Ho
 		}
 	}
 	return s.host.HealthCheck(ctx, request)
+}
+
+func (s *Service) securityScanInput(ctx context.Context, record RunRecord, actorID string) (securityusecase.ScanInput, error) {
+	projectID := strings.TrimSpace(record.Environment.ProjectID)
+	environmentID := strings.TrimSpace(record.Definition.Spec.Environment)
+	if environmentID == "" {
+		environmentID = strings.TrimSpace(record.Run.EnvironmentID)
+	}
+	input := securityusecase.ScanInput{
+		SubjectType:   domainsecurity.SubjectDeploymentPlan,
+		SubjectID:     record.Run.ID,
+		ProjectID:     projectID,
+		EnvironmentID: environmentID,
+		Reference:     strings.Join(record.Plan.Artifacts, ","),
+		Policy:        securityusecase.DefaultPolicyConfig(),
+		ActorID:       actorID,
+	}
+	if s.policies == nil {
+		return input, nil
+	}
+	policy, ok, err := s.policies.ResolveEnabledForScope(ctx, policyusecase.ResolveInput{
+		ProjectID:     projectID,
+		EnvironmentID: environmentID,
+	})
+	if err != nil || !ok {
+		return input, err
+	}
+	securityusecase.ApplyPolicyDefinition(policy, &input)
+	return input, nil
 }
 
 func (s *Service) fail(ctx context.Context, record RunRecord, actorID string, reason string) (RunRecord, error) {

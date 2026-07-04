@@ -12,8 +12,11 @@ import (
 	"github.com/sevoniva/nivora/internal/domain/environment"
 	"github.com/sevoniva/nivora/internal/domain/release"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	portsecurity "github.com/sevoniva/nivora/internal/ports/security"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
 func TestPlanMultipleTargets(t *testing.T) {
@@ -139,6 +142,70 @@ func TestApprovalRequiredCreatesApprovalRequest(t *testing.T) {
 	}
 	if record.Approval.Status != domainapproval.StatusPending || record.Approval.SubjectID != record.Execution.ID {
 		t.Fatalf("approval = %#v", record.Approval)
+	}
+}
+
+func TestSavedPolicyAttachmentRequiresReleaseApproval(t *testing.T) {
+	catalog := policyusecase.NewService(policyusecase.NewMemoryStore())
+	policyDef, err := catalog.Create(context.Background(), policyusecase.CreateInput{
+		ID:            "policy-release-approval",
+		Name:          "Release digest approval",
+		Mode:          "require_approval",
+		RequireDigest: true,
+	})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	if _, err := catalog.Attach(context.Background(), policyDef.ID, policyusecase.AttachInput{ScopeType: "environment", ScopeID: "dev"}); err != nil {
+		t.Fatalf("attach policy: %v", err)
+	}
+	service := newTestService(allowPolicy{}).
+		WithSecurity(securityusecase.NewService(securityusecase.NewMemoryStore(), testSecurityScanner{}, nil, nil)).
+		WithPolicyCatalog(catalog).
+		WithGovernance(testGovernance{})
+
+	record, err := service.Deploy(context.Background(), DeployInput{Definition: testDefinition(false, StrategySequential), ProjectID: "project-a", ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("Deploy() error = %v", err)
+	}
+	if record.Execution.Status != ExecutionWaitingApproval {
+		t.Fatalf("status = %s, want WaitingApproval", record.Execution.Status)
+	}
+	if record.Security.Policy.PolicyID != policyDef.ID {
+		t.Fatalf("policy id = %q, want %q", record.Security.Policy.PolicyID, policyDef.ID)
+	}
+	if record.Approval.Status != domainapproval.StatusPending || record.Approval.Reason != "artifact digest is required" {
+		t.Fatalf("approval = %#v", record.Approval)
+	}
+}
+
+func TestSavedPolicyAttachmentDeniesReleaseExecution(t *testing.T) {
+	catalog := policyusecase.NewService(policyusecase.NewMemoryStore())
+	policyDef, err := catalog.Create(context.Background(), policyusecase.CreateInput{
+		ID:            "policy-release-deny",
+		Name:          "Release digest deny",
+		Mode:          "deny",
+		RequireDigest: true,
+	})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	if _, err := catalog.Attach(context.Background(), policyDef.ID, policyusecase.AttachInput{ScopeType: "environment", ScopeID: "dev"}); err != nil {
+		t.Fatalf("attach policy: %v", err)
+	}
+	service := newTestService(allowPolicy{}).
+		WithSecurity(securityusecase.NewService(securityusecase.NewMemoryStore(), testSecurityScanner{}, nil, nil)).
+		WithPolicyCatalog(catalog)
+
+	record, err := service.Deploy(context.Background(), DeployInput{Definition: testDefinition(false, StrategySequential), ProjectID: "project-a", ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("Deploy() error = %v", err)
+	}
+	if record.Execution.Status != ExecutionFailed {
+		t.Fatalf("status = %s, want Failed", record.Execution.Status)
+	}
+	if record.Security.Policy.PolicyID != policyDef.ID {
+		t.Fatalf("policy id = %q, want %q", record.Security.Policy.PolicyID, policyDef.ID)
 	}
 }
 
@@ -440,6 +507,24 @@ type denyPolicy struct{}
 
 func (denyPolicy) Evaluate(ctx context.Context, request policy.Request) (policy.Result, error) {
 	return policy.Result{Allowed: false, Reasons: []string{"denied by test policy"}}, nil
+}
+
+type testSecurityScanner struct{}
+
+func (testSecurityScanner) ScanArtifact(ctx context.Context, request portsecurity.ScanRequest) (portsecurity.ScanResult, error) {
+	return portsecurity.ScanResult{Scanner: "test"}, nil
+}
+
+func (testSecurityScanner) ScanManifest(ctx context.Context, request portsecurity.ScanRequest) (portsecurity.ScanResult, error) {
+	return portsecurity.ScanResult{Scanner: "test"}, nil
+}
+
+func (testSecurityScanner) ScanDeploymentPlan(ctx context.Context, request portsecurity.ScanRequest) (portsecurity.ScanResult, error) {
+	return portsecurity.ScanResult{Scanner: "test"}, nil
+}
+
+func (testSecurityScanner) GetCapabilities(ctx context.Context) ([]portsecurity.Capability, error) {
+	return nil, nil
 }
 
 type testGovernance struct{}

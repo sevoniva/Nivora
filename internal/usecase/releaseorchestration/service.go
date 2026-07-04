@@ -14,11 +14,14 @@ import (
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/environment"
 	domainevent "github.com/sevoniva/nivora/internal/domain/event"
+	domainpolicy "github.com/sevoniva/nivora/internal/domain/policy"
 	domainrelease "github.com/sevoniva/nivora/internal/domain/release"
+	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/ports/eventbus"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
@@ -54,6 +57,7 @@ type Service struct {
 	deployments DeploymentService
 	policy      policy.Engine
 	security    *securityusecase.Service
+	policies    SecurityPolicyCatalog
 	governance  Governance
 	eventBus    eventbus.EventBus
 	now         func() time.Time
@@ -63,8 +67,17 @@ type Governance interface {
 	RequestApproval(ctx context.Context, subjectType string, subjectID string, environmentID string, requestedBy string, reason string) (domainapproval.ApprovalRequest, error)
 }
 
+type SecurityPolicyCatalog interface {
+	ResolveEnabledForScope(ctx context.Context, input policyusecase.ResolveInput) (domainpolicy.Policy, bool, error)
+}
+
 func (s *Service) WithSecurity(securityService *securityusecase.Service) *Service {
 	s.security = securityService
+	return s
+}
+
+func (s *Service) WithPolicyCatalog(catalog SecurityPolicyCatalog) *Service {
+	s.policies = catalog
 	return s
 }
 
@@ -98,18 +111,16 @@ func (s *Service) Plan(ctx context.Context, input PlanInput) (PlanRecord, error)
 	}
 	record := PlanRecord{Definition: input.Definition, Release: releaseRecord.Release, Plan: plan}
 	if s.security != nil {
-		securityRecord, err := s.security.Scan(ctx, securityusecase.ScanInput{
-			SubjectType: "release",
-			SubjectID:   releaseRecord.Release.ID,
-			Reference:   strings.Join(plan.ArtifactSummary, ","),
-			Policy:      securityusecase.DefaultPolicyConfig(),
-			ActorID:     input.ActorID,
-		})
+		scanInput, err := s.securityScanInput(ctx, input.Definition, releaseRecord.Release.ID, input.ProjectID, input.ActorID, plan)
+		if err != nil {
+			return PlanRecord{}, err
+		}
+		securityRecord, err := s.security.Scan(ctx, scanInput)
 		if err != nil {
 			return PlanRecord{}, err
 		}
 		record.Security = securityRecord
-		if securityRecord.Policy.Decision == "deny" {
+		if securityRecord.Policy.Decision == domainsecurity.GateDeny || securityRecord.Policy.Decision == domainsecurity.GateRequireApproval {
 			record.Plan.Warnings = append(record.Plan.Warnings, securityRecord.Policy.Reason)
 		}
 	}
@@ -210,16 +221,20 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 		}
 		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionSucceeded, "Release execution succeeded", input.ActorID, "plan-only release execution succeeded")
 	}
-	if input.Definition.Spec.ApprovalRequired {
+	if input.Definition.Spec.ApprovalRequired || planRecord.Security.Policy.Decision == domainsecurity.GateRequireApproval {
+		approvalReason := "release approval required"
+		if planRecord.Security.Policy.Decision == domainsecurity.GateRequireApproval && planRecord.Security.Policy.Reason != "" {
+			approvalReason = planRecord.Security.Policy.Reason
+		}
 		if s.governance != nil {
-			approval, err := s.governance.RequestApproval(ctx, domainapproval.SubjectRelease, record.Execution.ID, record.Execution.EnvironmentID, input.ActorID, "release approval required")
+			approval, err := s.governance.RequestApproval(ctx, domainapproval.SubjectRelease, record.Execution.ID, record.Execution.EnvironmentID, input.ActorID, approvalReason)
 			if err != nil {
 				return ExecutionRecord{}, err
 			}
 			record.Approval = approval
 		}
 		record.Execution.Status = ExecutionWaitingApproval
-		record.Execution.Reason = "approval is required"
+		record.Execution.Reason = approvalReason
 		record.Execution.UpdatedAt = s.now()
 		if err := s.store.SaveExecution(ctx, record); err != nil {
 			return ExecutionRecord{}, err
@@ -596,6 +611,35 @@ func (s *Service) buildPlan(ctx context.Context, def Definition, releaseRecord a
 		plan.DeploymentPlans = append(plan.DeploymentPlans, result.Record.Plan)
 	}
 	return plan, nil
+}
+
+func (s *Service) securityScanInput(ctx context.Context, def Definition, releaseID string, projectID string, actorID string, plan ReleasePlan) (securityusecase.ScanInput, error) {
+	projectID = strings.TrimSpace(projectID)
+	environmentID := strings.TrimSpace(def.Spec.Environment)
+	if environmentID == "" {
+		environmentID = strings.TrimSpace(plan.EnvironmentName)
+	}
+	input := securityusecase.ScanInput{
+		SubjectType:   domainsecurity.SubjectRelease,
+		SubjectID:     releaseID,
+		ProjectID:     projectID,
+		EnvironmentID: environmentID,
+		Reference:     strings.Join(plan.ArtifactSummary, ","),
+		Policy:        securityusecase.DefaultPolicyConfig(),
+		ActorID:       actorID,
+	}
+	if s.policies == nil {
+		return input, nil
+	}
+	policy, ok, err := s.policies.ResolveEnabledForScope(ctx, policyusecase.ResolveInput{
+		ProjectID:     projectID,
+		EnvironmentID: environmentID,
+	})
+	if err != nil || !ok {
+		return input, err
+	}
+	securityusecase.ApplyPolicyDefinition(policy, &input)
+	return input, nil
 }
 
 func (s *Service) setPlanReleaseStatus(ctx context.Context, record PlanRecord, status domainrelease.ReleaseStatus, actorID string, reason string) (PlanRecord, error) {

@@ -34,4 +34,6 @@ Security scan creation can now use saved policies in two ways:
 - `POST /api/v1/security/scans` may include `policyId` to apply one enabled saved policy.
 - If `policyId` and an ad hoc `policy` are omitted, the scan resolves the first enabled security policy attachment for `environmentId`, then `projectId`, then `global`.
 
-Disabled policies are rejected when explicitly requested and skipped during attachment resolution. This is still the built-in policy gate foundation; it is not OPA/Kyverno/Gatekeeper distribution or an enterprise policy engine.
+DeploymentRun and ReleaseExecution security pre-checks use the same attachment resolution when the runtime is wired with the policy catalog. A saved policy with `mode: deny` can stop the run; a saved policy with `mode: require_approval` can move the run into the existing approval gate. Disabled policies are rejected when explicitly requested and skipped during attachment resolution.
+
+This is still the built-in policy gate foundation; it is not OPA/Kyverno/Gatekeeper distribution or an enterprise policy engine.

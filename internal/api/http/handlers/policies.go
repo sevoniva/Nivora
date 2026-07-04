@@ -4,11 +4,9 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
-	domainpolicy "github.com/sevoniva/nivora/internal/domain/policy"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
@@ -105,9 +103,7 @@ func EvaluatePolicyDefinition(policyService *policyusecase.Service, securityServ
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_policy_evaluation", Message: "subjectId or reference is required"})
 			return
 		}
-		input.PolicyID = policy.ID
-		input.PolicyMode = policy.Mode
-		input.Policy = securityPolicyConfigFromDefinition(policy)
+		securityusecase.ApplyPolicyDefinitionToEvaluation(policy, &input)
 		result := securityService.Evaluate(input)
 		RespondJSON(w, http.StatusOK, result)
 	}
@@ -158,13 +154,4 @@ func respondPolicyCatalogError(w http.ResponseWriter, r *http.Request, err error
 		code = "policy_disabled"
 	}
 	RespondError(w, r, status, dto.ErrorResponse{Code: code, Message: err.Error()})
-}
-
-func securityPolicyConfigFromDefinition(policy domainpolicy.Policy) securityusecase.PolicyConfig {
-	return securityusecase.PolicyConfig{
-		CriticalDenyThreshold: policy.CriticalDeny,
-		HighWarnThreshold:     policy.HighWarn,
-		RequireDigest:         policy.RequireDigest,
-		ApprovalOnCritical:    policy.ApprovalOnCritical || strings.EqualFold(policy.Mode, "require_approval"),
-	}
 }

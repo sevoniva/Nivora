@@ -102,11 +102,13 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer closePolicyCatalog()
+	deploymentService.WithPolicyCatalog(policyCatalog)
 	releaseService, closeRelease, err := appruntime.NewReleaseOrchestrationServiceWithConfigDependencies(ctx, cfg, artifactService, deploymentService, securityService, approvalService)
 	if err != nil {
 		return err
 	}
 	defer closeRelease()
+	releaseService.WithPolicyCatalog(policyCatalog)
 	complianceService, closeCompliance, err := appruntime.NewComplianceServiceWithConfig(ctx, cfg, pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService)
 	if err != nil {
 		return err

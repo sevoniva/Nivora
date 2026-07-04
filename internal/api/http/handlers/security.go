@@ -9,7 +9,6 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
-	domainpolicy "github.com/sevoniva/nivora/internal/domain/policy"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/domain/tenant"
 	"github.com/sevoniva/nivora/internal/infra/telemetry"
@@ -49,7 +48,7 @@ func applySavedPolicyForScan(ctx context.Context, service *policyusecase.Service
 		if err != nil {
 			return err
 		}
-		applyPolicyDefinitionToScanInput(policy, input)
+		securityusecase.ApplyPolicyDefinition(policy, input)
 		return nil
 	}
 	if !isZeroPolicyConfig(input.Policy) {
@@ -62,14 +61,8 @@ func applySavedPolicyForScan(ctx context.Context, service *policyusecase.Service
 	if err != nil || !ok {
 		return err
 	}
-	applyPolicyDefinitionToScanInput(policy, input)
+	securityusecase.ApplyPolicyDefinition(policy, input)
 	return nil
-}
-
-func applyPolicyDefinitionToScanInput(policy domainpolicy.Policy, input *securityusecase.ScanInput) {
-	input.PolicyID = policy.ID
-	input.PolicyMode = policy.Mode
-	input.Policy = securityPolicyConfigFromDefinition(policy)
 }
 
 func isZeroPolicyConfig(policy securityusecase.PolicyConfig) bool {

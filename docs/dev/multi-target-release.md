@@ -80,6 +80,7 @@ Release orchestration now updates the bound Release record as the plan or execut
 - created releases start as `Ready` after artifact binding succeeds
 - planning records `Planning`
 - approval gates record `WaitingApproval`
+- saved security policy attachments can deny execution or require approval during the release security pre-check
 - active execution records `Deploying`
 - successful execution records `Succeeded`
 - failed or partially successful target execution records `Failed`
@@ -92,6 +93,7 @@ Each status change emits `devops.release.status.updated` and records release aud
 - Sequential execution is the only real execution strategy.
 - Parallel execution is future work.
 - Approval is a foundation gate.
+- Saved policy attachment gates use the built-in security policy model only; external policy engines are future work.
 - Rollback readiness is target-level only through DeploymentRun rollback plans.
 - Release target metadata is persisted when the server is configured with `database.runtime_store: postgres`. Memory mode remains available for local development, and target execution still depends on the DeploymentRun and ReleaseExecution foundations.
 

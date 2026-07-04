@@ -22,6 +22,8 @@ The current backend also includes a foundation Policy catalog at `/api/v1/polici
 
 Security scans can apply a saved policy explicitly with `policyId`. If a scan omits both `policyId` and an ad hoc `policy`, the server resolves an enabled security policy attachment for the request `environmentId`, then `projectId`, then `global`, and records the applied `policyId` in the PolicyResult.
 
+DeploymentRun and ReleaseExecution security pre-checks also resolve saved security policy attachments when the server runtime is wired with the policy catalog. A deny decision stops execution; a require-approval decision enters the existing approval workflow instead of continuing as a warning.
+
 Policy attachments are control-plane metadata. They declare where a built-in policy is intended to apply, but they are not an external policy distribution system. The catalog and attachments can use PostgreSQL when the runtime store is configured for Postgres; local development can still use in-memory stores.
 
 ## Common Confusion

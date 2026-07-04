@@ -86,6 +86,8 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	pipelineCatalog := routeConfig.pipelineCatalog
 	policyCatalog := routeConfig.policyCatalog
 	artifactRegistryCatalog := routeConfig.artifactRegistryCatalog
+	deploymentService.WithPolicyCatalog(policyCatalog)
+	releaseService.WithPolicyCatalog(policyCatalog)
 	integrationService := integrationusecase.NewService(pluginRegistry)
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())

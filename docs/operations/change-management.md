@@ -28,6 +28,9 @@ nivora approvals cancel <id> --comment "superseded"
 nivora approvals expire <id> --comment "window expired"
 nivora deployment resume <deployment-run-id> --approval-status Approved
 nivora release execution resume <execution-id> --approval-status Approved
+nivora change-window create --file examples/change-windows/prod-window.yaml
+nivora change-window list
+nivora change-window get <change-window-id>
 nivora change-window evaluate --env prod --at 2026-05-18T02:00:00Z
 nivora notification list
 nivora notification test --channel noop

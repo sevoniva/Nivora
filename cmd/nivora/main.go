@@ -528,7 +528,91 @@ func newApprovalResumeSubjectCommand() *cobra.Command {
 
 func newChangeWindowCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "change-window", Short: "Change window utilities"}
+	cmd.AddCommand(newChangeWindowListCommand())
+	cmd.AddCommand(newChangeWindowCreateCommand())
+	cmd.AddCommand(newChangeWindowGetCommand())
 	cmd.AddCommand(newChangeWindowEvaluateCommand())
+	return cmd
+}
+
+func newChangeWindowListCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List configured change windows",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/change-windows", nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newChangeWindowCreateCommand() *cobra.Command {
+	var serverURL string
+	var file string
+	var name string
+	var environmentID string
+	var timezone string
+	var startTime string
+	var endTime string
+	var daysOfWeek []string
+	var allowed bool
+	var metadata map[string]string
+	cmd := &cobra.Command{
+		Use:   "create",
+		Short: "Create a change-window record",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			bodyMap, err := buildChangeWindowCreateBody(file, name, environmentID, timezone, startTime, endTime, daysOfWeek, allowed, metadata)
+			if err != nil {
+				return err
+			}
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/change-windows", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&file, "file", "", "change-window YAML file")
+	cmd.Flags().StringVar(&name, "name", "", "change-window name")
+	cmd.Flags().StringVar(&environmentID, "env", "", "environment id")
+	cmd.Flags().StringVar(&timezone, "timezone", "UTC", "IANA timezone name")
+	cmd.Flags().StringVar(&startTime, "start", "", "start time in HH:MM")
+	cmd.Flags().StringVar(&endTime, "end", "", "end time in HH:MM")
+	cmd.Flags().StringSliceVar(&daysOfWeek, "day", nil, "allowed day of week; repeatable")
+	cmd.Flags().BoolVar(&allowed, "allowed", true, "whether this window allows delivery")
+	cmd.Flags().StringToStringVar(&metadata, "metadata", nil, "change-window metadata as key=value pairs")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newChangeWindowGetCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "get <id>",
+		Short: "Get a change-window record",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/change-windows/"+url.PathEscape(args[0]), nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	return cmd
 }
 
@@ -559,6 +643,70 @@ func newChangeWindowEvaluateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&environmentID, "env", "", "environment id")
 	cmd.Flags().StringVar(&at, "at", "", "RFC3339 evaluation time; defaults to server time")
 	return cmd
+}
+
+func buildChangeWindowCreateBody(file string, name string, environmentID string, timezone string, startTime string, endTime string, daysOfWeek []string, allowed bool, metadata map[string]string) (map[string]any, error) {
+	if file != "" {
+		content, err := os.ReadFile(file)
+		if err != nil {
+			return nil, err
+		}
+		var def struct {
+			Metadata struct {
+				Name string `yaml:"name"`
+			} `yaml:"metadata"`
+			Spec struct {
+				EnvironmentID string            `yaml:"environmentId"`
+				Timezone      string            `yaml:"timezone"`
+				StartTime     string            `yaml:"startTime"`
+				EndTime       string            `yaml:"endTime"`
+				DaysOfWeek    []string          `yaml:"daysOfWeek"`
+				Allowed       *bool             `yaml:"allowed"`
+				Metadata      map[string]string `yaml:"metadata"`
+			} `yaml:"spec"`
+		}
+		if err := yaml.Unmarshal(content, &def); err != nil {
+			return nil, err
+		}
+		name = def.Metadata.Name
+		environmentID = def.Spec.EnvironmentID
+		timezone = def.Spec.Timezone
+		startTime = def.Spec.StartTime
+		endTime = def.Spec.EndTime
+		daysOfWeek = def.Spec.DaysOfWeek
+		if def.Spec.Allowed != nil {
+			allowed = *def.Spec.Allowed
+		}
+		metadata = def.Spec.Metadata
+	}
+	if name == "" {
+		return nil, fmt.Errorf("--name is required")
+	}
+	if environmentID == "" {
+		return nil, fmt.Errorf("--env is required")
+	}
+	if timezone == "" {
+		timezone = "UTC"
+	}
+	body := map[string]any{
+		"name":          name,
+		"environmentId": environmentID,
+		"timezone":      timezone,
+		"allowed":       allowed,
+	}
+	if startTime != "" {
+		body["startTime"] = startTime
+	}
+	if endTime != "" {
+		body["endTime"] = endTime
+	}
+	if len(daysOfWeek) > 0 {
+		body["daysOfWeek"] = daysOfWeek
+	}
+	if len(metadata) > 0 {
+		body["metadata"] = metadata
+	}
+	return body, nil
 }
 
 func newNotificationCommand() *cobra.Command {

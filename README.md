@@ -1175,7 +1175,10 @@ Phase 7.0 hardens the local auth and RBAC foundations:
 
 ```bash
 go run ./cmd/nivora auth whoami
+go run ./cmd/nivora auth users
+go run ./cmd/nivora auth roles
 go run ./cmd/nivora auth permissions
+go run ./cmd/nivora project members add <project-id> --user-id <user-id> --role developer
 go run ./cmd/nivora auth service-account create --name ci --role developer
 go run ./cmd/nivora auth token create --subject-id <service-account-id>
 ```

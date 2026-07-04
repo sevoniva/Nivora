@@ -14,10 +14,10 @@ Auth modes:
 | GET | `/api/v1/version`, `/api/v1/system/info`, `/api/v1/system/runtime`, `/api/v1/system/diagnostics` | authenticated | system | user/service account | yes in auth-enabled modes | no | yes | Diagnostics must remain metadata-only. |
 | GET/POST | `/api/v1/system/runtime/recovery`, `/api/v1/system/runtime/reconcile` | operator/admin review required | system | user/service account | yes | no | yes | Recovery routes are sensitive; keep restricted in production deployments. |
 | GET | `/api/v1/auth/whoami`, `/api/v1/auth/permissions`, `/api/v1/auth/token-info` | authenticated | self | user/service account | yes | no | yes | Must not echo token values. |
-| GET | `/api/v1/users`, `/api/v1/roles`, `/api/v1/permissions` | authenticated | org/global | user/service account | yes | no | yes | Read-only identity metadata. |
-| GET/POST | `/api/v1/orgs/{id}/members` | `project.read` / `project.write` | org | user/service account | yes | no | yes | Current foundation maps org membership through project permissions. |
-| GET/POST | `/api/v1/projects/{id}/members` | `project.read` / `project.write` | project | user/service account | yes | no | yes | Scoped tokens must match project scope. |
-| GET/POST | `/api/v1/environments/{id}/members` | `environment.read` / `environment.write` | environment | user/service account | yes | no | yes | Scoped tokens must match environment scope. |
+| GET | `/api/v1/users`, `/api/v1/roles`, `/api/v1/permissions` | authenticated | org/global | user/service account | yes | no | yes | Read-only identity metadata; CLI coverage exists through `nivora auth users`, `nivora auth roles`, and `nivora auth permissions`. |
+| GET/POST | `/api/v1/orgs/{id}/members` | `project.read` / `project.write` | org | user/service account | yes | no | yes | Current foundation maps org membership through project permissions. CLI list/add commands are covered by request-shape tests. |
+| GET/POST | `/api/v1/projects/{id}/members` | `project.read` / `project.write` | project | user/service account | yes | no | yes | Scoped tokens must match project scope. CLI list/add commands are covered by request-shape tests. |
+| GET/POST | `/api/v1/environments/{id}/members` | `environment.read` / `environment.write` | environment | user/service account | yes | no | yes | Scoped tokens must match environment scope. CLI list/add commands are covered by request-shape tests. |
 | GET | `/api/v1/orgs`, `/api/v1/orgs/{id}` | `project.read` | org | user/service account | yes | no | yes | Foundation organization catalog. |
 | POST | `/api/v1/orgs` | `project.write` | org | user/service account | yes | no | yes | Creates an organization catalog record. |
 | PATCH/DELETE | `/api/v1/orgs/{id}` | `project.write` | org | user/service account | yes | no | yes | Delete disables instead of hard-deleting. |

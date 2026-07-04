@@ -1357,6 +1357,8 @@ func newAuthCommand() *cobra.Command {
 	cmd.AddCommand(newAuthInspectCommand("whoami", "Show the current authenticated subject", "/api/v1/auth/whoami"))
 	cmd.AddCommand(newAuthInspectCommand("permissions", "List known permissions", "/api/v1/auth/permissions"))
 	cmd.AddCommand(newAuthInspectCommand("token-info", "Show token metadata without printing token values", "/api/v1/auth/token-info"))
+	cmd.AddCommand(newAuthInspectCommand("users", "List local users", "/api/v1/users"))
+	cmd.AddCommand(newAuthInspectCommand("roles", "List built-in roles", "/api/v1/roles"))
 	cmd.AddCommand(newAuthServiceAccountCommand())
 	cmd.AddCommand(newAuthTokenCommand())
 	return cmd
@@ -1540,9 +1542,7 @@ func newProjectCommand() *cobra.Command {
 	cmd.AddCommand(newProjectCreateCommand())
 	cmd.AddCommand(newCatalogUpdateCommand("update", "Update a project", "/api/v1/projects"))
 	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable a project", "/api/v1/projects"))
-	members := &cobra.Command{Use: "members", Short: "Project membership utilities"}
-	members.AddCommand(newProjectMembersListCommand())
-	cmd.AddCommand(members)
+	cmd.AddCommand(newMembersCommand("project", "/api/v1/projects/"))
 	return cmd
 }
 
@@ -1553,6 +1553,7 @@ func newOrgCommand() *cobra.Command {
 	cmd.AddCommand(newOrgCreateCommand())
 	cmd.AddCommand(newCatalogUpdateCommand("update", "Update an organization", "/api/v1/orgs"))
 	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable an organization", "/api/v1/orgs"))
+	cmd.AddCommand(newMembersCommand("organization", "/api/v1/orgs/"))
 	return cmd
 }
 
@@ -1573,6 +1574,7 @@ func newEnvironmentCommand() *cobra.Command {
 	cmd.AddCommand(newEnvironmentCreateCommand())
 	cmd.AddCommand(newCatalogUpdateCommand("update", "Update an environment", "/api/v1/environments"))
 	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable an environment", "/api/v1/environments"))
+	cmd.AddCommand(newMembersCommand("environment", "/api/v1/environments/"))
 	return cmd
 }
 
@@ -2113,15 +2115,22 @@ func newTargetValidateCommand() *cobra.Command {
 	return cmd
 }
 
-func newProjectMembersListCommand() *cobra.Command {
+func newMembersCommand(scopeName string, pathPrefix string) *cobra.Command {
+	cmd := &cobra.Command{Use: "members", Short: scopeName + " membership utilities"}
+	cmd.AddCommand(newMembersListCommand(scopeName, pathPrefix))
+	cmd.AddCommand(newMembersAddCommand(scopeName, pathPrefix))
+	return cmd
+}
+
+func newMembersListCommand(scopeName string, pathPrefix string) *cobra.Command {
 	var serverURL string
 	var tokenEnv string
 	cmd := &cobra.Command{
-		Use:   "list <project-id>",
-		Short: "List project members",
+		Use:   "list <" + scopeName + "-id>",
+		Short: "List " + scopeName + " members",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/projects/"+args[0]+"/members", nil, os.Getenv(tokenEnv))
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, pathPrefix+args[0]+"/members", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2131,6 +2140,41 @@ func newProjectMembersListCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newMembersAddCommand(scopeName string, pathPrefix string) *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var userID string
+	var role string
+	cmd := &cobra.Command{
+		Use:   "add <" + scopeName + "-id> --user-id <user-id> --role <role>",
+		Short: "Add a " + scopeName + " member",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if userID == "" {
+				return fmt.Errorf("--user-id is required")
+			}
+			if role == "" {
+				return fmt.Errorf("--role is required")
+			}
+			body, err := json.Marshal(map[string]string{"userId": userID, "role": role})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, pathPrefix+args[0]+"/members", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&userID, "user-id", "", "member user id")
+	cmd.Flags().StringVar(&role, "role", "", "member role")
 	return cmd
 }
 

@@ -20,6 +20,7 @@ import (
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	releaseusecase "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
@@ -488,6 +489,64 @@ func TestMCPTenantScopeFiltersPipelineReadsAndAggregates(t *testing.T) {
 
 	if _, err := projectB.ReadResource(ctx, "nivora://pipelines/runs/"+runB+"/timeline"); err != nil {
 		t.Fatalf("project B read own pipeline timeline: %v", err)
+	}
+}
+
+func TestMCPTenantScopeFiltersReleaseExecutionReadsAndAggregates(t *testing.T) {
+	ctx := context.Background()
+	releaseStore := releaseusecase.NewMemoryStore()
+	artifacts := runtime.NewArtifactService()
+	deployments := runtime.NewDeploymentService()
+	releases := runtime.NewReleaseOrchestrationServiceWithStore(releaseStore, artifacts, deployments)
+
+	projectA := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-release-project-a",
+		Username:  "sa-release-project-a",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-a",
+	})
+	projectA.services.Releases = releases
+	projectB := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-release-project-b",
+		Username:  "sa-release-project-b",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-b",
+	})
+	projectB.services.Releases = releases
+
+	execA := createScopedMCPReleaseExecution(t, releaseStore, releases, "project-a")
+	execB := createScopedMCPReleaseExecution(t, releaseStore, releases, "project-b")
+
+	if _, err := projectA.ReadResource(ctx, "nivora://releases/executions/"+execA); err != nil {
+		t.Fatalf("project A read own release execution: %v", err)
+	}
+	if _, err := projectA.ReadResource(ctx, "nivora://releases/executions/"+execA+"/timeline"); err != nil {
+		t.Fatalf("project A read own release execution timeline: %v", err)
+	}
+	_, err := projectA.ReadResource(ctx, "nivora://releases/executions/"+execB)
+	var op OperationError
+	if !errors.As(err, &op) || op.Code != "mcp_scope_denied" {
+		t.Fatalf("expected scope denial for cross-project release execution, got %T %v", err, err)
+	}
+
+	result, err := projectA.CallTool(ctx, "nivora_search_events", map[string]any{"subject": execB})
+	if err != nil {
+		t.Fatalf("cross-project release event search transport error: %v", err)
+	}
+	if !resultCountIsZero(t, result) {
+		t.Fatalf("cross-project release event search returned data: %#v", result)
+	}
+
+	result, err = projectB.CallTool(ctx, "nivora_get_release_execution", map[string]any{"id": execB})
+	if err != nil {
+		t.Fatalf("project B read own release execution through tool: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("project B release execution tool returned error: %#v", result)
 	}
 }
 
@@ -1100,6 +1159,51 @@ func createScopedMCPPipelineRun(t *testing.T, pipelines *pipelineusecase.Service
 		t.Fatalf("create scoped pipeline fixture: %v", err)
 	}
 	return result.Record.Run.ID
+}
+
+func createScopedMCPReleaseExecution(t *testing.T, store releaseusecase.Store, releases *releaseusecase.Service, projectID string) string {
+	t.Helper()
+	record, err := releases.Deploy(context.Background(), releaseusecase.DeployInput{
+		ActorID: "mcp-release-scope-fixture",
+		Definition: releaseusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "ReleaseOrchestration",
+			Metadata:   releaseusecase.Metadata{Name: "mcp-scope-" + projectID},
+			Spec: releaseusecase.Spec{
+				Environment: "dev",
+				Strategy:    releaseusecase.StrategyPlanOnly,
+				Release: artifactusecase.ReleaseDefinition{
+					APIVersion: "nivora.io/v1alpha1",
+					Kind:       "Release",
+					Metadata:   artifactusecase.ReleaseMetadata{Name: "mcp-release-" + projectID},
+					Spec: artifactusecase.ReleaseSpec{
+						Version:     "1.0.0",
+						Application: "demo",
+						Environment: "dev",
+						Artifacts: []artifactusecase.ReleaseArtifactSpec{{
+							Name:      "demo-image",
+							Type:      "image",
+							Reference: "registry.example.com/team/demo:1.0.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+						}},
+					},
+				},
+				Targets: []releaseusecase.TargetSpec{{
+					Name: "noop-" + projectID,
+					Type: "noop",
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create scoped release execution fixture: %v", err)
+	}
+	for i := range record.Plan.Targets {
+		record.Plan.Targets[i].ProjectID = projectID
+	}
+	if err := store.SaveExecution(context.Background(), record); err != nil {
+		t.Fatalf("save scoped release execution fixture: %v", err)
+	}
+	return record.Execution.ID
 }
 
 func resultCountIsZero(t *testing.T, result ToolResult) bool {

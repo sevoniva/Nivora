@@ -9,7 +9,7 @@ Current status: **partially proven for local MCP RBAC, not proven for complete r
 | capability/runtime/API inventory | `project.read` | global metadata summary | optional org/project redaction | medium |
 | PipelineRun resources/tools | `project.read` | explicit ID reads now check stored project scope when present; HTTP-created project-scoped runs persist project scope | broader application/environment ownership checks for pipeline-derived resources | medium-high for remote |
 | DeploymentRun resources/tools | `project.read` or `deployment.create` | explicit ID reads now check stored project/environment scope when present | broader project/environment/target ownership checks for all deployment-derived resources | medium-high for remote |
-| ReleaseExecution resources/tools | `project.read` or `deployment.create` | explicit ID reads use project/environment scope fields when present; dedicated tenant tests still pending | release/project/environment ownership check across all execution records | high for remote |
+| ReleaseExecution resources/tools | `project.read` or `deployment.create` | explicit ID reads and aggregate event searches check stored project/environment scope when present | release/project/environment ownership check across all execution records | medium-high for remote |
 | runner summary | `project.read` | fleet summary | runner group/environment filter | high for remote |
 | security summary | `project.read` | service summary | project/environment filter | medium |
 | audit search | `audit.read` | filter arguments supported | mandatory scope filter and caps | high |
@@ -33,6 +33,9 @@ Current status: **partially proven for local MCP RBAC, not proven for complete r
 - Project-scoped service account can read its own scoped DeploymentRun record, health, and diff.
 - Project-scoped service account is denied when reading another project's scoped DeploymentRun.
 - Aggregate MCP event and log searches filter out scoped DeploymentRun records outside the subject project.
+- Project-scoped service account can read its own scoped ReleaseExecution record and timeline.
+- Project-scoped service account is denied when reading another project's scoped ReleaseExecution.
+- Aggregate MCP event searches filter out scoped ReleaseExecution records outside the subject project.
 
 Evidence:
 
@@ -45,7 +48,7 @@ Evidence:
 
 | Gap | Impact | Required Work |
 |---|---|---|
-| Resource ID ownership not checked for every MCP read | A remote subject could request another tenant's ID if underlying stores do not filter | Extend the scoped PipelineRun/DeploymentRun guard pattern to PipelineRun definitions, ReleaseExecution, artifact bindings, security summaries, and evidence bundles. |
+| Resource ID ownership not checked for every MCP read | A remote subject could request another tenant's ID if underlying stores do not filter | Extend the scoped PipelineRun/DeploymentRun/ReleaseExecution guard pattern to PipelineRun definitions, artifact bindings, security summaries, and evidence bundles. |
 | Audit search can be broad | Sensitive operational metadata could cross scopes | Enforce scope defaults and pagination before remote exposure. |
 | Runner summary is global | Runner fleet metadata can reveal other environments | Filter by runner group/project/environment. |
 | Capability/runtime documents are broad | Metadata can reveal unsupported or experimental areas | Decide what is safe for remote subjects. |

@@ -55,6 +55,20 @@ go run ./cmd/nivora release cancel <release-id>
 
 Canceling a ReleaseExecution marks the execution `Canceled`, marks non-terminal target executions `Canceled`, and asks linked non-terminal DeploymentRuns to cancel through the DeploymentRun service. Canceling a Release also cascades to non-terminal ReleaseExecutions for that Release. These paths do not run rollback, delete resources, or mutate already-terminal execution records.
 
+## Release Status Lifecycle
+
+Release orchestration now updates the bound Release record as the plan or execution advances:
+
+- created releases start as `Ready` after artifact binding succeeds
+- planning records `Planning`
+- approval gates record `WaitingApproval`
+- active execution records `Deploying`
+- successful execution records `Succeeded`
+- failed or partially successful target execution records `Failed`
+- explicit cancellation records `Canceled`
+
+Each status change emits `devops.release.status.updated` and records release audit evidence. This is still a synchronous foundation state model, not a production workflow engine; it does not perform rollback, delete resources, or recover and mutate stale executions automatically.
+
 ## Current Limitations
 
 - Sequential execution is the only real execution strategy.

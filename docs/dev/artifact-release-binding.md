@@ -17,7 +17,7 @@ Inspection parses the reference, normalizes it, and returns warnings for mutable
 go run ./cmd/nivora release create --local --file examples/releases/simple-release.yaml
 ```
 
-The local command creates an in-memory Release record, binds ReleaseArtifacts, emits events, and records audit entries. The local process does not persist records after the command exits.
+The local command creates an in-memory Release record, marks it `Ready` after artifact binding succeeds, binds ReleaseArtifacts, emits events, and records audit entries. The local process does not persist records after the command exits.
 
 ## Generate Release Evidence
 

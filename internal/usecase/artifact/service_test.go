@@ -7,6 +7,7 @@ import (
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	"github.com/sevoniva/nivora/internal/domain/event"
+	"github.com/sevoniva/nivora/internal/domain/release"
 	portartifact "github.com/sevoniva/nivora/internal/ports/artifact"
 )
 
@@ -39,6 +40,9 @@ func TestCreateReleaseBindsArtifacts(t *testing.T) {
 	}
 	if len(record.Events) == 0 || len(record.Audits) == 0 {
 		t.Fatalf("events=%d audits=%d", len(record.Events), len(record.Audits))
+	}
+	if record.Release.Status != string(release.ReleaseStatusReady) {
+		t.Fatalf("release status = %q, want %q", record.Release.Status, release.ReleaseStatusReady)
 	}
 }
 
@@ -231,6 +235,48 @@ func TestCancelReleaseRecordsEventAndAudit(t *testing.T) {
 	}
 	if len(again.Events) != len(canceled.Events) || len(again.Audits) != len(canceled.Audits) {
 		t.Fatalf("second cancel should not duplicate evidence: events %d/%d audits %d/%d", len(again.Events), len(canceled.Events), len(again.Audits), len(canceled.Audits))
+	}
+}
+
+func TestUpdateReleaseStatusRecordsEventAndAudit(t *testing.T) {
+	service := NewService(NewMemoryStore(), fakeArtifactProvider{}, fakeEventBus{})
+	record, err := service.CreateRelease(context.Background(), CreateReleaseInput{Definition: ReleaseDefinition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Release",
+		Metadata:   ReleaseMetadata{Name: "demo"},
+		Spec: ReleaseSpec{
+			Version: "1.0.0",
+			Artifacts: []ReleaseArtifactSpec{{
+				Name:      "demo-app",
+				Type:      "image",
+				Reference: "registry.example.com/team/demo@sha256:abcdef",
+			}},
+		},
+	}, ActorID: "creator"})
+	if err != nil {
+		t.Fatalf("create release: %v", err)
+	}
+
+	updated, err := service.UpdateReleaseStatus(context.Background(), record.Release.ID, release.ReleaseStatusPlanning, "planner", "release plan created")
+	if err != nil {
+		t.Fatalf("update release status: %v", err)
+	}
+	if updated.Release.Status != string(release.ReleaseStatusPlanning) || updated.Release.Metadata["statusUpdatedBy"] != "planner" {
+		t.Fatalf("updated release = %#v", updated.Release)
+	}
+	if !hasReleaseEvent(updated.Events, EventReleaseStatusUpdated) {
+		t.Fatalf("status event missing: %#v", updated.Events)
+	}
+	if !hasReleaseAudit(updated.Audits, "Release status updated") {
+		t.Fatalf("status audit missing: %#v", updated.Audits)
+	}
+
+	again, err := service.UpdateReleaseStatus(context.Background(), record.Release.ID, release.ReleaseStatusPlanning, "planner", "release plan created")
+	if err != nil {
+		t.Fatalf("idempotent status update: %v", err)
+	}
+	if len(again.Events) != len(updated.Events) || len(again.Audits) != len(updated.Audits) {
+		t.Fatalf("idempotent status update duplicated evidence: events %d/%d audits %d/%d", len(again.Events), len(updated.Events), len(again.Audits), len(updated.Audits))
 	}
 }
 

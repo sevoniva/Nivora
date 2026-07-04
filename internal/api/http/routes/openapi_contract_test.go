@@ -227,6 +227,7 @@ func TestAsyncAPIEventDocumentation(t *testing.T) {
 		"devops.deployment.failed",
 		"devops.release.created",
 		"devops.release.canceled",
+		"devops.release.status.updated",
 		"devops.release.execution.started",
 		"devops.release.execution.succeeded",
 		"devops.release.execution.failed",

@@ -14,6 +14,7 @@ import (
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/environment"
 	domainevent "github.com/sevoniva/nivora/internal/domain/event"
+	domainrelease "github.com/sevoniva/nivora/internal/domain/release"
 	"github.com/sevoniva/nivora/internal/ports/eventbus"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
@@ -37,6 +38,7 @@ const (
 type ArtifactService interface {
 	CreateRelease(ctx context.Context, input artifactusecase.CreateReleaseInput) (artifactusecase.ReleaseRecord, error)
 	GetRelease(ctx context.Context, id string) (artifactusecase.ReleaseRecord, error)
+	UpdateReleaseStatus(ctx context.Context, id string, status domainrelease.ReleaseStatus, actorID string, reason string) (artifactusecase.ReleaseRecord, error)
 }
 
 type DeploymentService interface {
@@ -114,6 +116,9 @@ func (s *Service) Plan(ctx context.Context, input PlanInput) (PlanRecord, error)
 	if err := s.store.SavePlan(ctx, record); err != nil {
 		return PlanRecord{}, err
 	}
+	if record, err = s.setPlanReleaseStatus(ctx, record, domainrelease.ReleaseStatusPlanning, input.ActorID, "release plan created"); err != nil {
+		return PlanRecord{}, err
+	}
 	return s.recordPlanEventAndAudit(ctx, record, EventReleasePlanCreated, "Release plan created", input.ActorID, "Release plan created")
 }
 
@@ -145,6 +150,9 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 		if err := s.store.SaveExecution(ctx, record); err != nil {
 			return ExecutionRecord{}, err
 		}
+		if record, err = s.setExecutionReleaseStatus(ctx, record, domainrelease.ReleaseStatusFailed, input.ActorID, planRecord.Security.Policy.Reason); err != nil {
+			return ExecutionRecord{}, err
+		}
 		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionFailed, "Release execution failed", input.ActorID, planRecord.Security.Policy.Reason)
 	}
 	now := s.now()
@@ -172,6 +180,9 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 	if record, err = s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionCreated, "Release execution created", input.ActorID, "Release execution created"); err != nil {
 		return ExecutionRecord{}, err
 	}
+	if record, err = s.setExecutionReleaseStatus(ctx, record, domainrelease.ReleaseStatusDeploying, input.ActorID, "release execution created"); err != nil {
+		return ExecutionRecord{}, err
+	}
 	if deniedTarget := firstDeniedTarget(record.Plan.PolicyResults); deniedTarget != "" {
 		record.Execution.Status = ExecutionFailed
 		record.Execution.Reason = "release policy denied target " + deniedTarget
@@ -179,6 +190,9 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 		record.Execution.FinishedAt = &finished
 		record.Execution.UpdatedAt = finished
 		if err := s.store.SaveExecution(ctx, record); err != nil {
+			return ExecutionRecord{}, err
+		}
+		if record, err = s.setExecutionReleaseStatus(ctx, record, domainrelease.ReleaseStatusFailed, input.ActorID, record.Execution.Reason); err != nil {
 			return ExecutionRecord{}, err
 		}
 		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionFailed, "Release execution failed", input.ActorID, record.Execution.Reason)
@@ -189,6 +203,9 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 		record.Execution.FinishedAt = &finished
 		record.Execution.UpdatedAt = finished
 		if err := s.store.SaveExecution(ctx, record); err != nil {
+			return ExecutionRecord{}, err
+		}
+		if record, err = s.setExecutionReleaseStatus(ctx, record, domainrelease.ReleaseStatusSucceeded, input.ActorID, "plan-only release execution succeeded"); err != nil {
 			return ExecutionRecord{}, err
 		}
 		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionSucceeded, "Release execution succeeded", input.ActorID, "plan-only release execution succeeded")
@@ -205,6 +222,9 @@ func (s *Service) Deploy(ctx context.Context, input DeployInput) (ExecutionRecor
 		record.Execution.Reason = "approval is required"
 		record.Execution.UpdatedAt = s.now()
 		if err := s.store.SaveExecution(ctx, record); err != nil {
+			return ExecutionRecord{}, err
+		}
+		if record, err = s.setExecutionReleaseStatus(ctx, record, domainrelease.ReleaseStatusWaitingApproval, input.ActorID, record.Execution.Reason); err != nil {
 			return ExecutionRecord{}, err
 		}
 		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionCreated, "Release execution waiting for approval", input.ActorID, record.Execution.Reason)
@@ -254,6 +274,9 @@ func (s *Service) ApplyApprovalDecision(ctx context.Context, id string, approval
 		if record, err = s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionStarted, "Release approval approved", actorID, "Release approval approved; resuming execution"); err != nil {
 			return ExecutionRecord{}, err
 		}
+		if record, err = s.setExecutionReleaseStatus(ctx, record, domainrelease.ReleaseStatusDeploying, actorID, "approval approved; resuming release execution"); err != nil {
+			return ExecutionRecord{}, err
+		}
 		return s.runSequential(ctx, record, actorID)
 	case domainapproval.StatusRejected, domainapproval.StatusExpired:
 		record.Execution.Status = ExecutionFailed
@@ -264,6 +287,9 @@ func (s *Service) ApplyApprovalDecision(ctx context.Context, id string, approval
 		if err := s.store.SaveExecution(ctx, record); err != nil {
 			return ExecutionRecord{}, err
 		}
+		if record, err = s.setExecutionReleaseStatus(ctx, record, domainrelease.ReleaseStatusFailed, actorID, record.Execution.Reason); err != nil {
+			return ExecutionRecord{}, err
+		}
 		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionFailed, "Release execution failed", actorID, record.Execution.Reason)
 	case domainapproval.StatusCanceled:
 		record.Execution.Status = ExecutionCanceled
@@ -272,6 +298,9 @@ func (s *Service) ApplyApprovalDecision(ctx context.Context, id string, approval
 		record.Execution.FinishedAt = &finished
 		record.Execution.UpdatedAt = finished
 		if err := s.store.SaveExecution(ctx, record); err != nil {
+			return ExecutionRecord{}, err
+		}
+		if record, err = s.setExecutionReleaseStatus(ctx, record, domainrelease.ReleaseStatusCanceled, actorID, record.Execution.Reason); err != nil {
 			return ExecutionRecord{}, err
 		}
 		return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionCanceled, "Release execution canceled", actorID, record.Execution.Reason)
@@ -361,6 +390,10 @@ func (s *Service) cancelRecord(ctx context.Context, record ExecutionRecord, acto
 	if err := s.store.SaveExecution(ctx, record); err != nil {
 		return ExecutionRecord{}, err
 	}
+	var err error
+	if record, err = s.setExecutionReleaseStatus(ctx, record, domainrelease.ReleaseStatusCanceled, actorID, "release execution canceled"); err != nil {
+		return ExecutionRecord{}, err
+	}
 	return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionCanceled, "Release execution canceled", actorID, "Release execution canceled")
 }
 
@@ -399,6 +432,9 @@ func (s *Service) runSequential(ctx context.Context, record ExecutionRecord, act
 		return ExecutionRecord{}, err
 	}
 	var err error
+	if record, err = s.setExecutionReleaseStatus(ctx, record, domainrelease.ReleaseStatusDeploying, actorID, "sequential release execution started"); err != nil {
+		return ExecutionRecord{}, err
+	}
 	if record, err = s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionStarted, "Release execution started", actorID, "Sequential release execution started"); err != nil {
 		return ExecutionRecord{}, err
 	}
@@ -464,13 +500,19 @@ func (s *Service) runSequential(ctx context.Context, record ExecutionRecord, act
 	eventType := EventReleaseExecutionSucceeded
 	action := "Release execution completed"
 	message := "Release execution succeeded"
+	releaseStatus := domainrelease.ReleaseStatusSucceeded
 	if record.Execution.Status == ExecutionPartiallySucceeded {
 		eventType = EventReleaseExecutionPartiallySucceeded
 		message = "Release execution partially succeeded"
+		releaseStatus = domainrelease.ReleaseStatusFailed
 	} else if record.Execution.Status == ExecutionFailed {
 		eventType = EventReleaseExecutionFailed
 		action = "Release execution failed"
 		message = record.Execution.Reason
+		releaseStatus = domainrelease.ReleaseStatusFailed
+	}
+	if record, err = s.setExecutionReleaseStatus(ctx, record, releaseStatus, actorID, message); err != nil {
+		return ExecutionRecord{}, err
 	}
 	return s.recordExecutionEventAndAudit(ctx, record, eventType, action, actorID, message)
 }
@@ -554,6 +596,61 @@ func (s *Service) buildPlan(ctx context.Context, def Definition, releaseRecord a
 		plan.DeploymentPlans = append(plan.DeploymentPlans, result.Record.Plan)
 	}
 	return plan, nil
+}
+
+func (s *Service) setPlanReleaseStatus(ctx context.Context, record PlanRecord, status domainrelease.ReleaseStatus, actorID string, reason string) (PlanRecord, error) {
+	updated, err := s.updateReleaseStatus(ctx, record.Release.ID, status, actorID, reason)
+	if err != nil {
+		return PlanRecord{}, err
+	}
+	record.Release = mergeReleaseStatus(record.Release, updated.Release)
+	if err := s.store.SavePlan(ctx, record); err != nil {
+		return PlanRecord{}, err
+	}
+	return record, nil
+}
+
+func (s *Service) setExecutionReleaseStatus(ctx context.Context, record ExecutionRecord, status domainrelease.ReleaseStatus, actorID string, reason string) (ExecutionRecord, error) {
+	updated, err := s.updateReleaseStatus(ctx, record.Execution.ReleaseID, status, actorID, reason)
+	if err != nil {
+		return ExecutionRecord{}, err
+	}
+	record.Release = mergeReleaseStatus(record.Release, updated.Release)
+	if err := s.store.SaveExecution(ctx, record); err != nil {
+		return ExecutionRecord{}, err
+	}
+	return record, nil
+}
+
+func (s *Service) updateReleaseStatus(ctx context.Context, id string, status domainrelease.ReleaseStatus, actorID string, reason string) (artifactusecase.ReleaseRecord, error) {
+	if s.artifacts == nil {
+		return artifactusecase.ReleaseRecord{}, fmt.Errorf("release artifact service is not configured")
+	}
+	updated, err := s.artifacts.UpdateReleaseStatus(ctx, id, status, actorID, reason)
+	if errors.Is(err, artifactusecase.ErrReleaseNotFound) && id != "" {
+		return artifactusecase.ReleaseRecord{Release: domainrelease.Release{ID: id, Status: string(status), UpdatedAt: s.now()}}, nil
+	}
+	return updated, err
+}
+
+func mergeReleaseStatus(current domainrelease.Release, updated domainrelease.Release) domainrelease.Release {
+	if updated.ID == "" {
+		return current
+	}
+	if current.ID == "" {
+		return updated
+	}
+	current.Status = updated.Status
+	current.UpdatedAt = updated.UpdatedAt
+	if updated.Metadata != nil {
+		if current.Metadata == nil {
+			current.Metadata = map[string]string{}
+		}
+		for key, value := range updated.Metadata {
+			current.Metadata[key] = value
+		}
+	}
+	return current
 }
 
 func (s *Service) recordPlanEventAndAudit(ctx context.Context, record PlanRecord, eventType string, action string, actorID string, message string) (PlanRecord, error) {

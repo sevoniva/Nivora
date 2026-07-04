@@ -28,6 +28,7 @@ const (
 	EventArtifactWarningDetected         = "devops.artifact.warning.detected"
 	EventArtifactMutableWarning          = "devops.artifact.mutable.warning"
 	EventReleaseCanceled                 = "devops.release.canceled"
+	EventReleaseStatusUpdated            = "devops.release.status.updated"
 )
 
 type Service struct {
@@ -87,7 +88,7 @@ func (s *Service) CreateRelease(ctx context.Context, input CreateReleaseInput) (
 		EnvironmentID:       input.Definition.Spec.Environment,
 		SourcePipelineRunID: input.Definition.Spec.SourcePipelineRunID,
 		Commit:              input.Definition.Spec.Commit,
-		Status:              "Created",
+		Status:              string(release.ReleaseStatusReady),
 		Metadata:            map[string]string{"phase": "2.5"},
 		CreatedAt:           now,
 		UpdatedAt:           now,
@@ -258,19 +259,54 @@ func (s *Service) ListReleases(ctx context.Context) ([]ReleaseRecord, error) {
 	return s.store.ListReleases(ctx)
 }
 
+func (s *Service) UpdateReleaseStatus(ctx context.Context, id string, status release.ReleaseStatus, actorID string, reason string) (ReleaseRecord, error) {
+	if !release.ValidStatus(status) {
+		return ReleaseRecord{}, fmt.Errorf("invalid release status %q", status)
+	}
+	record, err := s.store.GetRelease(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return ReleaseRecord{}, err
+	}
+	current := release.ReleaseStatus(strings.TrimSpace(record.Release.Status))
+	if current == status {
+		return record, nil
+	}
+	if release.TerminalStatus(current) {
+		return ReleaseRecord{}, ErrReleaseAlreadyTerminal
+	}
+	now := s.now()
+	record.Release.Status = string(status)
+	record.Release.UpdatedAt = now
+	if record.Release.Metadata == nil {
+		record.Release.Metadata = map[string]string{}
+	}
+	record.Release.Metadata["statusUpdatedAt"] = now.UTC().Format(time.RFC3339)
+	record.Release.Metadata["statusReason"] = strings.TrimSpace(reason)
+	if actorID = strings.TrimSpace(actorID); actorID != "" {
+		record.Release.Metadata["statusUpdatedBy"] = actorID
+	}
+	if err := s.store.SaveRelease(ctx, record); err != nil {
+		return ReleaseRecord{}, err
+	}
+	if err := s.recordEventAndAudit(ctx, record.Release.ID, EventReleaseStatusUpdated, "Release status updated", actorID, strings.TrimSpace(reason)); err != nil {
+		return ReleaseRecord{}, err
+	}
+	return s.store.GetRelease(ctx, record.Release.ID)
+}
+
 func (s *Service) CancelRelease(ctx context.Context, id string, actorID string) (ReleaseRecord, error) {
 	record, err := s.store.GetRelease(ctx, strings.TrimSpace(id))
 	if err != nil {
 		return ReleaseRecord{}, err
 	}
-	switch strings.TrimSpace(record.Release.Status) {
-	case "Canceled":
+	switch release.ReleaseStatus(strings.TrimSpace(record.Release.Status)) {
+	case release.ReleaseStatusCanceled:
 		return record, nil
-	case "Succeeded", "Failed":
+	case release.ReleaseStatusSucceeded, release.ReleaseStatusFailed:
 		return ReleaseRecord{}, ErrReleaseAlreadyTerminal
 	}
 	now := s.now()
-	record.Release.Status = "Canceled"
+	record.Release.Status = string(release.ReleaseStatusCanceled)
 	record.Release.UpdatedAt = now
 	if record.Release.Metadata == nil {
 		record.Release.Metadata = map[string]string{}

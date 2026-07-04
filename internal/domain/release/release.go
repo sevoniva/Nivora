@@ -2,6 +2,38 @@ package release
 
 import "time"
 
+type ReleaseStatus string
+
+const (
+	ReleaseStatusDraft           ReleaseStatus = "Draft"
+	ReleaseStatusReady           ReleaseStatus = "Ready"
+	ReleaseStatusPlanning        ReleaseStatus = "Planning"
+	ReleaseStatusWaitingApproval ReleaseStatus = "WaitingApproval"
+	ReleaseStatusDeploying       ReleaseStatus = "Deploying"
+	ReleaseStatusSucceeded       ReleaseStatus = "Succeeded"
+	ReleaseStatusFailed          ReleaseStatus = "Failed"
+	ReleaseStatusCanceled        ReleaseStatus = "Canceled"
+)
+
+func ValidStatus(status ReleaseStatus) bool {
+	switch status {
+	case ReleaseStatusDraft, ReleaseStatusReady, ReleaseStatusPlanning, ReleaseStatusWaitingApproval,
+		ReleaseStatusDeploying, ReleaseStatusSucceeded, ReleaseStatusFailed, ReleaseStatusCanceled:
+		return true
+	default:
+		return false
+	}
+}
+
+func TerminalStatus(status ReleaseStatus) bool {
+	switch status {
+	case ReleaseStatusSucceeded, ReleaseStatusFailed, ReleaseStatusCanceled:
+		return true
+	default:
+		return false
+	}
+}
+
 type Release struct {
 	ID                  string            `json:"id"`
 	Name                string            `json:"name"`

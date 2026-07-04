@@ -78,6 +78,15 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 	if executionObj["status"].(string) != "WaitingApproval" {
 		t.Fatalf("execution status = %s, want WaitingApproval", executionObj["status"].(string))
 	}
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/releases/"+releaseID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get waiting release status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"status":"WaitingApproval"`)) || !bytes.Contains(rec.Body.Bytes(), []byte("devops.release.status.updated")) {
+		t.Fatalf("release should expose waiting approval status and audit event: %s", rec.Body.String())
+	}
 
 	for _, path := range []string{
 		"/api/v1/releases",

@@ -31,6 +31,9 @@ func TestPlanMultipleTargets(t *testing.T) {
 	if record.Plan.Ordering[0] != "dev-yaml" || record.Plan.Ordering[1] != "audit-only" {
 		t.Fatalf("ordering = %#v", record.Plan.Ordering)
 	}
+	if record.Release.Status != string(release.ReleaseStatusPlanning) {
+		t.Fatalf("release status = %q, want %q", record.Release.Status, release.ReleaseStatusPlanning)
+	}
 }
 
 func TestPlanAndDeployPersistProjectScope(t *testing.T) {
@@ -69,6 +72,9 @@ func TestSequentialExecutionSuccess(t *testing.T) {
 	if record.Execution.Status != ExecutionSucceeded {
 		t.Fatalf("status = %s, want %s", record.Execution.Status, ExecutionSucceeded)
 	}
+	if record.Release.Status != string(release.ReleaseStatusSucceeded) {
+		t.Fatalf("release status = %q, want %q", record.Release.Status, release.ReleaseStatusSucceeded)
+	}
 	if len(record.Execution.DeploymentRunIDs) != 1 {
 		t.Fatalf("deployment run ids = %d, want 1", len(record.Execution.DeploymentRunIDs))
 	}
@@ -95,6 +101,9 @@ func TestSequentialExecutionPartialFailure(t *testing.T) {
 	if record.Execution.Status != ExecutionPartiallySucceeded {
 		t.Fatalf("status = %s, want %s", record.Execution.Status, ExecutionPartiallySucceeded)
 	}
+	if record.Release.Status != string(release.ReleaseStatusFailed) {
+		t.Fatalf("release status = %q, want %q", record.Release.Status, release.ReleaseStatusFailed)
+	}
 }
 
 func TestPolicyDenied(t *testing.T) {
@@ -109,6 +118,9 @@ func TestPolicyDenied(t *testing.T) {
 	if record.Execution.Reason == "" {
 		t.Fatal("expected denial reason")
 	}
+	if record.Release.Status != string(release.ReleaseStatusFailed) {
+		t.Fatalf("release status = %q, want %q", record.Release.Status, release.ReleaseStatusFailed)
+	}
 }
 
 func TestApprovalRequiredCreatesApprovalRequest(t *testing.T) {
@@ -121,6 +133,9 @@ func TestApprovalRequiredCreatesApprovalRequest(t *testing.T) {
 	}
 	if record.Execution.Status != ExecutionWaitingApproval {
 		t.Fatalf("status = %s", record.Execution.Status)
+	}
+	if record.Release.Status != string(release.ReleaseStatusWaitingApproval) {
+		t.Fatalf("release status = %q, want %q", record.Release.Status, release.ReleaseStatusWaitingApproval)
 	}
 	if record.Approval.Status != domainapproval.StatusPending || record.Approval.SubjectID != record.Execution.ID {
 		t.Fatalf("approval = %#v", record.Approval)
@@ -147,6 +162,9 @@ func TestApprovalApprovedResumesReleaseExecution(t *testing.T) {
 	if resumed.Execution.Status != ExecutionSucceeded {
 		t.Fatalf("status = %s", resumed.Execution.Status)
 	}
+	if resumed.Release.Status != string(release.ReleaseStatusSucceeded) {
+		t.Fatalf("release status = %q, want %q", resumed.Release.Status, release.ReleaseStatusSucceeded)
+	}
 }
 
 func TestApprovalRejectedStopsReleaseExecution(t *testing.T) {
@@ -168,6 +186,9 @@ func TestApprovalRejectedStopsReleaseExecution(t *testing.T) {
 	}
 	if stopped.Execution.Status != ExecutionFailed {
 		t.Fatalf("status = %s", stopped.Execution.Status)
+	}
+	if stopped.Release.Status != string(release.ReleaseStatusFailed) {
+		t.Fatalf("release status = %q, want %q", stopped.Release.Status, release.ReleaseStatusFailed)
 	}
 }
 
@@ -225,6 +246,9 @@ func TestCancelExecutionCancelsLinkedNonTerminalDeploymentRuns(t *testing.T) {
 	}
 	if canceled.Execution.Status != ExecutionCanceled {
 		t.Fatalf("execution status = %s, want %s", canceled.Execution.Status, ExecutionCanceled)
+	}
+	if canceled.Release.Status != string(release.ReleaseStatusCanceled) {
+		t.Fatalf("release status = %q, want %q", canceled.Release.Status, release.ReleaseStatusCanceled)
 	}
 	if got := deployments.cancelCount("drun-running"); got != 1 {
 		t.Fatalf("running deployment cancel count = %d, want 1", got)
@@ -434,7 +458,7 @@ func (fakeArtifactService) CreateRelease(ctx context.Context, input artifactusec
 		Version:       input.Definition.Spec.Version,
 		ApplicationID: input.Definition.Spec.Application,
 		EnvironmentID: input.Definition.Spec.Environment,
-		Status:        "Created",
+		Status:        string(release.ReleaseStatusReady),
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -462,6 +486,10 @@ func (fakeArtifactService) CreateRelease(ctx context.Context, input artifactusec
 
 func (fakeArtifactService) GetRelease(ctx context.Context, id string) (artifactusecase.ReleaseRecord, error) {
 	return artifactusecase.ReleaseRecord{Release: release.Release{ID: id, Name: id, Version: "test"}}, nil
+}
+
+func (fakeArtifactService) UpdateReleaseStatus(ctx context.Context, id string, status release.ReleaseStatus, actorID string, reason string) (artifactusecase.ReleaseRecord, error) {
+	return artifactusecase.ReleaseRecord{Release: release.Release{ID: id, Name: id, Version: "test", Status: string(status), UpdatedAt: time.Now()}}, nil
 }
 
 type fakeDeploymentService struct{}

@@ -5530,6 +5530,16 @@ components:
           type: string
         status:
           type: string
+          enum:
+            - Draft
+            - Ready
+            - Planning
+            - WaitingApproval
+            - Deploying
+            - Succeeded
+            - Failed
+            - Canceled
+          description: Release lifecycle status. Partially succeeded target execution is represented as Failed at release level until a dedicated release partial status is modeled.
         metadata:
           type: object
           additionalProperties:

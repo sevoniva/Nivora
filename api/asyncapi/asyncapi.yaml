@@ -318,6 +318,11 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.release.status.updated:
+    address: devops.release.status.updated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.release.artifact.bound:
     address: devops.release.artifact.bound
     messages:

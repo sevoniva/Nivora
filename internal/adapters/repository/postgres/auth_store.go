@@ -167,7 +167,18 @@ func (s *AuthStore) SaveToken(ctx context.Context, token domainauth.TokenMetadat
 	rolesJSON, _ := json.Marshal(token.Roles)
 	_, err := s.pool.Exec(ctx, `INSERT INTO auth_api_tokens (id, subject_id, subject_type, name, scope_type, scope_id, role, token_hash, issued_at, expires_at, revoked_at, last_used_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)
-		ON CONFLICT (id) DO UPDATE SET revoked_at=EXCLUDED.revoked_at, last_used_at=EXCLUDED.last_used_at`,
+		ON CONFLICT (id) DO UPDATE SET
+			subject_id=EXCLUDED.subject_id,
+			subject_type=EXCLUDED.subject_type,
+			name=EXCLUDED.name,
+			scope_type=EXCLUDED.scope_type,
+			scope_id=EXCLUDED.scope_id,
+			role=EXCLUDED.role,
+			token_hash=EXCLUDED.token_hash,
+			issued_at=EXCLUDED.issued_at,
+			expires_at=EXCLUDED.expires_at,
+			revoked_at=EXCLUDED.revoked_at,
+			last_used_at=EXCLUDED.last_used_at`,
 		token.ID, token.SubjectID, token.SubjectType, token.Name, token.ScopeType, token.ScopeID, string(rolesJSON), token.TokenHash, token.IssuedAt, token.ExpiresAt, token.RevokedAt, token.LastUsedAt)
 	return err
 }

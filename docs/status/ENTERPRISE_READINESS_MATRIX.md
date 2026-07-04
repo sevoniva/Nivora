@@ -62,8 +62,8 @@ No row in this matrix should be read as a GA production claim.
 | Release orchestration | beta | release orchestration usecase | plan/deploy tests | release orchestration docs | Approval/resume incomplete | Governance integration e2e | Release |
 | Auth | beta | dev/token/OIDC foundation | middleware tests | auth docs | Full enterprise SSO incomplete | OIDC provider lifecycle tests | Security |
 | RBAC | beta | permission evaluator/middleware | route matrix tests | route matrix docs | Coverage broad but not every tenant path | Auto-generate route/permission drift reports | Security |
-| Service account | foundation | auth model/store | focused tests | auth docs | Token lifecycle limited | Rotation/revocation coverage | Security |
-| API token | foundation | token metadata/hash paths | token tests | auth docs | Rotation/use analytics limited | Expiry and audit proof | Security |
+| Service account | foundation | auth model/store | focused tests plus Postgres token lifecycle test | auth docs | Token lifecycle analytics limited | Expiry and audit proof | Security |
+| API token | foundation | token metadata/hash paths | token tests plus Postgres rotation/revoke persistence test | auth docs | Use analytics limited | Expiry/audit evidence expansion | Security |
 | Runner token | beta | token hash/runner routes | negative tests | runner security docs | Token storage and revocation need operational proof | Rotation/revoke e2e | Runner |
 | Secret management | foundation | ports/providers/redaction | provider/redaction tests | secret docs | External providers not production-validated | Vault/KMS contract tests | Security |
 | Credential management | foundation | metadata store/API | route/safety tests | credential docs | Validation adapter coverage limited | Provider-specific validation contracts | Security |

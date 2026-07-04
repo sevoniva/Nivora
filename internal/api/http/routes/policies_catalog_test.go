@@ -73,6 +73,16 @@ func TestPolicyCatalogRoutes(t *testing.T) {
 		t.Fatalf("expected one attachment, got %d", len(attachments.Attachments))
 	}
 
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/policies/policy-digest/evaluate", strings.NewReader(`{"subjectType":"artifact","subjectId":"registry.example.invalid/demo/app:1.0.0","reference":"registry.example.invalid/demo/app:1.0.0"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("evaluate status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"policyId":"policy-digest"`) || !strings.Contains(rec.Body.String(), `"decision":"deny"`) {
+		t.Fatalf("saved policy evaluation did not apply requireDigest policy: %s", rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodPatch, "/api/v1/policies/policy-digest", strings.NewReader(`{"highWarnThreshold":2}`))
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -91,5 +101,15 @@ func TestPolicyCatalogRoutes(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"enabled":false`) {
 		t.Fatalf("disabled policy missing enabled=false: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/policies/policy-digest/evaluate", strings.NewReader(`{"subjectType":"artifact","subjectId":"registry.example.invalid/demo/app:1.0.0","reference":"registry.example.invalid/demo/app:1.0.0"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("disabled evaluate status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"code":"policy_disabled"`) {
+		t.Fatalf("disabled policy evaluation should be structured: %s", rec.Body.String())
 	}
 }

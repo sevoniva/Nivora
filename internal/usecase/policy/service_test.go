@@ -63,6 +63,24 @@ func TestPolicyCatalogValidation(t *testing.T) {
 	}
 }
 
+func TestGetEnabledRejectsDisabledPolicy(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	ctx := context.Background()
+	policy, err := service.Create(ctx, CreateInput{ID: "policy-disabled", Name: "Disabled policy"})
+	if err != nil {
+		t.Fatalf("create policy: %v", err)
+	}
+	if _, err := service.GetEnabled(ctx, policy.ID); err != nil {
+		t.Fatalf("enabled policy should be readable: %v", err)
+	}
+	if _, err := service.Disable(ctx, policy.ID); err != nil {
+		t.Fatalf("disable policy: %v", err)
+	}
+	if _, err := service.GetEnabled(ctx, policy.ID); err == nil {
+		t.Fatal("expected disabled policy to be rejected")
+	}
+}
+
 func TestPolicyAttachmentLifecycle(t *testing.T) {
 	service := NewService(NewMemoryStore())
 	ctx := context.Background()

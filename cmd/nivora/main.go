@@ -21,6 +21,7 @@ import (
 	"github.com/sevoniva/nivora/internal/app/worker"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	domainplugin "github.com/sevoniva/nivora/internal/domain/plugin"
+	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
@@ -2703,29 +2704,65 @@ func newPolicyCommand() *cobra.Command {
 	cmd.AddCommand(newPolicyDisableCommand())
 	cmd.AddCommand(newPolicyAttachCommand())
 	cmd.AddCommand(newPolicyAttachmentsCommand())
-	evaluate := &cobra.Command{
-		Use:   "evaluate --subject <reference>",
-		Short: "Evaluate built-in policy gates locally",
+	cmd.AddCommand(newPolicyEvaluateCommand())
+	return cmd
+}
+
+func newPolicyEvaluateCommand() *cobra.Command {
+	var subject string
+	var subjectType string
+	var reference string
+	var requireDigest bool
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "evaluate [policy-id] --subject <reference>",
+		Short: "Evaluate built-in policy gates locally or by saved policy definition",
+		Args:  cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			subject, _ := cmd.Flags().GetString("subject")
-			requireDigest, _ := cmd.Flags().GetBool("require-digest")
 			if subject == "" {
 				return fmt.Errorf("--subject is required")
 			}
-			result := server.NewSecurityService().Evaluate(securityusecase.EvaluateInput{
-				SubjectType: "artifact",
+			if reference == "" {
+				reference = subject
+			}
+			if subjectType == "" {
+				subjectType = "artifact"
+			}
+			input := securityusecase.EvaluateInput{
+				SubjectType: securitySubjectType(subjectType),
 				SubjectID:   subject,
-				Reference:   subject,
-				Policy:      securityusecase.PolicyConfig{CriticalDenyThreshold: 1, HighWarnThreshold: 1, RequireDigest: requireDigest},
-			})
-			printJSON(cmd.OutOrStdout(), result)
+				Reference:   reference,
+			}
+			if len(args) == 0 {
+				input.Policy = securityusecase.PolicyConfig{CriticalDenyThreshold: 1, HighWarnThreshold: 1, RequireDigest: requireDigest}
+				result := server.NewSecurityService().Evaluate(input)
+				printJSON(cmd.OutOrStdout(), result)
+				return nil
+			}
+			body, err := json.Marshal(input)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/policies/"+url.PathEscape(args[0])+"/evaluate", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
 			return nil
 		},
 	}
-	evaluate.Flags().String("subject", "", "artifact reference or subject")
-	evaluate.Flags().Bool("require-digest", false, "deny mutable artifact references without sha256 digest")
-	cmd.AddCommand(evaluate)
+	cmd.Flags().StringVar(&subject, "subject", "", "artifact reference or subject id")
+	cmd.Flags().StringVar(&subjectType, "subject-type", "artifact", "subject type: artifact, manifest, deployment_plan, or release")
+	cmd.Flags().StringVar(&reference, "reference", "", "artifact or manifest reference; defaults to --subject")
+	cmd.Flags().BoolVar(&requireDigest, "require-digest", false, "local mode: deny mutable artifact references without sha256 digest")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for saved policy evaluation")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
+}
+
+func securitySubjectType(input string) domainsecurity.SubjectType {
+	return domainsecurity.SubjectType(input)
 }
 
 func newPolicyAttachCommand() *cobra.Command {

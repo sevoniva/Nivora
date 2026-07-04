@@ -4,10 +4,14 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
+	domainpolicy "github.com/sevoniva/nivora/internal/domain/policy"
+	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
+	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
 func ListPolicies(service *policyusecase.Service) http.HandlerFunc {
@@ -79,6 +83,36 @@ func AttachPolicy(service *policyusecase.Service) http.HandlerFunc {
 	}
 }
 
+func EvaluatePolicyDefinition(policyService *policyusecase.Service, securityService *securityusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		policy, err := policyService.GetEnabled(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondPolicyCatalogError(w, r, err)
+			return
+		}
+		var input securityusecase.EvaluateInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_json", Message: "request body must be valid JSON"})
+			return
+		}
+		if input.SubjectType == "" {
+			input.SubjectType = domainsecurity.SubjectArtifact
+		}
+		if input.SubjectID == "" {
+			input.SubjectID = input.Reference
+		}
+		if input.SubjectID == "" {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_policy_evaluation", Message: "subjectId or reference is required"})
+			return
+		}
+		input.Policy = securityPolicyConfigFromDefinition(policy)
+		result := securityService.Evaluate(input)
+		result.PolicyID = policy.ID
+		result = applyPolicyDefinitionMode(policy, result)
+		RespondJSON(w, http.StatusOK, result)
+	}
+}
+
 func UpdatePolicy(service *policyusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var input policyusecase.UpdateInput
@@ -119,6 +153,32 @@ func respondPolicyCatalogError(w http.ResponseWriter, r *http.Request, err error
 	case errors.Is(err, policyusecase.ErrNotFound):
 		status = http.StatusNotFound
 		code = "policy_not_found"
+	case errors.Is(err, policyusecase.ErrDisabled):
+		status = http.StatusConflict
+		code = "policy_disabled"
 	}
 	RespondError(w, r, status, dto.ErrorResponse{Code: code, Message: err.Error()})
+}
+
+func securityPolicyConfigFromDefinition(policy domainpolicy.Policy) securityusecase.PolicyConfig {
+	return securityusecase.PolicyConfig{
+		CriticalDenyThreshold: policy.CriticalDeny,
+		HighWarnThreshold:     policy.HighWarn,
+		RequireDigest:         policy.RequireDigest,
+		ApprovalOnCritical:    policy.ApprovalOnCritical || strings.EqualFold(policy.Mode, "require_approval"),
+	}
+}
+
+func applyPolicyDefinitionMode(policy domainpolicy.Policy, result domainsecurity.PolicyResult) domainsecurity.PolicyResult {
+	switch strings.ToLower(strings.TrimSpace(policy.Mode)) {
+	case "deny":
+		if result.Decision != domainsecurity.GateAllow {
+			result.Decision = domainsecurity.GateDeny
+		}
+	case "require_approval", "require-approval":
+		if result.Decision != domainsecurity.GateAllow {
+			result.Decision = domainsecurity.GateRequireApproval
+		}
+	}
+	return result
 }

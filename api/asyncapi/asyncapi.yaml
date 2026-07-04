@@ -717,7 +717,7 @@ channels:
         $ref: "#/components/messages/Event"
   devops.policy.violation.detected:
     address: devops.policy.violation.detected
-    description: Reserved for future policy engines; not emitted by the Phase 2.1 allow-all pre-check.
+    description: Emitted when the built-in security policy gate records a denied policy violation. External OPA, Kyverno, and Gatekeeper engines remain future work.
     messages:
       event:
         $ref: "#/components/messages/Event"

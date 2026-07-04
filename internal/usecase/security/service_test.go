@@ -54,6 +54,14 @@ func TestRequireDigestDenies(t *testing.T) {
 	}
 }
 
+func TestRequireDigestWithoutThresholdsStillDenies(t *testing.T) {
+	service := NewService(NewMemoryStore(), fakeScanner{}, nil, nil)
+	result := service.Evaluate(EvaluateInput{SubjectType: domainsecurity.SubjectArtifact, SubjectID: "demo", Reference: "demo:1.0.0", Policy: PolicyConfig{RequireDigest: true}})
+	if result.Decision != domainsecurity.GateDeny {
+		t.Fatalf("decision = %s, want deny", result.Decision)
+	}
+}
+
 func TestManifestPrivilegedWarning(t *testing.T) {
 	service := NewService(NewMemoryStore(), fakeScanner{}, nil, nil)
 	record, err := service.Scan(context.Background(), ScanInput{SubjectType: domainsecurity.SubjectManifest, SubjectID: "manifest", Content: "securityContext:\n  privileged: true\n"})

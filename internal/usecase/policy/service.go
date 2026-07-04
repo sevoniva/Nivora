@@ -66,6 +66,17 @@ func (s *Service) Get(ctx context.Context, id string) (domainpolicy.Policy, erro
 	return s.store.Get(ctx, strings.TrimSpace(id))
 }
 
+func (s *Service) GetEnabled(ctx context.Context, id string) (domainpolicy.Policy, error) {
+	policy, err := s.Get(ctx, id)
+	if err != nil {
+		return domainpolicy.Policy{}, err
+	}
+	if !policy.Enabled {
+		return domainpolicy.Policy{}, fmt.Errorf("%w: %q", ErrDisabled, policy.ID)
+	}
+	return policy, nil
+}
+
 func (s *Service) List(ctx context.Context, projectID string, environmentID string) ([]domainpolicy.Policy, error) {
 	return s.store.List(ctx, strings.TrimSpace(projectID), strings.TrimSpace(environmentID))
 }

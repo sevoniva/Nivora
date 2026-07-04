@@ -115,6 +115,7 @@ var criticalRoutes = []struct {
 	{"POST", "/api/v1/policies", domainauth.PermissionPolicyManage, true},
 	{"GET", "/api/v1/policies/policy-1/attachments", domainauth.PermissionProjectRead, false},
 	{"POST", "/api/v1/policies/policy-1/attachments", domainauth.PermissionPolicyManage, true},
+	{"POST", "/api/v1/policies/policy-1/evaluate", domainauth.PermissionPolicyManage, true},
 	{"PATCH", "/api/v1/policies/policy-1", domainauth.PermissionPolicyManage, true},
 	{"DELETE", "/api/v1/policies/policy-1", domainauth.PermissionPolicyManage, true},
 	{"POST", "/api/v1/policies/evaluate", domainauth.PermissionPolicyManage, true},

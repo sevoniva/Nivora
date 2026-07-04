@@ -6,6 +6,7 @@ var (
 	ErrInvalid       = errors.New("policy input is invalid")
 	ErrNotFound      = errors.New("policy not found")
 	ErrAlreadyExists = errors.New("policy already exists")
+	ErrDisabled      = errors.New("policy is disabled")
 )
 
 type CreateInput struct {

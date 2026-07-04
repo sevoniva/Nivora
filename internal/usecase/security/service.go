@@ -129,8 +129,12 @@ func (s *Service) Scan(ctx context.Context, input ScanInput) (ScanRecord, error)
 
 func (s *Service) Evaluate(input EvaluateInput) domainsecurity.PolicyResult {
 	policyConfig := input.Policy
-	if policyConfig.CriticalDenyThreshold == 0 && policyConfig.HighWarnThreshold == 0 {
-		policyConfig = DefaultPolicyConfig()
+	defaultPolicy := DefaultPolicyConfig()
+	if policyConfig.CriticalDenyThreshold == 0 {
+		policyConfig.CriticalDenyThreshold = defaultPolicy.CriticalDenyThreshold
+	}
+	if policyConfig.HighWarnThreshold == 0 {
+		policyConfig.HighWarnThreshold = defaultPolicy.HighWarnThreshold
 	}
 	summary := domainsecurity.Summarize(input.Findings)
 	decision := domainsecurity.GateAllow

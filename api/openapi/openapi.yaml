@@ -1515,6 +1515,7 @@ paths:
   /api/v1/policies/evaluate:
     post:
       summary: Evaluate built-in policy gate rules
+      description: Evaluates ad hoc built-in policy input without requiring a saved policy definition.
       requestBody:
         required: true
         content:
@@ -1530,6 +1531,31 @@ paths:
                 $ref: "#/components/schemas/PolicyResult"
         "400":
           description: Invalid policy evaluation request
+  /api/v1/policies/{id}/evaluate:
+    post:
+      summary: Evaluate a saved policy definition
+      description: Evaluates a subject using the stored built-in policy definition identified by id. Disabled policies are rejected and no external policy engine is called.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyEvaluationRequest"
+      responses:
+        "200":
+          description: Saved policy evaluation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyResult"
+        "400":
+          description: Invalid policy evaluation request
+        "404":
+          description: Policy definition not found
+        "409":
+          description: Policy definition is disabled
   /api/v1/secrets:
     post:
       summary: Store a secret value and return SecretRef metadata only
@@ -6186,11 +6212,15 @@ components:
         - $ref: "#/components/schemas/PolicyDefinition"
     PolicyEvaluationRequest:
       type: object
+      required: [subjectId]
       properties:
         subjectType:
           type: string
+          enum: [artifact, manifest, deployment_plan, release]
+          default: artifact
         subjectId:
           type: string
+          description: Subject identifier. For artifact references this can be the image reference.
         projectId:
           type: string
         environmentId:
@@ -6203,6 +6233,7 @@ components:
             $ref: "#/components/schemas/SecurityFinding"
         policy:
           $ref: "#/components/schemas/PolicyConfig"
+          description: Optional ad hoc policy config. Ignored by /api/v1/policies/{id}/evaluate, which uses the saved policy definition.
     GateDecision:
       type: string
       enum: [allow, deny, warn, require_approval]

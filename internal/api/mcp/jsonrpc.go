@@ -53,6 +53,12 @@ func (s *Server) HandleJSONRPC(ctx context.Context, body []byte) jsonRPCResponse
 	finalize := func(response jsonRPCResponse) jsonRPCResponse {
 		return s.capJSONRPCResponse(response)
 	}
+	if limit := s.maxJSONRPCRequestBytes(); limit > 0 && len(body) > limit {
+		return finalize(jsonRPCResponse{JSONRPC: "2.0", Error: rpcErrorFrom(OperationError{
+			Code:    "mcp_request_too_large",
+			Message: "MCP request exceeded configured max_request_bytes",
+		})})
+	}
 
 	var request jsonRPCRequest
 	if err := json.Unmarshal(body, &request); err != nil {
@@ -180,6 +186,10 @@ func rpcErrorFrom(err error) *jsonRPCError {
 
 func rpcError(code int, message string, data any) *jsonRPCError {
 	return &jsonRPCError{Code: code, Message: message, Data: data}
+}
+
+func (s *Server) maxJSONRPCRequestBytes() int {
+	return s.services.Config.MCP.MaxRequestBytes
 }
 
 func (s *Server) checkJSONRPCRateLimit(now time.Time) error {

@@ -33,6 +33,7 @@ data:
       subject_role: {{ .Values.config.mcp.subjectRole | quote }}
       token_env: {{ .Values.config.mcp.tokenEnv | quote }}
       request_timeout: {{ .Values.config.mcp.requestTimeout | quote }}
+      max_request_bytes: {{ int .Values.config.mcp.maxRequestBytes }}
       max_response_bytes: {{ .Values.config.mcp.maxResponseBytes }}
       max_requests_per_minute: {{ .Values.config.mcp.maxRequestsPerMinute }}
     auth:
@@ -90,6 +91,7 @@ data:
       subject_role: {{ .Values.config.mcp.subjectRole | quote }}
       token_env: {{ .Values.config.mcp.tokenEnv | quote }}
       request_timeout: {{ .Values.config.mcp.requestTimeout | quote }}
+      max_request_bytes: {{ int .Values.config.mcp.maxRequestBytes }}
       max_response_bytes: {{ .Values.config.mcp.maxResponseBytes }}
       max_requests_per_minute: {{ .Values.config.mcp.maxRequestsPerMinute }}
     auth:
@@ -147,6 +149,7 @@ data:
       subject_role: {{ .Values.config.mcp.subjectRole | quote }}
       token_env: {{ .Values.config.mcp.tokenEnv | quote }}
       request_timeout: {{ .Values.config.mcp.requestTimeout | quote }}
+      max_request_bytes: {{ int .Values.config.mcp.maxRequestBytes }}
       max_response_bytes: {{ .Values.config.mcp.maxResponseBytes }}
       max_requests_per_minute: {{ .Values.config.mcp.maxRequestsPerMinute }}
     auth:

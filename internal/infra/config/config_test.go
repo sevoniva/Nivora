@@ -122,6 +122,10 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 			c.MCP.Enabled = true
 			c.MCP.MaxResponseBytes = 0
 		}},
+		{"mcp missing request cap", func(c *Config) {
+			c.MCP.Enabled = true
+			c.MCP.MaxRequestBytes = 0
+		}},
 		{"mcp missing rate limit", func(c *Config) {
 			c.MCP.Enabled = true
 			c.MCP.MaxRequestsPerMinute = 0
@@ -147,6 +151,7 @@ func TestMCPConfigRejectsInvalidLimits(t *testing.T) {
 		mutate func(*Config)
 	}{
 		{"negative max response bytes", func(c *Config) { c.MCP.MaxResponseBytes = -1 }},
+		{"negative max request bytes", func(c *Config) { c.MCP.MaxRequestBytes = -1 }},
 		{"negative max requests per minute", func(c *Config) { c.MCP.MaxRequestsPerMinute = -1 }},
 		{"invalid request timeout", func(c *Config) { c.MCP.RequestTimeout = "soon" }},
 		{"zero request timeout", func(c *Config) { c.MCP.RequestTimeout = "0s" }},

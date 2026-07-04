@@ -59,6 +59,7 @@ config:
     subjectRole: ""
     tokenEnv: NIVORA_MCP_TOKEN
     requestTimeout: 15s
+    maxRequestBytes: 1048576
     maxResponseBytes: 262144
     maxRequestsPerMinute: 120
   auth:

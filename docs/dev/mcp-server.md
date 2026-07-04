@@ -92,6 +92,7 @@ mcp:
   subject_role: viewer
   token_env: NIVORA_MCP_TOKEN
   request_timeout: 15s
+  max_request_bytes: 1048576
   max_response_bytes: 262144
   max_requests_per_minute: 120
 ```

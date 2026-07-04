@@ -761,6 +761,21 @@ func TestMCPJSONRPCRateLimit(t *testing.T) {
 	}
 }
 
+func TestMCPJSONRPCRequestBodyLimit(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	server.services.Config.MCP.MaxRequestBytes = 64
+	body := `{"jsonrpc":"2.0","id":3,"method":"initialize","params":{"padding":"` + strings.Repeat("x", 80) + `"}}`
+
+	response := server.HandleJSONRPC(context.Background(), []byte(body))
+	if response.Error == nil || response.Error.Code != rpcInternalError {
+		t.Fatalf("expected request-too-large error, got %#v", response)
+	}
+	got := mustMarshal(t, response)
+	if !strings.Contains(got, "mcp_request_too_large") || strings.Contains(got, ProtocolVersion) {
+		t.Fatalf("unexpected request limit response: %s", got)
+	}
+}
+
 func TestMCPMissingDeploymentHealthReturnsStructuredError(t *testing.T) {
 	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
 	_, err := server.ReadResource(context.Background(), "nivora://deployments/missing/health")

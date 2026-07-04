@@ -64,6 +64,11 @@ for flag in allow_local_shell_executor allow_privileged_executor allow_remote_ho
 done
 
 # 4b. Production profile keeps local MCP guardrails explicit even when MCP is disabled by default.
+if echo "$PROD_OUT" | grep -q 'max_request_bytes: 1048576'; then
+  pass "production chart renders MCP request body cap"
+else
+  fail "production chart missing MCP request body cap"
+fi
 if echo "$PROD_OUT" | grep -q 'max_requests_per_minute: 120'; then
   pass "production chart renders MCP request rate limit"
 else

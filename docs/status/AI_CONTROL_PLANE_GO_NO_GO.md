@@ -8,7 +8,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 |---|---|---|
 | Local stdio MCP | go for local maintainer use | read-only/plan-only resources and tools are tested; blocked actions are denied |
 | Local AI operator demo | go with scripted local data | 29 validated scenarios and golden answers exist |
-| Remote read-only MCP | no-go until next hardening phase | auth, tenant filters, remote per-client rate limits, pagination, and remote audit tests are missing; local response caps, request timeouts, and stdio request rate limits exist but are not remote transport proof |
+| Remote read-only MCP | no-go until next hardening phase | auth, tenant filters, remote per-client rate limits, pagination, and remote audit tests are missing; local request/response caps, request timeouts, and stdio request rate limits exist but are not remote transport proof |
 | Remote plan-only MCP | no-go | plan tools need remote abuse controls |
 | Action MCP | no-go | apply, sync, rollback, approval, token, secret, runner, host, Git, prune, and delete actions remain blocked |
 | Production use | no-go | broader platform hardening remains incomplete |
@@ -17,7 +17,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 
 1. Remote MCP tenant filtering is incomplete.
 2. Remote MCP auth/OAuth contract tests do not exist.
-3. Remote per-client rate limits do not exist; local MCP response caps, request timeouts, and stdio request rate limits exist but remote transport limits are not proven.
+3. Remote per-client rate limits do not exist; local MCP request/response caps, request timeouts, and stdio request rate limits exist but remote transport limits are not proven.
 4. Dedicated Postgres MCP audit-chain test is not complete.
 5. Audit search can expose broad metadata without future scope filters.
 6. Runner summary needs environment/group filtering before remote exposure.

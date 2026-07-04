@@ -43,6 +43,7 @@ type MCPConfig struct {
 	SubjectRole          string `mapstructure:"subject_role" yaml:"subject_role"`
 	TokenEnv             string `mapstructure:"token_env" yaml:"token_env"`
 	RequestTimeout       string `mapstructure:"request_timeout" yaml:"request_timeout"`
+	MaxRequestBytes      int    `mapstructure:"max_request_bytes" yaml:"max_request_bytes"`
 	MaxResponseBytes     int    `mapstructure:"max_response_bytes" yaml:"max_response_bytes"`
 	MaxRequestsPerMinute int    `mapstructure:"max_requests_per_minute" yaml:"max_requests_per_minute"`
 }
@@ -151,6 +152,7 @@ func Default() Config {
 			SubjectRole:          "viewer",
 			TokenEnv:             "NIVORA_MCP_TOKEN",
 			RequestTimeout:       "15s",
+			MaxRequestBytes:      1024 * 1024,
 			MaxResponseBytes:     256 * 1024,
 			MaxRequestsPerMinute: 120,
 		},
@@ -213,6 +215,9 @@ func (c Config) Validate() error {
 	if c.MCP.MaxResponseBytes < 0 {
 		return errors.New("config mcp.max_response_bytes must be zero or greater")
 	}
+	if c.MCP.MaxRequestBytes < 0 {
+		return errors.New("config mcp.max_request_bytes must be zero or greater")
+	}
 	if c.MCP.MaxRequestsPerMinute < 0 {
 		return errors.New("config mcp.max_requests_per_minute must be zero or greater")
 	}
@@ -253,6 +258,9 @@ func (c Config) Validate() error {
 			}
 			if c.MCP.MaxResponseBytes <= 0 {
 				return errors.New("config mcp.max_response_bytes must be positive when mcp.enabled=true in production")
+			}
+			if c.MCP.MaxRequestBytes <= 0 {
+				return errors.New("config mcp.max_request_bytes must be positive when mcp.enabled=true in production")
 			}
 			if c.MCP.MaxRequestsPerMinute <= 0 {
 				return errors.New("config mcp.max_requests_per_minute must be positive when mcp.enabled=true in production")

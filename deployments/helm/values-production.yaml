@@ -60,6 +60,7 @@ config:
     tokenEnv: NIVORA_MCP_TOKEN
     requestTimeout: 15s
     maxResponseBytes: 262144
+    maxRequestsPerMinute: 120
   auth:
     enabled: true
     mode: token

@@ -63,6 +63,13 @@ for flag in allow_local_shell_executor allow_privileged_executor allow_remote_ho
   fi
 done
 
+# 4b. Production profile keeps local MCP guardrails explicit even when MCP is disabled by default.
+if echo "$PROD_OUT" | grep -q 'max_requests_per_minute: 120'; then
+  pass "production chart renders MCP request rate limit"
+else
+  fail "production chart missing MCP request rate limit"
+fi
+
 # 5. No inline secrets — the template renders env var names, not values.
 # Check that no inline password/token values are rendered in the config.
 if echo "$DEFAULT_OUT" | grep -qiE 'password: "[^"]+"|token: "[^"]{8,}"|secret: "[^"]{8,}"'; then

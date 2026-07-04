@@ -34,6 +34,7 @@ data:
       token_env: {{ .Values.config.mcp.tokenEnv | quote }}
       request_timeout: {{ .Values.config.mcp.requestTimeout | quote }}
       max_response_bytes: {{ .Values.config.mcp.maxResponseBytes }}
+      max_requests_per_minute: {{ .Values.config.mcp.maxRequestsPerMinute }}
     auth:
       enabled: {{ .Values.config.auth.enabled }}
       mode: {{ .Values.config.auth.mode | quote }}
@@ -90,6 +91,7 @@ data:
       token_env: {{ .Values.config.mcp.tokenEnv | quote }}
       request_timeout: {{ .Values.config.mcp.requestTimeout | quote }}
       max_response_bytes: {{ .Values.config.mcp.maxResponseBytes }}
+      max_requests_per_minute: {{ .Values.config.mcp.maxRequestsPerMinute }}
     auth:
       enabled: {{ .Values.config.auth.enabled }}
       mode: {{ .Values.config.auth.mode | quote }}
@@ -146,6 +148,7 @@ data:
       token_env: {{ .Values.config.mcp.tokenEnv | quote }}
       request_timeout: {{ .Values.config.mcp.requestTimeout | quote }}
       max_response_bytes: {{ .Values.config.mcp.maxResponseBytes }}
+      max_requests_per_minute: {{ .Values.config.mcp.maxRequestsPerMinute }}
     auth:
       enabled: {{ .Values.config.auth.enabled }}
       mode: {{ .Values.config.auth.mode | quote }}

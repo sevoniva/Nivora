@@ -10,6 +10,7 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
+	"sync"
 	"time"
 
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
@@ -49,8 +50,11 @@ var blockedActionTools = map[string]string{
 }
 
 type Server struct {
-	services Services
-	logger   *slog.Logger
+	services        Services
+	logger          *slog.Logger
+	rateLimitMu     sync.Mutex
+	rateLimitWindow time.Time
+	rateLimitCount  int
 }
 
 func NewServer(services Services, logger *slog.Logger) *Server {

@@ -34,16 +34,17 @@ type HTTPConfig struct {
 }
 
 type MCPConfig struct {
-	Enabled          bool   `mapstructure:"enabled" yaml:"enabled"`
-	Mode             string `mapstructure:"mode" yaml:"mode"`
-	ReadOnly         bool   `mapstructure:"readonly" yaml:"readonly"`
-	AllowPlanTools   bool   `mapstructure:"allow_plan_tools" yaml:"allow_plan_tools"`
-	AllowActionTools bool   `mapstructure:"allow_action_tools" yaml:"allow_action_tools"`
-	SubjectID        string `mapstructure:"subject_id" yaml:"subject_id"`
-	SubjectRole      string `mapstructure:"subject_role" yaml:"subject_role"`
-	TokenEnv         string `mapstructure:"token_env" yaml:"token_env"`
-	RequestTimeout   string `mapstructure:"request_timeout" yaml:"request_timeout"`
-	MaxResponseBytes int    `mapstructure:"max_response_bytes" yaml:"max_response_bytes"`
+	Enabled              bool   `mapstructure:"enabled" yaml:"enabled"`
+	Mode                 string `mapstructure:"mode" yaml:"mode"`
+	ReadOnly             bool   `mapstructure:"readonly" yaml:"readonly"`
+	AllowPlanTools       bool   `mapstructure:"allow_plan_tools" yaml:"allow_plan_tools"`
+	AllowActionTools     bool   `mapstructure:"allow_action_tools" yaml:"allow_action_tools"`
+	SubjectID            string `mapstructure:"subject_id" yaml:"subject_id"`
+	SubjectRole          string `mapstructure:"subject_role" yaml:"subject_role"`
+	TokenEnv             string `mapstructure:"token_env" yaml:"token_env"`
+	RequestTimeout       string `mapstructure:"request_timeout" yaml:"request_timeout"`
+	MaxResponseBytes     int    `mapstructure:"max_response_bytes" yaml:"max_response_bytes"`
+	MaxRequestsPerMinute int    `mapstructure:"max_requests_per_minute" yaml:"max_requests_per_minute"`
 }
 
 type DatabaseConfig struct {
@@ -143,14 +144,15 @@ func Default() Config {
 			BindAddress: ":8080",
 		},
 		MCP: MCPConfig{
-			Enabled:          false,
-			Mode:             "stdio",
-			ReadOnly:         true,
-			AllowPlanTools:   true,
-			SubjectRole:      "viewer",
-			TokenEnv:         "NIVORA_MCP_TOKEN",
-			RequestTimeout:   "15s",
-			MaxResponseBytes: 256 * 1024,
+			Enabled:              false,
+			Mode:                 "stdio",
+			ReadOnly:             true,
+			AllowPlanTools:       true,
+			SubjectRole:          "viewer",
+			TokenEnv:             "NIVORA_MCP_TOKEN",
+			RequestTimeout:       "15s",
+			MaxResponseBytes:     256 * 1024,
+			MaxRequestsPerMinute: 120,
 		},
 		Database: DatabaseConfig{
 			URL:          "postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable",
@@ -211,6 +213,9 @@ func (c Config) Validate() error {
 	if c.MCP.MaxResponseBytes < 0 {
 		return errors.New("config mcp.max_response_bytes must be zero or greater")
 	}
+	if c.MCP.MaxRequestsPerMinute < 0 {
+		return errors.New("config mcp.max_requests_per_minute must be zero or greater")
+	}
 	if c.Database.URL == "" {
 		return errors.New("config database.url is required")
 	}
@@ -248,6 +253,9 @@ func (c Config) Validate() error {
 			}
 			if c.MCP.MaxResponseBytes <= 0 {
 				return errors.New("config mcp.max_response_bytes must be positive when mcp.enabled=true in production")
+			}
+			if c.MCP.MaxRequestsPerMinute <= 0 {
+				return errors.New("config mcp.max_requests_per_minute must be positive when mcp.enabled=true in production")
 			}
 		}
 		if hasInlineDatabasePassword(c.Database.URL) {

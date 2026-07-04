@@ -8,7 +8,7 @@ Current decision: **no-go for remote MCP implementation today**. Local stdio MCP
 |---|---|---|---|
 | Local stdio read-only MCP | go for local maintainer use | `cmd/nivora-mcp`, `make verify-mcp` | Local trust boundary only. |
 | Local stdio plan-only MCP | go for local maintainer use | plan tools return `mutated=false` | Summaries are not execution authority. |
-| Remote read-only MCP | conditional no-go | RFC exists; local response caps and request timeouts exist | OAuth/OIDC contract, tenant filters, rate limits, pagination, remote timeout/cap proof, and remote audit tests missing. |
+| Remote read-only MCP | conditional no-go | RFC exists; local response caps, request timeouts, and stdio request rate limits exist | OAuth/OIDC contract, tenant filters, remote per-client rate limits, pagination, remote timeout/cap proof, and remote audit tests missing. |
 | Remote plan-only MCP | no-go for now | plan-only local tests exist | Remote abuse controls are not implemented. |
 | Remote action MCP | no-go | blocked action tools | Destructive actions are intentionally excluded. |
 

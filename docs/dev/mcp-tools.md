@@ -39,7 +39,7 @@ MCP records audit events for:
 - `mcp.tool.denied`
 - `mcp.prompt.rendered`
 
-Responses are redacted before they are returned and capped by `mcp.max_response_bytes`. MCP must not return secret values, token hashes, kubeconfigs, authorization headers, private keys, or raw credential payloads.
+Responses are redacted before they are returned and capped by `mcp.max_response_bytes`. Local stdio JSON-RPC requests are also limited by `mcp.max_requests_per_minute`. MCP must not return secret values, token hashes, kubeconfigs, authorization headers, private keys, or raw credential payloads.
 
 ## Verification
 

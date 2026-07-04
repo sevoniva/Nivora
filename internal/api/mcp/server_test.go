@@ -740,6 +740,27 @@ func TestMCPRequestContextUsesConfiguredTimeout(t *testing.T) {
 	}
 }
 
+func TestMCPJSONRPCRateLimit(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	server.services.Config.MCP.MaxRequestsPerMinute = 1
+
+	first := server.HandleJSONRPC(context.Background(), []byte(`{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}`))
+	if first.Error != nil {
+		t.Fatalf("first request error = %#v", first.Error)
+	}
+	second := server.HandleJSONRPC(context.Background(), []byte(`{"jsonrpc":"2.0","id":2,"method":"initialize","params":{}}`))
+	if second.Error == nil || second.Error.Code != rpcInternalError {
+		t.Fatalf("expected rate-limit error, got %#v", second)
+	}
+	if second.ID != float64(2) {
+		t.Fatalf("rate-limit response id = %#v, want 2", second.ID)
+	}
+	body := mustMarshal(t, second)
+	if !strings.Contains(body, "mcp_rate_limited") {
+		t.Fatalf("rate-limit response missing code: %s", body)
+	}
+}
+
 func TestMCPMissingDeploymentHealthReturnsStructuredError(t *testing.T) {
 	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
 	_, err := server.ReadResource(context.Background(), "nivora://deployments/missing/health")

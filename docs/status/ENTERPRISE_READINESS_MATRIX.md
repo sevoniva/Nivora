@@ -100,7 +100,7 @@ No row in this matrix should be read as a GA production claim.
 | MCP audit | foundation | compliance recorder | unit/compliance tests | MCP audit docs | Dedicated Postgres audit chain missing | MCP audit integration proof | MCP |
 | MCP scenario corpus | beta | scenario YAML | validator/tests | scenario README | Coverage must grow with tools | Require enterprise abuse cases | MCP |
 | MCP golden answers | beta | golden markdown | validator/tests | scenario README | Style drift possible | Golden-answer linter | MCP |
-| MCP rate limit | missing | none | none | remote readiness docs | Remote abuse risk | Add before remote exposure | MCP |
+| MCP rate limit | foundation | local stdio JSON-RPC request limit | MCP rate-limit tests | MCP security docs | Remote per-client rate limits missing | Add remote per-client limits before exposure | MCP |
 | MCP response size cap | beta | JSON-RPC transport cap plus log/resource truncation | transport cap and truncation tests | MCP docs | Remote pagination and body-size proof still missing | Add remote transport limits before exposure | MCP |
 | MCP action denial | beta | denied tool registry | scenario tests | permission matrix | New action aliases could drift | Deny-list catalog test | MCP |
 | MCP operator journey quality | beta | operator journeys and scenarios | scenario validator | AI operator docs | Still fixture-based | Real incident replay corpus | MCP |

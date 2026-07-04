@@ -7,6 +7,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"time"
 )
 
 const (
@@ -56,6 +57,9 @@ func (s *Server) HandleJSONRPC(ctx context.Context, body []byte) jsonRPCResponse
 	var request jsonRPCRequest
 	if err := json.Unmarshal(body, &request); err != nil {
 		return finalize(jsonRPCResponse{JSONRPC: "2.0", Error: rpcError(rpcParseError, "parse error", err.Error())})
+	}
+	if err := s.checkJSONRPCRateLimit(time.Now().UTC()); err != nil {
+		return finalize(jsonRPCResponse{JSONRPC: "2.0", ID: request.ID, Error: rpcErrorFrom(err)})
 	}
 	if request.JSONRPC != "2.0" || request.Method == "" {
 		return finalize(jsonRPCResponse{JSONRPC: "2.0", ID: request.ID, Error: rpcError(rpcInvalidRequest, "invalid request", nil)})
@@ -176,6 +180,25 @@ func rpcErrorFrom(err error) *jsonRPCError {
 
 func rpcError(code int, message string, data any) *jsonRPCError {
 	return &jsonRPCError{Code: code, Message: message, Data: data}
+}
+
+func (s *Server) checkJSONRPCRateLimit(now time.Time) error {
+	limit := s.services.Config.MCP.MaxRequestsPerMinute
+	if limit <= 0 {
+		return nil
+	}
+	s.rateLimitMu.Lock()
+	defer s.rateLimitMu.Unlock()
+
+	if s.rateLimitWindow.IsZero() || now.Sub(s.rateLimitWindow) >= time.Minute {
+		s.rateLimitWindow = now
+		s.rateLimitCount = 0
+	}
+	if s.rateLimitCount >= limit {
+		return OperationError{Code: "mcp_rate_limited", Message: "MCP request rate limit exceeded"}
+	}
+	s.rateLimitCount++
+	return nil
 }
 
 func (s *Server) capJSONRPCResponse(response jsonRPCResponse) jsonRPCResponse {

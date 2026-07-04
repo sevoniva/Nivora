@@ -44,6 +44,9 @@ func TestHelmProductionValuesAvoidUnsafeDefaults(t *testing.T) {
 	if got := intValue(mcpValues, "maxResponseBytes"); got <= 0 {
 		t.Fatalf("MCP maxResponseBytes = %d, want positive", got)
 	}
+	if got := intValue(mcpValues, "maxRequestsPerMinute"); got <= 0 {
+		t.Fatalf("MCP maxRequestsPerMinute = %d, want positive", got)
+	}
 	runtimeValues := nestedMap(t, configValues, "runtime")
 	for _, key := range []string{
 		"allowLocalShellExecutor",

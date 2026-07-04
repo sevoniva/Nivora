@@ -93,9 +93,10 @@ mcp:
   token_env: NIVORA_MCP_TOKEN
   request_timeout: 15s
   max_response_bytes: 262144
+  max_requests_per_minute: 120
 ```
 
-Production mode requires explicit token-backed identity. Runner tokens are rejected.
+Production mode requires explicit token-backed identity, request timeout, response cap, and a positive local stdio request rate limit. Runner tokens are rejected.
 
 ## Audit
 

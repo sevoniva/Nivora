@@ -628,6 +628,81 @@ func TestMCPTenantScopeFiltersSecurityFindingsPolicyAndEvents(t *testing.T) {
 	}
 }
 
+func TestMCPTenantScopeFiltersArtifactsAndReleaseEvents(t *testing.T) {
+	ctx := context.Background()
+	artifacts := runtime.NewArtifactService()
+	projectA := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-artifact-project-a",
+		Username:  "sa-artifact-project-a",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-a",
+	})
+	projectA.services.Artifacts = artifacts
+	projectB := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-artifact-project-b",
+		Username:  "sa-artifact-project-b",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-b",
+	})
+	projectB.services.Artifacts = artifacts
+
+	artifactA, releaseA := createScopedMCPArtifactFixture(t, artifacts, "project-a")
+	artifactB, releaseB := createScopedMCPArtifactFixture(t, artifacts, "project-b")
+
+	resource, err := projectA.ReadResource(ctx, "nivora://artifacts")
+	if err != nil {
+		t.Fatalf("project A read artifact inventory: %v", err)
+	}
+	if !strings.Contains(resource.Text, artifactA) || strings.Contains(resource.Text, artifactB) || strings.Contains(resource.Text, "project-b") {
+		t.Fatalf("artifact inventory did not honor project scope: %s", resource.Text)
+	}
+
+	if _, err := projectA.ReadResource(ctx, "nivora://artifacts/"+artifactA+"/releases"); err != nil {
+		t.Fatalf("project A read own artifact releases: %v", err)
+	}
+	_, err = projectA.ReadResource(ctx, "nivora://artifacts/"+artifactB)
+	var op OperationError
+	if !errors.As(err, &op) || op.Code != "mcp_scope_denied" {
+		t.Fatalf("expected scope denial for cross-project artifact, got %T %v", err, err)
+	}
+
+	listResult, err := projectA.CallTool(ctx, "nivora_list_artifacts", map[string]any{})
+	if err != nil {
+		t.Fatalf("project A list artifacts tool: %v", err)
+	}
+	if listResult.IsError || !strings.Contains(listResult.Content[0].Text, artifactA) || strings.Contains(listResult.Content[0].Text, artifactB) {
+		t.Fatalf("artifact list tool did not honor project scope: %#v", listResult)
+	}
+
+	getResult, err := projectA.CallTool(ctx, "nivora_get_artifact", map[string]any{"id": artifactB})
+	if err != nil {
+		t.Fatalf("cross-project artifact get transport error: %v", err)
+	}
+	if !getResult.IsError || !strings.Contains(getResult.Content[0].Text, "mcp_scope_denied") {
+		t.Fatalf("cross-project artifact get was not denied: %#v", getResult)
+	}
+
+	events, err := projectA.CallTool(ctx, "nivora_search_events", map[string]any{"subject": releaseB})
+	if err != nil {
+		t.Fatalf("cross-project artifact event search transport error: %v", err)
+	}
+	if !resultCountIsZero(t, events) {
+		t.Fatalf("cross-project artifact event search returned data: %#v", events)
+	}
+
+	releases, err := projectB.CallTool(ctx, "nivora_get_artifact_releases", map[string]any{"id": artifactB})
+	if err != nil {
+		t.Fatalf("project B read own artifact releases: %v", err)
+	}
+	if releases.IsError || !strings.Contains(releases.Content[0].Text, releaseB) || strings.Contains(releases.Content[0].Text, releaseA) {
+		t.Fatalf("project B artifact releases result = %#v", releases)
+	}
+}
+
 func TestMCPEvidenceBundleRequiresAuditRead(t *testing.T) {
 	ctx := context.Background()
 	viewer := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
@@ -1187,6 +1262,43 @@ func createMCPArtifactFixture(t *testing.T, server *Server) (string, string) {
 	}
 	if len(record.Artifacts) != 1 {
 		t.Fatalf("expected one artifact in fixture, got %#v", record.Artifacts)
+	}
+	return record.Artifacts[0].ID, record.Release.ID
+}
+
+func createScopedMCPArtifactFixture(t *testing.T, artifacts *artifactusecase.Service, projectID string) (string, string) {
+	t.Helper()
+	record, err := artifacts.CreateRelease(context.Background(), artifactusecase.CreateReleaseInput{
+		ActorID:   "mcp-artifact-scope-fixture",
+		ProjectID: projectID,
+		Definition: artifactusecase.ReleaseDefinition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Release",
+			Metadata: artifactusecase.ReleaseMetadata{
+				Name: "mcp-artifact-release-" + projectID,
+			},
+			Spec: artifactusecase.ReleaseSpec{
+				Version:     "1.2.3",
+				Application: "demo",
+				Environment: "staging",
+				Artifacts: []artifactusecase.ReleaseArtifactSpec{{
+					Name:      "demo-image-" + projectID,
+					Type:      "image",
+					Role:      "runtime",
+					Required:  true,
+					Reference: "registry.example.com/team/demo-" + projectID + ":1.2.3@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					Metadata: map[string]string{
+						"component": "api",
+					},
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create scoped artifact fixture release: %v", err)
+	}
+	if len(record.Artifacts) != 1 {
+		t.Fatalf("expected one artifact in scoped fixture, got %#v", record.Artifacts)
 	}
 	return record.Artifacts[0].ID, record.Release.ID
 }

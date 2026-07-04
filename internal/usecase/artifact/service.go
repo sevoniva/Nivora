@@ -480,16 +480,24 @@ func (s *Service) ReleaseArtifacts(ctx context.Context, id string) ([]release.Re
 
 func normalizeArtifactFilter(input ListArtifactsInput) ListArtifactsInput {
 	return ListArtifactsInput{
-		Type:       strings.TrimSpace(strings.ToLower(input.Type)),
-		Name:       strings.TrimSpace(strings.ToLower(input.Name)),
-		Registry:   strings.TrimSpace(strings.ToLower(input.Registry)),
-		Repository: strings.TrimSpace(strings.ToLower(input.Repository)),
-		Digest:     strings.TrimSpace(input.Digest),
-		Reference:  strings.TrimSpace(strings.ToLower(input.Reference)),
+		Type:          strings.TrimSpace(strings.ToLower(input.Type)),
+		Name:          strings.TrimSpace(strings.ToLower(input.Name)),
+		Registry:      strings.TrimSpace(strings.ToLower(input.Registry)),
+		Repository:    strings.TrimSpace(strings.ToLower(input.Repository)),
+		Digest:        strings.TrimSpace(input.Digest),
+		Reference:     strings.TrimSpace(strings.ToLower(input.Reference)),
+		ProjectID:     strings.TrimSpace(input.ProjectID),
+		EnvironmentID: strings.TrimSpace(input.EnvironmentID),
 	}
 }
 
 func artifactMatches(item domainartifact.Artifact, filter ListArtifactsInput) bool {
+	if filter.ProjectID != "" && item.Metadata["projectId"] != filter.ProjectID {
+		return false
+	}
+	if filter.EnvironmentID != "" && item.Metadata["environmentId"] != filter.EnvironmentID {
+		return false
+	}
 	if filter.Type != "" && strings.ToLower(string(item.Type)) != filter.Type {
 		return false
 	}

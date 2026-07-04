@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	"github.com/sevoniva/nivora/internal/infra/config"
 )
 
@@ -151,4 +152,66 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 	if !bytes.Contains(rec.Body.Bytes(), []byte(`"subjectType":"release"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"artifacts"`)) {
 		t.Fatalf("release evidence body = %s", rec.Body.String())
 	}
+}
+
+func TestArtifactRoutesRespectTenantScope(t *testing.T) {
+	router, authService := newIsoRouter(t)
+	tokenA := createScopedToken(t, authService, "artifact-project-a", domainauth.RoleAdmin, "project", "project-a")
+	tokenB := createScopedToken(t, authService, "artifact-project-b", domainauth.RoleAdmin, "project", "project-b")
+
+	artifactA := createScopedHTTPArtifact(t, router, tokenA, "artifact-project-a")
+	artifactB := createScopedHTTPArtifact(t, router, tokenB, "artifact-project-b")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/artifacts", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list scoped artifacts status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(artifactA.ID)) || bytes.Contains(rec.Body.Bytes(), []byte(artifactB.ID)) || bytes.Contains(rec.Body.Bytes(), []byte("project-b")) {
+		t.Fatalf("list scoped artifacts leaked cross-project data: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+artifactB.ID, nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("cross-project artifact get status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifacts/"+artifactB.ID+"/releases", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("cross-project artifact releases status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+type scopedHTTPArtifact struct {
+	ID       string            `json:"id"`
+	Metadata map[string]string `json:"metadata"`
+}
+
+func createScopedHTTPArtifact(t *testing.T, router http.Handler, token string, name string) scopedHTTPArtifact {
+	t.Helper()
+	body := []byte(`{"name":"` + name + `","type":"image","reference":"registry.example.com/team/` + name + `:1.0.0"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/artifacts", bytes.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create scoped artifact status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var artifact scopedHTTPArtifact
+	if err := json.Unmarshal(rec.Body.Bytes(), &artifact); err != nil {
+		t.Fatalf("decode scoped artifact: %v", err)
+	}
+	if artifact.ID == "" || artifact.Metadata["projectId"] == "" {
+		t.Fatalf("scoped artifact missing id or project id: %s", rec.Body.String())
+	}
+	return artifact
 }

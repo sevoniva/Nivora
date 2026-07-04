@@ -57,12 +57,14 @@ type TrackArtifactInput struct {
 }
 
 type ListArtifactsInput struct {
-	Type       string
-	Name       string
-	Registry   string
-	Repository string
-	Digest     string
-	Reference  string
+	Type          string
+	Name          string
+	Registry      string
+	Repository    string
+	Digest        string
+	Reference     string
+	ProjectID     string
+	EnvironmentID string
 }
 
 type ArtifactReleaseBinding struct {

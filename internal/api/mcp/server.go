@@ -330,7 +330,7 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 	case strings.HasPrefix(uri, "nivora://deployments/"):
 		return s.deploymentResource(ctx, strings.TrimPrefix(uri, "nivora://deployments/"))
 	case uri == "nivora://artifacts":
-		artifacts, err := s.services.Artifacts.ListArtifacts(ctx, artifactusecase.ListArtifactsInput{})
+		artifacts, err := s.services.Artifacts.ListArtifacts(ctx, s.scopedArtifactListInput(artifactusecase.ListArtifactsInput{}))
 		if err != nil {
 			return nil, err
 		}
@@ -511,13 +511,27 @@ func (s *Server) artifactResource(ctx context.Context, rest string) (any, error)
 	if strings.HasSuffix(rest, "/releases") {
 		id := strings.TrimSuffix(rest, "/releases")
 		id = strings.TrimSuffix(id, "/")
+		artifact, err := s.services.Artifacts.GetArtifact(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if !s.canReadArtifact(artifact) {
+			return nil, OperationError{Code: "mcp_scope_denied", Message: "MCP subject scope does not allow access to artifact " + id}
+		}
 		bindings, err := s.services.Artifacts.ArtifactReleases(ctx, id)
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"artifactId": id, "releases": bindings}, nil
+		return map[string]any{"artifactId": id, "releases": s.filterArtifactReleaseBindings(bindings)}, nil
 	}
-	return s.services.Artifacts.GetArtifact(ctx, rest)
+	artifact, err := s.services.Artifacts.GetArtifact(ctx, rest)
+	if err != nil {
+		return nil, err
+	}
+	if !s.canReadArtifact(artifact) {
+		return nil, OperationError{Code: "mcp_scope_denied", Message: "MCP subject scope does not allow access to artifact " + rest}
+	}
+	return artifact, nil
 }
 
 func (s *Server) callToolPayload(ctx context.Context, name string, arguments map[string]any) (any, error) {
@@ -608,14 +622,14 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		}
 		return s.releaseExecutionResource(ctx, id)
 	case "nivora_list_artifacts":
-		artifacts, err := s.services.Artifacts.ListArtifacts(ctx, artifactusecase.ListArtifactsInput{
+		artifacts, err := s.services.Artifacts.ListArtifacts(ctx, s.scopedArtifactListInput(artifactusecase.ListArtifactsInput{
 			Type:       stringArg(arguments, "type"),
 			Name:       stringArg(arguments, "name"),
 			Registry:   stringArg(arguments, "registry"),
 			Repository: stringArg(arguments, "repository"),
 			Digest:     stringArg(arguments, "digest"),
 			Reference:  stringArg(arguments, "reference"),
-		})
+		}))
 		if err != nil {
 			return nil, err
 		}
@@ -629,17 +643,27 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		if err != nil {
 			return nil, err
 		}
+		if !s.canReadArtifact(artifact) {
+			return nil, OperationError{Code: "mcp_scope_denied", Message: "MCP subject scope does not allow access to artifact " + id}
+		}
 		return map[string]any{"artifact": artifact, "mutated": false}, nil
 	case "nivora_get_artifact_releases":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
 			return nil, err
 		}
+		artifact, err := s.services.Artifacts.GetArtifact(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if !s.canReadArtifact(artifact) {
+			return nil, OperationError{Code: "mcp_scope_denied", Message: "MCP subject scope does not allow access to artifact " + id}
+		}
 		bindings, err := s.services.Artifacts.ArtifactReleases(ctx, id)
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"artifactId": id, "releases": bindings, "mutated": false}, nil
+		return map[string]any{"artifactId": id, "releases": s.filterArtifactReleaseBindings(bindings), "mutated": false}, nil
 	case "nivora_get_runner_summary":
 		return s.runnerSummary(ctx)
 	case "nivora_list_security_findings":
@@ -1093,6 +1117,9 @@ func (s *Server) eventSearch(ctx context.Context, filter mcpEventFilter) (any, e
 		warnings = append(warnings, "artifact events unavailable: "+err.Error())
 	} else {
 		for _, record := range records {
+			if !s.canReadArtifactReleaseRecord(record) {
+				continue
+			}
 			events = append(events, record.Events...)
 		}
 	}
@@ -1359,6 +1386,50 @@ func (s *Server) canReadReleaseExecution(record releaseusecase.ExecutionRecord) 
 
 func (s *Server) canReadSecurityScan(record securityusecase.ScanRecord) bool {
 	return s.ensureSubjectScope(record.Scan.ID, record.Scan.ProjectID, record.Scan.EnvironmentID) == nil
+}
+
+func (s *Server) scopedArtifactListInput(input artifactusecase.ListArtifactsInput) artifactusecase.ListArtifactsInput {
+	subject := s.services.Subject
+	switch strings.TrimSpace(subject.ScopeType) {
+	case domaintenant.ScopeProject:
+		input.ProjectID = strings.TrimSpace(subject.ScopeID)
+		input.EnvironmentID = ""
+	case domaintenant.ScopeEnvironment:
+		input.EnvironmentID = strings.TrimSpace(subject.ScopeID)
+		input.ProjectID = ""
+	}
+	return input
+}
+
+func (s *Server) canReadArtifact(artifact domainartifact.Artifact) bool {
+	projectID := artifact.Metadata["projectId"]
+	environmentID := artifact.Metadata["environmentId"]
+	return s.ensureSubjectScope(artifact.ID, projectID, environmentID) == nil
+}
+
+func (s *Server) canReadArtifactReleaseRecord(record artifactusecase.ReleaseRecord) bool {
+	projectID := record.Release.Metadata["projectId"]
+	environmentID := firstNonEmpty(record.Release.Metadata["environmentId"], record.Release.EnvironmentID)
+	return s.ensureSubjectScope(record.Release.ID, projectID, environmentID) == nil
+}
+
+func (s *Server) filterArtifactReleaseBindings(bindings []artifactusecase.ArtifactReleaseBinding) []artifactusecase.ArtifactReleaseBinding {
+	if len(bindings) == 0 {
+		return bindings
+	}
+	filtered := make([]artifactusecase.ArtifactReleaseBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		if s.canReadArtifactReleaseBinding(binding) {
+			filtered = append(filtered, binding)
+		}
+	}
+	return filtered
+}
+
+func (s *Server) canReadArtifactReleaseBinding(binding artifactusecase.ArtifactReleaseBinding) bool {
+	projectID := firstNonEmpty(binding.Binding.Metadata["projectId"], binding.Release.Metadata["projectId"])
+	environmentID := firstNonEmpty(binding.Binding.Metadata["environmentId"], binding.Release.Metadata["environmentId"], binding.Release.EnvironmentID)
+	return s.ensureSubjectScope(binding.Binding.ID, projectID, environmentID) == nil
 }
 
 func (s *Server) ensureSubjectScope(resource string, projectID string, environmentID string) error {

@@ -1247,6 +1247,16 @@ paths:
           in: query
           schema:
             type: string
+        - name: projectId
+          in: query
+          description: Optional project scope filter; tenant-scoped callers are constrained to their own project.
+          schema:
+            type: string
+        - name: environmentId
+          in: query
+          description: Optional environment scope filter; tenant-scoped callers are constrained to their own environment.
+          schema:
+            type: string
       responses:
         "200":
           description: Tracked artifacts

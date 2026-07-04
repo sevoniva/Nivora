@@ -47,12 +47,14 @@ func ResolveArtifact(service *artifactusecase.Service) http.HandlerFunc {
 func ListArtifacts(service *artifactusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		artifacts, err := service.ListArtifacts(r.Context(), artifactusecase.ListArtifactsInput{
-			Type:       r.URL.Query().Get("type"),
-			Name:       r.URL.Query().Get("name"),
-			Registry:   r.URL.Query().Get("registry"),
-			Repository: r.URL.Query().Get("repository"),
-			Digest:     r.URL.Query().Get("digest"),
-			Reference:  r.URL.Query().Get("reference"),
+			Type:          r.URL.Query().Get("type"),
+			Name:          r.URL.Query().Get("name"),
+			Registry:      r.URL.Query().Get("registry"),
+			Repository:    r.URL.Query().Get("repository"),
+			Digest:        r.URL.Query().Get("digest"),
+			Reference:     r.URL.Query().Get("reference"),
+			ProjectID:     constrainArtifactProjectScope(r, r.URL.Query().Get("projectId")),
+			EnvironmentID: constrainArtifactEnvironmentScope(r, r.URL.Query().Get("environmentId")),
 		})
 		respondArtifactResult(w, r, map[string]any{"artifacts": artifacts}, err)
 	}
@@ -65,17 +67,7 @@ func CreateArtifact(service *artifactusecase.Service) http.HandlerFunc {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an artifact tracking request"})
 			return
 		}
-		if scopeType, scopeID := TenantScopeFilter(r); scopeID != "" {
-			if input.Metadata == nil {
-				input.Metadata = map[string]string{}
-			}
-			switch scopeType {
-			case tenant.ScopeProject:
-				input.Metadata["projectId"] = scopeID
-			case tenant.ScopeEnvironment:
-				input.Metadata["environmentId"] = scopeID
-			}
-		}
+		applyArtifactRequestScope(r, &input.Metadata)
 		artifact, err := service.TrackArtifact(r.Context(), input)
 		if err != nil {
 			respondArtifactResult(w, r, artifact, err)
@@ -88,14 +80,32 @@ func CreateArtifact(service *artifactusecase.Service) http.HandlerFunc {
 func GetArtifact(service *artifactusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		artifact, err := service.GetArtifact(r.Context(), chi.URLParam(r, "id"))
+		if err == nil && !artifactVisibleToRequest(r, artifact) {
+			RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{Code: "forbidden", Message: "artifact is outside requester scope", Path: r.URL.Path})
+			return
+		}
 		respondArtifactResult(w, r, artifact, err)
 	}
 }
 
 func GetArtifactReleases(service *artifactusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		bindings, err := service.ArtifactReleases(r.Context(), chi.URLParam(r, "id"))
-		respondArtifactResult(w, r, map[string]any{"releases": bindings}, err)
+		id := chi.URLParam(r, "id")
+		artifact, err := service.GetArtifact(r.Context(), id)
+		if err == nil && !artifactVisibleToRequest(r, artifact) {
+			RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{Code: "forbidden", Message: "artifact is outside requester scope", Path: r.URL.Path})
+			return
+		}
+		if err != nil {
+			respondArtifactResult(w, r, nil, err)
+			return
+		}
+		bindings, err := service.ArtifactReleases(r.Context(), id)
+		if err != nil {
+			respondArtifactResult(w, r, nil, err)
+			return
+		}
+		respondArtifactResult(w, r, map[string]any{"releases": filterArtifactReleaseBindingsForRequest(r, bindings)}, nil)
 	}
 }
 
@@ -332,6 +342,100 @@ func releaseRecordInRequestScope(r *http.Request, record artifactusecase.Release
 	default:
 		return false
 	}
+}
+
+func constrainArtifactProjectScope(r *http.Request, projectID string) string {
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeType == tenant.ScopeProject {
+		return scopeID
+	}
+	if scopeType == tenant.ScopeEnvironment {
+		return ""
+	}
+	return projectID
+}
+
+func constrainArtifactEnvironmentScope(r *http.Request, environmentID string) string {
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeType == tenant.ScopeEnvironment {
+		return scopeID
+	}
+	if scopeType == tenant.ScopeProject {
+		return ""
+	}
+	return environmentID
+}
+
+func applyArtifactRequestScope(r *http.Request, metadata *map[string]string) {
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeID == "" {
+		return
+	}
+	if *metadata == nil {
+		*metadata = map[string]string{}
+	}
+	switch scopeType {
+	case tenant.ScopeProject:
+		(*metadata)["projectId"] = scopeID
+		delete(*metadata, "environmentId")
+	case tenant.ScopeEnvironment:
+		(*metadata)["environmentId"] = scopeID
+		delete(*metadata, "projectId")
+	}
+}
+
+func artifactVisibleToRequest(r *http.Request, artifact domainartifact.Artifact) bool {
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeType == "" {
+		return true
+	}
+	if scopeID == "" {
+		return false
+	}
+	switch scopeType {
+	case tenant.ScopeProject:
+		return artifact.Metadata["projectId"] != "" && artifact.Metadata["projectId"] == scopeID
+	case tenant.ScopeEnvironment:
+		return artifact.Metadata["environmentId"] != "" && artifact.Metadata["environmentId"] == scopeID
+	default:
+		return false
+	}
+}
+
+func filterArtifactReleaseBindingsForRequest(r *http.Request, bindings []artifactusecase.ArtifactReleaseBinding) []artifactusecase.ArtifactReleaseBinding {
+	if !ScopedByTenant(r) {
+		return bindings
+	}
+	filtered := make([]artifactusecase.ArtifactReleaseBinding, 0, len(bindings))
+	for _, binding := range bindings {
+		if artifactReleaseBindingVisibleToRequest(r, binding) {
+			filtered = append(filtered, binding)
+		}
+	}
+	return filtered
+}
+
+func artifactReleaseBindingVisibleToRequest(r *http.Request, binding artifactusecase.ArtifactReleaseBinding) bool {
+	scopeType, scopeID := TenantScopeFilter(r)
+	switch scopeType {
+	case "":
+		return true
+	case tenant.ScopeProject:
+		return firstArtifactScopeValue(binding.Binding.Metadata["projectId"], binding.Release.Metadata["projectId"]) == scopeID
+	case tenant.ScopeEnvironment:
+		return firstArtifactScopeValue(binding.Binding.Metadata["environmentId"], binding.Release.Metadata["environmentId"], binding.Release.EnvironmentID) == scopeID
+	default:
+		return false
+	}
+}
+
+func firstArtifactScopeValue(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func respondArtifactResult(w http.ResponseWriter, r *http.Request, payload any, err error) {

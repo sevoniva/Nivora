@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -373,6 +374,63 @@ func TestMCPAggregateEventsAndLogsReadOnly(t *testing.T) {
 				t.Fatalf("aggregate observability MCP output leaked sensitive value %q: %s", forbidden, body)
 			}
 		}
+	}
+}
+
+func TestMCPTenantScopeFiltersDeploymentReadsAndAggregates(t *testing.T) {
+	ctx := context.Background()
+	store := deploymentusecase.NewMemoryStore()
+	deployments := runtime.NewDeploymentServiceWithStore(store)
+
+	projectA := newTestMCPServerWithServices(t, domainauth.Subject{
+		ID:        "sa-project-a",
+		Username:  "sa-project-a",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-a",
+	}, deployments)
+	projectB := newTestMCPServerWithServices(t, domainauth.Subject{
+		ID:        "sa-project-b",
+		Username:  "sa-project-b",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-b",
+	}, deployments)
+
+	runA := createScopedMCPDeploymentRun(t, store, deployments, "project-a")
+	runB := createScopedMCPDeploymentRun(t, store, deployments, "project-b")
+
+	if _, err := projectA.ReadResource(ctx, "nivora://deployments/"+runA); err != nil {
+		t.Fatalf("project A read own deployment: %v", err)
+	}
+	if _, err := projectA.ReadResource(ctx, "nivora://deployments/"+runA+"/health"); err != nil {
+		t.Fatalf("project A read own deployment health: %v", err)
+	}
+	_, err := projectA.ReadResource(ctx, "nivora://deployments/"+runB)
+	var op OperationError
+	if !errors.As(err, &op) || op.Code != "mcp_scope_denied" {
+		t.Fatalf("expected scope denial for cross-project deployment, got %T %v", err, err)
+	}
+
+	result, err := projectA.CallTool(ctx, "nivora_search_events", map[string]any{"deploymentRunId": runB})
+	if err != nil {
+		t.Fatalf("cross-project event search transport error: %v", err)
+	}
+	if !resultCountIsZero(t, result) {
+		t.Fatalf("cross-project event search returned data: %#v", result)
+	}
+	result, err = projectA.CallTool(ctx, "nivora_search_logs", map[string]any{"deploymentRunId": runB})
+	if err != nil {
+		t.Fatalf("cross-project log search transport error: %v", err)
+	}
+	if !resultCountIsZero(t, result) {
+		t.Fatalf("cross-project log search returned data: %#v", result)
+	}
+
+	if _, err := projectB.ReadResource(ctx, "nivora://deployments/"+runB+"/diff"); err != nil {
+		t.Fatalf("project B read own deployment diff: %v", err)
 	}
 }
 
@@ -924,6 +982,56 @@ data:
 		t.Fatalf("create deployment observability fixture: %v", err)
 	}
 	return pipelineRecord.Record.Run.ID, deploymentRecord.Record.Run.ID
+}
+
+func createScopedMCPDeploymentRun(t *testing.T, store *deploymentusecase.MemoryStore, deployments *deploymentusecase.Service, projectID string) string {
+	t.Helper()
+	result, err := deployments.CreateAndRun(context.Background(), deploymentusecase.CreateRunInput{
+		ActorID: "mcp-scope-fixture",
+		Definition: deploymentusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Deployment",
+			Metadata:   deploymentusecase.Metadata{Name: "mcp-scope-" + projectID},
+			Spec: deploymentusecase.Spec{
+				Application: "demo",
+				Environment: "dev",
+				Target: deploymentusecase.Target{
+					Type:      "kubernetes-yaml",
+					Name:      "local",
+					Namespace: "default",
+				},
+				Manifests: []string{"examples/yaml/configmap.yaml"},
+				Options: deploymentusecase.Options{
+					DryRun: true,
+					Apply:  false,
+				},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create scoped deployment fixture: %v", err)
+	}
+	record := result.Record
+	record.Environment.ProjectID = projectID
+	record.Target.ProjectID = projectID
+	if err := store.Save(context.Background(), record); err != nil {
+		t.Fatalf("save scoped deployment fixture: %v", err)
+	}
+	return record.Run.ID
+}
+
+func resultCountIsZero(t *testing.T, result ToolResult) bool {
+	t.Helper()
+	if result.IsError || len(result.Content) == 0 {
+		return false
+	}
+	var body struct {
+		Count int `json:"count"`
+	}
+	if err := json.Unmarshal([]byte(result.Content[0].Text), &body); err != nil {
+		t.Fatalf("unmarshal tool result: %v\n%s", err, result.Content[0].Text)
+	}
+	return body.Count == 0
 }
 
 func hasResource(resources []Resource, uri string) bool {

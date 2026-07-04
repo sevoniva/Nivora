@@ -16,6 +16,7 @@ import (
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	domainevent "github.com/sevoniva/nivora/internal/domain/event"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
+	domaintenant "github.com/sevoniva/nivora/internal/domain/tenant"
 	"github.com/sevoniva/nivora/internal/infra/crypto"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
@@ -23,6 +24,7 @@ import (
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
+	releaseusecase "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
@@ -394,37 +396,111 @@ func readProjectFile(path string) ([]byte, error) {
 func (s *Server) pipelineResource(ctx context.Context, rest string) (any, error) {
 	if strings.HasSuffix(rest, "/timeline") {
 		id := strings.TrimSuffix(rest, "/timeline")
+		record, err := s.services.Pipelines.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensurePipelineScope(record, "pipeline run "+id); err != nil {
+			return nil, err
+		}
 		return s.services.Pipelines.Timeline(ctx, id)
 	}
 	if strings.HasSuffix(rest, "/logs") {
 		id := strings.TrimSuffix(rest, "/logs")
+		record, err := s.services.Pipelines.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensurePipelineScope(record, "pipeline run "+id); err != nil {
+			return nil, err
+		}
 		logs, err := s.services.Pipelines.Logs(ctx, id)
 		return truncateLogs(logs), err
 	}
-	return s.services.Pipelines.Get(ctx, rest)
+	record, err := s.services.Pipelines.Get(ctx, rest)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensurePipelineScope(record, "pipeline run "+rest); err != nil {
+		return nil, err
+	}
+	return record, nil
 }
 
 func (s *Server) deploymentResource(ctx context.Context, rest string) (any, error) {
 	switch {
 	case strings.HasSuffix(rest, "/timeline"):
-		return s.services.Deployments.Timeline(ctx, strings.TrimSuffix(rest, "/timeline"))
+		id := strings.TrimSuffix(rest, "/timeline")
+		record, err := s.services.Deployments.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureDeploymentScope(record, "deployment run "+id); err != nil {
+			return nil, err
+		}
+		return s.services.Deployments.Timeline(ctx, id)
 	case strings.HasSuffix(rest, "/resources"):
-		return s.services.Deployments.Resources(ctx, strings.TrimSuffix(rest, "/resources"))
+		id := strings.TrimSuffix(rest, "/resources")
+		record, err := s.services.Deployments.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureDeploymentScope(record, "deployment run "+id); err != nil {
+			return nil, err
+		}
+		return s.services.Deployments.Resources(ctx, id)
 	case strings.HasSuffix(rest, "/health"):
-		return s.services.Deployments.Health(ctx, strings.TrimSuffix(rest, "/health"))
+		id := strings.TrimSuffix(rest, "/health")
+		record, err := s.services.Deployments.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureDeploymentScope(record, "deployment run "+id); err != nil {
+			return nil, err
+		}
+		return s.services.Deployments.Health(ctx, id)
 	case strings.HasSuffix(rest, "/diff"):
-		return s.services.Deployments.Diff(ctx, strings.TrimSuffix(rest, "/diff"))
+		id := strings.TrimSuffix(rest, "/diff")
+		record, err := s.services.Deployments.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureDeploymentScope(record, "deployment run "+id); err != nil {
+			return nil, err
+		}
+		return s.services.Deployments.Diff(ctx, id)
 	default:
-		return s.services.Deployments.Get(ctx, rest)
+		record, err := s.services.Deployments.Get(ctx, rest)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureDeploymentScope(record, "deployment run "+rest); err != nil {
+			return nil, err
+		}
+		return record, nil
 	}
 }
 
 func (s *Server) releaseExecutionResource(ctx context.Context, rest string) (any, error) {
 	if strings.HasSuffix(rest, "/timeline") {
 		id := strings.TrimSuffix(rest, "/timeline")
+		record, err := s.services.Releases.GetExecution(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureReleaseExecutionScope(record, "release execution "+id); err != nil {
+			return nil, err
+		}
 		return s.services.Releases.Timeline(ctx, id)
 	}
-	return s.services.Releases.GetExecution(ctx, rest)
+	record, err := s.services.Releases.GetExecution(ctx, rest)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureReleaseExecutionScope(record, "release execution "+rest); err != nil {
+		return nil, err
+	}
+	return record, nil
 }
 
 func (s *Server) artifactResource(ctx context.Context, rest string) (any, error) {
@@ -496,37 +572,37 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		if err != nil {
 			return nil, err
 		}
-		return s.services.Pipelines.Get(ctx, id)
+		return s.pipelineResource(ctx, id)
 	case "nivora_get_pipeline_timeline":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
 			return nil, err
 		}
-		return s.services.Pipelines.Timeline(ctx, id)
+		return s.pipelineResource(ctx, id+"/timeline")
 	case "nivora_get_deployment":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
 			return nil, err
 		}
-		return s.services.Deployments.Get(ctx, id)
+		return s.deploymentResource(ctx, id)
 	case "nivora_get_deployment_health":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
 			return nil, err
 		}
-		return s.services.Deployments.Health(ctx, id)
+		return s.deploymentResource(ctx, id+"/health")
 	case "nivora_get_deployment_diff":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
 			return nil, err
 		}
-		return s.services.Deployments.Diff(ctx, id)
+		return s.deploymentResource(ctx, id+"/diff")
 	case "nivora_get_release_execution":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
 			return nil, err
 		}
-		return s.services.Releases.GetExecution(ctx, id)
+		return s.releaseExecutionResource(ctx, id)
 	case "nivora_list_artifacts":
 		artifacts, err := s.services.Artifacts.ListArtifacts(ctx, artifactusecase.ListArtifactsInput{
 			Type:       stringArg(arguments, "type"),
@@ -648,6 +724,9 @@ func (s *Server) explainPipeline(ctx context.Context, id string) (any, error) {
 	if err != nil {
 		return nil, err
 	}
+	if err := s.ensurePipelineScope(record, "pipeline run "+id); err != nil {
+		return nil, err
+	}
 	timeline, _ := s.services.Pipelines.Timeline(ctx, id)
 	logs, _ := s.services.Pipelines.Logs(ctx, id)
 	return map[string]any{
@@ -663,6 +742,9 @@ func (s *Server) explainPipeline(ctx context.Context, id string) (any, error) {
 func (s *Server) explainDeploymentRisk(ctx context.Context, id string) (any, error) {
 	record, err := s.services.Deployments.Get(ctx, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureDeploymentScope(record, "deployment run "+id); err != nil {
 		return nil, err
 	}
 	health, _ := s.services.Deployments.Health(ctx, id)
@@ -683,6 +765,9 @@ func (s *Server) explainDeploymentRisk(ctx context.Context, id string) (any, err
 func (s *Server) releaseReadiness(ctx context.Context, id string) (any, error) {
 	record, err := s.services.Releases.GetExecution(ctx, id)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureReleaseExecutionScope(record, "release execution "+id); err != nil {
 		return nil, err
 	}
 	return map[string]any{
@@ -905,6 +990,9 @@ func (s *Server) eventSearch(ctx context.Context, filter mcpEventFilter) (any, e
 		warnings = append(warnings, "pipeline events unavailable: "+err.Error())
 	} else {
 		for _, record := range records {
+			if !s.canReadPipeline(record) {
+				continue
+			}
 			events = append(events, record.Events...)
 		}
 	}
@@ -912,6 +1000,9 @@ func (s *Server) eventSearch(ctx context.Context, filter mcpEventFilter) (any, e
 		warnings = append(warnings, "deployment events unavailable: "+err.Error())
 	} else {
 		for _, record := range records {
+			if !s.canReadDeployment(record) {
+				continue
+			}
 			events = append(events, record.Events...)
 		}
 	}
@@ -919,6 +1010,9 @@ func (s *Server) eventSearch(ctx context.Context, filter mcpEventFilter) (any, e
 		warnings = append(warnings, "release execution events unavailable: "+err.Error())
 	} else {
 		for _, record := range records {
+			if !s.canReadReleaseExecution(record) {
+				continue
+			}
 			events = append(events, record.Events...)
 		}
 	}
@@ -969,6 +1063,9 @@ func (s *Server) logSearch(ctx context.Context, filter mcpLogFilter) (any, error
 		warnings = append(warnings, "pipeline logs unavailable: "+err.Error())
 	} else {
 		for _, record := range records {
+			if !s.canReadPipeline(record) {
+				continue
+			}
 			logs = append(logs, record.Logs...)
 		}
 	}
@@ -976,6 +1073,9 @@ func (s *Server) logSearch(ctx context.Context, filter mcpLogFilter) (any, error
 		warnings = append(warnings, "deployment logs unavailable: "+err.Error())
 	} else {
 		for _, record := range records {
+			if !s.canReadDeployment(record) {
+				continue
+			}
 			logs = append(logs, record.Logs...)
 		}
 	}
@@ -1139,6 +1239,68 @@ func (s *Server) catalogSummary(ctx context.Context, orgID string, projectID str
 		"releaseTargets": targets,
 		"mutated":        false,
 	}, nil
+}
+
+func (s *Server) ensurePipelineScope(record pipelineusecase.RunRecord, resource string) error {
+	return s.ensureSubjectScope(resource, record.Pipeline.ProjectID, "")
+}
+
+func (s *Server) ensureDeploymentScope(record deploymentusecase.RunRecord, resource string) error {
+	projectID := firstNonEmpty(record.Environment.ProjectID, record.Target.ProjectID)
+	environmentID := firstNonEmpty(record.Run.EnvironmentID, record.Environment.ID, record.Target.EnvironmentID)
+	return s.ensureSubjectScope(resource, projectID, environmentID)
+}
+
+func (s *Server) ensureReleaseExecutionScope(record releaseusecase.ExecutionRecord, resource string) error {
+	projectID := ""
+	for _, target := range record.Plan.Targets {
+		if target.ProjectID != "" {
+			projectID = target.ProjectID
+			break
+		}
+	}
+	for _, deployment := range record.Deployments {
+		projectID = firstNonEmpty(projectID, deployment.Environment.ProjectID, deployment.Target.ProjectID)
+		if projectID != "" {
+			break
+		}
+	}
+	environmentID := firstNonEmpty(record.Execution.EnvironmentID, record.Plan.EnvironmentID)
+	return s.ensureSubjectScope(resource, projectID, environmentID)
+}
+
+func (s *Server) canReadPipeline(record pipelineusecase.RunRecord) bool {
+	return s.ensurePipelineScope(record, record.Run.ID) == nil
+}
+
+func (s *Server) canReadDeployment(record deploymentusecase.RunRecord) bool {
+	return s.ensureDeploymentScope(record, record.Run.ID) == nil
+}
+
+func (s *Server) canReadReleaseExecution(record releaseusecase.ExecutionRecord) bool {
+	return s.ensureReleaseExecutionScope(record, record.Execution.ID) == nil
+}
+
+func (s *Server) ensureSubjectScope(resource string, projectID string, environmentID string) error {
+	subject := s.services.Subject
+	scopeType := strings.TrimSpace(subject.ScopeType)
+	scopeID := strings.TrimSpace(subject.ScopeID)
+	if scopeType == "" || scopeType == domaintenant.ScopeGlobal || scopeID == "" {
+		return nil
+	}
+	switch scopeType {
+	case domaintenant.ScopeProject:
+		if projectID != "" && projectID == scopeID {
+			return nil
+		}
+	case domaintenant.ScopeEnvironment:
+		if environmentID != "" && environmentID == scopeID {
+			return nil
+		}
+	default:
+		return OperationError{Code: "mcp_scope_denied", Message: "unsupported MCP subject scope for " + resource}
+	}
+	return OperationError{Code: "mcp_scope_denied", Message: "MCP subject scope does not allow access to " + resource}
 }
 
 func (s *Server) checkResourcePermission(ctx context.Context, uri string) error {

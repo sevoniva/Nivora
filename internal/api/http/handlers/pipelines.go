@@ -103,10 +103,15 @@ func ListPipelineDefinitionVersions(catalog *pipelineusecase.DefinitionCatalog) 
 		if !ok {
 			return
 		}
+		versions, err := catalog.Versions(r.Context(), record.Pipeline.ID)
+		if err != nil {
+			respondPipelineDefinitionError(w, r, err)
+			return
+		}
 		RespondJSON(w, http.StatusOK, map[string]any{
 			"pipelineId":       record.Pipeline.ID,
-			"versions":         []domainpipeline.PipelineVersion{record.Version},
-			"historyComplete":  false,
+			"versions":         versions,
+			"historyComplete":  true,
 			"currentVersionId": record.Version.ID,
 		})
 	}

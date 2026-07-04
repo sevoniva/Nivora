@@ -48,6 +48,7 @@ type DefinitionCatalogStore interface {
 	CreateDefinition(ctx context.Context, record DefinitionRecord) (DefinitionRecord, error)
 	GetDefinition(ctx context.Context, id string) (DefinitionRecord, error)
 	ListDefinitions(ctx context.Context, projectID string) ([]DefinitionRecord, error)
+	ListDefinitionVersions(ctx context.Context, id string) ([]domainpipeline.PipelineVersion, error)
 	UpdateDefinition(ctx context.Context, record DefinitionRecord) (DefinitionRecord, error)
 }
 
@@ -107,6 +108,21 @@ func (c *DefinitionCatalog) List(ctx context.Context, projectID string) ([]Defin
 	return c.store.ListDefinitions(ctx, strings.TrimSpace(projectID))
 }
 
+func (c *DefinitionCatalog) Versions(ctx context.Context, id string) ([]domainpipeline.PipelineVersion, error) {
+	record, err := c.store.GetDefinition(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return nil, err
+	}
+	versions, err := c.store.ListDefinitionVersions(ctx, record.Pipeline.ID)
+	if err != nil {
+		return nil, err
+	}
+	if len(versions) == 0 {
+		return []domainpipeline.PipelineVersion{record.Version}, nil
+	}
+	return versions, nil
+}
+
 func (c *DefinitionCatalog) Update(ctx context.Context, id string, input DefinitionUpdateInput) (DefinitionRecord, error) {
 	record, err := c.store.GetDefinition(ctx, strings.TrimSpace(id))
 	if err != nil {
@@ -150,12 +166,16 @@ func (c *DefinitionCatalog) Disable(ctx context.Context, id string) (DefinitionR
 }
 
 type DefinitionMemoryStore struct {
-	mu      sync.RWMutex
-	records map[string]DefinitionRecord
+	mu       sync.RWMutex
+	records  map[string]DefinitionRecord
+	versions map[string][]domainpipeline.PipelineVersion
 }
 
 func NewDefinitionMemoryStore() *DefinitionMemoryStore {
-	return &DefinitionMemoryStore{records: map[string]DefinitionRecord{}}
+	return &DefinitionMemoryStore{
+		records:  map[string]DefinitionRecord{},
+		versions: map[string][]domainpipeline.PipelineVersion{},
+	}
 }
 
 func (s *DefinitionMemoryStore) CreateDefinition(ctx context.Context, record DefinitionRecord) (DefinitionRecord, error) {
@@ -165,6 +185,7 @@ func (s *DefinitionMemoryStore) CreateDefinition(ctx context.Context, record Def
 		return DefinitionRecord{}, fmt.Errorf("%w: pipeline id %q", ErrPipelineDefinitionAlreadyExists, record.Pipeline.ID)
 	}
 	s.records[record.Pipeline.ID] = cloneDefinitionRecord(record)
+	s.versions[record.Pipeline.ID] = appendVersion(s.versions[record.Pipeline.ID], record.Version)
 	return cloneDefinitionRecord(record), nil
 }
 
@@ -191,6 +212,17 @@ func (s *DefinitionMemoryStore) ListDefinitions(ctx context.Context, projectID s
 	return out, nil
 }
 
+func (s *DefinitionMemoryStore) ListDefinitionVersions(ctx context.Context, id string) ([]domainpipeline.PipelineVersion, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.records[id]; !ok {
+		return nil, fmt.Errorf("%w: pipeline %q", ErrPipelineDefinitionNotFound, id)
+	}
+	versions := append([]domainpipeline.PipelineVersion(nil), s.versions[id]...)
+	sort.Slice(versions, func(i, j int) bool { return versions[i].Version < versions[j].Version })
+	return versions, nil
+}
+
 func (s *DefinitionMemoryStore) UpdateDefinition(ctx context.Context, record DefinitionRecord) (DefinitionRecord, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
@@ -198,7 +230,18 @@ func (s *DefinitionMemoryStore) UpdateDefinition(ctx context.Context, record Def
 		return DefinitionRecord{}, fmt.Errorf("%w: pipeline %q", ErrPipelineDefinitionNotFound, record.Pipeline.ID)
 	}
 	s.records[record.Pipeline.ID] = cloneDefinitionRecord(record)
+	s.versions[record.Pipeline.ID] = appendVersion(s.versions[record.Pipeline.ID], record.Version)
 	return cloneDefinitionRecord(record), nil
+}
+
+func appendVersion(versions []domainpipeline.PipelineVersion, version domainpipeline.PipelineVersion) []domainpipeline.PipelineVersion {
+	for i, existing := range versions {
+		if existing.ID == version.ID || existing.Version == version.Version {
+			versions[i] = version
+			return versions
+		}
+	}
+	return append(versions, version)
 }
 
 func defaultDefinitionID(id string) string {

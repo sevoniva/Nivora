@@ -41,10 +41,31 @@ func TestPipelineDefinitionCatalogRoutes(t *testing.T) {
 		t.Fatalf("unexpected create response: %s", rec.Body.String())
 	}
 
+	updateBody := `{"definition":{"apiVersion":"nivora.io/v1alpha1","kind":"Pipeline","metadata":{"name":"build-v2"},"spec":{"stages":[{"name":"build","jobs":[{"name":"test","executor":"shell","steps":[{"name":"echo","run":"printf v2"}]}]}]}}}`
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/pipelines/"+created.Pipeline.ID, strings.NewReader(updateBody))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("update pipeline definition status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var updated struct {
+		Version struct {
+			ID             string `json:"id"`
+			Version        int    `json:"version"`
+			DefinitionHash string `json:"definitionHash"`
+		} `json:"version"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &updated); err != nil {
+		t.Fatalf("decode updated definition: %v", err)
+	}
+	if updated.Version.Version != 2 || updated.Version.DefinitionHash == created.Version.DefinitionHash {
+		t.Fatalf("unexpected update response: %s", rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipelines/"+created.Pipeline.ID+"/versions", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), created.Version.DefinitionHash) {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), created.Version.DefinitionHash) || !strings.Contains(rec.Body.String(), updated.Version.DefinitionHash) || strings.Contains(rec.Body.String(), `"historyComplete":false`) {
 		t.Fatalf("versions status = %d body = %s", rec.Code, rec.Body.String())
 	}
 

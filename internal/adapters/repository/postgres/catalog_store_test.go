@@ -17,6 +17,8 @@ func TestCatalogStoresImplementInterfaces(t *testing.T) {
 func TestCatalogPersistenceMigrationIsReversibleAndIndexed(t *testing.T) {
 	up := readMigration(t, "000010_catalog_persistence.up.sql")
 	down := readMigration(t, "000010_catalog_persistence.down.sql")
+	versionUp := readMigration(t, "000012_pipeline_definition_versions.up.sql")
+	versionDown := readMigration(t, "000012_pipeline_definition_versions.down.sql")
 
 	for _, table := range []string{
 		"catalog_orgs",
@@ -45,6 +47,24 @@ func TestCatalogPersistenceMigrationIsReversibleAndIndexed(t *testing.T) {
 		if !strings.Contains(up, index) {
 			t.Fatalf("up migration missing index %s", index)
 		}
+	}
+
+	if !strings.Contains(versionUp, "CREATE TABLE IF NOT EXISTS pipeline_definition_versions") {
+		t.Fatalf("version migration missing pipeline_definition_versions table")
+	}
+	for _, index := range []string{
+		"idx_pipeline_definition_versions_pipeline",
+		"idx_pipeline_definition_versions_unique",
+	} {
+		if !strings.Contains(versionUp, index) {
+			t.Fatalf("version migration missing index %s", index)
+		}
+	}
+	if !strings.Contains(versionUp, "INSERT INTO pipeline_definition_versions") {
+		t.Fatalf("version migration missing backfill from pipeline_definitions")
+	}
+	if !strings.Contains(versionDown, "DROP TABLE IF EXISTS pipeline_definition_versions") {
+		t.Fatalf("version down migration missing table drop")
 	}
 }
 
@@ -115,6 +135,13 @@ func TestPostgresIntegrationCatalogAndPipelineDefinitionRecovery(t *testing.T) {
 	}
 	if loadedDefinition.Version.Version != 2 || loadedDefinition.Definition.Metadata.Name != "build-v2" {
 		t.Fatalf("loaded definition = %#v", loadedDefinition)
+	}
+	versions, err := pipelineCatalog.Versions(ctx, definition.Pipeline.ID)
+	if err != nil {
+		t.Fatalf("reload pipeline definition versions: %v", err)
+	}
+	if len(versions) != 2 || versions[0].Version != 1 || versions[1].Version != 2 {
+		t.Fatalf("loaded definition versions = %#v", versions)
 	}
 }
 

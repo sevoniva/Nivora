@@ -4087,7 +4087,7 @@ func newPipelineDefinitionVersionsCommand() *cobra.Command {
 		Short: "List available versions for a pipeline definition",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/pipelines/"+args[0]+"/versions", nil, os.Getenv(tokenEnv))
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/pipelines/"+url.PathEscape(args[0])+"/versions", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}

@@ -41,7 +41,9 @@ If the argument is an existing local file path, the command keeps the older serv
 go run ./cmd/nivora pipeline definition versions <pipeline-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
-The endpoint returns the current saved version and hash. Full historical version browsing is still foundation-level; the response includes `historyComplete: false` until complete history storage is implemented.
+The endpoint returns persisted version metadata for versions created through catalog create/update operations. Each entry includes the version number, definition hash, and timestamps. `historyComplete` is true for the configured catalog store when it can enumerate the saved history.
+
+This is a traceability feature, not a rollback or scheduling mechanism. Running a saved definition still uses the current catalog definition.
 
 ## Safety
 

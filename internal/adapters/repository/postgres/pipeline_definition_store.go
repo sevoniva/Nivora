@@ -7,7 +7,9 @@ import (
 	"fmt"
 
 	"github.com/jackc/pgx/v5"
+	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
+	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
@@ -57,6 +59,34 @@ func (s *PipelineDefinitionStore) ListDefinitions(ctx context.Context, projectID
 	return nonNil(out), rows.Err()
 }
 
+func (s *PipelineDefinitionStore) ListDefinitionVersions(ctx context.Context, id string) ([]domainpipeline.PipelineVersion, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, pipeline_id, version, definition_hash, created_at, updated_at
+		FROM pipeline_definition_versions WHERE pipeline_id=$1 ORDER BY version`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var versions []domainpipeline.PipelineVersion
+	for rows.Next() {
+		var version domainpipeline.PipelineVersion
+		if err := rows.Scan(&version.ID, &version.PipelineID, &version.Version, &version.DefinitionHash, &version.CreatedAt, &version.UpdatedAt); err != nil {
+			return nil, err
+		}
+		versions = append(versions, version)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	if len(versions) > 0 {
+		return versions, nil
+	}
+	record, err := s.GetDefinition(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return []domainpipeline.PipelineVersion{record.Version}, nil
+}
+
 func (s *PipelineDefinitionStore) UpdateDefinition(ctx context.Context, record pipelineusecase.DefinitionRecord) (pipelineusecase.DefinitionRecord, error) {
 	if err := s.insertOrUpdate(ctx, record, true); err != nil {
 		if duplicateKey(err) {
@@ -69,14 +99,25 @@ func (s *PipelineDefinitionStore) UpdateDefinition(ctx context.Context, record p
 
 func (s *PipelineDefinitionStore) insertOrUpdate(ctx context.Context, record pipelineusecase.DefinitionRecord, update bool) error {
 	definitionJSON, _ := json.Marshal(record.Definition)
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = tx.Rollback(ctx) }()
 	if !update {
-		_, err := s.pool.Exec(ctx, `INSERT INTO pipeline_definitions (id, project_id, name, description, labels, metadata, enabled, version_id, version, definition_hash, definition, created_at, updated_at, version_created_at, version_updated_at)
+		_, err := tx.Exec(ctx, `INSERT INTO pipeline_definitions (id, project_id, name, description, labels, metadata, enabled, version_id, version, definition_hash, definition, created_at, updated_at, version_created_at, version_updated_at)
 			VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)`,
 			record.Pipeline.ID, record.Pipeline.ProjectID, record.Pipeline.Name, record.Pipeline.Description, mapJSON(record.Pipeline.Labels), mapJSON(record.Pipeline.Metadata), record.Pipeline.Enabled,
 			record.Version.ID, record.Version.Version, record.Version.DefinitionHash, definitionJSON, record.Pipeline.CreatedAt, record.Pipeline.UpdatedAt, record.Version.CreatedAt, record.Version.UpdatedAt)
-		return err
+		if err != nil {
+			return err
+		}
+		if err := insertPipelineDefinitionVersion(ctx, tx, record, definitionJSON); err != nil {
+			return err
+		}
+		return tx.Commit(ctx)
 	}
-	tag, err := s.pool.Exec(ctx, `UPDATE pipeline_definitions SET project_id=$2, name=$3, description=$4, labels=$5, metadata=$6, enabled=$7, version_id=$8, version=$9, definition_hash=$10, definition=$11, updated_at=$12, version_created_at=$13, version_updated_at=$14 WHERE id=$1`,
+	tag, err := tx.Exec(ctx, `UPDATE pipeline_definitions SET project_id=$2, name=$3, description=$4, labels=$5, metadata=$6, enabled=$7, version_id=$8, version=$9, definition_hash=$10, definition=$11, updated_at=$12, version_created_at=$13, version_updated_at=$14 WHERE id=$1`,
 		record.Pipeline.ID, record.Pipeline.ProjectID, record.Pipeline.Name, record.Pipeline.Description, mapJSON(record.Pipeline.Labels), mapJSON(record.Pipeline.Metadata), record.Pipeline.Enabled,
 		record.Version.ID, record.Version.Version, record.Version.DefinitionHash, definitionJSON, record.Pipeline.UpdatedAt, record.Version.CreatedAt, record.Version.UpdatedAt)
 	if err != nil {
@@ -85,7 +126,26 @@ func (s *PipelineDefinitionStore) insertOrUpdate(ctx context.Context, record pip
 	if tag.RowsAffected() == 0 {
 		return fmt.Errorf("%w: pipeline %q", pipelineusecase.ErrPipelineDefinitionNotFound, record.Pipeline.ID)
 	}
-	return nil
+	if err := insertPipelineDefinitionVersion(ctx, tx, record, definitionJSON); err != nil {
+		return err
+	}
+	return tx.Commit(ctx)
+}
+
+type pipelineDefinitionVersionWriter interface {
+	Exec(context.Context, string, ...any) (pgconn.CommandTag, error)
+}
+
+func insertPipelineDefinitionVersion(ctx context.Context, tx pipelineDefinitionVersionWriter, record pipelineusecase.DefinitionRecord, definitionJSON []byte) error {
+	_, err := tx.Exec(ctx, `INSERT INTO pipeline_definition_versions (id, pipeline_id, version, definition_hash, definition, created_at, updated_at)
+		VALUES ($1,$2,$3,$4,$5,$6,$7)
+		ON CONFLICT (pipeline_id, version) DO UPDATE SET
+			id=EXCLUDED.id,
+			definition_hash=EXCLUDED.definition_hash,
+			definition=EXCLUDED.definition,
+			updated_at=EXCLUDED.updated_at`,
+		record.Version.ID, record.Pipeline.ID, record.Version.Version, record.Version.DefinitionHash, definitionJSON, record.Version.CreatedAt, record.Version.UpdatedAt)
+	return err
 }
 
 func scanPipelineDefinition(row scanner) (pipelineusecase.DefinitionRecord, error) {

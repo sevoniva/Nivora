@@ -1684,7 +1684,7 @@ paths:
   /api/v1/pipelines/{id}/versions:
     get:
       summary: List pipeline definition versions
-      description: Returns the current saved Pipeline definition version. Historical version storage is foundation-level and not complete yet.
+      description: Returns persisted Pipeline definition version metadata created by catalog create/update operations. This is version history for traceability, not a scheduler or rollback mechanism.
       parameters:
         - $ref: "#/components/parameters/ID"
       responses:

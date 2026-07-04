@@ -49,6 +49,7 @@ func TestPostgresIntegrationMigrationUpDown(t *testing.T) {
 		"catalog_repositories",
 		"catalog_release_targets",
 		"pipeline_definitions",
+		"pipeline_definition_versions",
 		"catalog_artifact_registries",
 		"catalog_policies",
 		"catalog_policy_attachments",
@@ -68,12 +69,14 @@ func TestPostgresIntegrationMigrationUpDown(t *testing.T) {
 		"idx_catalog_artifact_registries_project",
 		"idx_catalog_policies_project",
 		"idx_catalog_policy_attachments_policy",
+		"idx_pipeline_definition_versions_pipeline",
+		"idx_pipeline_definition_versions_unique",
 	} {
 		assertRelationExists(t, db.pool, index)
 	}
 
 	applyDownMigrations(t, db.pool)
-	for _, table := range []string{"runtime_pipeline_runs", "runtime_deployment_runs", "runtime_release_executions", "catalog_orgs", "pipeline_definitions", "catalog_artifact_registries", "catalog_policies", "compliance_evidence_bundles"} {
+	for _, table := range []string{"runtime_pipeline_runs", "runtime_deployment_runs", "runtime_release_executions", "catalog_orgs", "pipeline_definitions", "pipeline_definition_versions", "catalog_artifact_registries", "catalog_policies", "compliance_evidence_bundles"} {
 		assertRelationMissing(t, db.pool, table)
 	}
 }

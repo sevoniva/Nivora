@@ -13,6 +13,7 @@ import (
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
+	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
 	cloudusecase "github.com/sevoniva/nivora/internal/usecase/cloud"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
@@ -29,6 +30,7 @@ import (
 func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, tenancyService *tenancyusecase.Service, complianceService *complianceusecase.Service, pluginRegistry *pluginusecase.Registry) http.Handler {
 	r := chi.NewRouter()
 	runtimeCenter := runtimecenter.NewService(pipelineService, deploymentService, releaseService)
+	catalogService := catalogusecase.NewService(catalogusecase.NewMemoryStore())
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
 	r.Use(middleware.RealIP)
@@ -78,10 +80,30 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/permissions", handlers.ListPermissions(authService))
 		api.Get("/orgs/{id}/members", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListOrgMembers(authService)))
 		api.Post("/orgs/{id}/members", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.AddOrgMember(authService)))
+		api.Get("/orgs", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListOrgs(catalogService)))
+		api.Post("/orgs", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.CreateOrg(catalogService)))
+		api.Get("/orgs/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetOrg(catalogService)))
+		api.Patch("/orgs/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.UpdateOrg(catalogService)))
+		api.Delete("/orgs/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.DisableOrg(catalogService)))
 		api.Get("/projects/{id}/members", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListProjectMembers(authService)))
 		api.Post("/projects/{id}/members", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.AddProjectMember(authService)))
+		api.Get("/projects", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListProjects(catalogService)))
+		api.Post("/projects", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.CreateProject(catalogService)))
+		api.Get("/projects/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetProject(catalogService)))
+		api.Patch("/projects/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.UpdateProject(catalogService)))
+		api.Delete("/projects/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.DisableProject(catalogService)))
+		api.Get("/applications", apimiddleware.RequirePermission(authService, "application.read", handlers.RespondError, handlers.ListApplications(catalogService)))
+		api.Post("/applications", apimiddleware.RequirePermission(authService, "application.write", handlers.RespondError, handlers.CreateApplication(catalogService)))
+		api.Get("/applications/{id}", apimiddleware.RequirePermission(authService, "application.read", handlers.RespondError, handlers.GetApplication(catalogService)))
+		api.Patch("/applications/{id}", apimiddleware.RequirePermission(authService, "application.write", handlers.RespondError, handlers.UpdateApplication(catalogService)))
+		api.Delete("/applications/{id}", apimiddleware.RequirePermission(authService, "application.write", handlers.RespondError, handlers.DisableApplication(catalogService)))
 		api.Get("/environments/{id}/members", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.ListEnvironmentMembers(authService)))
 		api.Post("/environments/{id}/members", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.AddEnvironmentMember(authService)))
+		api.Get("/environments", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.ListEnvironments(catalogService)))
+		api.Post("/environments", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.CreateEnvironment(catalogService)))
+		api.Get("/environments/{id}", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.GetEnvironment(catalogService)))
+		api.Patch("/environments/{id}", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.UpdateEnvironment(catalogService)))
+		api.Delete("/environments/{id}", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.DisableEnvironment(catalogService)))
 		api.Get("/pipeline-runs", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListPipelineRuns(pipelineService)))
 		api.Post("/pipeline-runs", apimiddleware.RequirePermission(authService, "pipeline.run", handlers.RespondError, handlers.CreatePipelineRun(pipelineService)))
 		api.Get("/pipeline-runs/{id}", handlers.GetPipelineRun(pipelineService))
@@ -237,10 +259,6 @@ type routeGroup struct {
 
 func placeholderGroups() []routeGroup {
 	return []routeGroup{
-		{"/orgs", "orgs"},
-		{"/projects", "projects"},
-		{"/applications", "applications"},
-		{"/environments", "environments"},
 		{"/repositories", "repositories"},
 		{"/artifact-registries", "artifact registries"},
 		{"/pipelines", "pipelines"},

@@ -18,7 +18,19 @@ Auth modes:
 | GET/POST | `/api/v1/orgs/{id}/members` | `project.read` / `project.write` | org | user/service account | yes | no | yes | Current foundation maps org membership through project permissions. |
 | GET/POST | `/api/v1/projects/{id}/members` | `project.read` / `project.write` | project | user/service account | yes | no | yes | Scoped tokens must match project scope. |
 | GET/POST | `/api/v1/environments/{id}/members` | `environment.read` / `environment.write` | environment | user/service account | yes | no | yes | Scoped tokens must match environment scope. |
-| Placeholder | `/api/v1/orgs`, `/api/v1/projects`, `/api/v1/applications`, `/api/v1/environments`, `/api/v1/repositories` | placeholder | varies | user/service account | yes | no | yes | Structured `not_implemented`; no fake data. |
+| GET | `/api/v1/orgs`, `/api/v1/orgs/{id}` | `project.read` | org | user/service account | yes | no | yes | Foundation organization catalog. |
+| POST | `/api/v1/orgs` | `project.write` | org | user/service account | yes | no | yes | Creates an organization catalog record. |
+| PATCH/DELETE | `/api/v1/orgs/{id}` | `project.write` | org | user/service account | yes | no | yes | Delete disables instead of hard-deleting. |
+| GET | `/api/v1/projects`, `/api/v1/projects/{id}` | `project.read` | project | user/service account | yes | no | yes | Foundation project catalog. |
+| POST | `/api/v1/projects` | `project.write` | project | user/service account | yes | no | yes | Parent org is validated. |
+| PATCH/DELETE | `/api/v1/projects/{id}` | `project.write` | project | user/service account | yes | no | yes | Delete disables instead of hard-deleting. |
+| GET | `/api/v1/applications`, `/api/v1/applications/{id}` | `application.read` | application/project | user/service account | yes | no | yes | Foundation application catalog. |
+| POST | `/api/v1/applications` | `application.write` | application/project | user/service account | yes | no | yes | Parent project is validated. |
+| PATCH/DELETE | `/api/v1/applications/{id}` | `application.write` | application/project | user/service account | yes | no | yes | Delete disables instead of hard-deleting. |
+| GET | `/api/v1/environments`, `/api/v1/environments/{id}` | `environment.read` | environment/project | user/service account | yes | no | yes | Foundation environment catalog. |
+| POST | `/api/v1/environments` | `environment.write` | environment/project | user/service account | yes | no | yes | Parent project is validated. |
+| PATCH/DELETE | `/api/v1/environments/{id}` | `environment.write` | environment/project | user/service account | yes | no | yes | Delete disables instead of hard-deleting. |
+| Placeholder | `/api/v1/repositories` | placeholder | varies | user/service account | yes | no | yes | Structured `not_implemented`; no fake data. |
 | GET/POST | `/api/v1/secrets`, `/api/v1/secrets/*` | `credential.manage` | org/project/environment/runner/global | user/service account | yes | no | yes | Responses return refs only, never secret values. |
 | GET/POST/DELETE | `/api/v1/credentials*` | `credential.manage` | org/project/environment/runner/global | user/service account | yes | no | yes | Responses return metadata/SecretRef only. |
 | POST | `/api/v1/artifacts/inspect`, `/api/v1/artifacts/resolve` | `release.create` | project/application | user/service account | yes | no | yes | Registry credentials must remain behind SecretRef/CredentialRef. |

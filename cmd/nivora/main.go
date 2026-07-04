@@ -52,7 +52,10 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newRunCommand("worker", "configs/worker.yaml", worker.Run))
 	root.AddCommand(newConfigCommand())
 	root.AddCommand(newAuthCommand())
+	root.AddCommand(newOrgCommand())
 	root.AddCommand(newProjectCommand())
+	root.AddCommand(newApplicationCommand())
+	root.AddCommand(newEnvironmentCommand())
 	root.AddCommand(newApprovalsCommand())
 	root.AddCommand(newChangeWindowCommand())
 	root.AddCommand(newNotificationCommand())
@@ -778,9 +781,236 @@ func newAuthInspectCommand(name string, short string, path string) *cobra.Comman
 
 func newProjectCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "project", Short: "Project utilities"}
+	cmd.AddCommand(newCatalogListCommand("list", "List projects", "/api/v1/projects", "org-id"))
+	cmd.AddCommand(newCatalogGetCommand("get", "Get a project", "/api/v1/projects"))
+	cmd.AddCommand(newProjectCreateCommand())
+	cmd.AddCommand(newCatalogUpdateCommand("update", "Update a project", "/api/v1/projects"))
+	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable a project", "/api/v1/projects"))
 	members := &cobra.Command{Use: "members", Short: "Project membership utilities"}
 	members.AddCommand(newProjectMembersListCommand())
 	cmd.AddCommand(members)
+	return cmd
+}
+
+func newOrgCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "org", Short: "Organization catalog utilities"}
+	cmd.AddCommand(newCatalogListCommand("list", "List organizations", "/api/v1/orgs", ""))
+	cmd.AddCommand(newCatalogGetCommand("get", "Get an organization", "/api/v1/orgs"))
+	cmd.AddCommand(newOrgCreateCommand())
+	cmd.AddCommand(newCatalogUpdateCommand("update", "Update an organization", "/api/v1/orgs"))
+	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable an organization", "/api/v1/orgs"))
+	return cmd
+}
+
+func newApplicationCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "application", Aliases: []string{"app"}, Short: "Application catalog utilities"}
+	cmd.AddCommand(newCatalogListCommand("list", "List applications", "/api/v1/applications", "project-id"))
+	cmd.AddCommand(newCatalogGetCommand("get", "Get an application", "/api/v1/applications"))
+	cmd.AddCommand(newApplicationCreateCommand())
+	cmd.AddCommand(newCatalogUpdateCommand("update", "Update an application", "/api/v1/applications"))
+	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable an application", "/api/v1/applications"))
+	return cmd
+}
+
+func newEnvironmentCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "environment", Aliases: []string{"env"}, Short: "Environment catalog utilities"}
+	cmd.AddCommand(newCatalogListCommand("list", "List environments", "/api/v1/environments", "project-id"))
+	cmd.AddCommand(newCatalogGetCommand("get", "Get an environment", "/api/v1/environments"))
+	cmd.AddCommand(newEnvironmentCreateCommand())
+	cmd.AddCommand(newCatalogUpdateCommand("update", "Update an environment", "/api/v1/environments"))
+	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable an environment", "/api/v1/environments"))
+	return cmd
+}
+
+func newOrgCreateCommand() *cobra.Command {
+	return newCatalogCreateCommand("create", "Create an organization", "/api/v1/orgs", "")
+}
+
+func newProjectCreateCommand() *cobra.Command {
+	return newCatalogCreateCommand("create", "Create a project", "/api/v1/projects", "org-id")
+}
+
+func newApplicationCreateCommand() *cobra.Command {
+	return newCatalogCreateCommand("create", "Create an application", "/api/v1/applications", "project-id")
+}
+
+func newEnvironmentCreateCommand() *cobra.Command {
+	return newCatalogCreateCommand("create", "Create an environment", "/api/v1/environments", "project-id")
+}
+
+func newCatalogListCommand(name string, short string, path string, parentFlag string) *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var parentID string
+	cmd := &cobra.Command{
+		Use:   name,
+		Short: short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			query := ""
+			if parentFlag != "" && parentID != "" {
+				query = "?" + url.Values{catalogParentQueryKey(parentFlag): []string{parentID}}.Encode()
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path+query, nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	if parentFlag != "" {
+		cmd.Flags().StringVar(&parentID, parentFlag, "", "parent resource id filter")
+	}
+	return cmd
+}
+
+func catalogParentQueryKey(parentFlag string) string {
+	switch parentFlag {
+	case "org-id":
+		return "orgId"
+	case "project-id":
+		return "projectId"
+	default:
+		return strings.ReplaceAll(parentFlag, "-", "")
+	}
+}
+
+func newCatalogGetCommand(name string, short string, path string) *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   name + " <id>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path+"/"+args[0], nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newCatalogCreateCommand(name string, short string, path string, parentFlag string) *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var resourceName string
+	var description string
+	var parentID string
+	cmd := &cobra.Command{
+		Use:   name,
+		Short: short,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if resourceName == "" {
+				return fmt.Errorf("--name is required")
+			}
+			bodyMap := map[string]any{"name": resourceName}
+			if description != "" {
+				bodyMap["description"] = description
+			}
+			switch parentFlag {
+			case "org-id":
+				if parentID == "" {
+					return fmt.Errorf("--org-id is required")
+				}
+				bodyMap["orgId"] = parentID
+			case "project-id":
+				if parentID == "" {
+					return fmt.Errorf("--project-id is required")
+				}
+				bodyMap["projectId"] = parentID
+			}
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, path, body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&resourceName, "name", "", "resource name")
+	cmd.Flags().StringVar(&description, "description", "", "resource description")
+	if parentFlag != "" {
+		cmd.Flags().StringVar(&parentID, parentFlag, "", "parent resource id")
+	}
+	return cmd
+}
+
+func newCatalogUpdateCommand(name string, short string, path string) *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var resourceName string
+	var description string
+	var enabled bool
+	cmd := &cobra.Command{
+		Use:   name + " <id>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			bodyMap := map[string]any{}
+			if cmd.Flags().Changed("name") {
+				bodyMap["name"] = resourceName
+			}
+			if cmd.Flags().Changed("description") {
+				bodyMap["description"] = description
+			}
+			if cmd.Flags().Changed("enabled") {
+				bodyMap["enabled"] = enabled
+			}
+			if len(bodyMap) == 0 {
+				return fmt.Errorf("at least one of --name, --description, or --enabled must be set")
+			}
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPatch, serverURL, path+"/"+args[0], body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&resourceName, "name", "", "resource name")
+	cmd.Flags().StringVar(&description, "description", "", "resource description")
+	cmd.Flags().BoolVar(&enabled, "enabled", true, "resource enabled state")
+	return cmd
+}
+
+func newCatalogDisableCommand(name string, short string, path string) *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   name + " <id>",
+		Short: short,
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodDelete, serverURL, path+"/"+args[0], nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 

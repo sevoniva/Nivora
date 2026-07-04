@@ -44,6 +44,7 @@ For a quick path through the project:
 
 - [Concept Overview](concepts/overview.md)
 - [Glossary](concepts/glossary.md)
+- [Control Plane Catalog](concepts/control-plane-catalog.md)
 - [Application](concepts/application.md)
 - [Environment](concepts/environment.md)
 - [Release Target](concepts/release-target.md)

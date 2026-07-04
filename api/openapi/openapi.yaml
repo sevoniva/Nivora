@@ -588,28 +588,307 @@ paths:
           description: Membership created
   /api/v1/orgs:
     get:
-      summary: Organizations placeholder
+      summary: List organizations
+      description: Lists organization catalog records. This is a foundation catalog API, not a complete tenant administration surface.
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Organization list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orgs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Org"
+    post:
+      summary: Create organization
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OrgCreateRequest"
+      responses:
+        "201":
+          description: Organization created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Org"
+  /api/v1/orgs/{id}:
+    get:
+      summary: Get organization
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Organization
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Org"
+    patch:
+      summary: Update organization
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogUpdateRequest"
+      responses:
+        "200":
+          description: Organization updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Org"
+    delete:
+      summary: Disable organization
+      description: Disables the organization record instead of hard-deleting it.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Organization disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Org"
   /api/v1/projects:
     get:
-      summary: Projects placeholder
+      summary: List projects
+      parameters:
+        - name: orgId
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Project list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  projects:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Project"
+    post:
+      summary: Create project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ProjectCreateRequest"
+      responses:
+        "201":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+  /api/v1/projects/{id}:
+    get:
+      summary: Get project
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Project
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    patch:
+      summary: Update project
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogUpdateRequest"
+      responses:
+        "200":
+          description: Project updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+    delete:
+      summary: Disable project
+      description: Disables the project record instead of hard-deleting it.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Project disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
   /api/v1/applications:
     get:
-      summary: Applications placeholder
+      summary: List applications
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Application list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  applications:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Application"
+    post:
+      summary: Create application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ApplicationCreateRequest"
+      responses:
+        "201":
+          description: Application created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+  /api/v1/applications/{id}:
+    get:
+      summary: Get application
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Application
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+    patch:
+      summary: Update application
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogUpdateRequest"
+      responses:
+        "200":
+          description: Application updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
+    delete:
+      summary: Disable application
+      description: Disables the application record instead of hard-deleting it.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Application disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Application"
   /api/v1/environments:
     get:
-      summary: Environments placeholder
+      summary: List environments
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Environment list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  environments:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Environment"
+    post:
+      summary: Create environment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/EnvironmentCreateRequest"
+      responses:
+        "201":
+          description: Environment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Environment"
+  /api/v1/environments/{id}:
+    get:
+      summary: Get environment
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Environment
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Environment"
+    patch:
+      summary: Update environment
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CatalogUpdateRequest"
+      responses:
+        "200":
+          description: Environment updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Environment"
+    delete:
+      summary: Disable environment
+      description: Disables the environment record instead of hard-deleting it.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Environment disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Environment"
   /api/v1/repositories:
     get:
       summary: Repositories placeholder
@@ -2577,6 +2856,109 @@ components:
           type: string
     Error:
       $ref: "#/components/schemas/ErrorResponse"
+    CatalogMetadata:
+      type: object
+      additionalProperties:
+        type: string
+    CatalogResourceBase:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Org:
+      allOf:
+        - $ref: "#/components/schemas/CatalogResourceBase"
+    Project:
+      allOf:
+        - $ref: "#/components/schemas/CatalogResourceBase"
+        - type: object
+          properties:
+            orgId:
+              type: string
+    Application:
+      allOf:
+        - $ref: "#/components/schemas/CatalogResourceBase"
+        - type: object
+          properties:
+            projectId:
+              type: string
+    Environment:
+      allOf:
+        - $ref: "#/components/schemas/CatalogResourceBase"
+        - type: object
+          properties:
+            projectId:
+              type: string
+    OrgCreateRequest:
+      type: object
+      required: [name]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        enabled:
+          type: boolean
+    ProjectCreateRequest:
+      allOf:
+        - $ref: "#/components/schemas/OrgCreateRequest"
+        - type: object
+          required: [orgId]
+          properties:
+            orgId:
+              type: string
+    ApplicationCreateRequest:
+      allOf:
+        - $ref: "#/components/schemas/OrgCreateRequest"
+        - type: object
+          required: [projectId]
+          properties:
+            projectId:
+              type: string
+    EnvironmentCreateRequest:
+      allOf:
+        - $ref: "#/components/schemas/ApplicationCreateRequest"
+    CatalogUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        slug:
+          type: string
+        description:
+          type: string
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        enabled:
+          type: boolean
     Pagination:
       type: object
       properties:

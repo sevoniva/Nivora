@@ -1,0 +1,118 @@
+package catalog
+
+import (
+	"context"
+	"errors"
+
+	domainapp "github.com/sevoniva/nivora/internal/domain/application"
+	domainenv "github.com/sevoniva/nivora/internal/domain/environment"
+	domainorg "github.com/sevoniva/nivora/internal/domain/org"
+	domainproject "github.com/sevoniva/nivora/internal/domain/project"
+)
+
+var (
+	ErrInvalid       = errors.New("catalog input is invalid")
+	ErrNotFound      = errors.New("catalog resource not found")
+	ErrAlreadyExists = errors.New("catalog resource already exists")
+)
+
+type Store interface {
+	CreateOrg(ctx context.Context, org domainorg.Org) (domainorg.Org, error)
+	GetOrg(ctx context.Context, id string) (domainorg.Org, error)
+	ListOrgs(ctx context.Context) ([]domainorg.Org, error)
+	UpdateOrg(ctx context.Context, org domainorg.Org) (domainorg.Org, error)
+
+	CreateProject(ctx context.Context, project domainproject.Project) (domainproject.Project, error)
+	GetProject(ctx context.Context, id string) (domainproject.Project, error)
+	ListProjects(ctx context.Context, orgID string) ([]domainproject.Project, error)
+	UpdateProject(ctx context.Context, project domainproject.Project) (domainproject.Project, error)
+
+	CreateApplication(ctx context.Context, app domainapp.Application) (domainapp.Application, error)
+	GetApplication(ctx context.Context, id string) (domainapp.Application, error)
+	ListApplications(ctx context.Context, projectID string) ([]domainapp.Application, error)
+	UpdateApplication(ctx context.Context, app domainapp.Application) (domainapp.Application, error)
+
+	CreateEnvironment(ctx context.Context, environment domainenv.Environment) (domainenv.Environment, error)
+	GetEnvironment(ctx context.Context, id string) (domainenv.Environment, error)
+	ListEnvironments(ctx context.Context, projectID string) ([]domainenv.Environment, error)
+	UpdateEnvironment(ctx context.Context, environment domainenv.Environment) (domainenv.Environment, error)
+}
+
+type CreateOrgInput struct {
+	ID          string            `json:"id,omitempty" yaml:"id,omitempty"`
+	Name        string            `json:"name" yaml:"name"`
+	Slug        string            `json:"slug,omitempty" yaml:"slug,omitempty"`
+	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled     *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type UpdateOrgInput struct {
+	Name        *string           `json:"name,omitempty" yaml:"name,omitempty"`
+	Slug        *string           `json:"slug,omitempty" yaml:"slug,omitempty"`
+	Description *string           `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled     *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type CreateProjectInput struct {
+	ID          string            `json:"id,omitempty" yaml:"id,omitempty"`
+	OrgID       string            `json:"orgId" yaml:"orgId"`
+	Name        string            `json:"name" yaml:"name"`
+	Slug        string            `json:"slug,omitempty" yaml:"slug,omitempty"`
+	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled     *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type UpdateProjectInput struct {
+	Name        *string           `json:"name,omitempty" yaml:"name,omitempty"`
+	Slug        *string           `json:"slug,omitempty" yaml:"slug,omitempty"`
+	Description *string           `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled     *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type CreateApplicationInput struct {
+	ID          string            `json:"id,omitempty" yaml:"id,omitempty"`
+	ProjectID   string            `json:"projectId" yaml:"projectId"`
+	Name        string            `json:"name" yaml:"name"`
+	Slug        string            `json:"slug,omitempty" yaml:"slug,omitempty"`
+	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled     *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type UpdateApplicationInput struct {
+	Name        *string           `json:"name,omitempty" yaml:"name,omitempty"`
+	Slug        *string           `json:"slug,omitempty" yaml:"slug,omitempty"`
+	Description *string           `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled     *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type CreateEnvironmentInput struct {
+	ID          string            `json:"id,omitempty" yaml:"id,omitempty"`
+	ProjectID   string            `json:"projectId" yaml:"projectId"`
+	Name        string            `json:"name" yaml:"name"`
+	Slug        string            `json:"slug,omitempty" yaml:"slug,omitempty"`
+	Description string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled     *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type UpdateEnvironmentInput struct {
+	Name        *string           `json:"name,omitempty" yaml:"name,omitempty"`
+	Slug        *string           `json:"slug,omitempty" yaml:"slug,omitempty"`
+	Description *string           `json:"description,omitempty" yaml:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled     *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}

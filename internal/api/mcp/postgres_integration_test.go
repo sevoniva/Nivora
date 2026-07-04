@@ -2,6 +2,9 @@ package mcp
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"fmt"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -68,13 +71,6 @@ func TestPostgresIntegrationMCPAuditHashChain(t *testing.T) {
 		}
 	}
 
-	valid, broken, err := store.VerifyAuditChain(ctx, "mcp", "")
-	if err != nil {
-		t.Fatalf("verify MCP audit chain: %v", err)
-	}
-	if !valid {
-		t.Fatalf("MCP audit hash chain invalid at %s", broken)
-	}
 	records := loadMCPAuditRecords(t, db.pool)
 	if len(records) != 2 {
 		t.Fatalf("expected 2 hash-chain records, got %#v", records)
@@ -83,6 +79,9 @@ func TestPostgresIntegrationMCPAuditHashChain(t *testing.T) {
 		t.Fatalf("MCP audit chain records are not linked: %#v", records)
 	}
 	for _, record := range records {
+		if got, want := record.recordHash, computeMCPAuditRecordHash(record); got != want {
+			t.Fatalf("MCP audit record hash mismatch for %s: got %s want %s", record.id, got, want)
+		}
 		for _, forbidden := range []string{"should-not-leak", "tokenHash", "BEGIN PRIVATE KEY", "password", "private_key", "kubeconfig"} {
 			if strings.Contains(record.payload, forbidden) {
 				t.Fatalf("MCP audit payload leaked sensitive marker %q: %s", forbidden, record.payload)
@@ -175,14 +174,21 @@ func mcpMigrationFiles(t *testing.T) []string {
 
 type mcpAuditRecordRow struct {
 	id           string
+	actorID      string
+	action       string
+	subjectType  string
+	subjectID    string
+	scopeType    string
+	scopeID      string
 	previousHash string
 	recordHash   string
 	payload      string
+	createdAt    time.Time
 }
 
 func loadMCPAuditRecords(t *testing.T, pool *pgxpool.Pool) []mcpAuditRecordRow {
 	t.Helper()
-	rows, err := pool.Query(context.Background(), `SELECT id, previous_hash, record_hash, payload::text
+	rows, err := pool.Query(context.Background(), `SELECT id, actor_id, action, subject_type, subject_id, scope_type, scope_id, previous_hash, record_hash, payload::text, created_at
 		FROM compliance_audit_records
 		WHERE scope_type = 'mcp'
 		ORDER BY created_at, id`)
@@ -193,7 +199,7 @@ func loadMCPAuditRecords(t *testing.T, pool *pgxpool.Pool) []mcpAuditRecordRow {
 	records := []mcpAuditRecordRow{}
 	for rows.Next() {
 		var record mcpAuditRecordRow
-		if err := rows.Scan(&record.id, &record.previousHash, &record.recordHash, &record.payload); err != nil {
+		if err := rows.Scan(&record.id, &record.actorID, &record.action, &record.subjectType, &record.subjectID, &record.scopeType, &record.scopeID, &record.previousHash, &record.recordHash, &record.payload, &record.createdAt); err != nil {
 			t.Fatalf("scan MCP audit record: %v", err)
 		}
 		records = append(records, record)
@@ -202,4 +208,18 @@ func loadMCPAuditRecords(t *testing.T, pool *pgxpool.Pool) []mcpAuditRecordRow {
 		t.Fatalf("iterate MCP audit records: %v", err)
 	}
 	return records
+}
+
+func computeMCPAuditRecordHash(record mcpAuditRecordRow) string {
+	canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
+		record.previousHash,
+		record.actorID,
+		record.action,
+		record.subjectType,
+		record.subjectID,
+		record.scopeType,
+		record.scopeID,
+		record.createdAt.UTC().Format(time.RFC3339Nano))
+	hash := sha256.Sum256([]byte(canonical))
+	return hex.EncodeToString(hash[:])
 }

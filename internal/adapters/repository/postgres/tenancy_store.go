@@ -62,7 +62,8 @@ func (s *TenancyStore) SaveUsage(ctx context.Context, usage domaintenant.UsageSu
 	for _, metric := range metrics {
 		id := fmt.Sprintf("%s/%s-%s-%s", usage.Scope.Type, usage.Scope.ID, usage.UpdatedAt.UTC().Format("20060102T150405.000000000"), metric.name)
 		if _, err := s.pool.Exec(ctx, `INSERT INTO tenancy_usage_records (id, scope_type, scope_id, resource_type, resource_count, window_start, window_end, created_at)
-			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)`,
+			VALUES ($1,$2,$3,$4,$5,$6,$7,$8)
+			ON CONFLICT (id) DO UPDATE SET resource_count=EXCLUDED.resource_count, window_start=EXCLUDED.window_start, window_end=EXCLUDED.window_end, created_at=EXCLUDED.created_at`,
 			id, usage.Scope.Type, usage.Scope.ID, metric.name, metric.count, usage.UpdatedAt, usage.UpdatedAt, usage.UpdatedAt); err != nil {
 			return err
 		}

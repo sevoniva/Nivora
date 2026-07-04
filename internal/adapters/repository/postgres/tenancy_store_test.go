@@ -50,6 +50,9 @@ func TestPostgresIntegrationTenancyQuotaAndUsageRecovery(t *testing.T) {
 	if err := store.SaveUsage(ctx, usage); err != nil {
 		t.Fatalf("save usage: %v", err)
 	}
+	if err := store.SaveUsage(ctx, usage); err != nil {
+		t.Fatalf("idempotently save usage: %v", err)
+	}
 
 	store = NewTenancyStore(db.restart(t))
 	loadedQuota, err := store.GetQuota(ctx, scope.Type, scope.ID)

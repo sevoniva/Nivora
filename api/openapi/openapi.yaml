@@ -3236,6 +3236,50 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PolicyDefinition"
+  /api/v1/policies/{id}/attachments:
+    get:
+      summary: List policy attachments
+      description: Lists foundation policy attachments for a policy definition. Attachments declare intended scope only; external policy distribution remains future work.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - name: scopeType
+          in: query
+          schema:
+            type: string
+        - name: scopeId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Policy attachments
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  attachments:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PolicyAttachment"
+    post:
+      summary: Attach policy definition to a scope
+      description: Attaches a built-in policy definition to a global, org, project, application, environment, target, release, or deployment scope.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyAttachRequest"
+      responses:
+        "201":
+          description: Policy attachment created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyAttachment"
   /api/v1/audit-logs:
     get:
       summary: Search aggregate audit logs
@@ -5629,6 +5673,48 @@ components:
         updatedAt:
           type: string
           format: date-time
+    PolicyAttachment:
+      type: object
+      properties:
+        id:
+          type: string
+        policyId:
+          type: string
+        scopeType:
+          type: string
+          enum: [global, org, project, application, environment, target, release, deployment]
+        scopeId:
+          type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PolicyAttachRequest:
+      type: object
+      required: [scopeType]
+      properties:
+        id:
+          type: string
+        scopeType:
+          type: string
+          enum: [global, org, project, application, environment, target, release, deployment]
+        scopeId:
+          type: string
+          description: Required unless scopeType is global.
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        enabled:
+          type: boolean
     PolicyCreateRequest:
       allOf:
         - $ref: "#/components/schemas/PolicyDefinition"

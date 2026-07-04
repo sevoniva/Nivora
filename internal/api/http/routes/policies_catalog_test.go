@@ -40,6 +40,39 @@ func TestPolicyCatalogRoutes(t *testing.T) {
 		t.Fatalf("expected one policy, got %d", len(listed.Policies))
 	}
 
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/policies/policy-digest/attachments", strings.NewReader(`{"id":"attach-prod","scopeType":"environment","scopeId":"prod"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("attach status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"scopeType":"environment"`) {
+		t.Fatalf("attachment missing scope: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/policies/policy-digest/attachments", strings.NewReader(`{"scopeType":"environment","scopeId":"prod"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("duplicate attach status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/policies/policy-digest/attachments?scopeType=environment", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list attachments status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var attachments struct {
+		Attachments []map[string]any `json:"attachments"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &attachments); err != nil {
+		t.Fatalf("decode attachments: %v", err)
+	}
+	if len(attachments.Attachments) != 1 {
+		t.Fatalf("expected one attachment, got %d", len(attachments.Attachments))
+	}
+
 	req = httptest.NewRequest(http.MethodPatch, "/api/v1/policies/policy-digest", strings.NewReader(`{"highWarnThreshold":2}`))
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

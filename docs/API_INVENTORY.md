@@ -15,7 +15,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | Release orchestration | releases, release artifacts, plan/deploy, executions, targets, timeline, cancel/resume, release evidence | sequential local orchestration foundation |
 | Release target catalog | `GET/POST /api/v1/release-targets`, get/update/disable/validate | metadata only; unsafe flags default false |
 | Artifact / release binding | inspect, resolve, release create/list/get/artifacts, registry validate | OCI-compatible foundation; vendor management APIs are not implemented |
-| Security / policy | scans, findings, stored scan/finding queries, policy evaluate, release/deployment security | noop/fake scanners and built-in policy rules |
+| Security / policy | scans, findings, stored scan/finding queries, policy catalog, policy attachments, policy evaluate, release/deployment security | noop/fake scanners and built-in policy rules; no external policy distribution |
 | Auth / RBAC | whoami, permissions, token info, users, roles, permissions, memberships, service accounts, API tokens | local/token/OIDC-foundation only |
 | Secrets / credentials | secrets, secret refs, provider validate, rotate/delete, credentials CRUD/validate | values are not returned by normal APIs |
 | Approval / change windows / notifications | approvals, change-window evaluate, notifications test/list | backend governance foundation |

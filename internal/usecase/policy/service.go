@@ -126,6 +126,56 @@ func (s *Service) Disable(ctx context.Context, id string) (domainpolicy.Policy, 
 	return s.Update(ctx, id, UpdateInput{Enabled: &enabled})
 }
 
+func (s *Service) Attach(ctx context.Context, policyID string, input AttachInput) (domainpolicy.PolicyAttachment, error) {
+	policyID = strings.TrimSpace(policyID)
+	if policyID == "" {
+		return domainpolicy.PolicyAttachment{}, fmt.Errorf("%w: policy id is required", ErrInvalid)
+	}
+	if _, err := s.store.Get(ctx, policyID); err != nil {
+		return domainpolicy.PolicyAttachment{}, err
+	}
+	scopeType := normalizeScopeType(input.ScopeType)
+	if !isSupportedScopeType(scopeType) {
+		return domainpolicy.PolicyAttachment{}, fmt.Errorf("%w: unsupported policy attachment scope type %q", ErrInvalid, input.ScopeType)
+	}
+	scopeID := strings.TrimSpace(input.ScopeID)
+	if scopeType != "global" && scopeID == "" {
+		return domainpolicy.PolicyAttachment{}, fmt.Errorf("%w: scopeId is required for %s policy attachments", ErrInvalid, scopeType)
+	}
+	if scopeType == "global" {
+		scopeID = ""
+	}
+	enabled := true
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+	now := s.now().UTC()
+	attachment := domainpolicy.PolicyAttachment{
+		ID:        defaultAttachmentID(input.ID),
+		PolicyID:  policyID,
+		ScopeType: scopeType,
+		ScopeID:   scopeID,
+		Metadata:  copyMap(input.Metadata),
+		Enabled:   enabled,
+		CreatedAt: now,
+		UpdatedAt: now,
+	}
+	return s.store.CreateAttachment(ctx, attachment)
+}
+
+func (s *Service) ListAttachments(ctx context.Context, input AttachmentListInput) ([]domainpolicy.PolicyAttachment, error) {
+	filter := AttachmentListInput{
+		PolicyID:  strings.TrimSpace(input.PolicyID),
+		ScopeType: normalizeScopeType(input.ScopeType),
+		ScopeID:   strings.TrimSpace(input.ScopeID),
+		Enabled:   input.Enabled,
+	}
+	if filter.ScopeType != "" && !isSupportedScopeType(filter.ScopeType) {
+		return nil, fmt.Errorf("%w: unsupported policy attachment scope type %q", ErrInvalid, input.ScopeType)
+	}
+	return s.store.ListAttachments(ctx, filter)
+}
+
 func defaultID(input string) string {
 	input = strings.TrimSpace(input)
 	if input != "" {
@@ -138,10 +188,41 @@ func defaultID(input string) string {
 	return "policy-" + hex.EncodeToString(b[:])
 }
 
+func defaultAttachmentID(input string) string {
+	input = strings.TrimSpace(input)
+	if input != "" {
+		return input
+	}
+	var b [8]byte
+	if _, err := rand.Read(b[:]); err != nil {
+		return fmt.Sprintf("policy-attachment-%d", time.Now().UnixNano())
+	}
+	return "policy-attachment-" + hex.EncodeToString(b[:])
+}
+
 func defaultString(input string, fallback string) string {
 	input = strings.TrimSpace(input)
 	if input == "" {
 		return fallback
 	}
 	return input
+}
+
+func normalizeScopeType(input string) string {
+	input = strings.TrimSpace(strings.ToLower(input))
+	switch input {
+	case "release-target", "release_target", "target":
+		return "target"
+	default:
+		return input
+	}
+}
+
+func isSupportedScopeType(scopeType string) bool {
+	switch scopeType {
+	case "global", "org", "project", "application", "environment", "target", "release", "deployment":
+		return true
+	default:
+		return false
+	}
 }

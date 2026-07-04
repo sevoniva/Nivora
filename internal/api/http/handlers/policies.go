@@ -48,6 +48,37 @@ func GetPolicy(service *policyusecase.Service) http.HandlerFunc {
 	}
 }
 
+func ListPolicyAttachments(service *policyusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		attachments, err := service.ListAttachments(r.Context(), policyusecase.AttachmentListInput{
+			PolicyID:  chi.URLParam(r, "id"),
+			ScopeType: r.URL.Query().Get("scopeType"),
+			ScopeID:   r.URL.Query().Get("scopeId"),
+		})
+		if err != nil {
+			respondPolicyCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{"attachments": attachments})
+	}
+}
+
+func AttachPolicy(service *policyusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input policyusecase.AttachInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_json", Message: "request body must be valid JSON"})
+			return
+		}
+		attachment, err := service.Attach(r.Context(), chi.URLParam(r, "id"), input)
+		if err != nil {
+			respondPolicyCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, attachment)
+	}
+}
+
 func UpdatePolicy(service *policyusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var input policyusecase.UpdateInput

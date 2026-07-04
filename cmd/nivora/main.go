@@ -1779,6 +1779,8 @@ func newPolicyCommand() *cobra.Command {
 	cmd.AddCommand(newPolicyGetCommand())
 	cmd.AddCommand(newPolicyUpdateCommand())
 	cmd.AddCommand(newPolicyDisableCommand())
+	cmd.AddCommand(newPolicyAttachCommand())
+	cmd.AddCommand(newPolicyAttachmentsCommand())
 	evaluate := &cobra.Command{
 		Use:   "evaluate --subject <reference>",
 		Short: "Evaluate built-in policy gates locally",
@@ -1801,6 +1803,70 @@ func newPolicyCommand() *cobra.Command {
 	evaluate.Flags().String("subject", "", "artifact reference or subject")
 	evaluate.Flags().Bool("require-digest", false, "deny mutable artifact references without sha256 digest")
 	cmd.AddCommand(evaluate)
+	return cmd
+}
+
+func newPolicyAttachCommand() *cobra.Command {
+	var input policyusecase.AttachInput
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "attach <policy-id> --scope-type <scope> [--scope-id <id>]",
+		Short: "Attach a policy definition to a project, environment, target, or global scope",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if input.ScopeType == "" {
+				return fmt.Errorf("--scope-type is required")
+			}
+			body, err := json.Marshal(input)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/policies/"+args[0]+"/attachments", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&input.ID, "id", "", "optional attachment id")
+	cmd.Flags().StringVar(&input.ScopeType, "scope-type", "", "attachment scope type: global, org, project, application, environment, target, release, or deployment")
+	cmd.Flags().StringVar(&input.ScopeID, "scope-id", "", "attachment scope id; required except for global")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newPolicyAttachmentsCommand() *cobra.Command {
+	var scopeType string
+	var scopeID string
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "attachments <policy-id>",
+		Short: "List policy attachments",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			query := url.Values{}
+			if scopeType != "" {
+				query.Set("scopeType", scopeType)
+			}
+			if scopeID != "" {
+				query.Set("scopeId", scopeID)
+			}
+			path := "/api/v1/policies/" + args[0] + "/attachments"
+			if encoded := query.Encode(); encoded != "" {
+				path += "?" + encoded
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&scopeType, "scope-type", "", "filter by attachment scope type")
+	cmd.Flags().StringVar(&scopeID, "scope-id", "", "filter by attachment scope id")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	return cmd
 }
 

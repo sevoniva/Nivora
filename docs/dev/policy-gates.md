@@ -20,8 +20,10 @@ Policy definitions can also be managed through the server-backed foundation cata
 
 ```sh
 nivora policy create --name "Require digest" --project-id demo --environment-id prod --require-digest
+nivora policy attach policy-example --scope-type environment --scope-id prod
+nivora policy attachments policy-example --scope-type environment
 nivora policy list --project-id demo
 nivora policy disable policy-example
 ```
 
-The catalog records built-in gate configuration only. OPA, Kyverno, Gatekeeper, and external policy distribution are future work.
+The catalog records built-in gate configuration and foundation scope attachments only. OPA, Kyverno, Gatekeeper, and external policy distribution are future work.

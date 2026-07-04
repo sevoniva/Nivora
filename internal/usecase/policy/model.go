@@ -40,3 +40,18 @@ type UpdateInput struct {
 	Metadata           map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	Enabled            *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 }
+
+type AttachInput struct {
+	ID        string            `json:"id,omitempty" yaml:"id,omitempty"`
+	ScopeType string            `json:"scopeType" yaml:"scopeType"`
+	ScopeID   string            `json:"scopeId,omitempty" yaml:"scopeId,omitempty"`
+	Metadata  map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled   *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type AttachmentListInput struct {
+	PolicyID  string
+	ScopeType string
+	ScopeID   string
+	Enabled   *bool
+}

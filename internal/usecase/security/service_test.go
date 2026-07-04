@@ -140,6 +140,17 @@ func TestListScansAndFindingsFilters(t *testing.T) {
 	if len(findings) == 0 {
 		t.Fatalf("expected manifest misconfiguration finding")
 	}
+
+	finding, err := service.GetFinding(ctx, GetFindingInput{FindingID: findings[0].ID})
+	if err != nil {
+		t.Fatalf("get finding: %v", err)
+	}
+	if finding.ID != findings[0].ID || finding.Metadata["scanId"] != manifest.Scan.ID {
+		t.Fatalf("finding detail = %#v, want id %s scan %s", finding, findings[0].ID, manifest.Scan.ID)
+	}
+	if _, err := service.GetFinding(ctx, GetFindingInput{FindingID: findings[0].ID, ProjectID: "project-a"}); err != ErrFindingNotFound {
+		t.Fatalf("scoped finding lookup error = %v, want ErrFindingNotFound", err)
+	}
 }
 
 type fakeScanner struct {

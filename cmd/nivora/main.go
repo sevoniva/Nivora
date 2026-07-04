@@ -2668,6 +2668,7 @@ func newSecurityCommand() *cobra.Command {
 	scans.AddCommand(newSecurityScansListCommand())
 	findings := &cobra.Command{Use: "findings", Short: "Query stored security findings"}
 	findings.AddCommand(newSecurityFindingsListCommand())
+	findings.AddCommand(newSecurityFindingGetCommand())
 	cmd.AddCommand(scan)
 	cmd.AddCommand(scans)
 	cmd.AddCommand(findings)
@@ -2821,6 +2822,27 @@ func newSecurityFindingsListCommand() *cobra.Command {
 	cmd.Flags().StringVar(&category, "category", "", "filter by category")
 	cmd.Flags().IntVar(&limit, "limit", 0, "maximum rows to return")
 	cmd.Flags().IntVar(&offset, "offset", 0, "rows to skip")
+	return cmd
+}
+
+func newSecurityFindingGetCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "get <finding-id>",
+		Short: "Get a stored security finding from the Nivora API",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/security/findings/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 

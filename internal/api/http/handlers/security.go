@@ -147,6 +147,18 @@ func ListSecurityFindings(service *securityusecase.Service) http.HandlerFunc {
 	}
 }
 
+func GetSecurityFinding(service *securityusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		projectID, environmentID := constrainSecurityScope(r, "", "")
+		finding, err := service.GetFinding(r.Context(), securityusecase.GetFindingInput{
+			FindingID:     chi.URLParam(r, "id"),
+			ProjectID:     projectID,
+			EnvironmentID: environmentID,
+		})
+		respondSecurityResult(w, r, finding, err)
+	}
+}
+
 func GetSecurityFindings(service *securityusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))
@@ -183,6 +195,9 @@ func respondSecurityResult(w http.ResponseWriter, r *http.Request, payload any, 
 	if errors.Is(err, securityusecase.ErrScanNotFound) {
 		status = http.StatusNotFound
 		code = "security_scan_not_found"
+	} else if errors.Is(err, securityusecase.ErrFindingNotFound) {
+		status = http.StatusNotFound
+		code = "security_finding_not_found"
 	}
 	RespondError(w, r, status, dto.ErrorResponse{Code: code, Message: err.Error()})
 }

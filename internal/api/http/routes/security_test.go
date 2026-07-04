@@ -59,6 +59,25 @@ func TestSecurityRoutes(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"findings"`) || !strings.Contains(rec.Body.String(), `"Privileged container requested"`) {
 		t.Fatalf("list findings status = %d body = %s", rec.Code, rec.Body.String())
 	}
+	var listedFindings struct {
+		Findings []struct {
+			ID       string            `json:"id"`
+			Metadata map[string]string `json:"metadata"`
+		} `json:"findings"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listedFindings); err != nil {
+		t.Fatalf("decode findings: %v", err)
+	}
+	if len(listedFindings.Findings) == 0 || listedFindings.Findings[0].ID == "" {
+		t.Fatalf("expected finding id in list response: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/security/findings/"+listedFindings.Findings[0].ID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), listedFindings.Findings[0].ID) || !strings.Contains(rec.Body.String(), `"scanId"`) {
+		t.Fatalf("get finding status = %d body = %s", rec.Code, rec.Body.String())
+	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/security/scans/"+created.Scan.ID+"/findings", nil)
 	rec = httptest.NewRecorder()
@@ -95,6 +114,14 @@ func TestSecurityRoutesRespectTenantScope(t *testing.T) {
 		t.Fatalf("cross-project findings query returned data: status=%d body=%s", rec.Code, rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/security/findings/"+scanB.FindingID, nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("cross-project finding get status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/security/scans/"+scanB.ID, nil)
 	req.Header.Set("Authorization", "Bearer "+tokenA)
 	rec = httptest.NewRecorder()
@@ -113,8 +140,9 @@ func TestSecurityRoutesRespectTenantScope(t *testing.T) {
 }
 
 type scopedSecurityScan struct {
-	ID        string `json:"id"`
-	ProjectID string `json:"projectId"`
+	ID        string
+	FindingID string
+	ProjectID string
 }
 
 func createScopedSecurityScan(t *testing.T, router http.Handler, token string, subjectID string) scopedSecurityScan {
@@ -136,5 +164,21 @@ func createScopedSecurityScan(t *testing.T, router http.Handler, token string, s
 	if created.Scan.ID == "" || created.Scan.ProjectID == "" {
 		t.Fatalf("scoped security scan missing id or project id: %s", rec.Body.String())
 	}
-	return created.Scan
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/security/scans/"+created.Scan.ID+"/findings", nil)
+	req.Header.Set("Authorization", "Bearer "+token)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("get scoped scan findings status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var listed []struct {
+		ID string `json:"id"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listed); err != nil {
+		t.Fatalf("decode scoped findings: %v", err)
+	}
+	if len(listed) == 0 || listed[0].ID == "" {
+		t.Fatalf("scoped scan has no finding id: %s", rec.Body.String())
+	}
+	return scopedSecurityScan{ID: created.Scan.ID, ProjectID: created.Scan.ProjectID, FindingID: listed[0].ID}
 }

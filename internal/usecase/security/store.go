@@ -11,7 +11,10 @@ import (
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 )
 
-var ErrScanNotFound = errors.New("security scan not found")
+var (
+	ErrScanNotFound    = errors.New("security scan not found")
+	ErrFindingNotFound = errors.New("security finding not found")
+)
 
 type Store interface {
 	Save(ctx context.Context, record ScanRecord) error

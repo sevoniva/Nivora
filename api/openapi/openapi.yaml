@@ -1537,6 +1537,21 @@ paths:
                       $ref: "#/components/schemas/SecurityFinding"
                   pagination:
                     $ref: "#/components/schemas/Pagination"
+  /api/v1/security/findings/{id}:
+    get:
+      summary: Get a stored security finding
+      description: Requires project.read permission. Scoped callers only see findings from scans in their project or environment; out-of-scope findings are returned as not found to avoid disclosing existence.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Stored security finding
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SecurityFinding"
+        "404":
+          description: Security finding was not found or is outside requester scope
   /api/v1/security/scans/{id}:
     get:
       summary: Get a security scan

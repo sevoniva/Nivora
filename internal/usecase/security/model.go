@@ -74,6 +74,12 @@ type ListFindingsInput struct {
 	Category      domainsecurity.FindingCategory `json:"category,omitempty" yaml:"category,omitempty"`
 }
 
+type GetFindingInput struct {
+	FindingID     string `json:"findingId,omitempty" yaml:"findingId,omitempty"`
+	ProjectID     string `json:"projectId,omitempty" yaml:"projectId,omitempty"`
+	EnvironmentID string `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+}
+
 type EvaluateInput struct {
 	SubjectType domainsecurity.SubjectType       `json:"subjectType" yaml:"subjectType"`
 	SubjectID   string                           `json:"subjectId" yaml:"subjectId"`

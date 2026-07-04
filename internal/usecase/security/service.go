@@ -215,6 +215,26 @@ func (s *Service) Findings(ctx context.Context, id string) ([]domainsecurity.Sec
 	return append([]domainsecurity.SecurityFinding(nil), record.Scan.Findings...), nil
 }
 
+func (s *Service) GetFinding(ctx context.Context, input GetFindingInput) (domainsecurity.SecurityFinding, error) {
+	findingID := strings.TrimSpace(input.FindingID)
+	if findingID == "" {
+		return domainsecurity.SecurityFinding{}, ErrFindingNotFound
+	}
+	findings, err := s.ListFindings(ctx, ListFindingsInput{
+		ProjectID:     strings.TrimSpace(input.ProjectID),
+		EnvironmentID: strings.TrimSpace(input.EnvironmentID),
+	})
+	if err != nil {
+		return domainsecurity.SecurityFinding{}, err
+	}
+	for _, finding := range findings {
+		if finding.ID == findingID {
+			return finding, nil
+		}
+	}
+	return domainsecurity.SecurityFinding{}, ErrFindingNotFound
+}
+
 func (s *Service) ListFindings(ctx context.Context, input ListFindingsInput) ([]domainsecurity.SecurityFinding, error) {
 	var records []ScanRecord
 	if strings.TrimSpace(input.ScanID) != "" {

@@ -8,6 +8,8 @@ SENSITIVE_SAMPLE="mcp-sensitive-token-should-not-leak"
 
 tools_json="$(go run ./cmd/nivora mcp list-tools --local)"
 resources_json="$(go run ./cmd/nivora mcp list-resources --local)"
+runtime_resource_json="$(go run ./cmd/nivora mcp read-resource nivora://runtime/recovery --local)"
+runtime_tool_json="$(go run ./cmd/nivora mcp call-tool nivora_get_runtime_recovery_status --local)"
 
 if [[ "$tools_json" != *"nivora_status"* ]]; then
   echo "MCP smoke failed: nivora_status missing from local tool list" >&2
@@ -16,6 +18,30 @@ fi
 
 if [[ "$resources_json" != *"nivora://capabilities/current"* ]]; then
   echo "MCP smoke failed: capability resource missing from local resource list" >&2
+  exit 1
+fi
+
+if [[ "$runtime_resource_json" != *'"mutated": false'* || "$runtime_resource_json" != *'"pipeline"'* ]]; then
+  echo "MCP smoke failed: runtime recovery resource did not return read-only runtime state" >&2
+  echo "$runtime_resource_json" >&2
+  exit 1
+fi
+
+if [[ "$runtime_tool_json" != *'"mutated": false'* || "$runtime_tool_json" != *'"readOnly": true'* ]]; then
+  echo "MCP smoke failed: runtime recovery tool did not return read-only runtime state" >&2
+  echo "$runtime_tool_json" >&2
+  exit 1
+fi
+
+blocked_cli_output="$(go run ./cmd/nivora mcp call-tool nivora_apply_deployment --local --arg "authorization=Bearer ${SENSITIVE_SAMPLE}" 2>&1 || true)"
+if [[ "$blocked_cli_output" != *"mcp_action_not_allowed"* ]]; then
+  echo "MCP smoke failed: CLI denied action did not return mcp_action_not_allowed" >&2
+  echo "$blocked_cli_output" >&2
+  exit 1
+fi
+if [[ "$blocked_cli_output" == *"$SENSITIVE_SAMPLE"* ]]; then
+  echo "MCP smoke failed: sensitive sample leaked in denied CLI output" >&2
+  echo "$blocked_cli_output" >&2
   exit 1
 fi
 

@@ -18,6 +18,25 @@ List resources:
 go run ./cmd/nivora mcp list-resources --local
 ```
 
+Read a resource:
+
+```bash
+go run ./cmd/nivora mcp read-resource nivora://runtime/recovery --local
+```
+
+Call a read-only tool:
+
+```bash
+go run ./cmd/nivora mcp call-tool nivora_get_runtime_recovery_status --local
+go run ./cmd/nivora mcp call-tool nivora_list_security_findings --local --arg severity=High
+```
+
+Action-shaped tools stay blocked:
+
+```bash
+go run ./cmd/nivora mcp call-tool nivora_apply_deployment --local
+```
+
 Serve stdio:
 
 ```bash

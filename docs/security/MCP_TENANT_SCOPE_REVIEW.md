@@ -25,6 +25,8 @@ Current status: **partially proven for local MCP RBAC and scoped read models, no
 - Runner token subject is rejected before normal RBAC.
 - Viewer can read ordinary resources but cannot run plan-only tools.
 - Developer can run plan-only tools.
+- Registered MCP resources, tools, prompts, and blocked action names must appear in `docs/security/MCP_PERMISSION_MATRIX.md`; `TestMCPPermissionMatrixCoversCatalogEntries` fails on catalog drift.
+- Plan-only tools and aliases return `mutated=false`; `TestMCPPlanOnlyToolsReturnMutatedFalseAndDoNotCreateDeploymentRuns` also checks they do not create DeploymentRuns.
 - Auditor can read audit but cannot run plan-only tools.
 - Service-account-like developer subject can use explicit plan permissions.
 - Service-account-like viewer subject cannot use plan permissions.

@@ -74,6 +74,46 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	}
 }
 
+func TestMCPPermissionMatrixCoversCatalogEntries(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	matrix := mustReadMCPPermissionMatrix(t)
+
+	resources, err := server.ListResources(context.Background())
+	if err != nil {
+		t.Fatalf("ListResources: %v", err)
+	}
+	for _, resource := range resources {
+		if !hasMCPMatrixRow(matrix, resource.URI) {
+			t.Fatalf("MCP permission matrix missing resource row for %s", resource.URI)
+		}
+	}
+
+	tools, err := server.ListTools(context.Background())
+	if err != nil {
+		t.Fatalf("ListTools: %v", err)
+	}
+	for _, tool := range tools {
+		if !hasMCPMatrixRow(matrix, tool.Name) {
+			t.Fatalf("MCP permission matrix missing tool row for %s", tool.Name)
+		}
+	}
+	for name := range blockedActionTools {
+		if !hasMCPMatrixRow(matrix, name) {
+			t.Fatalf("MCP permission matrix missing blocked action row for %s", name)
+		}
+	}
+
+	prompts, err := server.ListPrompts(context.Background())
+	if err != nil {
+		t.Fatalf("ListPrompts: %v", err)
+	}
+	for _, prompt := range prompts {
+		if !hasMCPMatrixRow(matrix, prompt.Name) {
+			t.Fatalf("MCP permission matrix missing prompt row for %s", prompt.Name)
+		}
+	}
+}
+
 func TestMCPBlockedActionToolDenied(t *testing.T) {
 	server := newTestMCPServer(t, domainauth.RoleAdmin, "mcp-local")
 	for name := range blockedActionTools {
@@ -903,6 +943,53 @@ func TestMCPPlanDeploymentLocalDoesNotMutateDeploymentRuns(t *testing.T) {
 	}
 }
 
+func TestMCPPlanOnlyToolsReturnMutatedFalseAndDoNotCreateDeploymentRuns(t *testing.T) {
+	ctx := context.Background()
+	server, deployments := newTestMCPServerAndDeploymentService(t, domainauth.RoleDeveloper, "token")
+	pipelineRunID, deploymentRunID := createMCPObservabilityFixture(t, server)
+	releaseExecutionID := createMCPReleaseExecutionFixture(t, server)
+
+	before, err := deployments.List(ctx)
+	if err != nil {
+		t.Fatalf("list deployments before plan-only tools: %v", err)
+	}
+	cases := []struct {
+		name string
+		args map[string]any
+	}{
+		{name: "nivora_explain_pipeline_failure", args: map[string]any{"id": pipelineRunID}},
+		{name: "nivora_explain_deployment", args: map[string]any{"id": deploymentRunID}},
+		{name: "nivora_explain_deployment_risk", args: map[string]any{"id": deploymentRunID}},
+		{name: "nivora_explain_release", args: map[string]any{"id": releaseExecutionID}},
+		{name: "nivora_generate_release_readiness_summary", args: map[string]any{"id": releaseExecutionID}},
+		{name: "nivora_evaluate_policy_local", args: map[string]any{"subjectType": "artifact", "subjectId": "demo", "reference": "registry.example.com/team/app:latest"}},
+		{name: "nivora_inspect_artifact", args: map[string]any{"reference": "registry.example.com/team/app:latest", "type": "image"}},
+		{name: "nivora_inspect_artifact_reference", args: map[string]any{"reference": "registry.example.com/team/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "type": "image"}},
+		{name: "nivora_plan_deployment_local", args: map[string]any{"content": deploymentDefinitionYAML()}},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			result, err := server.CallTool(ctx, tc.name, tc.args)
+			if err != nil {
+				t.Fatalf("CallTool transport error: %v", err)
+			}
+			if result.IsError {
+				t.Fatalf("plan-only tool returned error: %#v", result)
+			}
+			if !strings.Contains(result.Content[0].Text, `"mutated": false`) {
+				t.Fatalf("plan-only tool did not label mutated=false: %#v", result)
+			}
+		})
+	}
+	after, err := deployments.List(ctx)
+	if err != nil {
+		t.Fatalf("list deployments after plan-only tools: %v", err)
+	}
+	if len(after) != len(before) {
+		t.Fatalf("plan-only tools created DeploymentRuns: before=%d after=%d", len(before), len(after))
+	}
+}
+
 func TestMCPRedactsSecretLikeData(t *testing.T) {
 	body := mustJSON(map[string]any{
 		"token":         "raw-token-value",
@@ -1514,6 +1601,45 @@ data:
 	return pipelineRecord.Record.Run.ID, deploymentRecord.Record.Run.ID
 }
 
+func createMCPReleaseExecutionFixture(t *testing.T, server *Server) string {
+	t.Helper()
+	record, err := server.services.Releases.Deploy(context.Background(), releaseusecase.DeployInput{
+		ActorID: "mcp-release-fixture",
+		Definition: releaseusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "ReleaseOrchestration",
+			Metadata:   releaseusecase.Metadata{Name: "mcp-release-fixture"},
+			Spec: releaseusecase.Spec{
+				Environment: "dev",
+				Strategy:    releaseusecase.StrategyPlanOnly,
+				Release: artifactusecase.ReleaseDefinition{
+					APIVersion: "nivora.io/v1alpha1",
+					Kind:       "Release",
+					Metadata:   artifactusecase.ReleaseMetadata{Name: "mcp-release-fixture"},
+					Spec: artifactusecase.ReleaseSpec{
+						Version:     "1.0.0",
+						Application: "demo",
+						Environment: "dev",
+						Artifacts: []artifactusecase.ReleaseArtifactSpec{{
+							Name:      "demo-image",
+							Type:      "image",
+							Reference: "registry.example.com/team/demo:1.0.0@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+						}},
+					},
+				},
+				Targets: []releaseusecase.TargetSpec{{
+					Name: "noop",
+					Type: "noop",
+				}},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create MCP release execution fixture: %v", err)
+	}
+	return record.Execution.ID
+}
+
 func createScopedMCPDeploymentRun(t *testing.T, store *deploymentusecase.MemoryStore, deployments *deploymentusecase.Service, projectID string) string {
 	t.Helper()
 	result, err := deployments.CreateAndRun(context.Background(), deploymentusecase.CreateRunInput{
@@ -1633,6 +1759,20 @@ func createScopedMCPSecurityScan(t *testing.T, security *securityusecase.Service
 		t.Fatalf("create scoped security scan fixture: %v", err)
 	}
 	return record.Scan.ID
+}
+
+func mustReadMCPPermissionMatrix(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join("..", "..", "..", "docs", "security", "MCP_PERMISSION_MATRIX.md")
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read MCP permission matrix %s: %v", path, err)
+	}
+	return string(raw)
+}
+
+func hasMCPMatrixRow(matrix string, name string) bool {
+	return strings.Contains(matrix, "| "+name+" |")
 }
 
 func registerMCPRunner(t *testing.T, service *pipelineusecase.Service, id string, projectID string) {

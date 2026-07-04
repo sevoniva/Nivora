@@ -52,6 +52,7 @@ Current scenario evidence:
 - Golden scenarios: `examples/mcp/scenarios/`
 - Golden answers: `examples/mcp/golden-answers/`
 - Scenario tests: `internal/api/mcp/scenario_test.go`
+- Catalog drift and plan-only non-mutation tests: `TestMCPPermissionMatrixCoversCatalogEntries`, `TestMCPPlanOnlyToolsReturnMutatedFalseAndDoNotCreateDeploymentRuns`
 - Smoke script: `scripts/smoke-mcp-local.sh`
 - Postgres MCP audit hash-chain proof: `TestPostgresIntegrationMCPAuditHashChain` and CI `MCP audit hash chain verification`
 

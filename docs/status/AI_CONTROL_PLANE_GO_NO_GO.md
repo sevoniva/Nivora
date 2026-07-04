@@ -55,7 +55,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 15. Resource pagination test for audit.
 16. Service-account no-role negative test for every tool class.
 17. Unknown resource structured error test for every URI class.
-18. No-mutation test for every plan-only tool alias.
+18. Remote transport no-mutation proof for plan-only tool aliases; local alias non-mutation is covered by `TestMCPPlanOnlyToolsReturnMutatedFalseAndDoNotCreateDeploymentRuns`.
 19. Remote TLS/deployment profile smoke test.
 20. Remote MCP per-client audit attribution test.
 
@@ -100,7 +100,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 | 18 | Add OpenAPI note for MCP status endpoint if added later | API | route decision |
 | 19 | Add smoke test for `nivora-mcp` stdio denial path | test | current CLI |
 | 20 | Add MCP resource unknown-ID matrix tests | test | fixtures |
-| 21 | Add plan-only alias no-mutation tests | test | current aliases |
+| 21 | Extend plan-only alias no-mutation proof to any future remote transport | test | remote contract |
 | 22 | Add compliance recorder failure behavior test | test | audit recorder |
 | 23 | Add operator runbook for local MCP incident review | docs | current docs |
 | 24 | Add external-client threat model update | security | remote RFC |

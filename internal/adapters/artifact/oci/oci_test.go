@@ -141,6 +141,56 @@ func TestResolveDigestPinnedReferenceDoesNotCallRegistry(t *testing.T) {
 	}
 }
 
+func TestListArtifactsFromRegistryTags(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Fatalf("method = %s", r.Method)
+		}
+		if r.URL.Path != "/v2/team/app/tags/list" {
+			t.Fatalf("path = %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"team/app","tags":["2.0.0","latest","1.0.0"]}`))
+	}))
+	defer server.Close()
+
+	provider := New(WithConfig(Config{Endpoint: server.URL, Insecure: true}))
+	artifacts, err := provider.ListArtifacts(context.Background(), "registry.example.com/team/app")
+	if err != nil {
+		t.Fatalf("list artifacts: %v", err)
+	}
+	if len(artifacts) != 3 {
+		t.Fatalf("artifacts = %#v", artifacts)
+	}
+	if artifacts[0].Version != "1.0.0" || artifacts[1].Version != "2.0.0" || artifacts[2].Version != "latest" {
+		t.Fatalf("artifacts not sorted by tag: %#v", artifacts)
+	}
+	if artifacts[0].Name != "app" || artifacts[0].Repository != "team/app" || artifacts[0].Reference != "registry.example.com/team/app:1.0.0" {
+		t.Fatalf("artifact metadata = %#v", artifacts[0])
+	}
+}
+
+func TestListArtifactsAuthErrorDoesNotLeakCredentials(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer server.Close()
+
+	provider := New(WithConfig(Config{
+		Endpoint: server.URL,
+		Insecure: true,
+		Username: "example-user",
+		Password: "example-pass",
+	}))
+	_, err := provider.ListArtifacts(context.Background(), "registry.example.com/team/app")
+	if err == nil {
+		t.Fatal("expected auth error")
+	}
+	if strings.Contains(err.Error(), "example-user") || strings.Contains(err.Error(), "example-pass") {
+		t.Fatalf("credential leaked in error: %v", err)
+	}
+}
+
 func TestInspectReferenceUsesDomainParser(t *testing.T) {
 	inspection, err := New().InspectReference(context.Background(), "localhost:30500/team/app:dev", domainartifact.ArtifactTypeImage)
 	if err != nil {

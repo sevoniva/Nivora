@@ -172,6 +172,17 @@ func ValidateSavedArtifactRegistry(service *artifactusecase.RegistryService) htt
 	}
 }
 
+func ListArtifactRegistryArtifacts(service *artifactusecase.RegistryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := service.ListRepositoryArtifacts(r.Context(), artifactusecase.RegistryRepositoryListInput{
+			RegistryID: chi.URLParam(r, "id"),
+			Repository: r.URL.Query().Get("repository"),
+			ProjectID:  constrainArtifactProjectScope(r, r.URL.Query().Get("projectId")),
+		})
+		respondArtifactResult(w, r, result, err)
+	}
+}
+
 func ValidateArtifactRegistry() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req artifactRegistryValidateRequest

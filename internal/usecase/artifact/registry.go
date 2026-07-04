@@ -13,6 +13,7 @@ import (
 	"time"
 
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
+	portartifact "github.com/sevoniva/nivora/internal/ports/artifact"
 )
 
 var (
@@ -59,6 +60,20 @@ type RegistryValidationResult struct {
 	Insecure   bool     `json:"insecure,omitempty"`
 	Enabled    bool     `json:"enabled"`
 	Warnings   []string `json:"warnings,omitempty"`
+}
+
+type RegistryRepositoryListInput struct {
+	RegistryID string `json:"registryId,omitempty" yaml:"registryId,omitempty"`
+	Repository string `json:"repository,omitempty" yaml:"repository,omitempty"`
+	ProjectID  string `json:"projectId,omitempty" yaml:"projectId,omitempty"`
+}
+
+type RegistryRepositoryArtifacts struct {
+	RegistryID string                    `json:"registryId"`
+	Name       string                    `json:"name,omitempty"`
+	Repository string                    `json:"repository"`
+	Artifacts  []domainartifact.Artifact `json:"artifacts"`
+	Warnings   []string                  `json:"warnings,omitempty"`
 }
 
 type RegistryStore interface {
@@ -122,12 +137,21 @@ func (s *RegistryMemoryStore) UpdateRegistry(ctx context.Context, registry domai
 }
 
 type RegistryService struct {
-	store RegistryStore
-	now   func() time.Time
+	store           RegistryStore
+	now             func() time.Time
+	providerFactory RegistryProviderFactory
 }
+
+type RegistryProviderFactory func(registry domainartifact.ArtifactRegistry) portartifact.ArtifactProvider
 
 func NewRegistryService(store RegistryStore) *RegistryService {
 	return &RegistryService{store: store, now: time.Now}
+}
+
+func NewRegistryServiceWithProviderFactory(store RegistryStore, factory RegistryProviderFactory) *RegistryService {
+	service := NewRegistryService(store)
+	service.providerFactory = factory
+	return service
 }
 
 func (s *RegistryService) Create(ctx context.Context, input RegistryCreateInput) (domainartifact.ArtifactRegistry, error) {
@@ -265,6 +289,57 @@ func (s *RegistryService) Validate(ctx context.Context, id string) (RegistryVali
 	if err := validateRegistryEndpoint(registry.Type, registry.Endpoint, registry.Insecure); err != nil {
 		result.Valid = false
 		result.Warnings = append(result.Warnings, err.Error())
+	}
+	return result, nil
+}
+
+func (s *RegistryService) ListRepositoryArtifacts(ctx context.Context, input RegistryRepositoryListInput) (RegistryRepositoryArtifacts, error) {
+	registryID := strings.TrimSpace(input.RegistryID)
+	if registryID == "" {
+		return RegistryRepositoryArtifacts{}, fmt.Errorf("%w: registry id is required", ErrRegistryInvalid)
+	}
+	repository := strings.TrimSpace(input.Repository)
+	if repository == "" {
+		return RegistryRepositoryArtifacts{}, fmt.Errorf("%w: repository is required", ErrRegistryInvalid)
+	}
+	registry, err := s.store.GetRegistry(ctx, registryID)
+	if err != nil {
+		return RegistryRepositoryArtifacts{}, err
+	}
+	if projectID := strings.TrimSpace(input.ProjectID); projectID != "" && registry.ProjectID != projectID {
+		return RegistryRepositoryArtifacts{}, fmt.Errorf("%w: %q", ErrRegistryNotFound, registryID)
+	}
+	if !registry.Enabled {
+		return RegistryRepositoryArtifacts{}, fmt.Errorf("%w: registry %q is disabled", ErrRegistryInvalid, registry.ID)
+	}
+	if err := validateRegistryEndpoint(registry.Type, registry.Endpoint, registry.Insecure); err != nil {
+		return RegistryRepositoryArtifacts{}, err
+	}
+	if s.providerFactory == nil {
+		return RegistryRepositoryArtifacts{}, fmt.Errorf("%w: registry artifact listing provider is not configured", ErrRegistryInvalid)
+	}
+	provider := s.providerFactory(registry)
+	if provider == nil {
+		return RegistryRepositoryArtifacts{}, fmt.Errorf("%w: registry artifact listing provider is not configured", ErrRegistryInvalid)
+	}
+	if !provider.Capabilities().SupportsListing {
+		return RegistryRepositoryArtifacts{}, fmt.Errorf("%w: registry provider does not support artifact listing", ErrRegistryInvalid)
+	}
+	artifacts, err := provider.ListArtifacts(ctx, repository)
+	if err != nil {
+		return RegistryRepositoryArtifacts{}, err
+	}
+	result := RegistryRepositoryArtifacts{
+		RegistryID: registry.ID,
+		Name:       registry.Name,
+		Repository: repository,
+		Artifacts:  artifacts,
+	}
+	if registry.Insecure {
+		result.Warnings = append(result.Warnings, "insecure OCI registry configuration is for local development only")
+	}
+	if registry.CredentialRef != "" {
+		result.Warnings = append(result.Warnings, "registry CredentialRef was passed as metadata; secret values are not returned")
 	}
 	return result, nil
 }

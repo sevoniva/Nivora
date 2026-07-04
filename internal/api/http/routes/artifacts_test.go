@@ -28,6 +28,35 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 		t.Fatalf("inspect body = %s", rec.Body.String())
 	}
 
+	ociRegistry := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/team/app/tags/list" {
+			t.Fatalf("unexpected OCI registry path = %s", r.URL.Path)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"team/app","tags":["latest","1.0.0"]}`))
+	}))
+	defer ociRegistry.Close()
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/artifact-registries", bytes.NewReader([]byte(`{"name":"local-oci","type":"oci","endpoint":"`+ociRegistry.URL+`","insecure":true}`)))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create artifact registry status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var registry map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &registry); err != nil {
+		t.Fatalf("decode artifact registry: %v", err)
+	}
+	registryID := registry["id"].(string)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/artifact-registries/"+registryID+"/artifacts?repository=team/app", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list registry artifacts status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"repository":"team/app"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"version":"1.0.0"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"version":"latest"`)) {
+		t.Fatalf("registry artifact list body = %s", rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/artifacts", bytes.NewReader([]byte(`{"name":"tracked-demo","type":"image","reference":"registry.example.com/team/tracked:1.0.0"}`)))
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

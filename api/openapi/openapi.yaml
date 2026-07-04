@@ -1279,6 +1279,29 @@ paths:
                 $ref: "#/components/schemas/ArtifactRegistryValidationResult"
         "404":
           description: Saved registry metadata was not found
+  /api/v1/artifact-registries/{id}/artifacts:
+    get:
+      summary: List artifacts from a saved OCI registry definition
+      description: Requires project.read permission. Lists tags for an explicit OCI repository through the saved registry metadata. It does not crawl the registry and never returns CredentialRef secret values.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - name: repository
+          in: query
+          required: true
+          schema:
+            type: string
+          description: OCI repository path such as team/app.
+      responses:
+        "200":
+          description: Registry repository artifact list
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRegistryRepositoryArtifacts"
+        "400":
+          description: Invalid registry or repository request
+        "404":
+          description: Saved registry metadata was not found
   /api/v1/artifact-registries/validate:
     post:
       summary: Validate generic OCI artifact registry configuration
@@ -6047,6 +6070,23 @@ components:
           type: boolean
         enabled:
           type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+    ArtifactRegistryRepositoryArtifacts:
+      type: object
+      properties:
+        registryId:
+          type: string
+        name:
+          type: string
+        repository:
+          type: string
+        artifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Artifact"
         warnings:
           type: array
           items:

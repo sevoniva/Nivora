@@ -18,9 +18,11 @@ import (
 	postgresrepo "github.com/sevoniva/nivora/internal/adapters/repository/postgres"
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
 	securitynoop "github.com/sevoniva/nivora/internal/adapters/security/noop"
+	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	domaincloud "github.com/sevoniva/nivora/internal/domain/cloud"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	"github.com/sevoniva/nivora/internal/infra/db"
+	portartifact "github.com/sevoniva/nivora/internal/ports/artifact"
 	portcloud "github.com/sevoniva/nivora/internal/ports/cloud"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
@@ -168,7 +170,7 @@ func NewArtifactServiceWithStore(store artifactusecase.Store) *artifactusecase.S
 }
 
 func NewArtifactRegistryService() *artifactusecase.RegistryService {
-	return artifactusecase.NewRegistryService(artifactusecase.NewRegistryMemoryStore())
+	return artifactusecase.NewRegistryServiceWithProviderFactory(artifactusecase.NewRegistryMemoryStore(), artifactRegistryProviderFactory())
 }
 
 func NewArtifactRegistryServiceWithConfig(ctx context.Context, cfg config.Config) (*artifactusecase.RegistryService, func(), error) {
@@ -179,7 +181,21 @@ func NewArtifactRegistryServiceWithConfig(ctx context.Context, cfg config.Config
 	if err != nil {
 		return nil, nil, err
 	}
-	return artifactusecase.NewRegistryService(postgresrepo.NewArtifactRegistryStore(pool)), pool.Close, nil
+	return artifactusecase.NewRegistryServiceWithProviderFactory(postgresrepo.NewArtifactRegistryStore(pool), artifactRegistryProviderFactory()), pool.Close, nil
+}
+
+func artifactRegistryProviderFactory() artifactusecase.RegistryProviderFactory {
+	return func(registry domainartifact.ArtifactRegistry) portartifact.ArtifactProvider {
+		return ociartifact.New(
+			ociartifact.WithConfig(ociartifact.Config{
+				Name:          registry.Name,
+				Endpoint:      registry.Endpoint,
+				Insecure:      registry.Insecure,
+				CredentialRef: portartifact.CredentialRef{ID: registry.CredentialRef},
+			}),
+			ociartifact.WithSecretProvider(builtinsecret.New()),
+		)
+	}
 }
 
 func NewReleaseOrchestrationService() *releaseorchestration.Service {

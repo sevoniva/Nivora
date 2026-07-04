@@ -22,9 +22,11 @@ import (
 	noopnotification "github.com/sevoniva/nivora/internal/adapters/notification/noop"
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
 	"github.com/sevoniva/nivora/internal/api/http/handlers"
+	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	portartifact "github.com/sevoniva/nivora/internal/ports/artifact"
 	portcloud "github.com/sevoniva/nivora/internal/ports/cloud"
 	"github.com/sevoniva/nivora/internal/ports/policy"
 	portsecurity "github.com/sevoniva/nivora/internal/ports/security"
@@ -1283,6 +1285,7 @@ func newTestRouterWithCompliance(cfg config.Config) (http.Handler, *complianceus
 		tenancyusecase.NewService(),
 		complianceService,
 		pluginusecase.NewDefaultRegistry(),
+		WithArtifactRegistryCatalog(newTestArtifactRegistryCatalog()),
 	)
 	return router, complianceService
 }
@@ -1315,6 +1318,7 @@ func newTestRouterWithPipelineAndAuth(cfg config.Config, pipelineService *pipeli
 		tenancyusecase.NewService(),
 		complianceusecase.NewService(pipelineService, deploymentService, artifactService, releaseService, securityService, approvalService),
 		pluginusecase.NewDefaultRegistry(),
+		WithArtifactRegistryCatalog(newTestArtifactRegistryCatalog()),
 	)
 }
 
@@ -1424,6 +1428,16 @@ func newTestDeploymentService() *deploymentusecase.Service {
 
 func newTestArtifactService() *artifactusecase.Service {
 	return artifactusecase.NewService(artifactusecase.NewMemoryStore(), ociartifact.New(), memory.New())
+}
+
+func newTestArtifactRegistryCatalog() *artifactusecase.RegistryService {
+	return artifactusecase.NewRegistryServiceWithProviderFactory(artifactusecase.NewRegistryMemoryStore(), func(registry domainartifact.ArtifactRegistry) portartifact.ArtifactProvider {
+		return ociartifact.New(ociartifact.WithConfig(ociartifact.Config{
+			Name:     registry.Name,
+			Endpoint: registry.Endpoint,
+			Insecure: registry.Insecure,
+		}))
+	})
 }
 
 func newTestReleaseOrchestrationService(artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) *releaseorchestration.Service {

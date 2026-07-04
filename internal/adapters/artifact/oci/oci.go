@@ -3,11 +3,11 @@ package oci
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"sort"
 	"strings"
 	"time"
 
@@ -16,8 +16,6 @@ import (
 	"github.com/sevoniva/nivora/internal/ports/artifact"
 	portsecret "github.com/sevoniva/nivora/internal/ports/secret"
 )
-
-var ErrNotImplemented = errors.New("oci artifact adapter is not implemented")
 
 type Config struct {
 	Name          string
@@ -106,7 +104,60 @@ func (p *Provider) GetArtifact(ctx context.Context, name string, reference strin
 }
 
 func (p *Provider) ListArtifacts(ctx context.Context, repository string) ([]domainartifact.Artifact, error) {
-	return nil, ErrNotImplemented
+	repository = strings.TrimSpace(repository)
+	if repository == "" {
+		return nil, fmt.Errorf("repository is required")
+	}
+	ref, err := domainartifact.ParseReference(repository, domainartifact.ArtifactTypeImage)
+	if err != nil {
+		return nil, err
+	}
+	repositoryPath := ref.Repository
+	if repositoryPath == "" {
+		repositoryPath = repository
+	}
+	endpoint, err := p.registryEndpoint(ref)
+	if err != nil {
+		return nil, err
+	}
+	tagsURL := endpoint.ResolveReference(&url.URL{Path: "/v2/" + repositoryPath + "/tags/list"})
+	tags, listedName, err := p.fetchTags(ctx, tagsURL.String())
+	if err != nil {
+		return nil, err
+	}
+	if listedName != "" {
+		repositoryPath = listedName
+	}
+	sort.Strings(tags)
+	registry := ref.Registry
+	if registry == "" {
+		registry = endpoint.Host
+	}
+	now := time.Now()
+	out := make([]domainartifact.Artifact, 0, len(tags))
+	for _, tag := range tags {
+		tag = strings.TrimSpace(tag)
+		if tag == "" {
+			continue
+		}
+		reference := repositoryPath + ":" + tag
+		if registry != "" {
+			reference = registry + "/" + reference
+		}
+		out = append(out, domainartifact.Artifact{
+			Type:       domainartifact.ArtifactTypeImage,
+			Name:       artifactName(repositoryPath),
+			Version:    tag,
+			Reference:  reference,
+			Registry:   registry,
+			Repository: repositoryPath,
+			Metadata: map[string]string{
+				"source": "oci-tags-list",
+			},
+			CreatedAt: now,
+		})
+	}
+	return out, nil
 }
 
 func (p *Provider) ResolveDigest(ctx context.Context, name string, reference string) (domainartifact.Resolution, error) {
@@ -168,7 +219,7 @@ func (p *Provider) InspectReference(ctx context.Context, reference string, artif
 func (p *Provider) Capabilities() artifact.Capabilities {
 	return artifact.Capabilities{
 		SupportsDigestResolution:     true,
-		SupportsListing:              false,
+		SupportsListing:              true,
 		SupportsCredentialValidation: true,
 	}
 }
@@ -296,6 +347,50 @@ func (p *Provider) manifestRequestWithBody(ctx context.Context, manifestURL stri
 		sizeBytes = int64(len(body))
 	}
 	return digest, mediaType, sizeBytes, manifestSchema, nil
+}
+
+func (p *Provider) fetchTags(ctx context.Context, tagsURL string) ([]string, string, error) {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, tagsURL, nil)
+	if err != nil {
+		return nil, "", err
+	}
+	req.Header.Set("Accept", "application/json")
+	if err := p.setAuth(ctx, req); err != nil {
+		return nil, "", err
+	}
+	resp, err := p.client.Do(req)
+	if err != nil {
+		return nil, "", fmt.Errorf("list OCI artifacts: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusUnauthorized || resp.StatusCode == http.StatusForbidden {
+		return nil, "", fmt.Errorf("registry authorization failed or credentials are required")
+	}
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return nil, "", fmt.Errorf("registry tag list request failed with status %d", resp.StatusCode)
+	}
+	var payload struct {
+		Name string   `json:"name"`
+		Tags []string `json:"tags"`
+	}
+	if err := json.NewDecoder(io.LimitReader(resp.Body, 1<<20)).Decode(&payload); err != nil {
+		return nil, "", fmt.Errorf("decode OCI tag list: %w", err)
+	}
+	if payload.Tags == nil {
+		payload.Tags = []string{}
+	}
+	return payload.Tags, payload.Name, nil
+}
+
+func artifactName(repository string) string {
+	repository = strings.Trim(repository, "/")
+	if repository == "" {
+		return ""
+	}
+	if idx := strings.LastIndex(repository, "/"); idx >= 0 {
+		return repository[idx+1:]
+	}
+	return repository
 }
 
 func setManifestHeaders(req *http.Request) {

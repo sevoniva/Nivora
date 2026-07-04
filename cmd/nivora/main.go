@@ -3479,6 +3479,7 @@ func newArtifactRegistryCommand() *cobra.Command {
 	cmd.AddCommand(newArtifactRegistryUpdateCommand())
 	cmd.AddCommand(newArtifactRegistryDisableCommand())
 	cmd.AddCommand(newArtifactRegistryValidateCommand())
+	cmd.AddCommand(newArtifactRegistryArtifactsCommand())
 	return cmd
 }
 
@@ -3691,6 +3692,33 @@ func newArtifactRegistryValidateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&input.Type, "type", "oci", "registry type, currently oci")
 	cmd.Flags().StringVar(&input.Endpoint, "endpoint", "", "registry endpoint")
 	cmd.Flags().BoolVar(&input.Insecure, "insecure", false, "allow HTTP registry endpoint for local development")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newArtifactRegistryArtifactsCommand() *cobra.Command {
+	var repository string
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "artifacts <registry-id> --repository <repo>",
+		Short: "List artifacts/tags from a saved OCI registry metadata record",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if repository == "" {
+				return fmt.Errorf("--repository is required")
+			}
+			path := "/api/v1/artifact-registries/" + url.PathEscape(args[0]) + "/artifacts?repository=" + url.QueryEscape(repository)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, path, nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&repository, "repository", "", "OCI repository path such as team/app")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd

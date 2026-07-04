@@ -253,6 +253,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/artifact-registries/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetArtifactRegistry(artifactRegistryCatalog)))
 		api.Patch("/artifact-registries/{id}", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.UpdateArtifactRegistry(artifactRegistryCatalog)))
 		api.Delete("/artifact-registries/{id}", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.DisableArtifactRegistry(artifactRegistryCatalog)))
+		api.Get("/artifact-registries/{id}/artifacts", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListArtifactRegistryArtifacts(artifactRegistryCatalog)))
 		api.Post("/artifact-registries/{id}/validate", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ValidateSavedArtifactRegistry(artifactRegistryCatalog)))
 		api.Post("/artifact-registries/validate", handlers.ValidateArtifactRegistry())
 		api.Get("/security/scans", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListSecurityScans(securityService)))

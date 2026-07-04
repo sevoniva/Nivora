@@ -3044,22 +3044,73 @@ paths:
                 $ref: "#/components/schemas/PolicyDefinition"
   /api/v1/audit-logs:
     get:
-      summary: Audit logs placeholder
+      summary: Search aggregate audit logs
+      parameters:
+        - name: subject
+          in: query
+          schema:
+            type: string
+        - name: actorId
+          in: query
+          schema:
+            type: string
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: scopeType
+          in: query
+          schema:
+            type: string
+        - name: scopeId
+          in: query
+          schema:
+            type: string
+        - name: correlationId
+          in: query
+          schema:
+            type: string
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Aggregate audit search result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuditSearchResult"
   /api/v1/events:
     get:
-      summary: Events placeholder
+      summary: List aggregate runtime events
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Aggregate events from runtime records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Event"
+                  count:
+                    type: integer
   /api/v1/logs:
     get:
-      summary: Logs placeholder
+      summary: List aggregate runtime logs
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Aggregate logs from PipelineRun and DeploymentRun records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  logs:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/LogChunk"
+                  count:
+                    type: integer
   /api/v1/integrations:
     get:
       summary: Integrations placeholder

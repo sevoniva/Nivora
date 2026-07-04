@@ -60,6 +60,8 @@ Auth modes:
 | GET/POST/PATCH/DELETE | `/api/v1/policies*` | `project.read` for list/get; `policy.manage` for create/update/disable | policy | user/service account | yes | no | yes | Policy catalog stores built-in gate definitions only; no OPA/Kyverno integration. |
 | GET/POST | `/api/v1/cloud/*` | authenticated foundation routes | org/project | user/service account | yes | no | yes | Fake/skeleton inventory only; no cloud deployment. |
 | GET | `/api/v1/audit/search`, `/api/v1/evidence/*`, `/api/v1/retention-policy` | `audit.read` | org/project/environment | user/service account | yes | no | yes | Auditor role can read audit/evidence. |
+| GET | `/api/v1/audit-logs` | `audit.read` | org/project/environment | user/service account | yes | no | yes | Aggregate audit read path backed by the same compliance audit search. |
+| GET | `/api/v1/events`, `/api/v1/logs` | `project.read` | project/runtime | user/service account | yes | no | yes | Aggregate read-only runtime observability paths; scope filtering remains foundation-level. |
 | POST | `/api/v1/retention-policy` | `policy.manage` | org/project/environment | user/service account | yes | no | yes | Retention mutation is policy-sensitive. |
 | Placeholder | `/api/v1/audit-logs`, `/api/v1/events`, `/api/v1/logs`, `/api/v1/integrations` | placeholder | varies | user/service account | yes | no | yes | Structured `not_implemented`. |
 | GET | `/api/v1/visualization/*` | authenticated; audit timeline requires `audit.read` | read model | user/service account | yes | no | yes | Backend visualization only, no frontend production claim. |

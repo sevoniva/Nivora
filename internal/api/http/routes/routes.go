@@ -60,6 +60,9 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/tenancy/usage", handlers.GetUsageSummary(tenancyService))
 		api.Get("/audit/verify", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.VerifyAuditChain(complianceService)))
 		api.Get("/audit/search", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.SearchAudit(complianceService)))
+		api.Get("/audit-logs", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.ListAuditLogs(complianceService)))
+		api.Get("/events", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListEvents(pipelineService, deploymentService, releaseService, artifactService, securityService)))
+		api.Get("/logs", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListLogs(pipelineService, deploymentService)))
 		api.Post("/evidence/bundles", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GenerateEvidenceBundle(complianceService)))
 		api.Get("/evidence/bundles/{id}", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GetEvidenceBundleByID(complianceService)))
 		api.Get("/evidence/bundles/{id}/export", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.ExportEvidenceBundleByID(complianceService)))
@@ -283,9 +286,6 @@ type routeGroup struct {
 
 func placeholderGroups() []routeGroup {
 	return []routeGroup{
-		{"/audit-logs", "audit logs"},
-		{"/events", "events"},
-		{"/logs", "logs"},
 		{"/integrations", "integrations"},
 		{"/visualization", "visualization"},
 	}

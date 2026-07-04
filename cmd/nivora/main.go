@@ -2720,6 +2720,8 @@ func newSecurityScansListCommand() *cobra.Command {
 	var tokenEnv string
 	var subjectType string
 	var subjectID string
+	var projectID string
+	var environmentID string
 	var status string
 	var limit int
 	var offset int
@@ -2728,26 +2730,13 @@ func newSecurityScansListCommand() *cobra.Command {
 		Short: "List stored security scans from the Nivora API",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			values := url.Values{}
-			if subjectType != "" {
-				values.Set("subjectType", subjectType)
-			}
-			if subjectID != "" {
-				values.Set("subjectId", subjectID)
-			}
-			if status != "" {
-				values.Set("status", status)
-			}
-			if cmd.Flags().Changed("limit") {
-				values.Set("limit", fmt.Sprintf("%d", limit))
-			}
-			if cmd.Flags().Changed("offset") {
-				values.Set("offset", fmt.Sprintf("%d", offset))
-			}
-			query := ""
-			if len(values) > 0 {
-				query = "?" + values.Encode()
-			}
-			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/security/scans"+query, nil, os.Getenv(tokenEnv))
+			setQueryValue(values, "subjectType", subjectType)
+			setQueryValue(values, "subjectId", subjectID)
+			setQueryValue(values, "projectId", projectID)
+			setQueryValue(values, "environmentId", environmentID)
+			setQueryValue(values, "status", status)
+			setPaginationValues(values, limit, offset)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, withQuery("/api/v1/security/scans", values), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2759,6 +2748,8 @@ func newSecurityScansListCommand() *cobra.Command {
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&subjectType, "subject-type", "", "filter by subject type")
 	cmd.Flags().StringVar(&subjectID, "subject-id", "", "filter by subject id")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "filter by project id")
+	cmd.Flags().StringVar(&environmentID, "environment-id", "", "filter by environment id")
 	cmd.Flags().StringVar(&status, "status", "", "filter by scan status")
 	cmd.Flags().IntVar(&limit, "limit", 0, "maximum rows to return")
 	cmd.Flags().IntVar(&offset, "offset", 0, "rows to skip")
@@ -2773,6 +2764,8 @@ func newSecurityFindingsListCommand() *cobra.Command {
 	var subjectID string
 	var severity string
 	var category string
+	var projectID string
+	var environmentID string
 	var limit int
 	var offset int
 	cmd := &cobra.Command{
@@ -2780,32 +2773,15 @@ func newSecurityFindingsListCommand() *cobra.Command {
 		Short: "List stored security findings from the Nivora API",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			values := url.Values{}
-			if scanID != "" {
-				values.Set("scanId", scanID)
-			}
-			if subjectType != "" {
-				values.Set("subjectType", subjectType)
-			}
-			if subjectID != "" {
-				values.Set("subjectId", subjectID)
-			}
-			if severity != "" {
-				values.Set("severity", severity)
-			}
-			if category != "" {
-				values.Set("category", category)
-			}
-			if cmd.Flags().Changed("limit") {
-				values.Set("limit", fmt.Sprintf("%d", limit))
-			}
-			if cmd.Flags().Changed("offset") {
-				values.Set("offset", fmt.Sprintf("%d", offset))
-			}
-			query := ""
-			if len(values) > 0 {
-				query = "?" + values.Encode()
-			}
-			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/security/findings"+query, nil, os.Getenv(tokenEnv))
+			setQueryValue(values, "scanId", scanID)
+			setQueryValue(values, "subjectType", subjectType)
+			setQueryValue(values, "subjectId", subjectID)
+			setQueryValue(values, "projectId", projectID)
+			setQueryValue(values, "environmentId", environmentID)
+			setQueryValue(values, "severity", severity)
+			setQueryValue(values, "category", category)
+			setPaginationValues(values, limit, offset)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, withQuery("/api/v1/security/findings", values), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2818,6 +2794,8 @@ func newSecurityFindingsListCommand() *cobra.Command {
 	cmd.Flags().StringVar(&scanID, "scan-id", "", "filter by scan id")
 	cmd.Flags().StringVar(&subjectType, "subject-type", "", "filter by subject type")
 	cmd.Flags().StringVar(&subjectID, "subject-id", "", "filter by subject id")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "filter by project id")
+	cmd.Flags().StringVar(&environmentID, "environment-id", "", "filter by environment id")
 	cmd.Flags().StringVar(&severity, "severity", "", "filter by severity")
 	cmd.Flags().StringVar(&category, "category", "", "filter by category")
 	cmd.Flags().IntVar(&limit, "limit", 0, "maximum rows to return")
@@ -2928,6 +2906,8 @@ func newPolicyResultsListCommand() *cobra.Command {
 	var policyID string
 	var subjectType string
 	var subjectID string
+	var projectID string
+	var environmentID string
 	var decision string
 	var serverURL string
 	var tokenEnv string
@@ -2938,29 +2918,14 @@ func newPolicyResultsListCommand() *cobra.Command {
 		Short: "List stored policy evaluation results from the Nivora API",
 		RunE: func(cmd *cobra.Command, args []string) error {
 			values := url.Values{}
-			if policyID != "" {
-				values.Set("policyId", policyID)
-			}
-			if subjectType != "" {
-				values.Set("subjectType", subjectType)
-			}
-			if subjectID != "" {
-				values.Set("subjectId", subjectID)
-			}
-			if decision != "" {
-				values.Set("decision", decision)
-			}
-			if cmd.Flags().Changed("limit") {
-				values.Set("limit", fmt.Sprintf("%d", limit))
-			}
-			if cmd.Flags().Changed("offset") {
-				values.Set("offset", fmt.Sprintf("%d", offset))
-			}
-			query := ""
-			if len(values) > 0 {
-				query = "?" + values.Encode()
-			}
-			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/policies/results"+query, nil, os.Getenv(tokenEnv))
+			setQueryValue(values, "policyId", policyID)
+			setQueryValue(values, "subjectType", subjectType)
+			setQueryValue(values, "subjectId", subjectID)
+			setQueryValue(values, "projectId", projectID)
+			setQueryValue(values, "environmentId", environmentID)
+			setQueryValue(values, "decision", decision)
+			setPaginationValues(values, limit, offset)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, withQuery("/api/v1/policies/results", values), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -2971,6 +2936,8 @@ func newPolicyResultsListCommand() *cobra.Command {
 	cmd.Flags().StringVar(&policyID, "policy-id", "", "filter by policy id")
 	cmd.Flags().StringVar(&subjectType, "subject-type", "", "filter by subject type")
 	cmd.Flags().StringVar(&subjectID, "subject-id", "", "filter by subject id")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "filter by project id")
+	cmd.Flags().StringVar(&environmentID, "environment-id", "", "filter by environment id")
 	cmd.Flags().StringVar(&decision, "decision", "", "filter by gate decision")
 	cmd.Flags().IntVar(&limit, "limit", 0, "maximum rows to return")
 	cmd.Flags().IntVar(&offset, "offset", 0, "rows to skip")

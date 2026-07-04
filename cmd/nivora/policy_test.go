@@ -39,3 +39,20 @@ func TestPolicyAttachHelpIncludesScopeFlags(t *testing.T) {
 		}
 	}
 }
+
+func TestPolicyResultsListHelpIncludesScopeFilters(t *testing.T) {
+	cmd := newPolicyCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"results", "list", "--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("policy results list help failed: %v", err)
+	}
+	help := out.String()
+	for _, flag := range []string{"--policy-id", "--subject-type", "--subject-id", "--project-id", "--environment-id", "--decision"} {
+		if !strings.Contains(help, flag) {
+			t.Fatalf("policy results list help missing %s: %s", flag, help)
+		}
+	}
+}

@@ -32,19 +32,22 @@ type Spec struct {
 }
 
 type Target struct {
-	Type            string `json:"type" yaml:"type"`
-	Name            string `json:"name" yaml:"name"`
-	Context         string `json:"context,omitempty" yaml:"context,omitempty"`
-	Namespace       string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
-	ApplicationName string `json:"applicationName,omitempty" yaml:"applicationName,omitempty"`
-	RepoURL         string `json:"repoURL,omitempty" yaml:"repoURL,omitempty"`
-	Path            string `json:"path,omitempty" yaml:"path,omitempty"`
-	Revision        string `json:"revision,omitempty" yaml:"revision,omitempty"`
-	Project         string `json:"project,omitempty" yaml:"project,omitempty"`
-	ClusterURL      string `json:"clusterURL,omitempty" yaml:"clusterURL,omitempty"`
-	ClusterName     string `json:"clusterName,omitempty" yaml:"clusterName,omitempty"`
-	SyncPolicy      string `json:"syncPolicy,omitempty" yaml:"syncPolicy,omitempty"`
-	CredentialsRef  string `json:"credentialsRef,omitempty" yaml:"credentialsRef,omitempty"`
+	Type               string `json:"type" yaml:"type"`
+	Name               string `json:"name" yaml:"name"`
+	Context            string `json:"context,omitempty" yaml:"context,omitempty"`
+	Namespace          string `json:"namespace,omitempty" yaml:"namespace,omitempty"`
+	ApplicationName    string `json:"applicationName,omitempty" yaml:"applicationName,omitempty"`
+	RepositoryID       string `json:"repositoryId,omitempty" yaml:"repositoryId,omitempty"`
+	RepositoryName     string `json:"repositoryName,omitempty" yaml:"repositoryName,omitempty"`
+	RepositoryProvider string `json:"repositoryProvider,omitempty" yaml:"repositoryProvider,omitempty"`
+	RepoURL            string `json:"repoURL,omitempty" yaml:"repoURL,omitempty"`
+	Path               string `json:"path,omitempty" yaml:"path,omitempty"`
+	Revision           string `json:"revision,omitempty" yaml:"revision,omitempty"`
+	Project            string `json:"project,omitempty" yaml:"project,omitempty"`
+	ClusterURL         string `json:"clusterURL,omitempty" yaml:"clusterURL,omitempty"`
+	ClusterName        string `json:"clusterName,omitempty" yaml:"clusterName,omitempty"`
+	SyncPolicy         string `json:"syncPolicy,omitempty" yaml:"syncPolicy,omitempty"`
+	CredentialsRef     string `json:"credentialsRef,omitempty" yaml:"credentialsRef,omitempty"`
 }
 
 type HostSpec struct {
@@ -169,8 +172,8 @@ func (d Definition) Validate() error {
 		if d.Spec.Target.ApplicationName == "" {
 			return errors.New("deployment target.applicationName is required for argocd targets")
 		}
-		if d.Spec.Target.RepoURL == "" {
-			return errors.New("deployment target.repoURL is required for argocd targets")
+		if d.Spec.Target.RepoURL == "" && d.Spec.Target.RepositoryID == "" {
+			return errors.New("deployment target.repoURL or target.repositoryId is required for argocd targets")
 		}
 		if d.Spec.Target.Path == "" {
 			return errors.New("deployment target.path is required for argocd targets")

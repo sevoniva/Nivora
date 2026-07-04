@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	domainapp "github.com/sevoniva/nivora/internal/domain/application"
 	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
 	"github.com/sevoniva/nivora/internal/domain/event"
@@ -473,6 +474,59 @@ func TestServicePlansGitOpsDeployment(t *testing.T) {
 	}
 }
 
+func TestServicePlansGitOpsDeploymentFromRepositoryCatalog(t *testing.T) {
+	service, def := newGitOpsTestService(t)
+	def.Spec.Target.RepositoryID = "repo-1"
+	def.Spec.Target.RepoURL = ""
+	def.Spec.Target.Revision = ""
+	service.WithRepositoryCatalog(fakeRepositoryCatalog{repos: map[string]domainapp.Repository{
+		"repo-1": {
+			ID:            "repo-1",
+			ProjectID:     "project-a",
+			Name:          "platform-gitops",
+			URL:           "https://example.com/platform/gitops.git",
+			Provider:      "gitlab",
+			DefaultBranch: "release-main",
+			Enabled:       true,
+		},
+	}})
+
+	result, err := service.Plan(context.Background(), CreateRunInput{Definition: def, ProjectID: "project-a"})
+	if err != nil {
+		t.Fatalf("plan gitops from repository catalog: %v", err)
+	}
+	plan := result.Record.GitOpsPlan
+	if plan.RepositoryID != "repo-1" || plan.RepositoryName != "platform-gitops" || plan.RepositoryProvider != "gitlab" {
+		t.Fatalf("repository metadata not attached to plan: %#v", plan)
+	}
+	if plan.RepoURL != "https://example.com/platform/gitops.git" || plan.Revision != "release-main" || result.Record.Plan.TargetContext != plan.RepoURL {
+		t.Fatalf("repository resolution failed: plan=%#v deploymentPlan=%#v", plan, result.Record.Plan)
+	}
+	if !strings.Contains(strings.Join(plan.Warnings, "\n"), "repositoryId") {
+		t.Fatalf("repositoryId warning missing: %#v", plan.Warnings)
+	}
+}
+
+func TestServiceRejectsInaccessibleGitOpsRepositoryCatalogRecord(t *testing.T) {
+	service, def := newGitOpsTestService(t)
+	def.Spec.Target.RepositoryID = "repo-1"
+	def.Spec.Target.RepoURL = ""
+	service.WithRepositoryCatalog(fakeRepositoryCatalog{repos: map[string]domainapp.Repository{
+		"repo-1": {ID: "repo-1", ProjectID: "project-b", Name: "other", URL: "https://example.com/other.git", DefaultBranch: "main", Enabled: true},
+	}})
+	if _, err := service.Plan(context.Background(), CreateRunInput{Definition: def, ProjectID: "project-a"}); err == nil || !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("cross-project repository error = %v, want ErrInvalidInput", err)
+	}
+
+	def.Spec.Target.RepositoryID = "repo-disabled"
+	service.WithRepositoryCatalog(fakeRepositoryCatalog{repos: map[string]domainapp.Repository{
+		"repo-disabled": {ID: "repo-disabled", ProjectID: "project-a", Name: "disabled", URL: "https://example.com/disabled.git", DefaultBranch: "main", Enabled: false},
+	}})
+	if _, err := service.Plan(context.Background(), CreateRunInput{Definition: def, ProjectID: "project-a"}); err == nil || !errors.Is(err, ErrInvalidInput) {
+		t.Fatalf("disabled repository error = %v, want ErrInvalidInput", err)
+	}
+}
+
 func TestServiceGitOpsRunSkipsSyncByDefault(t *testing.T) {
 	service, def := newGitOpsTestService(t)
 	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def})
@@ -899,6 +953,25 @@ func assertHasDeploymentEvent(t *testing.T, events []event.Event, eventType stri
 		}
 	}
 	t.Fatalf("missing event %s in %#v", eventType, events)
+}
+
+type fakeRepositoryCatalog struct {
+	repos map[string]domainapp.Repository
+	err   error
+}
+
+func (f fakeRepositoryCatalog) GetRepository(ctx context.Context, id string) (domainapp.Repository, error) {
+	if err := ctx.Err(); err != nil {
+		return domainapp.Repository{}, err
+	}
+	if f.err != nil {
+		return domainapp.Repository{}, f.err
+	}
+	repository, ok := f.repos[id]
+	if !ok {
+		return domainapp.Repository{}, fmt.Errorf("repository %q not found", id)
+	}
+	return repository, nil
 }
 
 type testPolicy struct {

@@ -94,3 +94,33 @@ spec:
 		t.Fatal("sync should default false")
 	}
 }
+
+func TestParseDefinitionAllowsGitOpsRepositoryID(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-gitops
+spec:
+  application: demo-app
+  environment: dev
+  target:
+    type: argocd
+    name: demo-argocd
+    applicationName: demo-app
+    repositoryId: repo-1
+    path: apps/demo/dev
+  artifacts:
+    - name: demo-app
+      type: image
+      reference: registry.example.com/demo/app@sha256:example
+  gitops:
+    mode: plan
+`))
+	if err != nil {
+		t.Fatalf("parse gitops definition: %v", err)
+	}
+	if err := def.Validate(); err != nil {
+		t.Fatalf("validate repositoryId gitops definition: %v", err)
+	}
+}

@@ -576,6 +576,10 @@ func respondDeploymentResult(w http.ResponseWriter, r *http.Request, payload any
 		status = http.StatusNotFound
 		code = "host_group_not_found"
 	}
+	if errors.Is(err, deploymentusecase.ErrInvalidInput) {
+		status = http.StatusBadRequest
+		code = "invalid_deployment_input"
+	}
 	RespondError(w, r, status, dto.ErrorResponse{
 		Code:    code,
 		Message: err.Error(),

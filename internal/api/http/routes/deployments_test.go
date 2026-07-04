@@ -226,6 +226,36 @@ func TestGitOpsDeploymentRoutes(t *testing.T) {
 	}
 }
 
+func TestGitOpsDeploymentPlanResolvesRepositoryCatalog(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	org := postCatalogResource(t, router, "/api/v1/orgs", `{"name":"GitOps Org"}`, http.StatusCreated)
+	project := postCatalogResource(t, router, "/api/v1/projects", `{"orgId":"`+stringField(t, org, "id")+`","name":"GitOps Project"}`, http.StatusCreated)
+	repository := postCatalogResource(t, router, "/api/v1/repositories", `{"projectId":"`+stringField(t, project, "id")+`","name":"gitops-config","url":"https://example.com/platform/gitops.git","provider":"gitlab","defaultBranch":"release-main"}`, http.StatusCreated)
+	body := gitOpsDeploymentRequestBodyWithTarget(t, map[string]any{
+		"type":            "argocd",
+		"name":            "demo-argocd",
+		"applicationName": "demo-springboot",
+		"repositoryId":    stringField(t, repository, "id"),
+		"path":            "apps/demo-springboot/dev",
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/deployments/gitops/plan?projectId="+stringField(t, project, "id"), bytes.NewReader(body))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("gitops repository catalog plan status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	for _, want := range []string{`"repositoryId":"` + stringField(t, repository, "id") + `"`, `"repositoryName":"gitops-config"`, `"repositoryProvider":"gitlab"`, `"repoURL":"https://example.com/platform/gitops.git"`, `"revision":"release-main"`} {
+		if !bytes.Contains(rec.Body.Bytes(), []byte(want)) {
+			t.Fatalf("gitops repository catalog plan missing %s: %s", want, rec.Body.String())
+		}
+	}
+}
+
 func TestHostDeploymentRoutes(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {
@@ -281,6 +311,18 @@ func TestHostDeploymentRoutes(t *testing.T) {
 
 func gitOpsDeploymentRequestBody(t *testing.T) []byte {
 	t.Helper()
+	return gitOpsDeploymentRequestBodyWithTarget(t, map[string]any{
+		"type":            "argocd",
+		"name":            "demo-argocd",
+		"applicationName": "demo-springboot",
+		"repoURL":         "https://example.com/gitops/demo.git",
+		"path":            "apps/demo-springboot/dev",
+		"revision":        "main",
+	})
+}
+
+func gitOpsDeploymentRequestBodyWithTarget(t *testing.T, target map[string]any) []byte {
+	t.Helper()
 	body, err := json.Marshal(map[string]any{
 		"apiVersion": "nivora.io/v1alpha1",
 		"kind":       "Deployment",
@@ -290,14 +332,7 @@ func gitOpsDeploymentRequestBody(t *testing.T) []byte {
 		"spec": map[string]any{
 			"application": "demo-springboot",
 			"environment": "dev",
-			"target": map[string]any{
-				"type":            "argocd",
-				"name":            "demo-argocd",
-				"applicationName": "demo-springboot",
-				"repoURL":         "https://example.com/gitops/demo.git",
-				"path":            "apps/demo-springboot/dev",
-				"revision":        "main",
-			},
+			"target":      target,
 			"artifacts": []map[string]any{{
 				"name":      "demo-springboot",
 				"type":      "image",

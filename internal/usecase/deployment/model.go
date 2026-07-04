@@ -157,6 +157,9 @@ type ManifestImage struct {
 type GitOpsChangePlan struct {
 	DeploymentRunID       string                       `json:"deploymentRunId"`
 	ApplicationName       string                       `json:"applicationName"`
+	RepositoryID          string                       `json:"repositoryId,omitempty"`
+	RepositoryName        string                       `json:"repositoryName,omitempty"`
+	RepositoryProvider    string                       `json:"repositoryProvider,omitempty"`
 	RepoURL               string                       `json:"repoURL"`
 	Path                  string                       `json:"path"`
 	Revision              string                       `json:"revision,omitempty"`

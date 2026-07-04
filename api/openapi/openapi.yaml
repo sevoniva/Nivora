@@ -7197,6 +7197,9 @@ components:
               type: string
             applicationName:
               type: string
+            repositoryId:
+              type: string
+              description: Optional SCM repository catalog id. When set, Nivora resolves repoURL and default revision from repository metadata without contacting the SCM provider.
             repoURL:
               type: string
             path:
@@ -7628,6 +7631,9 @@ components:
           type: string
         applicationName:
           type: string
+        repositoryId:
+          type: string
+          description: Optional SCM repository catalog id. When set, Nivora resolves repoURL and default revision from repository metadata without contacting the SCM provider.
         repoURL:
           type: string
         path:
@@ -7650,6 +7656,12 @@ components:
         deploymentRunId:
           type: string
         applicationName:
+          type: string
+        repositoryId:
+          type: string
+        repositoryName:
+          type: string
+        repositoryProvider:
           type: string
         repoURL:
           type: string

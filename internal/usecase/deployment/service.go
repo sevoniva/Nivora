@@ -9,6 +9,7 @@ import (
 	"strings"
 	"time"
 
+	domainapp "github.com/sevoniva/nivora/internal/domain/application"
 	domainapproval "github.com/sevoniva/nivora/internal/domain/approval"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/audit"
@@ -105,6 +106,7 @@ type Service struct {
 	argocd     portargocd.Provider
 	security   *securityusecase.Service
 	policies   SecurityPolicyCatalog
+	repos      RepositoryCatalog
 	governance Governance
 	now        func() time.Time
 }
@@ -116,6 +118,10 @@ type Governance interface {
 
 type SecurityPolicyCatalog interface {
 	ResolveEnabledForScope(ctx context.Context, input policyusecase.ResolveInput) (domainpolicy.Policy, bool, error)
+}
+
+type RepositoryCatalog interface {
+	GetRepository(ctx context.Context, id string) (domainapp.Repository, error)
 }
 
 func NewService(store Store, renderer ManifestRenderer, client ManifestClient, policyEngine policy.Engine, bus eventbus.EventBus) *Service {
@@ -150,6 +156,11 @@ func (s *Service) WithPolicyCatalog(catalog SecurityPolicyCatalog) *Service {
 	return s
 }
 
+func (s *Service) WithRepositoryCatalog(catalog RepositoryCatalog) *Service {
+	s.repos = catalog
+	return s
+}
+
 func (s *Service) WithGovernance(governance Governance) *Service {
 	s.governance = governance
 	return s
@@ -160,6 +171,11 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 	if err := input.Definition.Validate(); err != nil {
 		return CreateRunResult{}, err
 	}
+	resolvedDefinition, err := s.resolveGitOpsRepository(ctx, input.Definition, input.ProjectID)
+	if err != nil {
+		return CreateRunResult{}, err
+	}
+	input.Definition = resolvedDefinition
 	if input.Definition.Spec.Options.Apply && (!input.AllowApply || !input.Confirm) {
 		return CreateRunResult{}, fmt.Errorf("deployment apply requires explicit confirmation")
 	}
@@ -194,7 +210,7 @@ func (s *Service) CreateAndRun(ctx context.Context, input CreateRunInput) (Creat
 		}
 		return CreateRunResult{Record: record}, nil
 	}
-	record, err := s.process(ctx, record, input.ActorID)
+	record, err = s.process(ctx, record, input.ActorID)
 	if err != nil {
 		return CreateRunResult{}, err
 	}
@@ -206,6 +222,11 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 	if err := input.Definition.Validate(); err != nil {
 		return CreateRunResult{}, err
 	}
+	resolvedDefinition, err := s.resolveGitOpsRepository(ctx, input.Definition, input.ProjectID)
+	if err != nil {
+		return CreateRunResult{}, err
+	}
+	input.Definition = resolvedDefinition
 	record := s.newRecord(input.Definition)
 	record = applyProjectScope(record, input.ProjectID)
 	record.Run.CorrelationID = input.CorrelationID
@@ -1849,6 +1870,39 @@ func resourceRef(resource ManifestResourceSummary) string {
 	return fmt.Sprintf("%s/%s/%s", resource.Kind, resource.Namespace, resource.Name)
 }
 
+func (s *Service) resolveGitOpsRepository(ctx context.Context, def Definition, projectID string) (Definition, error) {
+	if def.Spec.Target.Type != "argocd" || strings.TrimSpace(def.Spec.Target.RepositoryID) == "" {
+		return def, nil
+	}
+	if s.repos == nil {
+		return Definition{}, fmt.Errorf("%w: repository catalog is not configured for target.repositoryId", ErrInvalidInput)
+	}
+	repositoryID := strings.TrimSpace(def.Spec.Target.RepositoryID)
+	repository, err := s.repos.GetRepository(ctx, repositoryID)
+	if err != nil {
+		return Definition{}, fmt.Errorf("%w: repository %q could not be resolved: %v", ErrInvalidInput, repositoryID, err)
+	}
+	if projectID = strings.TrimSpace(projectID); projectID != "" && repository.ProjectID != projectID {
+		return Definition{}, fmt.Errorf("%w: repository %q is not accessible for project %q", ErrInvalidInput, repositoryID, projectID)
+	}
+	if !repository.Enabled {
+		return Definition{}, fmt.Errorf("%w: repository %q is disabled", ErrInvalidInput, repositoryID)
+	}
+	if strings.TrimSpace(repository.URL) == "" {
+		return Definition{}, fmt.Errorf("%w: repository %q has no URL", ErrInvalidInput, repositoryID)
+	}
+	if def.Spec.Target.RepoURL == "" {
+		def.Spec.Target.RepoURL = repository.URL
+	}
+	if def.Spec.Target.Revision == "" && repository.DefaultBranch != "" {
+		def.Spec.Target.Revision = repository.DefaultBranch
+	}
+	def.Spec.Target.RepositoryID = repository.ID
+	def.Spec.Target.RepositoryName = repository.Name
+	def.Spec.Target.RepositoryProvider = repository.Provider
+	return def, nil
+}
+
 func (s *Service) buildGitOpsPlan(runID string, def Definition, changes []portgitops.FileChange) GitOpsChangePlan {
 	files := append([]string(nil), def.Spec.GitOps.Files...)
 	if len(files) == 0 && def.Spec.Target.Path != "" {
@@ -1880,9 +1934,15 @@ func (s *Service) buildGitOpsPlan(runID string, def Definition, changes []portgi
 	if def.Spec.GitOps.Force {
 		warnings = append(warnings, "Argo CD force sync is not supported in Phase 2.6")
 	}
+	if def.Spec.Target.RepositoryID != "" {
+		warnings = append(warnings, "GitOps repository was resolved from the catalog by repositoryId; provider credentials remain behind CredentialRef metadata")
+	}
 	return GitOpsChangePlan{
 		DeploymentRunID:       runID,
 		ApplicationName:       def.Spec.Target.ApplicationName,
+		RepositoryID:          def.Spec.Target.RepositoryID,
+		RepositoryName:        def.Spec.Target.RepositoryName,
+		RepositoryProvider:    def.Spec.Target.RepositoryProvider,
 		RepoURL:               def.Spec.Target.RepoURL,
 		Path:                  def.Spec.Target.Path,
 		Revision:              def.Spec.Target.Revision,
@@ -1924,7 +1984,7 @@ func deploymentPlanFromGitOps(plan GitOpsChangePlan, def Definition) DeploymentP
 	return DeploymentPlan{
 		DeploymentRunID: plan.DeploymentRunID,
 		TargetType:      def.Spec.Target.Type,
-		TargetContext:   def.Spec.Target.RepoURL,
+		TargetContext:   plan.RepoURL,
 		Namespace:       def.Spec.Target.Namespace,
 		Artifacts:       append([]string(nil), plan.ArtifactChanges...),
 		DryRun:          !def.Spec.GitOps.WriteToWorkingTree && !def.Spec.GitOps.Sync,

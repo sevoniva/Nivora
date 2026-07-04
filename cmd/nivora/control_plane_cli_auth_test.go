@@ -15,6 +15,29 @@ import (
 func TestControlPlaneServerCommandsUseBearerToken(t *testing.T) {
 	t.Setenv("NIVORA_TEST_TOKEN", "control-plane-token")
 	pluginFile := writePluginManifest(t)
+	gitOpsCatalogFile := filepath.Join(t.TempDir(), "gitops-catalog.yaml")
+	if err := os.WriteFile(gitOpsCatalogFile, []byte(`apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-gitops
+spec:
+  application: demo
+  environment: dev
+  target:
+    type: argocd
+    name: demo-argocd
+    applicationName: demo
+    repositoryId: repo-1
+    path: apps/demo/dev
+  artifacts:
+    - name: demo
+      type: image
+      reference: registry.example.invalid/demo/app@sha256:example
+  gitops:
+    mode: plan
+`), 0o600); err != nil {
+		t.Fatalf("write gitops catalog deployment: %v", err)
+	}
 	runResponse := `{"run":{"id":"prun-1","status":"Succeeded"},"logs":[]}`
 
 	tests := []struct {
@@ -40,6 +63,7 @@ func TestControlPlaneServerCommandsUseBearerToken(t *testing.T) {
 		{name: "plugins validate", cmd: newPluginsValidateCommand(), args: []string{"--file", pluginFile, "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/plugins/validate", response: `{"valid":true}`},
 
 		{name: "repository validate", cmd: newRepositoryValidateCommand(), args: []string{"repo-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/repositories/repo-1/validate", response: `{"valid":true,"repositoryId":"repo-1"}`},
+		{name: "gitops plan server catalog", cmd: newGitOpsPlanCommand(), args: []string{gitOpsCatalogFile, "--local=false", "--project-id", "project-a", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/deployments/gitops/plan", wantQuery: "projectId=project-a", response: `{"deploymentRunId":"drun-1","repositoryId":"repo-1","repoURL":"https://example.com/gitops.git"}`},
 
 		{name: "policy attach", cmd: newPolicyAttachCommand(), args: []string{"policy-1", "--scope-type", "project", "--scope-id", "project-a", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/policies/policy-1/attachments", response: `{"id":"attach-1"}`},
 		{name: "policy attachments", cmd: newPolicyAttachmentsCommand(), args: []string{"policy-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/policies/policy-1/attachments", response: `[]`},

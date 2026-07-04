@@ -1,0 +1,26 @@
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo-gitops-catalog-release
+spec:
+  application: demo-springboot
+  environment: dev
+  target:
+    type: argocd
+    name: demo-argocd
+    applicationName: demo-springboot
+    repositoryId: repo-example-placeholder
+    path: apps/demo-springboot/dev
+  artifacts:
+    - name: demo-springboot
+      type: image
+      reference: registry.example.com/demo/demo-springboot@sha256:example
+      target:
+        imageName: app
+  gitops:
+    mode: plan
+    writeToWorkingTree: false
+    sync: false
+    statusRead: false
+    files:
+      - apps/demo-springboot/dev/deployment.yaml

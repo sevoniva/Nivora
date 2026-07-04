@@ -5281,14 +5281,34 @@ func newGitOpsCommand() *cobra.Command {
 }
 
 func newGitOpsPlanCommand() *cobra.Command {
+	var local bool
+	var serverURL string
+	var tokenEnv string
+	var projectID string
 	cmd := &cobra.Command{
-		Use:   "plan --local <deployment.yaml>",
-		Short: "Build a local GitOps change plan",
+		Use:   "plan <deployment.yaml>",
+		Short: "Build a GitOps change plan",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			def, err := deploymentusecase.LoadDefinitionFile(args[0])
 			if err != nil {
 				return err
+			}
+			if !local {
+				body, err := json.Marshal(def)
+				if err != nil {
+					return err
+				}
+				values := url.Values{}
+				if projectID != "" {
+					values.Set("projectId", projectID)
+				}
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, withQuery("/api/v1/deployments/gitops/plan", values), body, os.Getenv(tokenEnv))
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), payload)
+				return nil
 			}
 			result, err := server.NewDeploymentService().Plan(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def})
 			if err != nil {
@@ -5298,7 +5318,10 @@ func newGitOpsPlanCommand() *cobra.Command {
 			return nil
 		},
 	}
-	cmd.Flags().Bool("local", true, "use the in-process Phase 2.3 local runtime")
+	cmd.Flags().BoolVar(&local, "local", true, "use the in-process Phase 2.3 local runtime")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "project id scope for repository catalog resolution")
 	return cmd
 }
 

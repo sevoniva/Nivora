@@ -21,6 +21,7 @@ var (
 	ErrRunNotFound       = errors.New("deployment run not found")
 	ErrRunTerminal       = errors.New("deployment run is already terminal")
 	ErrHostGroupNotFound = errors.New("host group not found")
+	ErrInvalidInput      = errors.New("deployment input is invalid")
 )
 
 type Store interface {

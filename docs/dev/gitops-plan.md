@@ -8,6 +8,25 @@ go run ./cmd/nivora gitops plan --local examples/deployments/argocd-plan.yaml
 
 The command builds a GitOpsChangePlan from the deployment spec. Planning does not contact Git, Gitea, GitHub, GitLab, or Argo CD.
 
+GitOps plans can either include `target.repoURL` directly or reference an existing repository catalog record with `target.repositoryId`.
+When `repositoryId` is used, Nivora resolves the repository URL and default branch from catalog metadata only.
+It does not contact the SCM provider, does not clone the repository, and does not resolve or return CredentialRef secret values during planning.
+
+The catalog-backed form requires the server API because local mode does not have the repository catalog.
+Create a repository record first, then plan with `--local=false` and a project scope:
+
+```bash
+go run ./cmd/nivora repository create \
+  --project-id project-placeholder \
+  --name gitops-config \
+  --url https://example.com/platform/gitops.git \
+  --provider generic
+
+go run ./cmd/nivora gitops plan examples/deployments/argocd-plan-catalog.yaml \
+  --local=false \
+  --project-id project-placeholder
+```
+
 To test local working tree writes:
 
 ```bash

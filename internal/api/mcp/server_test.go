@@ -44,7 +44,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://events", "nivora://logs", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://events", "nivora://logs", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://releases", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
 		if !hasResource(resources, want) {
 			t.Fatalf("resource %s missing from %#v", want, resources)
 		}
@@ -58,7 +58,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 			t.Fatalf("blocked action tool %s was exposed", blocked)
 		}
 	}
-	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_search_events", "nivora_search_logs", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
+	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_search_events", "nivora_search_logs", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_releases", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
 		if !hasTool(tools, want) {
 			t.Fatalf("tool %s missing from %#v", want, tools)
 		}
@@ -244,6 +244,72 @@ func TestMCPArtifactInventoryReadOnly(t *testing.T) {
 		if strings.Contains(body, forbidden) {
 			t.Fatalf("artifact MCP output leaked sensitive value %q: %s", forbidden, body)
 		}
+	}
+}
+
+func TestMCPReleaseInventoryReadOnlyAndScoped(t *testing.T) {
+	ctx := context.Background()
+	artifacts := runtime.NewArtifactService()
+	projectA := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-release-list-project-a",
+		Username:  "sa-release-list-project-a",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-a",
+	})
+	projectA.services.Artifacts = artifacts
+	projectB := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-release-list-project-b",
+		Username:  "sa-release-list-project-b",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-b",
+	})
+	projectB.services.Artifacts = artifacts
+
+	_, releaseA := createScopedMCPArtifactFixture(t, artifacts, "project-a")
+	_, releaseB := createScopedMCPArtifactFixture(t, artifacts, "project-b")
+
+	resource, err := projectA.ReadResource(ctx, "nivora://releases")
+	if err != nil {
+		t.Fatalf("project A read release inventory resource: %v", err)
+	}
+	if !strings.Contains(resource.Text, releaseA) || strings.Contains(resource.Text, releaseB) || strings.Contains(resource.Text, "project-b") {
+		t.Fatalf("release inventory resource did not honor project scope: %s", resource.Text)
+	}
+	if !strings.Contains(resource.Text, `"mutated": false`) || !strings.Contains(resource.Text, `"pagination"`) {
+		t.Fatalf("release inventory resource missing read-only pagination metadata: %s", resource.Text)
+	}
+
+	result, err := projectA.CallTool(ctx, "nivora_list_releases", map[string]any{
+		"projectId":     "project-b",
+		"applicationId": "demo",
+		"status":        "Ready",
+		"limit":         1,
+		"offset":        0,
+	})
+	if err != nil {
+		t.Fatalf("project A list releases tool transport: %v", err)
+	}
+	if result.IsError {
+		t.Fatalf("project A list releases tool returned error: %#v", result)
+	}
+	body := result.Content[0].Text
+	if !strings.Contains(body, releaseA) || strings.Contains(body, releaseB) || strings.Contains(body, "project-b") {
+		t.Fatalf("release list tool ignored MCP project scope: %s", body)
+	}
+	if !strings.Contains(body, `"limit": 1`) || !strings.Contains(body, `"offset": 0`) || !strings.Contains(body, `"mutated": false`) {
+		t.Fatalf("release list tool missing pagination/read-only metadata: %s", body)
+	}
+
+	projectBResult, err := projectB.CallTool(ctx, "nivora_list_releases", map[string]any{"status": "Ready"})
+	if err != nil {
+		t.Fatalf("project B list releases tool transport: %v", err)
+	}
+	if projectBResult.IsError || !strings.Contains(projectBResult.Content[0].Text, releaseB) || strings.Contains(projectBResult.Content[0].Text, releaseA) {
+		t.Fatalf("project B release list result = %#v", projectBResult)
 	}
 }
 

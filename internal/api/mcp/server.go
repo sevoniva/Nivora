@@ -118,6 +118,7 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://deployments/{id}/resources", "Deployment resources", "Deployment resource inventory by id"),
 		resource("nivora://deployments/{id}/health", "Deployment health", "Deployment health by id"),
 		resource("nivora://deployments/{id}/diff", "Deployment diff", "Deployment diff by id"),
+		resource("nivora://releases", "Releases", "Filtered Release inventory visible to the MCP subject"),
 		resource("nivora://releases/{id}", "Release", "Release record by id"),
 		resource("nivora://artifacts", "Artifacts", "Release-bound artifact inventory"),
 		resource("nivora://artifacts/{id}", "Artifact", "Tracked artifact by id"),
@@ -197,6 +198,14 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 		tool("nivora_get_deployment_health", "Read DeploymentRun health by id", idSchema("id")),
 		tool("nivora_get_deployment_diff", "Read DeploymentRun diff by id", idSchema("id")),
 		tool("nivora_get_release_execution", "Read a ReleaseExecution by id", idSchema("id")),
+		tool("nivora_list_releases", "List releases visible to the MCP subject", objectSchema(map[string]any{
+			"projectId":     stringProperty("optional project id filter"),
+			"environmentId": stringProperty("optional environment id filter"),
+			"applicationId": stringProperty("optional application id filter"),
+			"status":        stringProperty("optional release status filter"),
+			"limit":         integerProperty("page size, 1-100"),
+			"offset":        integerProperty("zero-based offset"),
+		}, nil)),
 		tool("nivora_list_artifacts", "List release-bound artifacts tracked by Nivora", objectSchema(map[string]any{
 			"type":       stringProperty("artifact type"),
 			"name":       stringProperty("artifact name substring"),
@@ -375,6 +384,8 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 		return s.pipelineResource(ctx, strings.TrimPrefix(uri, "nivora://pipelines/runs/"))
 	case strings.HasPrefix(uri, "nivora://deployments/"):
 		return s.deploymentResource(ctx, strings.TrimPrefix(uri, "nivora://deployments/"))
+	case uri == "nivora://releases":
+		return s.releaseList(ctx, artifactusecase.ListReleasesInput{}, mcpPage{})
 	case uri == "nivora://artifacts":
 		return s.artifactList(ctx, artifactusecase.ListArtifactsInput{}, mcpPage{})
 	case strings.HasPrefix(uri, "nivora://artifacts/"):
@@ -614,6 +625,40 @@ func (s *Server) artifactList(ctx context.Context, input artifactusecase.ListArt
 	}, nil
 }
 
+func (s *Server) releaseList(ctx context.Context, input artifactusecase.ListReleasesInput, page mcpPage) (any, error) {
+	scopedInput := s.scopedReleaseListInput(input)
+	records, err := s.services.Artifacts.ListReleases(ctx, scopedInput)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]artifactusecase.ReleaseRecord, 0, len(records))
+	for _, record := range records {
+		if s.canReadArtifactReleaseRecord(record) {
+			filtered = append(filtered, record)
+		}
+	}
+	normalizedPage, err := normalizeMCPPage(page.Limit, page.Offset)
+	if err != nil {
+		return nil, err
+	}
+	limited, pagination, truncated := paginateMCPItems(filtered, normalizedPage)
+	return map[string]any{
+		"filters": map[string]string{
+			"projectId":     scopedInput.ProjectID,
+			"environmentId": scopedInput.EnvironmentID,
+			"applicationId": scopedInput.ApplicationID,
+			"status":        scopedInput.Status,
+		},
+		"releases":   limited,
+		"count":      len(filtered),
+		"limit":      normalizedPage.Limit,
+		"offset":     normalizedPage.Offset,
+		"pagination": pagination,
+		"truncated":  truncated,
+		"mutated":    false,
+	}, nil
+}
+
 func (s *Server) callToolPayload(ctx context.Context, name string, arguments map[string]any) (any, error) {
 	switch name {
 	case "nivora_status":
@@ -716,6 +761,17 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return s.releaseExecutionResource(ctx, id)
+	case "nivora_list_releases":
+		page, err := mcpPageFromArgs(arguments)
+		if err != nil {
+			return nil, err
+		}
+		return s.releaseList(ctx, artifactusecase.ListReleasesInput{
+			ProjectID:     stringArg(arguments, "projectId"),
+			EnvironmentID: stringArg(arguments, "environmentId"),
+			ApplicationID: stringArg(arguments, "applicationId"),
+			Status:        stringArg(arguments, "status"),
+		}, page)
 	case "nivora_list_artifacts":
 		page, err := mcpPageFromArgs(arguments)
 		if err != nil {
@@ -1631,6 +1687,19 @@ func (s *Server) scopedArtifactListInput(input artifactusecase.ListArtifactsInpu
 	return input
 }
 
+func (s *Server) scopedReleaseListInput(input artifactusecase.ListReleasesInput) artifactusecase.ListReleasesInput {
+	subject := s.services.Subject
+	switch strings.TrimSpace(subject.ScopeType) {
+	case domaintenant.ScopeProject:
+		input.ProjectID = strings.TrimSpace(subject.ScopeID)
+		input.EnvironmentID = ""
+	case domaintenant.ScopeEnvironment:
+		input.EnvironmentID = strings.TrimSpace(subject.ScopeID)
+		input.ProjectID = ""
+	}
+	return input
+}
+
 func (s *Server) canReadArtifact(artifact domainartifact.Artifact) bool {
 	projectID := artifact.Metadata["projectId"]
 	environmentID := artifact.Metadata["environmentId"]
@@ -1772,6 +1841,7 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_get_deployment_health",
 		"nivora_get_deployment_diff",
 		"nivora_get_release_execution",
+		"nivora_list_releases",
 		"nivora_list_artifacts",
 		"nivora_get_artifact",
 		"nivora_get_artifact_releases",

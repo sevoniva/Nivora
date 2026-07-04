@@ -34,6 +34,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	catalogService := catalogusecase.NewService(catalogusecase.NewMemoryStore())
 	pipelineCatalog := pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore())
 	policyCatalog := policyusecase.NewService(policyusecase.NewMemoryStore())
+	artifactRegistryCatalog := artifactusecase.NewRegistryService(artifactusecase.NewRegistryMemoryStore())
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
 	r.Use(middleware.RealIP)
@@ -152,6 +153,11 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/integrations/argocd/applications/{name}/sync", apimiddleware.RequirePermission(authService, "deployment.create", handlers.RespondError, handlers.SyncArgoCDApplication(deploymentService)))
 		api.Post("/artifacts/inspect", apimiddleware.RequirePermission(authService, "release.create", handlers.RespondError, handlers.InspectArtifact(artifactService)))
 		api.Post("/artifacts/resolve", apimiddleware.RequirePermission(authService, "release.create", handlers.RespondError, handlers.ResolveArtifact(artifactService)))
+		api.Get("/artifact-registries", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListArtifactRegistries(artifactRegistryCatalog)))
+		api.Post("/artifact-registries", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.CreateArtifactRegistry(artifactRegistryCatalog)))
+		api.Get("/artifact-registries/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetArtifactRegistry(artifactRegistryCatalog)))
+		api.Patch("/artifact-registries/{id}", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.UpdateArtifactRegistry(artifactRegistryCatalog)))
+		api.Delete("/artifact-registries/{id}", apimiddleware.RequirePermission(authService, "credential.manage", handlers.RespondError, handlers.DisableArtifactRegistry(artifactRegistryCatalog)))
 		api.Post("/artifact-registries/validate", handlers.ValidateArtifactRegistry())
 		api.Post("/security/scans", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.CreateSecurityScan(securityService)))
 		api.Get("/security/scans/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetSecurityScan(securityService)))
@@ -277,7 +283,6 @@ type routeGroup struct {
 
 func placeholderGroups() []routeGroup {
 	return []routeGroup{
-		{"/artifact-registries", "artifact registries"},
 		{"/audit-logs", "audit logs"},
 		{"/events", "events"},
 		{"/logs", "logs"},

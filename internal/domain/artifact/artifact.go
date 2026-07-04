@@ -24,15 +24,20 @@ const (
 )
 
 type ArtifactRegistry struct {
-	ID        string    `json:"id"`
-	ProjectID string    `json:"projectId,omitempty"`
-	Name      string    `json:"name"`
-	Type      string    `json:"type"`
-	URL       string    `json:"url"`
-	Endpoint  string    `json:"endpoint,omitempty"`
-	Insecure  bool      `json:"insecure,omitempty"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID            string            `json:"id"`
+	ProjectID     string            `json:"projectId,omitempty"`
+	Name          string            `json:"name"`
+	Type          string            `json:"type"`
+	URL           string            `json:"url,omitempty"`
+	Endpoint      string            `json:"endpoint,omitempty"`
+	Insecure      bool              `json:"insecure,omitempty"`
+	CredentialRef string            `json:"credentialRef,omitempty"`
+	Capabilities  []string          `json:"capabilities,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	Enabled       bool              `json:"enabled"`
+	CreatedAt     time.Time         `json:"createdAt"`
+	UpdatedAt     time.Time         `json:"updatedAt"`
 }
 
 type Artifact struct {

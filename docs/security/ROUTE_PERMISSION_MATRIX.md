@@ -50,6 +50,7 @@ Auth modes:
 | POST | `/api/v1/runners/{id}/jobs/{job_id}/status` | runner token and job ownership | runner/job | runner | yes | yes | no | Runner cannot update unrelated jobs. |
 | POST | `/api/v1/jobs/{id}/logs`, `/api/v1/jobs/{id}/status` | `runner.manage` | runner/job | user/service account | yes | no | yes | Admin compatibility endpoints. |
 | GET/POST | `/api/v1/releases*` | authenticated reads; `release.create` for create/plan/deploy | release/project | user/service account | yes | no | yes | ReleaseExecution remains foundation-level. |
+| GET/POST/PATCH/DELETE | `/api/v1/artifact-registries*` | `project.read` for list/get; `credential.manage` for create/update/disable | project/credential | user/service account | yes | no | yes | Registry records contain CredentialRef metadata only; no registry secret values. |
 | GET/POST | `/api/v1/deployments*` | authenticated reads; `deployment.create`, `deployment.cancel`, or `deployment.approve` for mutations | environment/target | user/service account | yes | no | yes | Apply/sync/rollback remain guarded and not default. |
 | GET/POST | `/api/v1/host-groups`, `/api/v1/deployments/host/plan` | `environment.read`, `environment.write`, `deployment.create` | environment | user/service account | yes | no | yes | Remote host deploy is disabled by default. |
 | GET/POST | `/api/v1/integrations/argocd/applications/*` | `deployment.create` | environment/target | user/service account | yes | no | yes | Argo sync is guarded; no production automation claim. |

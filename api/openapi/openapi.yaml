@@ -969,10 +969,80 @@ paths:
                 $ref: "#/components/schemas/SCMRepository"
   /api/v1/artifact-registries:
     get:
-      summary: Artifact registries placeholder
+      summary: List artifact registry definitions
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: string
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Artifact registry definitions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  registries:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/ArtifactRegistry"
+    post:
+      summary: Create artifact registry definition
+      description: Stores registry metadata and CredentialRef only. Secret values are not accepted or returned.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtifactRegistryCreateRequest"
+      responses:
+        "201":
+          description: Artifact registry definition created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRegistry"
+  /api/v1/artifact-registries/{id}:
+    get:
+      summary: Get artifact registry definition
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Artifact registry definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRegistry"
+    patch:
+      summary: Update artifact registry definition
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ArtifactRegistryUpdateRequest"
+      responses:
+        "200":
+          description: Artifact registry definition updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRegistry"
+    delete:
+      summary: Disable artifact registry definition
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Artifact registry definition disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ArtifactRegistry"
   /api/v1/artifact-registries/validate:
     post:
       summary: Validate generic OCI artifact registry configuration
@@ -4556,6 +4626,8 @@ components:
       properties:
         id:
           type: string
+        projectId:
+          type: string
         name:
           type: string
         type:
@@ -4570,7 +4642,31 @@ components:
         credentialRef:
           type: string
         capabilities:
+          type: array
+          items:
+            type: string
+        labels:
           type: object
+          additionalProperties:
+            type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    ArtifactRegistryCreateRequest:
+      allOf:
+        - $ref: "#/components/schemas/ArtifactRegistry"
+    ArtifactRegistryUpdateRequest:
+      allOf:
+        - $ref: "#/components/schemas/ArtifactRegistry"
     OCIRegistryConfig:
       type: object
       required: [name, type, endpoint]

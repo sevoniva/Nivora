@@ -1664,6 +1664,7 @@ func newArtifactCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "artifact", Short: "Artifact utilities"}
 	cmd.AddCommand(newArtifactInspectCommand())
 	cmd.AddCommand(newArtifactResolveCommand())
+	cmd.AddCommand(newArtifactRegistryCommand())
 	return cmd
 }
 
@@ -1724,6 +1725,221 @@ func newArtifactResolveCommand() *cobra.Command {
 	cmd.Flags().StringVar(&passwordEnv, "password-env", "", "environment variable containing registry password")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "", "environment variable containing registry bearer token")
 	return cmd
+}
+
+func newArtifactRegistryCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "registry", Aliases: []string{"registries"}, Short: "Artifact registry metadata utilities"}
+	cmd.AddCommand(newArtifactRegistryListCommand())
+	cmd.AddCommand(newArtifactRegistryCreateCommand())
+	cmd.AddCommand(newArtifactRegistryGetCommand())
+	cmd.AddCommand(newArtifactRegistryUpdateCommand())
+	cmd.AddCommand(newArtifactRegistryDisableCommand())
+	cmd.AddCommand(newArtifactRegistryValidateCommand())
+	return cmd
+}
+
+func newArtifactRegistryListCommand() *cobra.Command {
+	var projectID string
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List artifact registry definitions",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			path := "/api/v1/artifact-registries"
+			if projectID != "" {
+				path += "?projectId=" + url.QueryEscape(projectID)
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&projectID, "project-id", "", "filter registries by project id")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newArtifactRegistryCreateCommand() *cobra.Command {
+	var input artifactusecase.RegistryCreateInput
+	var capabilities []string
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "create --name <name> --endpoint <endpoint>",
+		Short: "Create artifact registry metadata without secret values",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if input.Name == "" {
+				return fmt.Errorf("--name is required")
+			}
+			if input.Endpoint == "" && input.URL == "" {
+				return fmt.Errorf("--endpoint is required")
+			}
+			input.Capabilities = capabilities
+			body, err := json.Marshal(input)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/artifact-registries", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	bindArtifactRegistryCreateFlags(cmd, &input, &capabilities)
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newArtifactRegistryGetCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "get <registry-id>",
+		Short: "Get artifact registry metadata",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/artifact-registries/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newArtifactRegistryUpdateCommand() *cobra.Command {
+	var name string
+	var registryType string
+	var endpoint string
+	var projectID string
+	var credentialRef string
+	var insecure bool
+	var enabled bool
+	var capabilities []string
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "update <registry-id>",
+		Short: "Update artifact registry metadata",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			bodyMap := map[string]any{}
+			if cmd.Flags().Changed("name") {
+				bodyMap["name"] = name
+			}
+			if cmd.Flags().Changed("type") {
+				bodyMap["type"] = registryType
+			}
+			if cmd.Flags().Changed("endpoint") {
+				bodyMap["endpoint"] = endpoint
+			}
+			if cmd.Flags().Changed("project-id") {
+				bodyMap["projectId"] = projectID
+			}
+			if cmd.Flags().Changed("credential-ref") {
+				bodyMap["credentialRef"] = credentialRef
+			}
+			if cmd.Flags().Changed("insecure") {
+				bodyMap["insecure"] = insecure
+			}
+			if cmd.Flags().Changed("enabled") {
+				bodyMap["enabled"] = enabled
+			}
+			if cmd.Flags().Changed("capability") {
+				bodyMap["capabilities"] = capabilities
+			}
+			if len(bodyMap) == 0 {
+				return fmt.Errorf("at least one update flag is required")
+			}
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPatch, serverURL, "/api/v1/artifact-registries/"+args[0], body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "registry name")
+	cmd.Flags().StringVar(&registryType, "type", "", "registry type, currently oci")
+	cmd.Flags().StringVar(&endpoint, "endpoint", "", "registry endpoint host[:port] or URL")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "project scope id")
+	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id for registry access")
+	cmd.Flags().BoolVar(&insecure, "insecure", false, "allow HTTP registry endpoint for local development")
+	cmd.Flags().BoolVar(&enabled, "enabled", true, "enable or disable the registry")
+	cmd.Flags().StringSliceVar(&capabilities, "capability", nil, "registry capability, repeatable")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newArtifactRegistryDisableCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "disable <registry-id>",
+		Short: "Disable artifact registry metadata without deleting it",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodDelete, serverURL, "/api/v1/artifact-registries/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newArtifactRegistryValidateCommand() *cobra.Command {
+	var input artifactusecase.RegistryCreateInput
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "validate --name <name> --endpoint <endpoint>",
+		Short: "Validate artifact registry configuration shape",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			body, err := json.Marshal(map[string]any{
+				"name":     input.Name,
+				"type":     input.Type,
+				"endpoint": input.Endpoint,
+				"insecure": input.Insecure,
+			})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/artifact-registries/validate", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&input.Name, "name", "", "registry name")
+	cmd.Flags().StringVar(&input.Type, "type", "oci", "registry type, currently oci")
+	cmd.Flags().StringVar(&input.Endpoint, "endpoint", "", "registry endpoint")
+	cmd.Flags().BoolVar(&input.Insecure, "insecure", false, "allow HTTP registry endpoint for local development")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func bindArtifactRegistryCreateFlags(cmd *cobra.Command, input *artifactusecase.RegistryCreateInput, capabilities *[]string) {
+	cmd.Flags().StringVar(&input.ID, "id", "", "optional registry id")
+	cmd.Flags().StringVar(&input.ProjectID, "project-id", "", "project scope id")
+	cmd.Flags().StringVar(&input.Name, "name", "", "registry name")
+	cmd.Flags().StringVar(&input.Type, "type", "oci", "registry type, currently oci")
+	cmd.Flags().StringVar(&input.Endpoint, "endpoint", "", "registry endpoint host[:port] or URL")
+	cmd.Flags().BoolVar(&input.Insecure, "insecure", false, "allow HTTP registry endpoint for local development")
+	cmd.Flags().StringVar(&input.CredentialRef, "credential-ref", "", "CredentialRef id for registry access")
+	cmd.Flags().StringSliceVar(capabilities, "capability", nil, "registry capability, repeatable")
 }
 
 func newReleaseCommand() *cobra.Command {

@@ -19,7 +19,11 @@ An image tag such as `app:1.0.0` is useful, but it can still be moved by a regis
 
 ## Current Implementation
 
-Phase 2.5 supports a small artifact model, OCI image reference parsing, generic URI-style references, immutability warnings, and generic OCI digest resolution. Harbor is treated as an OCI-compatible registry endpoint in this phase. Nivora does not implement Harbor management APIs, Nexus, JFrog, ECR, ACR, TCR, signing, scanning, or full registry administration.
+Phase 2.5 supports a small artifact model, OCI image reference parsing, generic URI-style references, immutability warnings, and generic OCI digest resolution. Harbor is treated as an OCI-compatible registry endpoint in this phase.
+
+The current backend also has a foundation artifact registry catalog at `/api/v1/artifact-registries` and `nivora artifact registry`. It records registry metadata, explicit `insecure` settings for local HTTP registries, capabilities, and `CredentialRef` values. It never stores or returns registry passwords or tokens through registry records.
+
+Nivora does not implement Harbor management APIs, Nexus, JFrog, ECR, ACR, TCR, signing, scanning, or full registry administration.
 
 ## Common Confusion
 

@@ -35,3 +35,15 @@ Release definitions may set:
 Digest-qualified ReleaseArtifacts are preferred for auditable deployment planning.
 
 Harbor-compatible registries are treated as generic OCI registries in this phase. Harbor administration APIs, robot account management, scanning, signing, Nexus/JFrog management APIs, and cloud registry APIs remain future work.
+
+Registry metadata can be recorded without credentials:
+
+```sh
+nivora artifact registry create \
+  --name local-oci \
+  --endpoint http://localhost:30500 \
+  --insecure \
+  --credential-ref cred-local-registry
+```
+
+The registry catalog stores `CredentialRef` metadata only. Secret values must live in the secret provider and are not returned by registry APIs.

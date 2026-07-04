@@ -47,6 +47,55 @@ type artifactRegistryValidateRequest struct {
 	Insecure bool   `json:"insecure,omitempty"`
 }
 
+func ListArtifactRegistries(service *artifactusecase.RegistryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		registries, err := service.List(r.Context(), r.URL.Query().Get("projectId"))
+		respondArtifactResult(w, r, map[string]any{"registries": registries}, err)
+	}
+}
+
+func CreateArtifactRegistry(service *artifactusecase.RegistryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input artifactusecase.RegistryCreateInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an artifact registry config"})
+			return
+		}
+		registry, err := service.Create(r.Context(), input)
+		if err != nil {
+			respondArtifactResult(w, r, registry, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, registry)
+	}
+}
+
+func GetArtifactRegistry(service *artifactusecase.RegistryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		registry, err := service.Get(r.Context(), chi.URLParam(r, "id"))
+		respondArtifactResult(w, r, registry, err)
+	}
+}
+
+func UpdateArtifactRegistry(service *artifactusecase.RegistryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input artifactusecase.RegistryUpdateInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be an artifact registry update"})
+			return
+		}
+		registry, err := service.Update(r.Context(), chi.URLParam(r, "id"), input)
+		respondArtifactResult(w, r, registry, err)
+	}
+}
+
+func DisableArtifactRegistry(service *artifactusecase.RegistryService) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		registry, err := service.Disable(r.Context(), chi.URLParam(r, "id"))
+		respondArtifactResult(w, r, registry, err)
+	}
+}
+
 func ValidateArtifactRegistry() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var req artifactRegistryValidateRequest
@@ -127,6 +176,15 @@ func respondArtifactResult(w http.ResponseWriter, r *http.Request, payload any, 
 	if errors.Is(err, artifactusecase.ErrReleaseNotFound) {
 		status = http.StatusNotFound
 		code = "release_not_found"
+	} else if errors.Is(err, artifactusecase.ErrRegistryNotFound) {
+		status = http.StatusNotFound
+		code = "artifact_registry_not_found"
+	} else if errors.Is(err, artifactusecase.ErrRegistryAlreadyExists) {
+		status = http.StatusConflict
+		code = "artifact_registry_already_exists"
+	} else if errors.Is(err, artifactusecase.ErrRegistryInvalid) {
+		status = http.StatusBadRequest
+		code = "invalid_artifact_registry"
 	}
 	RespondError(w, r, status, dto.ErrorResponse{Code: code, Message: err.Error()})
 }

@@ -90,6 +90,43 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RuntimeRecoverySummary"
+  /api/v1/mcp/rpc:
+    post:
+      summary: Remote read-only MCP JSON-RPC endpoint
+      description: Experimental remote MCP foundation. Disabled unless `mcp.enabled=true` and `mcp.mode=http`; requires bearer, service-account, or OIDC authentication; runner tokens and action tools are rejected.
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/MCPJSONRPCRequest"
+      responses:
+        "200":
+          description: JSON-RPC response with resource, tool, prompt, or structured MCP error result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MCPJSONRPCResponse"
+        "401":
+          description: Bearer, service-account, or OIDC identity required
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Runner token or forbidden identity rejected
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Remote MCP is disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/system/diagnostics:
     get:
       summary: Runtime diagnostics
@@ -3902,6 +3939,43 @@ components:
           type: string
     Error:
       $ref: "#/components/schemas/ErrorResponse"
+    MCPJSONRPCRequest:
+      type: object
+      required:
+        - jsonrpc
+        - method
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        id:
+          description: JSON-RPC request id
+        method:
+          type: string
+          description: JSON-RPC method such as initialize, resources/list, resources/read, tools/list, tools/call, prompts/list, or prompts/get.
+        params:
+          description: JSON-RPC method parameters.
+      additionalProperties: true
+    MCPJSONRPCResponse:
+      type: object
+      properties:
+        jsonrpc:
+          type: string
+          enum: ["2.0"]
+        id:
+          description: JSON-RPC request id
+        result:
+          description: JSON-RPC result payload.
+        error:
+          type: object
+          properties:
+            code:
+              type: integer
+            message:
+              type: string
+            data:
+              description: Structured MCP error data.
+      additionalProperties: true
     CatalogMetadata:
       type: object
       additionalProperties:

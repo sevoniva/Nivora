@@ -59,8 +59,8 @@ Current scenario evidence:
 
 ## Remaining Top Risks
 
-1. Remote MCP identity and tenant filtering are not implemented.
-2. Remote MCP audit attribution is not yet proven because remote identity/client metadata is still future work.
+1. Remote MCP has an opt-in bearer-gated read-only JSON-RPC foundation, but broad remote identity lifecycle and tenant filtering are not fully proven.
+2. Remote MCP audit attribution is not yet fully proven because richer remote client metadata is still future work.
 3. Prompt-injection resilience is mostly prompt guidance and scenario coverage, not a full adversarial test corpus.
 4. AI can still misinterpret unknown live state if prompts are ignored.
 5. Runner shell execution is hardened but not an OS-level sandbox.

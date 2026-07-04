@@ -204,8 +204,8 @@ func (c Config) Validate() error {
 	if c.MCP.Mode == "" {
 		c.MCP.Mode = "stdio"
 	}
-	if c.MCP.Mode != "stdio" {
-		return errors.New("config mcp.mode must be stdio in this foundation phase")
+	if c.MCP.Mode != "stdio" && c.MCP.Mode != "http" {
+		return errors.New("config mcp.mode must be stdio or http")
 	}
 	if c.MCP.RequestTimeout != "" {
 		if timeout, err := time.ParseDuration(c.MCP.RequestTimeout); err != nil || timeout <= 0 {
@@ -244,16 +244,13 @@ func (c Config) Validate() error {
 			return errors.New("config auth.static_token_env is required when auth.mode=token in production")
 		}
 		if c.MCP.Enabled {
-			if c.MCP.Mode != "stdio" {
-				return errors.New("config mcp.mode must be stdio in production for this foundation phase")
-			}
 			if !c.MCP.ReadOnly {
 				return errors.New("config mcp.readonly=false is not allowed in this foundation phase")
 			}
 			if c.MCP.AllowActionTools {
 				return errors.New("config mcp.allow_action_tools=true is not allowed in this foundation phase")
 			}
-			if c.MCP.TokenEnv == "" {
+			if c.MCP.Mode == "stdio" && c.MCP.TokenEnv == "" {
 				return errors.New("config mcp.token_env is required when mcp.enabled=true in production")
 			}
 			if c.MCP.RequestTimeout == "" {

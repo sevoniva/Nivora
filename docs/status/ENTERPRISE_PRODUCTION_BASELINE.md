@@ -25,7 +25,7 @@ Nivora has enough backend structure, runtime persistence, guardrails, and verifi
 | Blocker | Current Evidence | Required Before Production-Candidate |
 |---|---|---|
 | Runner sandboxing is operator-dependent | Shell executor safety docs and tests exist, but shell execution is not an OS-level sandbox | Container/VM isolation story, default production runner profile, and operational proof |
-| Remote MCP is not implemented or safe to expose | Local stdio MCP is tested; remote auth, rate limits, pagination, and tenant filters are missing | Remote read-only auth contract, scope filters, response limits, audit proof |
+| Remote MCP is experimental and not broadly safe to expose | Local stdio MCP is tested; an opt-in read-only JSON-RPC foundation exists; deeper per-client rate limits, pagination, and tenant-filter proof are still missing | Harden remote read-only auth contract, scope filters, response limits, audit proof |
 | Live install and restore drills are incomplete | Helm/Compose profiles and smoke scripts exist; full live restore is not automated at production scale | Repeatable install, backup, restore, and migration drill in CI or documented release gate |
 | External integrations remain foundation-level | Kubernetes, Argo CD, OCI, cloud, scanner, notification, and secret providers are guarded or skeleton/fake | Explicit beta/production integration hardening per adapter |
 | Complete multi-tenant enforcement is not proven everywhere | Route tests and tenant isolation tests exist; MCP and some read models still need deeper scope proof | Tenant fixture coverage for all critical API and MCP resource paths |
@@ -45,8 +45,8 @@ Nivora has enough backend structure, runtime persistence, guardrails, and verifi
 | Surface | Current Decision | Blockers |
 |---|---|---|
 | Local stdio MCP | Go for maintainer-local read-only and plan-only use | Keep scenario/golden-answer validation in CI |
-| Remote read-only MCP | No-go | OAuth/OIDC or service-account bearer contract, tenant filters, rate limits, response caps, pagination, remote audit metadata |
-| Remote plan-only MCP | No-go | Same as read-only plus stronger abuse controls for plan summaries |
+| Remote read-only MCP | Experimental opt-in foundation only | Bearer/service-account identity is required and response caps exist; deeper OAuth/OIDC lifecycle, tenant filters, per-client rate limits, pagination, and remote audit metadata remain blockers |
+| Remote plan-only MCP | Experimental opt-in foundation only | Same as read-only plus stronger abuse controls for plan summaries |
 | Action MCP | No-go | Destructive delivery, approval, token, secret, runner, Git, host, and Kubernetes actions remain intentionally denied |
 
 ## Local Verification Baseline
@@ -67,7 +67,7 @@ Required local checks for this baseline:
 Nivora does not currently promise:
 
 - production-safe untrusted shell execution;
-- remote MCP exposure;
+- broad remote MCP exposure;
 - remote MCP actions;
 - full enterprise SSO lifecycle;
 - full cloud provider inventory parity;

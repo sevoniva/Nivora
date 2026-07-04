@@ -197,17 +197,20 @@ func (s *Server) checkJSONRPCRateLimit(now time.Time) error {
 	if limit <= 0 {
 		return nil
 	}
-	s.rateLimitMu.Lock()
-	defer s.rateLimitMu.Unlock()
-
-	if s.rateLimitWindow.IsZero() || now.Sub(s.rateLimitWindow) >= time.Minute {
-		s.rateLimitWindow = now
-		s.rateLimitCount = 0
+	if s.rateLimit == nil {
+		s.rateLimit = &rateLimitState{}
 	}
-	if s.rateLimitCount >= limit {
+	s.rateLimit.mu.Lock()
+	defer s.rateLimit.mu.Unlock()
+
+	if s.rateLimit.window.IsZero() || now.Sub(s.rateLimit.window) >= time.Minute {
+		s.rateLimit.window = now
+		s.rateLimit.count = 0
+	}
+	if s.rateLimit.count >= limit {
 		return OperationError{Code: "mcp_rate_limited", Message: "MCP request rate limit exceeded"}
 	}
-	s.rateLimitCount++
+	s.rateLimit.count++
 	return nil
 }
 

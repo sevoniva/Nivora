@@ -1,8 +1,8 @@
 # MCP Permission Matrix
 
-Nivora MCP is a local stdio, read-only and plan-only control-plane surface. It is disabled by default and does not expose destructive action tools. Runner tokens are never allowed to use MCP.
+Nivora MCP is a local stdio plus experimental opt-in remote HTTP JSON-RPC, read-only and plan-only control-plane surface. It is disabled by default and does not expose destructive action tools. Runner tokens are never allowed to use MCP.
 
-This matrix is mechanically backed by `internal/api/mcp/server_test.go`, `internal/api/mcp/scenario_test.go`, `scripts/validate-mcp-scenarios.sh`, 29 scenario fixtures in `examples/mcp/scenarios/`, and 29 golden answers in `examples/mcp/golden-answers/`. `TestMCPPermissionMatrixCoversCatalogEntries` fails if a registered resource, tool, prompt, or blocked action is missing from this matrix. Tenant-scope gaps for future remote MCP are tracked separately in `docs/security/MCP_TENANT_SCOPE_REVIEW.md`.
+This matrix is mechanically backed by `internal/api/mcp/server_test.go`, `internal/api/http/routes/mcp_remote_test.go`, `internal/api/mcp/scenario_test.go`, `scripts/validate-mcp-scenarios.sh`, 29 scenario fixtures in `examples/mcp/scenarios/`, and 29 golden answers in `examples/mcp/golden-answers/`. `TestMCPPermissionMatrixCoversCatalogEntries` fails if a registered resource, tool, prompt, or blocked action is missing from this matrix. Tenant-scope gaps for broader remote MCP exposure are tracked separately in `docs/security/MCP_TENANT_SCOPE_REVIEW.md`.
 
 | Name | Type | Required Permission | Tenant Scope | Allowed Roles | Runner Token Allowed | Redaction Risk | Mutates State | Audit Event | Status | Confidence Level | Remaining Tests | Future Remote Classification |
 |---|---|---|---|---|---|---|---|---|---|---|---|---|

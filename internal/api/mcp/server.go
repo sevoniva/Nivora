@@ -51,11 +51,15 @@ var blockedActionTools = map[string]string{
 }
 
 type Server struct {
-	services        Services
-	logger          *slog.Logger
-	rateLimitMu     sync.Mutex
-	rateLimitWindow time.Time
-	rateLimitCount  int
+	services  Services
+	logger    *slog.Logger
+	rateLimit *rateLimitState
+}
+
+type rateLimitState struct {
+	mu     sync.Mutex
+	window time.Time
+	count  int
 }
 
 func NewServer(services Services, logger *slog.Logger) *Server {
@@ -71,7 +75,20 @@ func NewServer(services Services, logger *slog.Logger) *Server {
 	if services.PipelineDefs == nil {
 		services.PipelineDefs = pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore())
 	}
-	return &Server{services: services, logger: logger}
+	return &Server{services: services, logger: logger, rateLimit: &rateLimitState{}}
+}
+
+func (s *Server) WithSubject(subject domainauth.Subject) *Server {
+	if s == nil {
+		return nil
+	}
+	copy := *s
+	copy.services = s.services
+	copy.services.Subject = subject
+	if copy.rateLimit == nil {
+		copy.rateLimit = &rateLimitState{}
+	}
+	return &copy
 }
 
 func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {

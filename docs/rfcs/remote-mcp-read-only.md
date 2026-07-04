@@ -1,10 +1,10 @@
 # RFC: Remote Read-Only MCP
 
-Status: proposed, not implemented.
+Status: experimental foundation implemented; not broadly opened.
 
 ## Recommendation
 
-Local stdio MCP can be used by maintainers today for read-only and plan-only workflows. Remote read-only MCP is the next candidate, but it should not be implemented until the blockers below are resolved. Remote action MCP remains blocked.
+Local stdio MCP can be used by maintainers today for read-only and plan-only workflows. A first remote read-only JSON-RPC foundation is available at `POST /api/v1/mcp/rpc` only when explicitly enabled with `mcp.enabled=true` and `mcp.mode=http`. Remote action MCP remains blocked.
 
 ## Transport Options
 
@@ -24,7 +24,7 @@ Local stdio MCP can be used by maintainers today for read-only and plan-only wor
 
 Suggested flow:
 
-1. Client authenticates with an existing bearer or service-account token.
+1. Client authenticates with an existing bearer, service-account, or OIDC token.
 2. Server resolves the subject through the normal auth service.
 3. MCP request handling evaluates the same permissions used by local MCP.
 4. Runner-token subjects are rejected before resource/tool dispatch.
@@ -43,7 +43,7 @@ Every resource must filter by org/project/environment where the underlying store
 
 ## Limits
 
-Required before implementation:
+Required before broad exposure:
 
 - request body size limit
 - response size limit
@@ -91,13 +91,13 @@ Remote MCP should be disabled by default. Operators should enable it only with:
 - No Kubernetes prune/delete.
 - No production-ready claim.
 
-## Blockers Before Implementation
+## Blockers Before Broad Exposure
 
-1. Remote OAuth/OIDC contract tests.
-2. Tenant-scoped resource filtering tests.
-3. Remote rate-limit and body-size tests.
+1. Broader OAuth/OIDC contract tests beyond the current bearer/static-token route coverage.
+2. More tenant-scoped resource filtering tests for every future MCP resource family.
+3. Stronger per-client remote rate limits and pagination for large event/log/audit result sets.
 4. Remote MCP audit attribution tests for client identity, subject scope, request IDs, and tenant-safe audit search. The local/Postgres hash-chain path is already covered by `TestPostgresIntegrationMCPAuditHashChain`.
-5. Golden scenario prompt-injection tests.
-6. Operator docs and threat-model update.
+5. Golden scenario prompt-injection tests for remote-specific usage.
+6. Operator docs, ingress/TLS guidance, and threat-model update.
 
-Current audit status is tracked in `docs/status/REMOTE_MCP_READINESS_AUDIT.md`. The current decision remains no-go for remote MCP until those blockers are resolved.
+Current audit status is tracked in `docs/status/REMOTE_MCP_READINESS_AUDIT.md`. The current decision is that remote read-only MCP can be tested as an explicitly enabled foundation, but it is not ready for broad production exposure. Remote action MCP remains no-go.

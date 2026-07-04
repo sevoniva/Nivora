@@ -89,7 +89,7 @@ MCP does not bypass Nivora RBAC.
 - Audit resources require `audit.read`.
 - Plan-only tools require existing delivery permissions such as `deployment.create`.
 
-Remote MCP with OAuth/OIDC is future work. The proposed next step is remote read-only MCP, documented in `remote-mcp-read-only.md`. Remote action MCP remains blocked.
+Remote MCP with broad OAuth/OIDC hardening is still future work. A minimal remote read-only JSON-RPC foundation exists behind explicit config and is documented in `remote-mcp-read-only.md`. Remote action MCP remains blocked.
 
 ## Audit And Redaction
 
@@ -104,7 +104,7 @@ This phase uses a minimal internal stdio JSON-RPC adapter instead of adding a ne
 ## Non-Goals
 
 - No production-ready claim.
-- No remote MCP server.
+- No broadly exposed remote MCP server.
 - No marketplace behavior.
 - No unsafe dynamic plugin loading.
 - No execution authority through MCP.

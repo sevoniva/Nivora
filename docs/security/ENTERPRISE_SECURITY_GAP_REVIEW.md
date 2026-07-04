@@ -21,7 +21,7 @@ This review tracks enterprise security gaps that remain after route/RBAC, runner
 |---|---|---|---|
 | Complete tenant isolation across every read model is not fully proven | Cross-project metadata exposure | route tenant tests exist, MCP tenant scope review says remote is incomplete | Add ownership tests for all MCP resources and sensitive visualization/read models |
 | Runner shell execution is not an OS sandbox | Malicious job can affect host if runner is poorly isolated | runner trust-boundary docs | Provide production runner isolation profile and operator checklist |
-| Remote MCP controls are missing | Remote AI clients could enumerate or over-read state | remote MCP no-go docs; local stdio cap/timeout tests exist | Add auth, tenant scope, rate limit, pagination, remote timeout/cap proof, and audit proof before remote |
+| Remote MCP controls are incomplete | Remote AI clients could enumerate or over-read state if broadly exposed | opt-in remote read-only JSON-RPC exists; local stdio cap/timeout tests exist; broad remote exposure remains blocked | Add tenant scope, per-client rate limit, pagination, remote timeout/cap proof, and stronger audit proof before broad remote exposure |
 | Audit evidence is not uniformly proven through a live production profile | Weak compliance evidence | hash-chain tests exist, full live audit chain still limited | Add Postgres audit-chain integration coverage for critical flows |
 | External secret providers are foundation-level | Secret lifecycle varies by operator | provider skeletons/docs | Add provider validation contract tests before production claims |
 | OIDC/SSO lifecycle is incomplete | Enterprise identity lifecycle gaps | auth foundation docs | Add provider-specific integration tests and token lifecycle docs |
@@ -34,7 +34,7 @@ This review tracks enterprise security gaps that remain after route/RBAC, runner
 3. Secret/token response scanner must cover API, audit, events, logs, and MCP.
 4. Production config must reject unsafe defaults.
 5. Tenant isolation must be proven for critical read and mutation paths.
-6. MCP remote exposure must remain disabled until remote controls are implemented.
+6. MCP remote exposure must remain opt-in and read-only until deeper remote controls are implemented.
 7. Runner isolation must be documented as an operator requirement and backed by safe defaults.
 8. Audit/evidence persistence must be verified against PostgreSQL in integration tests.
 
@@ -47,5 +47,5 @@ This review tracks enterprise security gaps that remain after route/RBAC, runner
 | Enterprise SSO | no-go for production | OIDC lifecycle not complete |
 | Runner protocol | conditional go | token boundary tested; sandboxing remains operator responsibility |
 | Local stdio MCP | go for maintainer-local use | read-only/plan-only and denial tests exist |
-| Remote MCP | no-go | missing auth/scope/limits/audit controls |
+| Remote MCP | experimental foundation only | opt-in read-only JSON-RPC exists, but broad exposure still lacks deeper auth/scope/pagination/per-client-limit/audit controls |
 | Production install | conditional beta | safe profiles exist; live restore and HA drills incomplete |

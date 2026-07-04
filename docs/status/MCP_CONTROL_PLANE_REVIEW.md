@@ -4,7 +4,7 @@ Current maturity: hardened beta-candidate foundation, not production-ready.
 
 ## Scope
 
-This review covers the local stdio MCP surface added for AI-assisted inspection, planning, and diagnostics. It does not review a remote MCP server because remote transport and OAuth/OIDC are not implemented in this phase.
+This review covers the local stdio MCP surface added for AI-assisted inspection, planning, and diagnostics plus the experimental opt-in remote read-only JSON-RPC foundation. It does not authorize broad remote exposure or action MCP.
 
 ## What AI Can Safely Answer Today
 
@@ -28,7 +28,7 @@ This review covers the local stdio MCP surface added for AI-assisted inspection,
 | Secret values or token material | Normal APIs and MCP intentionally never expose them. | AI must ask for SecretRef/CredentialRef metadata only. |
 | Full production install readiness | Helm/Compose smoke checks exist, but live production-scale validation is not complete. | AI must keep not-production-ready language. |
 | OS-level runner sandbox guarantees | Runner isolation profile docs exist, but shell executor is not a sandbox. | AI must recommend operator isolation checks instead of assuming safety. |
-| Remote MCP security | Remote transport and OAuth/OIDC are future work. | Remote MCP should not be opened yet. |
+| Remote MCP security | Experimental HTTP JSON-RPC exists, but broader OAuth/OIDC, pagination, per-client limits, and operator guidance remain future work. | Remote MCP should stay disabled by default and not be broadly opened yet. |
 
 ## Most Useful MCP Resources For Operators
 
@@ -72,9 +72,9 @@ The next improvement should be smaller, more task-shaped prompts for:
 
 ## Remote MCP Decision
 
-Remote MCP should **not** be opened yet as a deployed capability.
+Remote MCP should **not** be broadly opened yet as a deployed capability.
 
-The next acceptable design step is remote **read-only** MCP. The proposed boundary is documented in `docs/rfcs/remote-mcp-read-only.md`. Remote action MCP remains blocked.
+The first acceptable design step, remote **read-only** MCP, now exists as an explicitly enabled JSON-RPC foundation. The boundary is documented in `docs/rfcs/remote-mcp-read-only.md`. Remote action MCP remains blocked.
 
 Required before remote MCP:
 

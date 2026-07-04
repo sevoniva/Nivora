@@ -110,10 +110,6 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 			c.MCP.Enabled = true
 			c.MCP.ReadOnly = false
 		}},
-		{"mcp unsupported mode", func(c *Config) {
-			c.MCP.Enabled = true
-			c.MCP.Mode = "http"
-		}},
 		{"mcp missing token env", func(c *Config) {
 			c.MCP.Enabled = true
 			c.MCP.TokenEnv = ""
@@ -147,6 +143,13 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 	if err := base.Validate(); err != nil {
 		t.Fatalf("safe production config rejected: %v", err)
 	}
+	httpMCP := base
+	httpMCP.MCP.Enabled = true
+	httpMCP.MCP.Mode = "http"
+	httpMCP.MCP.TokenEnv = ""
+	if err := httpMCP.Validate(); err != nil {
+		t.Fatalf("safe production http MCP config rejected: %v", err)
+	}
 }
 
 func TestMCPConfigRejectsInvalidLimits(t *testing.T) {
@@ -159,6 +162,7 @@ func TestMCPConfigRejectsInvalidLimits(t *testing.T) {
 		{"negative max requests per minute", func(c *Config) { c.MCP.MaxRequestsPerMinute = -1 }},
 		{"invalid request timeout", func(c *Config) { c.MCP.RequestTimeout = "soon" }},
 		{"zero request timeout", func(c *Config) { c.MCP.RequestTimeout = "0s" }},
+		{"unsupported mode", func(c *Config) { c.MCP.Mode = "websocket" }},
 	}
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {

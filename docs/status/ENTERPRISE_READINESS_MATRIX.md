@@ -91,8 +91,8 @@ No row in this matrix should be read as a GA production claim.
 | Runbooks | beta | operations runbooks/scripts | runbook smoke | operations docs | Not all failure modes scripted | Expand runbook checks | SRE |
 | Troubleshooting | beta | troubleshooting docs | docs checks | operations docs | Needs real incident drills | Operator drill checklist | SRE |
 | Local stdio MCP | beta | `cmd/nivora-mcp` | MCP tests/smoke | MCP docs | Local trust boundary only | Keep local-only warnings | MCP |
-| Remote MCP readiness | foundation | RFC/readiness docs | matrix tests | remote MCP docs | No remote transport | Auth/scope/limit design first | MCP |
-| MCP auth | foundation | local subject/RBAC | MCP auth tests | MCP security docs | Remote auth missing | Service-account bearer contract | MCP |
+| Remote MCP readiness | foundation | RFC/readiness docs and `POST /api/v1/mcp/rpc` | matrix tests and remote MCP route tests | remote MCP docs | Broad exposure still lacks pagination, operator guidance, per-client limits, and deeper tenant proof | Harden remote contract before exposure | MCP |
+| MCP auth | foundation | local subject/RBAC and remote bearer/static-token route tests | MCP auth tests | MCP security docs | Broader OIDC/service-account scoped remote auth incomplete | Service-account/OIDC contract expansion | MCP |
 | MCP RBAC | beta | permission matrix/tests | MCP matrix tests | MCP permission docs | Remote auth and per-client policies missing | Resource ownership tests | MCP |
 | MCP tenant scope | foundation | tenant scope review, scoped PipelineDefinition/Artifact/SecurityScan/Runner filtering | PipelineRun/PipelineDefinition/DeploymentRun/ReleaseExecution/Artifact/SecurityScan/Runner MCP scope tests | tenant scope docs | Remote IDOR risk remains for future resource families and unscoped historical records | First-class runner ownership, remote-safe metadata profile, and negative tests for new resources | MCP |
 | MCP prompt injection defense | beta | prompt templates/scenarios | prompt tests | MCP security docs | Corpus can grow | Add adversarial scenarios | MCP |
@@ -100,8 +100,8 @@ No row in this matrix should be read as a GA production claim.
 | MCP audit | foundation | compliance recorder and Postgres hash-chain proof | unit/compliance tests plus `TestPostgresIntegrationMCPAuditHashChain` | MCP audit docs | Remote client attribution and audit scope policy are still future work | Remote audit contract tests before remote MCP exposure | MCP |
 | MCP scenario corpus | beta | scenario YAML | validator/tests | scenario README | Coverage must grow with tools | Require enterprise abuse cases | MCP |
 | MCP golden answers | beta | golden markdown | validator/tests | scenario README | Style drift possible | Golden-answer linter | MCP |
-| MCP rate limit | foundation | local stdio JSON-RPC request limit | MCP rate-limit tests | MCP security docs | Remote per-client rate limits missing | Add remote per-client limits before exposure | MCP |
-| MCP request body cap | foundation | local stdio JSON-RPC request body cap | MCP request-size tests | MCP security docs | Remote body-size proof missing | Add remote transport body limits before exposure | MCP |
-| MCP response size cap | beta | JSON-RPC transport cap plus log/resource truncation | transport cap and truncation tests | MCP docs | Remote pagination and body-size proof still missing | Add remote transport limits before exposure | MCP |
+| MCP rate limit | foundation | shared JSON-RPC request limit | MCP rate-limit tests | MCP security docs | Remote per-client distributed limits missing | Add remote per-client limits before exposure | MCP |
+| MCP request body cap | foundation | shared JSON-RPC request body cap and remote route test | MCP request-size tests | MCP security docs | More remote abuse-depth tests needed | Add remote body-limit scenarios before exposure | MCP |
+| MCP response size cap | beta | JSON-RPC transport cap plus log/resource truncation | transport cap and truncation tests | MCP docs | Remote pagination still missing | Add pagination before broad exposure | MCP |
 | MCP action denial | beta | denied tool registry | scenario tests | permission matrix | New action aliases could drift | Deny-list catalog test | MCP |
 | MCP operator journey quality | beta | operator journeys and scenarios | scenario validator | AI operator docs | Still fixture-based | Real incident replay corpus | MCP |

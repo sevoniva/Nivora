@@ -9,6 +9,7 @@ import (
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	"github.com/sevoniva/nivora/internal/api/http/handlers"
 	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
+	apimcp "github.com/sevoniva/nivora/internal/api/mcp"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
@@ -89,6 +90,20 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	deploymentService.WithPolicyCatalog(policyCatalog)
 	releaseService.WithPolicyCatalog(policyCatalog)
 	integrationService := integrationusecase.NewService(pluginRegistry)
+	mcpServer := apimcp.NewServer(apimcp.Services{
+		Config:       cfg,
+		Auth:         authService,
+		Pipelines:    pipelineService,
+		PipelineDefs: pipelineCatalog,
+		Deployments:  deploymentService,
+		Catalog:      catalogService,
+		Artifacts:    artifactService,
+		Releases:     releaseService,
+		Security:     securityService,
+		Compliance:   complianceService,
+		Plugins:      pluginRegistry,
+		Audit:        apimcp.NewComplianceAuditRecorder(complianceService),
+	}, logger)
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
 	r.Use(middleware.RealIP)
@@ -109,6 +124,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/system/diagnostics", handlers.SystemDiagnostics(cfg))
 		api.Get("/system/runtime/recovery", handlers.RuntimeRecoveryStatus(runtimeCenter))
 		api.Post("/system/runtime/reconcile", handlers.ReconcileRuntime(runtimeCenter))
+		api.Post("/mcp/rpc", handlers.RemoteMCPJSONRPC(cfg, mcpServer))
 		api.Get("/tenancy/quota", handlers.GetQuota(tenancyService))
 		api.Post("/tenancy/quota", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.SetQuota(tenancyService)))
 		api.Get("/tenancy/usage", handlers.GetUsageSummary(tenancyService))

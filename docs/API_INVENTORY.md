@@ -24,6 +24,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | Host deployment | host groups, host deployment plan, server-backed dry-run/noop via `POST /api/v1/deployments`, deployment hosts, rollback plan | dry-run/noop and guarded SSH surface; server-backed CLI host run rejects remote apply inputs |
 | Compliance | audit search, filtered audit-log reads, evidence bundle list/read/export, retention policy get/set/run | evidence bundles include redacted subject summaries, release execution/deployment references, policy/security/approval references, events/audits/log references, and deterministic digests; retention runs can preview candidates and, with explicit confirmation, delete expired evidence bundles only. Audit remains immutable; log/event cleanup jobs remain future work |
 | Plugins | list, inspect, capabilities, validate | built-in registry and manifest validation |
+| MCP remote JSON-RPC | `POST /api/v1/mcp/rpc` | experimental opt-in read-only/plan-only MCP endpoint; disabled unless configured, bearer/service-account/OIDC auth required, runner tokens and action tools rejected |
 | Visualization | `/api/v1/visualization` index, pipeline/deployment/release visualization, environment topology, runner/security/audit summaries | backend read models for future UI |
 | Tenancy | quota, usage | scope and quota foundation |
 
@@ -31,7 +32,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 
 | Surface | Entry Point | Notes |
 |---|---|---|
-| MCP stdio foundation | `cmd/nivora-mcp`, `nivora mcp serve --stdio` | Local read-only and plan-only MCP resources/tools/prompts over stdio JSON-RPC, including runtime recovery, aggregate event/log search, catalog summary, pipeline definition, deployment, release, release-bound artifact inventory, security finding, policy result, audit/evidence, and capability resources. It is not an HTTP API, records compliance-backed audit, rejects runner tokens, and does not expose action tools. |
+| MCP stdio foundation | `cmd/nivora-mcp`, `nivora mcp serve --stdio` | Local read-only and plan-only MCP resources/tools/prompts over stdio JSON-RPC, including runtime recovery, aggregate event/log search, catalog summary, pipeline definition, deployment, release, release-bound artifact inventory, security finding, policy result, audit/evidence, and capability resources. It records compliance-backed audit, rejects runner tokens, and does not expose action tools. |
 
 ## Partial Or Guarded
 

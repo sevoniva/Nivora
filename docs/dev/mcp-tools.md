@@ -1,6 +1,6 @@
 # MCP Tools
 
-Nivora's MCP server is a local stdio foundation for AI-assisted inspection and planning. It is disabled by default and does not expose action tools.
+Nivora's MCP server is a local stdio foundation for AI-assisted inspection and planning. An experimental remote read-only JSON-RPC endpoint can be enabled explicitly with `mcp.enabled=true` and `mcp.mode=http`. MCP is disabled by default and does not expose action tools.
 
 In production mode, MCP must remain read-only in this foundation phase. Configuration validation rejects enabled MCP with `mcp.readonly=false`.
 
@@ -30,6 +30,8 @@ MCP calls use the same role and permission model as the rest of Nivora's control
 - runner tokens are rejected for MCP administrative reads
 - action-shaped tools are denied in this foundation phase
 
+Remote MCP requires bearer, service-account, or OIDC authentication through the normal HTTP auth middleware. It does not accept anonymous/dev auth and rejects runner tokens.
+
 The permission matrix lives in `docs/security/MCP_PERMISSION_MATRIX.md`.
 
 ## Audit And Redaction
@@ -41,7 +43,7 @@ MCP records audit events for:
 - `mcp.tool.denied`
 - `mcp.prompt.rendered`
 
-Responses are redacted before they are returned and capped by `mcp.max_response_bytes`. Local stdio JSON-RPC request bodies are capped by `mcp.max_request_bytes` and request rate is limited by `mcp.max_requests_per_minute`. MCP must not return secret values, token hashes, kubeconfigs, authorization headers, private keys, or raw credential payloads.
+Responses are redacted before they are returned and capped by `mcp.max_response_bytes`. Local stdio and remote HTTP JSON-RPC request bodies are capped by `mcp.max_request_bytes`, and request rate is limited by `mcp.max_requests_per_minute`. MCP must not return secret values, token hashes, kubeconfigs, authorization headers, private keys, or raw credential payloads.
 
 ## Verification
 
@@ -52,10 +54,10 @@ make verify-mcp
 make verify-ai-control-plane
 ```
 
-These targets check local MCP tests, tool/resource catalogs, golden operator scenarios, denied action tools, and local stdio smoke behavior. They do not require external systems.
+These targets check MCP tests, tool/resource catalogs, golden operator scenarios, denied action tools, and local stdio smoke behavior. They do not require external systems.
 
 ## Current Limits
 
-Remote MCP is still a no-go. It needs OAuth or service-account auth, tenant scope enforcement, rate limits, pagination, remote response-cap and timeout proof, and remote audit tests before it can be considered for opening. Action MCP remains blocked.
+Remote MCP is still experimental and off by default. The first HTTP JSON-RPC foundation is read-only/plan-only, requires bearer/service-account/OIDC auth, applies request and response caps, rejects runner tokens, and records MCP audit events through the existing compliance recorder. It still needs remote deployment guidance, stronger per-client rate limits, pagination for large result sets, and more tenant-scope proof before it should be broadly exposed. Action MCP remains blocked.
 
 See also: `docs/dev/mcp-server.md`.

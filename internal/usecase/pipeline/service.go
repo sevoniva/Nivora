@@ -376,6 +376,39 @@ func (s *Service) RegisterRunner(ctx context.Context, runner domainrunner.Runner
 	return err
 }
 
+func (s *Service) CreateRunnerGroup(ctx context.Context, group domainrunner.RunnerGroup) (domainrunner.RunnerGroup, error) {
+	group.Name = strings.TrimSpace(group.Name)
+	if group.Name == "" {
+		return domainrunner.RunnerGroup{}, fmt.Errorf("runner group name is required")
+	}
+	if group.ID == "" {
+		group.ID = newID("rgrp")
+	}
+	group.ProjectID = strings.TrimSpace(group.ProjectID)
+	group.EnvironmentIDs = compactStrings(group.EnvironmentIDs)
+	group.Executors = compactStrings(group.Executors)
+	if group.MaxConcurrency < 0 {
+		return domainrunner.RunnerGroup{}, fmt.Errorf("runner group maxConcurrency cannot be negative")
+	}
+	now := s.now()
+	if group.CreatedAt.IsZero() {
+		group.CreatedAt = now
+	}
+	group.UpdatedAt = now
+	if err := s.store.SaveRunnerGroup(ctx, group); err != nil {
+		return domainrunner.RunnerGroup{}, err
+	}
+	return s.store.GetRunnerGroup(ctx, group.ID)
+}
+
+func (s *Service) ListRunnerGroups(ctx context.Context) ([]domainrunner.RunnerGroup, error) {
+	return s.store.ListRunnerGroups(ctx)
+}
+
+func (s *Service) GetRunnerGroup(ctx context.Context, id string) (domainrunner.RunnerGroup, error) {
+	return s.store.GetRunnerGroup(ctx, id)
+}
+
 func (s *Service) RegisterRunnerWithToken(ctx context.Context, runner domainrunner.Runner) (RegisterRunnerResult, error) {
 	now := s.now()
 	if runner.ID == "" {
@@ -387,11 +420,32 @@ func (s *Service) RegisterRunnerWithToken(ctx context.Context, runner domainrunn
 	if runner.Status == "" {
 		runner.Status = "online"
 	}
+	group := domainrunner.RunnerGroup{}
+	if runner.GroupID != "" {
+		var err error
+		group, err = s.store.GetRunnerGroup(ctx, runner.GroupID)
+		if err != nil {
+			return RegisterRunnerResult{}, err
+		}
+		if err := applyRunnerGroupPolicy(&runner, group); err != nil {
+			return RegisterRunnerResult{}, err
+		}
+	}
 	if len(runner.Executors) == 0 {
-		runner.Executors = []string{"shell"}
+		if len(group.Executors) > 0 {
+			runner.Executors = append([]string(nil), group.Executors...)
+		} else {
+			runner.Executors = []string{"shell"}
+		}
+	}
+	if len(group.Executors) > 0 && !allStringsAllowed(runner.Executors, group.Executors) {
+		return RegisterRunnerResult{}, ErrRunnerGroupScopeDenied
 	}
 	if len(runner.Capabilities) == 0 {
 		runner.Capabilities = append([]string(nil), runner.Executors...)
+	}
+	if len(group.Executors) > 0 && !allStringsAllowed(runner.Capabilities, group.Executors) {
+		return RegisterRunnerResult{}, ErrRunnerGroupScopeDenied
 	}
 	if runner.MaxConcurrency <= 0 {
 		runner.MaxConcurrency = 1
@@ -1192,6 +1246,54 @@ func recordHasJob(record RunRecord, jobRunID string) bool {
 		}
 	}
 	return false
+}
+
+func applyRunnerGroupPolicy(runner *domainrunner.Runner, group domainrunner.RunnerGroup) error {
+	if runner.Labels == nil {
+		runner.Labels = map[string]string{}
+	}
+	if group.ProjectID != "" {
+		if existing := strings.TrimSpace(runner.Labels["projectId"]); existing != "" && existing != group.ProjectID {
+			return ErrRunnerGroupScopeDenied
+		}
+		runner.Labels["projectId"] = group.ProjectID
+	}
+	if len(group.EnvironmentIDs) > 0 {
+		existing := strings.TrimSpace(runner.Labels["environmentId"])
+		if existing != "" && !contains(group.EnvironmentIDs, existing) {
+			return ErrRunnerGroupScopeDenied
+		}
+		if existing == "" && len(group.EnvironmentIDs) == 1 {
+			runner.Labels["environmentId"] = group.EnvironmentIDs[0]
+		}
+	}
+	return nil
+}
+
+func compactStrings(values []string) []string {
+	out := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	return out
+}
+
+func allStringsAllowed(values []string, allowed []string) bool {
+	for _, value := range values {
+		if !contains(allowed, value) {
+			return false
+		}
+	}
+	return true
 }
 
 func newID(prefix string) string {

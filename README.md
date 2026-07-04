@@ -1008,6 +1008,7 @@ Core API groups include:
 /api/v1/jobs
 /api/v1/releases
 /api/v1/deployments
+/api/v1/runner-groups
 /api/v1/runners
 /api/v1/approvals
 /api/v1/policies

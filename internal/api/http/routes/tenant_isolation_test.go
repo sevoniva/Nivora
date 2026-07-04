@@ -748,6 +748,75 @@ func TestTenantIsolationRunnerClaimRespectsEnvironmentScope(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationRunnerGroupScopeAndClaim(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	authService := authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+	pipelineService := newTestPipelineService()
+	router := newTestRouterWithPipelineAndAuth(cfg, pipelineService, authService)
+	envAdmin := createScopedToken(t, authService, "runner-group-admin-env", domainauth.RoleAdmin, "environment", "env-prod")
+	otherEnvAdmin := createScopedToken(t, authService, "runner-group-admin-dev", domainauth.RoleAdmin, "environment", "env-dev")
+
+	group := createScopedRunnerGroup(t, router, envAdmin, `{"id":"rgrp-env-prod","name":"prod shell","environmentIds":["env-dev"],"executors":["shell"],"maxConcurrency":2}`)
+	if envs, _ := group["environmentIds"].([]any); len(envs) != 1 || envs[0] != "env-prod" {
+		t.Fatalf("scoped runner group should be forced to env-prod: %#v", group)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/runner-groups/rgrp-env-prod", nil)
+	req.Header.Set("Authorization", "Bearer "+otherEnvAdmin)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("env-dev admin should not read env-prod runner group, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	_, runnerToken := registerScopedRunnerWithToken(t, router, envAdmin, `{"id":"runner-group-env-prod","name":"runner-group-env-prod","groupId":"rgrp-env-prod","status":"online","executors":["shell"],"labels":{"environmentId":"env-dev"}}`)
+	envDev, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition:    tenantClaimDefinition("group-env-dev"),
+		ProjectID:     "project-a",
+		EnvironmentID: "env-dev",
+	})
+	if err != nil {
+		t.Fatalf("create env-dev queued run: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-group-env-prod/jobs/claim", nil)
+	req.Header.Set("X-Nivora-Runner-Token", runnerToken)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("group-scoped runner should not claim env-dev run %s, got %d body=%s", envDev.Record.Run.ID, rec.Code, rec.Body.String())
+	}
+
+	envProd, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition:    tenantClaimDefinition("group-env-prod"),
+		ProjectID:     "project-a",
+		EnvironmentID: "env-prod",
+	})
+	if err != nil {
+		t.Fatalf("create env-prod queued run: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/runner-group-env-prod/jobs/claim", nil)
+	req.Header.Set("X-Nivora-Runner-Token", runnerToken)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("group-scoped runner should claim env-prod run, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var claim struct {
+		PipelineRunID string `json:"pipelineRunId"`
+		RunnerID      string `json:"runnerId"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &claim); err != nil {
+		t.Fatalf("decode claim: %v", err)
+	}
+	if claim.PipelineRunID != envProd.Record.Run.ID || claim.RunnerID != "runner-group-env-prod" {
+		t.Fatalf("unexpected claim: %#v want run=%s", claim, envProd.Record.Run.ID)
+	}
+}
+
 func TestTenantIsolationEvidenceBundles(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	developerA := createScopedToken(t, auth, "evidence-dev-a", domainauth.RoleDeveloper, "project", "project-a")
@@ -1079,6 +1148,23 @@ func registerScopedRunner(t *testing.T, router http.Handler, token string, body 
 	t.Helper()
 	runner, _ := registerScopedRunnerWithToken(t, router, token, body)
 	return runner
+}
+
+func createScopedRunnerGroup(t *testing.T, router http.Handler, token string, body string) map[string]any {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runner-groups", strings.NewReader(body))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("create runner group got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var group map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &group); err != nil {
+		t.Fatalf("decode runner group response: %v", err)
+	}
+	return group
 }
 
 func registerScopedRunnerWithToken(t *testing.T, router http.Handler, token string, body string) (map[string]any, string) {

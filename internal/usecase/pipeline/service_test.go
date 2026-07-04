@@ -425,6 +425,88 @@ func TestRunnerClaimRespectsEnvironmentScopeLabel(t *testing.T) {
 	}
 }
 
+func TestRunnerGroupConstrainsRegistrationAndClaim(t *testing.T) {
+	service := newTestService()
+	group, err := service.CreateRunnerGroup(context.Background(), domainrunner.RunnerGroup{
+		ID:             "rgrp-prod-shell",
+		Name:           "prod shell",
+		ProjectID:      "project-a",
+		EnvironmentIDs: []string{"env-prod"},
+		Executors:      []string{"shell"},
+	})
+	if err != nil {
+		t.Fatalf("create runner group: %v", err)
+	}
+	if group.ProjectID != "project-a" || len(group.EnvironmentIDs) != 1 || group.EnvironmentIDs[0] != "env-prod" {
+		t.Fatalf("group scope = %#v", group)
+	}
+	if _, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:        "runner-bad-executor",
+		GroupID:   group.ID,
+		Executors: []string{"container"},
+	}); !errors.Is(err, ErrRunnerGroupScopeDenied) {
+		t.Fatalf("expected bad executor to be denied, got %v", err)
+	}
+	result, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:      "runner-prod-shell",
+		GroupID: group.ID,
+	})
+	if err != nil {
+		t.Fatalf("register group runner: %v", err)
+	}
+	if result.Runner.Labels["projectId"] != "project-a" || result.Runner.Labels["environmentId"] != "env-prod" {
+		t.Fatalf("runner did not inherit group scope labels: %#v", result.Runner.Labels)
+	}
+	if _, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "dev"`), ProjectID: "project-a", EnvironmentID: "env-dev"}); err != nil {
+		t.Fatalf("create env-dev queued run: %v", err)
+	}
+	if _, err := service.ClaimJob(context.Background(), result.Runner.ID, time.Minute); !errors.Is(err, ErrNoClaimableJob) {
+		t.Fatalf("group runner should not claim env-dev job, got %v", err)
+	}
+	envProd, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "prod"`), ProjectID: "project-a", EnvironmentID: "env-prod"})
+	if err != nil {
+		t.Fatalf("create env-prod queued run: %v", err)
+	}
+	claim, err := service.ClaimJob(context.Background(), result.Runner.ID, time.Minute)
+	if err != nil {
+		t.Fatalf("claim env-prod job: %v", err)
+	}
+	if claim.PipelineRunID != envProd.Record.Run.ID {
+		t.Fatalf("runner claimed wrong run: claim=%#v envProd=%s", claim, envProd.Record.Run.ID)
+	}
+}
+
+func TestRunnerGroupConcurrencyLimit(t *testing.T) {
+	service := newTestService()
+	group, err := service.CreateRunnerGroup(context.Background(), domainrunner.RunnerGroup{
+		ID:             "rgrp-one",
+		Name:           "one at a time",
+		MaxConcurrency: 1,
+		Executors:      []string{"shell"},
+	})
+	if err != nil {
+		t.Fatalf("create runner group: %v", err)
+	}
+	if _, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{ID: "runner-one-a", GroupID: group.ID}); err != nil {
+		t.Fatalf("register runner a: %v", err)
+	}
+	if _, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{ID: "runner-one-b", GroupID: group.ID}); err != nil {
+		t.Fatalf("register runner b: %v", err)
+	}
+	if _, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "one"`)}); err != nil {
+		t.Fatalf("create first run: %v", err)
+	}
+	if _, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "two"`)}); err != nil {
+		t.Fatalf("create second run: %v", err)
+	}
+	if _, err := service.ClaimJob(context.Background(), "runner-one-a", time.Minute); err != nil {
+		t.Fatalf("claim first group job: %v", err)
+	}
+	if _, err := service.ClaimJob(context.Background(), "runner-one-b", time.Minute); !errors.Is(err, ErrRunnerConcurrencyLimit) {
+		t.Fatalf("expected group concurrency limit, got %v", err)
+	}
+}
+
 func TestRunnerClaimLogStatusCancelAndOutbox(t *testing.T) {
 	service := newTestService()
 	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})

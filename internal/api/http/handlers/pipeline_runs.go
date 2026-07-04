@@ -197,6 +197,17 @@ func RegisterRunner(service *pipelineusecase.Service) http.HandlerFunc {
 			})
 			return
 		}
+		if runner.GroupID != "" {
+			group, err := service.GetRunnerGroup(r.Context(), runner.GroupID)
+			if err != nil {
+				respondPipelineResult(w, r, nil, err)
+				return
+			}
+			if !runnerGroupInRequestScope(r, group) {
+				forbidOutOfScopeRunnerGroup(w, r)
+				return
+			}
+		}
 		applyRunnerRequestScope(r, &runner)
 		result, err := service.RegisterRunnerWithToken(r.Context(), runner)
 		if err != nil {
@@ -204,6 +215,58 @@ func RegisterRunner(service *pipelineusecase.Service) http.HandlerFunc {
 			return
 		}
 		RespondJSON(w, http.StatusCreated, result)
+	}
+}
+
+func CreateRunnerGroup(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var group domainrunner.RunnerGroup
+		if err := json.NewDecoder(r.Body).Decode(&group); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "request body must be a runner group"})
+			return
+		}
+		applyRunnerGroupRequestScope(r, &group)
+		created, err := service.CreateRunnerGroup(r.Context(), group)
+		if err != nil {
+			respondPipelineResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, created)
+	}
+}
+
+func ListRunnerGroups(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		groups, err := service.ListRunnerGroups(r.Context())
+		if err != nil {
+			respondPipelineResult(w, r, nil, err)
+			return
+		}
+		if ScopedByTenant(r) {
+			filtered := make([]domainrunner.RunnerGroup, 0, len(groups))
+			for _, group := range groups {
+				if runnerGroupInRequestScope(r, group) {
+					filtered = append(filtered, group)
+				}
+			}
+			groups = filtered
+		}
+		respondPipelineResult(w, r, groups, nil)
+	}
+}
+
+func GetRunnerGroup(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		group, err := service.GetRunnerGroup(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondPipelineResult(w, r, nil, err)
+			return
+		}
+		if !runnerGroupInRequestScope(r, group) {
+			forbidOutOfScopeRunnerGroup(w, r)
+			return
+		}
+		respondPipelineResult(w, r, group, nil)
 	}
 }
 
@@ -454,6 +517,14 @@ func respondPipelineResult(w http.ResponseWriter, r *http.Request, payload any, 
 	if errors.Is(err, pipelineusecase.ErrRunnerNotFound) {
 		status = http.StatusNotFound
 		code = "runner_not_found"
+	}
+	if errors.Is(err, pipelineusecase.ErrRunnerGroupNotFound) {
+		status = http.StatusNotFound
+		code = "runner_group_not_found"
+	}
+	if errors.Is(err, pipelineusecase.ErrRunnerGroupScopeDenied) {
+		status = http.StatusForbidden
+		code = "runner_group_scope_denied"
 	}
 	if errors.Is(err, pipelineusecase.ErrJobNotFound) {
 		status = http.StatusNotFound

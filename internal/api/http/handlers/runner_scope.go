@@ -3,6 +3,7 @@ package handlers
 import (
 	"net/http"
 
+	"github.com/sevoniva/nivora/internal/api/http/dto"
 	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
 	"github.com/sevoniva/nivora/internal/domain/tenant"
 )
@@ -61,4 +62,59 @@ func filterRunnersForRequest(r *http.Request, runners []domainrunner.Runner) []d
 		}
 	}
 	return filtered
+}
+
+func applyRunnerGroupRequestScope(r *http.Request, group *domainrunner.RunnerGroup) {
+	if group == nil {
+		return
+	}
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeID == "" {
+		return
+	}
+	switch scopeType {
+	case tenant.ScopeOrg:
+		if group.Labels == nil {
+			group.Labels = map[string]string{}
+		}
+		group.Labels["orgId"] = scopeID
+	case tenant.ScopeProject:
+		group.ProjectID = scopeID
+	case tenant.ScopeEnvironment:
+		group.ProjectID = ""
+		group.EnvironmentIDs = []string{scopeID}
+	}
+}
+
+func runnerGroupInRequestScope(r *http.Request, group domainrunner.RunnerGroup) bool {
+	scopeType, scopeID := TenantScopeFilter(r)
+	if scopeType == "" {
+		return true
+	}
+	if scopeID == "" {
+		return false
+	}
+	switch scopeType {
+	case tenant.ScopeOrg:
+		return group.Labels["orgId"] == scopeID
+	case tenant.ScopeProject:
+		return group.ProjectID == scopeID
+	case tenant.ScopeEnvironment:
+		for _, environmentID := range group.EnvironmentIDs {
+			if environmentID == scopeID {
+				return true
+			}
+		}
+		return false
+	default:
+		return false
+	}
+}
+
+func forbidOutOfScopeRunnerGroup(w http.ResponseWriter, r *http.Request) {
+	RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{
+		Code:    "forbidden",
+		Message: "runner group is outside caller scope",
+		Path:    r.URL.Path,
+	})
 }

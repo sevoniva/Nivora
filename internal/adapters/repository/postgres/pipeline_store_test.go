@@ -36,7 +36,7 @@ func TestClaimRecordJobUpdatesLeaseAndReturnsPlan(t *testing.T) {
 		}},
 	}
 
-	claim, ok := claimRecordJob(&record, domainrunner.Runner{ID: "runner-1", Status: "online", Executors: []string{"shell"}}, leaseUntil, now)
+	claim, ok := claimRecordJob(&record, domainrunner.Runner{ID: "runner-1", Status: "online", Executors: []string{"shell"}}, domainrunner.RunnerGroup{}, leaseUntil, now)
 	if !ok {
 		t.Fatal("expected claimable job")
 	}
@@ -88,7 +88,7 @@ func TestClaimRecordJobRespectsRunnerProjectScope(t *testing.T) {
 		Executors: []string{"shell"},
 	}
 
-	claim, ok := claimRecordJob(&record, runner, leaseUntil, now)
+	claim, ok := claimRecordJob(&record, runner, domainrunner.RunnerGroup{}, leaseUntil, now)
 	if ok || claim.JobRunID != "" {
 		t.Fatalf("project-a runner should not claim project-b record: ok=%v claim=%#v", ok, claim)
 	}
@@ -97,7 +97,7 @@ func TestClaimRecordJobRespectsRunnerProjectScope(t *testing.T) {
 	}
 
 	record.Pipeline.ProjectID = "project-a"
-	claim, ok = claimRecordJob(&record, runner, leaseUntil, now)
+	claim, ok = claimRecordJob(&record, runner, domainrunner.RunnerGroup{}, leaseUntil, now)
 	if !ok {
 		t.Fatal("project-a runner should claim project-a record")
 	}
@@ -143,7 +143,7 @@ func TestClaimRecordJobRespectsRunnerEnvironmentScope(t *testing.T) {
 		Executors: []string{"shell"},
 	}
 
-	claim, ok := claimRecordJob(&record, runner, leaseUntil, now)
+	claim, ok := claimRecordJob(&record, runner, domainrunner.RunnerGroup{}, leaseUntil, now)
 	if ok || claim.JobRunID != "" {
 		t.Fatalf("env-prod runner should not claim env-dev record: ok=%v claim=%#v", ok, claim)
 	}
@@ -153,12 +153,61 @@ func TestClaimRecordJobRespectsRunnerEnvironmentScope(t *testing.T) {
 
 	record.Pipeline.Labels["environmentId"] = "env-prod"
 	record.Pipeline.Metadata["environmentId"] = "env-prod"
-	claim, ok = claimRecordJob(&record, runner, leaseUntil, now)
+	claim, ok = claimRecordJob(&record, runner, domainrunner.RunnerGroup{}, leaseUntil, now)
 	if !ok {
 		t.Fatal("env-prod runner should claim env-prod record")
 	}
 	if claim.PipelineRunID != "prun-env" || claim.JobRunID != "job-1" || claim.RunnerID != "runner-env-prod" {
 		t.Fatalf("unexpected claim: %#v", claim)
+	}
+}
+
+func TestClaimRecordJobRespectsRunnerGroupScopeAndExecutors(t *testing.T) {
+	now := time.Date(2026, 5, 19, 1, 2, 3, 0, time.UTC)
+	leaseUntil := now.Add(30 * time.Second)
+	record := pipelineusecase.RunRecord{
+		Pipeline: domainpipeline.Pipeline{
+			ID:        "pipe-1",
+			ProjectID: "project-a",
+			Name:      "group-scoped",
+			Labels:    map[string]string{"environmentId": "env-dev"},
+			Metadata:  map[string]string{"environmentId": "env-dev"},
+		},
+		Definition: pipelineusecase.Definition{
+			Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+				Name: "build",
+				Jobs: []pipelineusecase.Job{{
+					Name:     "echo",
+					Executor: "shell",
+					Steps:    []pipelineusecase.Step{{Name: "say", Run: "printf group"}},
+				}},
+			}}},
+		},
+		Run: domainpipeline.PipelineRun{ID: "prun-group", Status: domainpipeline.PipelineRunQueued, CreatedAt: now, UpdatedAt: now},
+		Stages: []pipelineusecase.StageRecord{{
+			Stage: domainpipeline.StageRun{ID: "stage-1", PipelineRunID: "prun-group", Status: domainpipeline.JobRunPending},
+			Jobs: []pipelineusecase.JobRecord{{
+				Job:   domainpipeline.JobRun{ID: "job-1", StageRunID: "stage-1", Status: domainpipeline.JobRunPending, Attempt: 1},
+				Steps: []domainpipeline.StepRun{{ID: "step-1", JobRunID: "job-1", Status: domainpipeline.JobRunPending}},
+			}},
+		}},
+	}
+	runner := domainrunner.Runner{ID: "runner-group", GroupID: "rgrp-prod", Status: "online", Executors: []string{"shell"}}
+	group := domainrunner.RunnerGroup{ID: "rgrp-prod", ProjectID: "project-a", EnvironmentIDs: []string{"env-prod"}, Executors: []string{"shell"}}
+
+	claim, ok := claimRecordJob(&record, runner, group, leaseUntil, now)
+	if ok || claim.JobRunID != "" {
+		t.Fatalf("group should not claim disallowed env: ok=%v claim=%#v", ok, claim)
+	}
+	record.Pipeline.Labels["environmentId"] = "env-prod"
+	record.Pipeline.Metadata["environmentId"] = "env-prod"
+	claim, ok = claimRecordJob(&record, runner, domainrunner.RunnerGroup{ID: "rgrp-prod", ProjectID: "project-a", EnvironmentIDs: []string{"env-prod"}, Executors: []string{"container"}}, leaseUntil, now)
+	if ok || claim.JobRunID != "" {
+		t.Fatalf("group should not claim disallowed executor: ok=%v claim=%#v", ok, claim)
+	}
+	claim, ok = claimRecordJob(&record, runner, group, leaseUntil, now)
+	if !ok || claim.PipelineRunID != "prun-group" {
+		t.Fatalf("group should claim allowed run: ok=%v claim=%#v", ok, claim)
 	}
 }
 
@@ -192,6 +241,8 @@ func TestUpdateRecordJobStatusMarksFailure(t *testing.T) {
 func TestPersistenceMigrationIsReversibleAndIndexed(t *testing.T) {
 	up := readMigration(t, "000003_persistence_foundation.up.sql")
 	down := readMigration(t, "000003_persistence_foundation.down.sql")
+	runnerGroupUp := readMigration(t, "000015_runtime_runner_groups.up.sql")
+	runnerGroupDown := readMigration(t, "000015_runtime_runner_groups.down.sql")
 
 	requiredTables := []string{
 		"runtime_pipeline_runs",
@@ -223,6 +274,15 @@ func TestPersistenceMigrationIsReversibleAndIndexed(t *testing.T) {
 		if !strings.Contains(down, index) {
 			t.Fatalf("down migration missing index %s", index)
 		}
+	}
+	if !strings.Contains(runnerGroupUp, "CREATE TABLE IF NOT EXISTS runtime_runner_groups") {
+		t.Fatal("runner group migration missing runtime_runner_groups table")
+	}
+	if !strings.Contains(runnerGroupUp, "idx_runtime_runner_groups_project_id") {
+		t.Fatal("runner group migration missing project index")
+	}
+	if !strings.Contains(runnerGroupDown, "DROP TABLE IF EXISTS runtime_runner_groups") {
+		t.Fatal("runner group down migration missing table drop")
 	}
 }
 

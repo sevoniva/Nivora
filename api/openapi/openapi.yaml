@@ -2718,7 +2718,7 @@ paths:
           description: DeploymentRun not found
   /api/v1/runners:
     get:
-      summary: List registered runners in the in-memory Phase 1.5 runtime
+      summary: List registered runners
       responses:
         "200":
           description: Runner records
@@ -2728,6 +2728,51 @@ paths:
                 type: array
                 items:
                   $ref: "#/components/schemas/Runner"
+  /api/v1/runner-groups:
+    get:
+      summary: List runner groups
+      responses:
+        "200":
+          description: Runner group records
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/RunnerGroup"
+    post:
+      summary: Create runner group metadata and scope constraints
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RunnerGroup"
+      responses:
+        "201":
+          description: Runner group created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunnerGroup"
+        "403":
+          description: Runner group scope denied
+  /api/v1/runner-groups/{id}:
+    get:
+      summary: Get a runner group
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Runner group record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RunnerGroup"
+        "403":
+          description: Runner group outside caller scope
+        "404":
+          description: Runner group not found
   /api/v1/runners/register:
     post:
       summary: Register a runner and return its one-time token
@@ -7876,6 +7921,36 @@ components:
           type: string
         message:
           type: string
+    RunnerGroup:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        environmentIds:
+          type: array
+          items:
+            type: string
+        name:
+          type: string
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        maxConcurrency:
+          type: integer
+          description: Aggregate concurrency limit for this runner group. Zero means unbounded.
+        executors:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     Runner:
       type: object
       properties:

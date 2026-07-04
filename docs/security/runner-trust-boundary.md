@@ -39,7 +39,7 @@ Runner tokens are sensitive credentials. Nivora stores token hashes and returns 
 
 Runner protocol endpoints accept `X-Nivora-Runner-Token` only for heartbeat, claim, log append, and status update paths. The token is scoped to the URL runner id and validated again in the usecase before mutation.
 
-When a runner carries a scoped `projectId` or `environmentId` label, job claim checks require the queued PipelineRun to belong to the same project or environment. This check runs in both memory and PostgreSQL claim paths and is covered by usecase and HTTP tenant isolation tests. First-class runner group ownership remains future hardening work.
+When a runner carries a scoped `projectId` or `environmentId` label, job claim checks require the queued PipelineRun to belong to the same project or environment. When the runner belongs to a RunnerGroup, Nivora also applies the group's project/environment constraints, executor allow-list, and aggregate concurrency limit during job claim. These checks run in both memory and PostgreSQL claim paths and are covered by usecase and HTTP tenant isolation tests.
 
 ## Cancellation
 
@@ -76,5 +76,5 @@ Nivora provides policy/config gates for runner safety. It does not provide runti
 
 - No OS-level container sandbox (seccomp/AppArmor/gVisor) is enforced by Nivora.
 - No production autoscaling policy is implemented.
-- Runner group/project/environment restrictions are foundations and require continued hardening.
+- Runner group/project/environment restrictions are control-plane metadata foundations and require continued hardening before remote multi-tenant exposure.
 - Resource limits and network policy are operator responsibilities.

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -66,6 +67,9 @@ func TestControlPlaneServerCommandsUseBearerToken(t *testing.T) {
 		{name: "pipeline definition run version", cmd: newPipelineDefinitionRunCommand(), args: []string{"pipe-1", "--version", "2", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/pipelines/pipe-1/runs", wantQuery: "version=2", response: runResponse},
 
 		{name: "runner list", cmd: newRunnerListCommand(), args: []string{"--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/runners", response: `[]`},
+		{name: "runner group list", cmd: newRunnerGroupListCommand(), args: []string{"--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/runner-groups", response: `[]`},
+		{name: "runner group create", cmd: newRunnerGroupCreateCommand(), args: []string{"--id", "rgrp-1", "--name", "prod", "--project-id", "project-a", "--environment-id", "env-prod", "--executor", "shell", "--max-concurrency", "2", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/runner-groups", response: `{"id":"rgrp-1"}`},
+		{name: "runner group get", cmd: newRunnerGroupGetCommand(), args: []string{"rgrp-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/runner-groups/rgrp-1", response: `{"id":"rgrp-1"}`},
 		{name: "runner register", cmd: newRunnerRegisterCommand(), args: []string{"--name", "runner-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/runners/register", response: `{"id":"runner-1"}`},
 		{name: "runner status", cmd: newRunnerStatusCommand(), args: []string{"runner-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/runners/runner-1", response: `{"id":"runner-1"}`},
 		{name: "runner token rotate", cmd: newRunnerTokenRotateCommand(), args: []string{"runner-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/runners/runner-1/token/rotate", response: `{"runnerId":"runner-1","token":"one-time-token"}`},
@@ -104,6 +108,37 @@ func TestControlPlaneServerCommandsUseBearerToken(t *testing.T) {
 				t.Fatalf("%s did not call server", tt.name)
 			}
 		})
+	}
+}
+
+func TestRunnerRegisterCommandSendsGroupIDAndExecutors(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "control-plane-token")
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/runners/register" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+			t.Fatalf("decode body: %v", err)
+		}
+		if body["groupId"] != "rgrp-prod" {
+			t.Fatalf("groupId = %#v", body["groupId"])
+		}
+		executors, _ := body["executors"].([]any)
+		if len(executors) != 1 || executors[0] != "container" {
+			t.Fatalf("executors = %#v", body["executors"])
+		}
+		_, _ = w.Write([]byte(`{"runner":{"id":"runner-1","groupId":"rgrp-prod"},"token":{"token":"one-time"}}`))
+	}))
+	defer server.Close()
+
+	cmd := newRunnerRegisterCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--name", "runner-1", "--group-id", "rgrp-prod", "--executor", "container", "--server", server.URL, "--token-env", "NIVORA_TEST_TOKEN"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("runner register failed: %v output=%s", err, out.String())
 	}
 }
 

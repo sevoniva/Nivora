@@ -5346,6 +5346,7 @@ func newRunnerCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&configPath, "config", "configs/runner.yaml", "config file path")
 	cmd.AddCommand(newRunnerListCommand())
+	cmd.AddCommand(newRunnerGroupsCommand())
 	cmd.AddCommand(newRunnerRegisterCommand())
 	cmd.AddCommand(newRunnerStatusCommand())
 	cmd.AddCommand(newRunnerTokenCommand())
@@ -5381,6 +5382,8 @@ func newRunnerRegisterCommand() *cobra.Command {
 	var serverURL string
 	var tokenEnv string
 	var name string
+	var groupID string
+	var executors []string
 	cmd := &cobra.Command{
 		Use:   "register --name <runner-id>",
 		Short: "Register a runner on a Nivora server",
@@ -5391,8 +5394,9 @@ func newRunnerRegisterCommand() *cobra.Command {
 			body, err := json.Marshal(map[string]any{
 				"id":        name,
 				"name":      name,
+				"groupId":   groupID,
 				"status":    "online",
-				"executors": []string{"shell"},
+				"executors": runnerRegisterExecutors(executors),
 				"labels":    map[string]string{"runtime": "local"},
 			})
 			if err != nil {
@@ -5409,7 +5413,121 @@ func newRunnerRegisterCommand() *cobra.Command {
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&name, "name", "local-runner", "runner ID")
+	cmd.Flags().StringVar(&groupID, "group-id", "", "runner group id")
+	cmd.Flags().StringSliceVar(&executors, "executor", nil, "runner executor name, repeatable; defaults to shell")
 	return cmd
+}
+
+func newRunnerGroupsCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "groups", Short: "Runner group utilities"}
+	cmd.AddCommand(newRunnerGroupListCommand())
+	cmd.AddCommand(newRunnerGroupCreateCommand())
+	cmd.AddCommand(newRunnerGroupGetCommand())
+	return cmd
+}
+
+func newRunnerGroupListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List runner groups from a Nivora server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/runner-groups", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newRunnerGroupCreateCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var id string
+	var name string
+	var projectID string
+	var environmentIDs []string
+	var executors []string
+	var labels map[string]string
+	var maxConcurrency int
+	cmd := &cobra.Command{
+		Use:   "create --name <runner-group-name>",
+		Short: "Create runner group metadata and scope constraints",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if name == "" {
+				return fmt.Errorf("--name is required")
+			}
+			bodyMap := map[string]any{
+				"name": name,
+			}
+			setBodyString(bodyMap, "id", id)
+			setBodyString(bodyMap, "projectId", projectID)
+			if len(environmentIDs) > 0 {
+				bodyMap["environmentIds"] = environmentIDs
+			}
+			if len(executors) > 0 {
+				bodyMap["executors"] = executors
+			}
+			if len(labels) > 0 {
+				bodyMap["labels"] = labels
+			}
+			setBodyInt(bodyMap, "maxConcurrency", maxConcurrency)
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/runner-groups", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&id, "id", "", "runner group id; server generates one when omitted")
+	cmd.Flags().StringVar(&name, "name", "", "runner group name")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "project scope id")
+	cmd.Flags().StringSliceVar(&environmentIDs, "environment-id", nil, "allowed environment id, repeatable")
+	cmd.Flags().StringSliceVar(&executors, "executor", nil, "allowed executor, repeatable")
+	cmd.Flags().StringToStringVar(&labels, "label", nil, "runner group label as key=value pairs")
+	cmd.Flags().IntVar(&maxConcurrency, "max-concurrency", 0, "aggregate concurrency limit for the runner group; 0 means unbounded")
+	return cmd
+}
+
+func newRunnerGroupGetCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "get <runner-group-id>",
+		Short: "Get runner group metadata",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/runner-groups/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func runnerRegisterExecutors(executors []string) []string {
+	if len(executors) == 0 {
+		return []string{"shell"}
+	}
+	return executors
 }
 
 func newRunnerStatusCommand() *cobra.Command {

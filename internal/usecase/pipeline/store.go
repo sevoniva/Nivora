@@ -18,6 +18,8 @@ var (
 	ErrRunnerNotFound         = errors.New("runner not found")
 	ErrRunnerUnauthorized     = errors.New("runner token is invalid")
 	ErrRunnerTokenRevoked     = errors.New("runner token is revoked")
+	ErrRunnerGroupNotFound    = errors.New("runner group not found")
+	ErrRunnerGroupScopeDenied = errors.New("runner group scope does not allow runner")
 	ErrRunnerConcurrencyLimit = errors.New("runner concurrency limit reached")
 	ErrJobNotFound            = errors.New("job run not found")
 	ErrNoClaimableJob         = errors.New("no claimable job found")
@@ -69,6 +71,9 @@ type AuditRepository interface {
 }
 
 type RunnerRepository interface {
+	SaveRunnerGroup(ctx context.Context, group domainrunner.RunnerGroup) error
+	GetRunnerGroup(ctx context.Context, id string) (domainrunner.RunnerGroup, error)
+	ListRunnerGroups(ctx context.Context) ([]domainrunner.RunnerGroup, error)
 	RegisterRunner(ctx context.Context, runner domainrunner.Runner) error
 	Heartbeat(ctx context.Context, runnerID string, at time.Time) (domainrunner.Runner, error)
 	GetRunner(ctx context.Context, id string) (domainrunner.Runner, error)
@@ -77,6 +82,7 @@ type RunnerRepository interface {
 	RotateRunnerToken(ctx context.Context, runnerID string, tokenID string, tokenHash string, at time.Time) (domainrunner.Runner, error)
 	RevokeRunnerToken(ctx context.Context, runnerID string, at time.Time) (domainrunner.Runner, error)
 	CountActiveJobs(ctx context.Context, runnerID string) (int, error)
+	CountActiveJobsByRunnerGroup(ctx context.Context, groupID string) (int, error)
 	MarkOfflineRunners(ctx context.Context, cutoff time.Time, at time.Time) ([]domainrunner.Runner, error)
 }
 
@@ -95,6 +101,7 @@ type MemoryStore struct {
 	mu      sync.RWMutex
 	runs    map[string]RunRecord
 	runners map[string]domainrunner.Runner
+	groups  map[string]domainrunner.RunnerGroup
 	outbox  map[string]EventOutboxRecord
 	nextSeq map[string]int64
 }
@@ -103,6 +110,7 @@ func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		runs:    make(map[string]RunRecord),
 		runners: make(map[string]domainrunner.Runner),
+		groups:  make(map[string]domainrunner.RunnerGroup),
 		outbox:  make(map[string]EventOutboxRecord),
 		nextSeq: make(map[string]int64),
 	}
@@ -227,11 +235,22 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 	if !ok {
 		return JobClaim{}, ErrRunnerNotFound
 	}
+	group := domainrunner.RunnerGroup{}
+	if runner.GroupID != "" {
+		var ok bool
+		group, ok = s.groups[runner.GroupID]
+		if !ok {
+			return JobClaim{}, ErrRunnerGroupNotFound
+		}
+	}
 	if runner.Status != "online" {
 		return JobClaim{}, ErrRunnerNotFound
 	}
 	active := activeJobsInRecords(s.runs, runnerID)
 	if runner.MaxConcurrency > 0 && active >= runner.MaxConcurrency {
+		return JobClaim{}, ErrRunnerConcurrencyLimit
+	}
+	if group.ID != "" && group.MaxConcurrency > 0 && activeJobsInGroupRecords(s.runs, s.runners, group.ID) >= group.MaxConcurrency {
 		return JobClaim{}, ErrRunnerConcurrencyLimit
 	}
 	runIDs := make([]string, 0, len(s.runs))
@@ -241,7 +260,7 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 	sort.Strings(runIDs)
 	for _, runID := range runIDs {
 		record := s.runs[runID]
-		if !runnerCanClaimRecord(runner, record) {
+		if !runnerCanClaimRecord(runner, group, record) {
 			continue
 		}
 		if record.Run.Status != domainpipeline.PipelineRunQueued && record.Run.Status != domainpipeline.PipelineRunRunning {
@@ -268,6 +287,9 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 						executor = "shell"
 					}
 				}
+				if group.ID != "" && len(group.Executors) > 0 && !contains(group.Executors, executor) {
+					continue
+				}
 				if !contains(runner.Executors, executor) && !contains(runner.Capabilities, executor) {
 					continue
 				}
@@ -293,13 +315,22 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 	return JobClaim{}, ErrNoClaimableJob
 }
 
-func runnerCanClaimRecord(runner domainrunner.Runner, record RunRecord) bool {
+func runnerCanClaimRecord(runner domainrunner.Runner, group domainrunner.RunnerGroup, record RunRecord) bool {
 	if projectID := runner.Labels["projectId"]; projectID != "" && record.Pipeline.ProjectID != projectID {
 		return false
 	}
 	if environmentID := runner.Labels["environmentId"]; environmentID != "" {
 		recordEnvironmentID := firstNonEmpty(record.Pipeline.Labels["environmentId"], record.Pipeline.Metadata["environmentId"])
 		if recordEnvironmentID != environmentID {
+			return false
+		}
+	}
+	if group.ProjectID != "" && record.Pipeline.ProjectID != group.ProjectID {
+		return false
+	}
+	if len(group.EnvironmentIDs) > 0 {
+		recordEnvironmentID := firstNonEmpty(record.Pipeline.Labels["environmentId"], record.Pipeline.Metadata["environmentId"])
+		if !contains(group.EnvironmentIDs, recordEnvironmentID) {
 			return false
 		}
 	}
@@ -631,6 +662,49 @@ func (s *MemoryStore) RegisterRunner(ctx context.Context, runner domainrunner.Ru
 	return nil
 }
 
+func (s *MemoryStore) SaveRunnerGroup(ctx context.Context, group domainrunner.RunnerGroup) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.groups[group.ID] = cloneRunnerGroup(group)
+	return nil
+}
+
+func (s *MemoryStore) GetRunnerGroup(ctx context.Context, id string) (domainrunner.RunnerGroup, error) {
+	select {
+	case <-ctx.Done():
+		return domainrunner.RunnerGroup{}, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	group, ok := s.groups[id]
+	if !ok {
+		return domainrunner.RunnerGroup{}, ErrRunnerGroupNotFound
+	}
+	return cloneRunnerGroup(group), nil
+}
+
+func (s *MemoryStore) ListRunnerGroups(ctx context.Context) ([]domainrunner.RunnerGroup, error) {
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	groups := make([]domainrunner.RunnerGroup, 0, len(s.groups))
+	for _, group := range s.groups {
+		groups = append(groups, cloneRunnerGroup(group))
+	}
+	sort.Slice(groups, func(i, j int) bool { return groups[i].ID < groups[j].ID })
+	return groups, nil
+}
+
 func (s *MemoryStore) Heartbeat(ctx context.Context, runnerID string, at time.Time) (domainrunner.Runner, error) {
 	select {
 	case <-ctx.Done():
@@ -768,6 +842,17 @@ func (s *MemoryStore) CountActiveJobs(ctx context.Context, runnerID string) (int
 	return activeJobsInRecords(s.runs, runnerID), nil
 }
 
+func (s *MemoryStore) CountActiveJobsByRunnerGroup(ctx context.Context, groupID string) (int, error) {
+	select {
+	case <-ctx.Done():
+		return 0, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return activeJobsInGroupRecords(s.runs, s.runners, groupID), nil
+}
+
 func (s *MemoryStore) MarkOfflineRunners(ctx context.Context, cutoff time.Time, at time.Time) ([]domainrunner.Runner, error) {
 	select {
 	case <-ctx.Done():
@@ -823,12 +908,40 @@ func cloneRunner(runner domainrunner.Runner) domainrunner.Runner {
 	return runner
 }
 
+func cloneRunnerGroup(group domainrunner.RunnerGroup) domainrunner.RunnerGroup {
+	group.Labels = cloneMap(group.Labels)
+	group.EnvironmentIDs = append([]string(nil), group.EnvironmentIDs...)
+	group.Executors = append([]string(nil), group.Executors...)
+	return group
+}
+
 func activeJobsInRecords(records map[string]RunRecord, runnerID string) int {
 	active := 0
 	for _, record := range records {
 		for _, stage := range record.Stages {
 			for _, job := range stage.Jobs {
 				if job.Job.RunnerID == runnerID && (job.Job.Status == domainpipeline.JobRunAssigned || job.Job.Status == domainpipeline.JobRunRunning) {
+					active++
+				}
+			}
+		}
+	}
+	return active
+}
+
+func activeJobsInGroupRecords(records map[string]RunRecord, runners map[string]domainrunner.Runner, groupID string) int {
+	if groupID == "" {
+		return 0
+	}
+	active := 0
+	for _, record := range records {
+		for _, stage := range record.Stages {
+			for _, job := range stage.Jobs {
+				runner := runners[job.Job.RunnerID]
+				if runner.GroupID != groupID {
+					continue
+				}
+				if job.Job.Status == domainpipeline.JobRunAssigned || job.Job.Status == domainpipeline.JobRunRunning {
 					active++
 				}
 			}

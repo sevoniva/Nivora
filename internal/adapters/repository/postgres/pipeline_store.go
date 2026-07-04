@@ -321,6 +321,51 @@ func (s *PipelineStore) AuditBySubject(ctx context.Context, subject string) ([]a
 	return entries, rows.Err()
 }
 
+func (s *PipelineStore) SaveRunnerGroup(ctx context.Context, group domainrunner.RunnerGroup) error {
+	labels, err := json.Marshal(nonNilMap(group.Labels))
+	if err != nil {
+		return err
+	}
+	environmentIDs, err := json.Marshal(group.EnvironmentIDs)
+	if err != nil {
+		return err
+	}
+	executors, err := json.Marshal(group.Executors)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx, `INSERT INTO runtime_runner_groups (id, project_id, environment_ids, name, labels, max_concurrency, executors, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+		ON CONFLICT (id) DO UPDATE SET project_id = EXCLUDED.project_id, environment_ids = EXCLUDED.environment_ids, name = EXCLUDED.name, labels = EXCLUDED.labels, max_concurrency = EXCLUDED.max_concurrency, executors = EXCLUDED.executors, updated_at = EXCLUDED.updated_at, version = runtime_runner_groups.version + 1`,
+		group.ID, group.ProjectID, environmentIDs, group.Name, labels, group.MaxConcurrency, executors, group.CreatedAt, group.UpdatedAt)
+	return err
+}
+
+func (s *PipelineStore) GetRunnerGroup(ctx context.Context, id string) (domainrunner.RunnerGroup, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, project_id, environment_ids, name, labels, max_concurrency, executors, created_at, updated_at FROM runtime_runner_groups WHERE id = $1`, id)
+	if err != nil {
+		return domainrunner.RunnerGroup{}, err
+	}
+	defer rows.Close()
+	groups, err := scanRunnerGroups(rows)
+	if err != nil {
+		return domainrunner.RunnerGroup{}, err
+	}
+	if len(groups) == 0 {
+		return domainrunner.RunnerGroup{}, pipelineusecase.ErrRunnerGroupNotFound
+	}
+	return groups[0], nil
+}
+
+func (s *PipelineStore) ListRunnerGroups(ctx context.Context) ([]domainrunner.RunnerGroup, error) {
+	rows, err := s.pool.Query(ctx, `SELECT id, project_id, environment_ids, name, labels, max_concurrency, executors, created_at, updated_at FROM runtime_runner_groups ORDER BY id`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	return scanRunnerGroups(rows)
+}
+
 func (s *PipelineStore) RegisterRunner(ctx context.Context, runner domainrunner.Runner) error {
 	labels, err := json.Marshal(nonNilMap(runner.Labels))
 	if err != nil {
@@ -426,6 +471,16 @@ func (s *PipelineStore) RevokeRunnerToken(ctx context.Context, runnerID string, 
 func (s *PipelineStore) CountActiveJobs(ctx context.Context, runnerID string) (int, error) {
 	var count int
 	err := s.pool.QueryRow(ctx, `SELECT COUNT(*) FROM runtime_job_runs WHERE runner_id = $1 AND status IN ($2, $3)`, runnerID, string(domainpipeline.JobRunAssigned), string(domainpipeline.JobRunRunning)).Scan(&count)
+	return count, err
+}
+
+func (s *PipelineStore) CountActiveJobsByRunnerGroup(ctx context.Context, groupID string) (int, error) {
+	var count int
+	err := s.pool.QueryRow(ctx, `SELECT COUNT(*)
+		FROM runtime_job_runs jobs
+		JOIN runtime_runners runners ON runners.id = jobs.runner_id
+		WHERE runners.group_id = $1 AND jobs.status IN ($2, $3)`,
+		groupID, string(domainpipeline.JobRunAssigned), string(domainpipeline.JobRunRunning)).Scan(&count)
 	return count, err
 }
 
@@ -688,12 +743,28 @@ func (s *PipelineStore) claimJobAt(ctx context.Context, runnerID string, leaseUn
 		if runner.Status != "online" {
 			return pipelineusecase.ErrRunnerNotFound
 		}
+		group := domainrunner.RunnerGroup{}
+		if runner.GroupID != "" {
+			group, err = s.GetRunnerGroup(ctx, runner.GroupID)
+			if err != nil {
+				return err
+			}
+		}
 		active, err := s.CountActiveJobs(ctx, runnerID)
 		if err != nil {
 			return err
 		}
 		if runner.MaxConcurrency > 0 && active >= runner.MaxConcurrency {
 			return pipelineusecase.ErrRunnerConcurrencyLimit
+		}
+		if group.ID != "" && group.MaxConcurrency > 0 {
+			groupActive, err := s.CountActiveJobsByRunnerGroup(ctx, group.ID)
+			if err != nil {
+				return err
+			}
+			if groupActive >= group.MaxConcurrency {
+				return pipelineusecase.ErrRunnerConcurrencyLimit
+			}
 		}
 		rows, err := tx.Query(ctx, `SELECT record FROM runtime_pipeline_runs WHERE status IN ($1, $2) ORDER BY created_at, id FOR UPDATE SKIP LOCKED`, string(domainpipeline.PipelineRunQueued), string(domainpipeline.PipelineRunRunning))
 		if err != nil {
@@ -712,7 +783,7 @@ func (s *PipelineStore) claimJobAt(ctx context.Context, runnerID string, leaseUn
 				rows.Close()
 				return err
 			}
-			next, ok := claimRecordJob(&record, runner, leaseUntil, now)
+			next, ok := claimRecordJob(&record, runner, group, leaseUntil, now)
 			if !ok {
 				continue
 			}
@@ -797,6 +868,30 @@ func scanRunners(rows pgx.Rows) ([]domainrunner.Runner, error) {
 	return runners, rows.Err()
 }
 
+func scanRunnerGroups(rows pgx.Rows) ([]domainrunner.RunnerGroup, error) {
+	var groups []domainrunner.RunnerGroup
+	for rows.Next() {
+		var group domainrunner.RunnerGroup
+		var environmentIDsRaw []byte
+		var labelsRaw []byte
+		var executorsRaw []byte
+		if err := rows.Scan(&group.ID, &group.ProjectID, &environmentIDsRaw, &group.Name, &labelsRaw, &group.MaxConcurrency, &executorsRaw, &group.CreatedAt, &group.UpdatedAt); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(environmentIDsRaw, &group.EnvironmentIDs); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(labelsRaw, &group.Labels); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(executorsRaw, &group.Executors); err != nil {
+			return nil, err
+		}
+		groups = append(groups, group)
+	}
+	return groups, rows.Err()
+}
+
 func updateRecordJobStatus(record *pipelineusecase.RunRecord, jobRunID string, status domainpipeline.JobRunStatus, reason string, at time.Time) bool {
 	for stageIndex := range record.Stages {
 		for jobIndex := range record.Stages[stageIndex].Jobs {
@@ -825,8 +920,8 @@ func updateRecordJobStatus(record *pipelineusecase.RunRecord, jobRunID string, s
 	return false
 }
 
-func claimRecordJob(record *pipelineusecase.RunRecord, runner domainrunner.Runner, leaseUntil time.Time, now time.Time) (pipelineusecase.JobClaim, bool) {
-	if !runnerCanClaimPipelineRecord(runner, *record) {
+func claimRecordJob(record *pipelineusecase.RunRecord, runner domainrunner.Runner, group domainrunner.RunnerGroup, leaseUntil time.Time, now time.Time) (pipelineusecase.JobClaim, bool) {
+	if !runnerCanClaimPipelineRecord(runner, group, *record) {
 		return pipelineusecase.JobClaim{}, false
 	}
 	if record.Run.Status == domainpipeline.PipelineRunQueued {
@@ -843,6 +938,9 @@ func claimRecordJob(record *pipelineusecase.RunRecord, runner domainrunner.Runne
 				if executor == "" {
 					executor = "shell"
 				}
+			}
+			if group.ID != "" && len(group.Executors) > 0 && !contains(group.Executors, executor) {
+				continue
 			}
 			if !contains(runner.Executors, executor) && !contains(runner.Capabilities, executor) {
 				continue
@@ -878,13 +976,22 @@ func claimRecordJob(record *pipelineusecase.RunRecord, runner domainrunner.Runne
 	return pipelineusecase.JobClaim{}, false
 }
 
-func runnerCanClaimPipelineRecord(runner domainrunner.Runner, record pipelineusecase.RunRecord) bool {
+func runnerCanClaimPipelineRecord(runner domainrunner.Runner, group domainrunner.RunnerGroup, record pipelineusecase.RunRecord) bool {
 	if projectID := runner.Labels["projectId"]; projectID != "" && record.Pipeline.ProjectID != projectID {
 		return false
 	}
 	if environmentID := runner.Labels["environmentId"]; environmentID != "" {
 		recordEnvironmentID := firstNonEmpty(record.Pipeline.Labels["environmentId"], record.Pipeline.Metadata["environmentId"])
 		if recordEnvironmentID != environmentID {
+			return false
+		}
+	}
+	if group.ProjectID != "" && record.Pipeline.ProjectID != group.ProjectID {
+		return false
+	}
+	if len(group.EnvironmentIDs) > 0 {
+		recordEnvironmentID := firstNonEmpty(record.Pipeline.Labels["environmentId"], record.Pipeline.Metadata["environmentId"])
+		if !contains(group.EnvironmentIDs, recordEnvironmentID) {
 			return false
 		}
 	}

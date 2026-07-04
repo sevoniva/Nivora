@@ -8,7 +8,7 @@ Current decision: **no-go for remote MCP implementation today**. Local stdio MCP
 |---|---|---|---|
 | Local stdio read-only MCP | go for local maintainer use | `cmd/nivora-mcp`, `make verify-mcp` | Local trust boundary only. |
 | Local stdio plan-only MCP | go for local maintainer use | plan tools return `mutated=false` | Summaries are not execution authority. |
-| Remote read-only MCP | conditional no-go | RFC exists; local request/response caps, request timeouts, and stdio request rate limits exist | OAuth/OIDC contract, tenant filters, remote per-client rate limits, pagination, remote timeout/cap proof, and remote audit tests missing. |
+| Remote read-only MCP | conditional no-go | RFC exists; local request/response caps, request timeouts, stdio request rate limits, and Postgres MCP audit hash-chain proof exist | OAuth/OIDC contract, tenant filters, remote per-client rate limits, pagination, remote timeout/cap proof, and remote audit attribution tests missing. |
 | Remote plan-only MCP | no-go for now | plan-only local tests exist | Remote abuse controls are not implemented. |
 | Remote action MCP | no-go | blocked action tools | Destructive actions are intentionally excluded. |
 
@@ -24,7 +24,7 @@ Current decision: **no-go for remote MCP implementation today**. Local stdio MCP
 | Response limits | body size, log truncation, capped lists | local MCP response cap exists; remote transport proof and pagination missing |
 | Request timeout | per request timeout | local MCP request timeout exists; remote transport proof missing |
 | Rate limits | per subject/client | missing |
-| Audit | actor, auth mode, client, resource/tool, decision, scope, request/correlation IDs | local compliance recorder exists; remote-style Postgres test missing |
+| Audit | actor, auth mode, client, resource/tool, decision, scope, request/correlation IDs | local compliance recorder exists and `TestPostgresIntegrationMCPAuditHashChain` proves Postgres hash-chain persistence; remote client attribution proof missing |
 | Secrets | never return values or token hashes | implemented in redaction tests |
 
 ## Remote Resource Readiness
@@ -50,5 +50,5 @@ Current decision: **no-go for remote MCP implementation today**. Local stdio MCP
 1. Add remote MCP auth contract tests.
 2. Add tenant-scoped fixture tests for every resource/tool.
 3. Add remote response-size, request-timeout, pagination, and rate-limit checks.
-4. Add dedicated Postgres MCP audit-chain integration proof.
+4. Add remote MCP audit attribution and tenant-scope contract tests.
 5. Update deployment docs only after the above are green.

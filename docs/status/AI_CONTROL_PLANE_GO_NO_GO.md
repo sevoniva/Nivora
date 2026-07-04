@@ -18,8 +18,8 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 1. Remote MCP tenant filtering is incomplete.
 2. Remote MCP auth/OAuth contract tests do not exist.
 3. Remote per-client rate limits do not exist; local MCP request/response caps, request timeouts, and stdio request rate limits exist but remote transport limits are not proven.
-4. Dedicated Postgres MCP audit-chain test is not complete.
-5. Audit search can expose broad metadata without future scope filters.
+4. Audit search can expose broad metadata without future remote scope filters and pagination.
+5. Remote MCP audit policy for client identity and per-client attribution is not complete.
 6. Runner summary needs environment/group filtering before remote exposure.
 7. AI can misread plan-only output as execution evidence.
 8. Logs/events/manifests can contain prompt-injection text.
@@ -34,8 +34,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 17. Cross-project ID access must be proven before remote exposure.
 18. Golden answers can drift if scenarios are not maintained.
 19. New tools could bypass mutated=false unless tests stay strict.
-20. Documentation could overstate beta capabilities if not reviewed.
-21. Tenant IDOR, cross-project audit, missing resource, massive log, and evidence-bundle scenarios must stay in the corpus.
+20. Documentation could overstate beta capabilities if not reviewed; tenant IDOR, cross-project audit, missing resource, massive log, and evidence-bundle scenarios must stay in the corpus.
 
 ## Top 20 Missing Tests
 
@@ -50,15 +49,15 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 9. Remote MCP response-size cap contract test.
 10. MCP per-client rate-limit test.
 11. Remote MCP request timeout contract test.
-12. Postgres MCP audit-chain integration test.
-13. Prompt-injection corpus expansion beyond current fixtures.
-14. Golden answer drift check in CI.
-15. Resource pagination test for logs.
-16. Resource pagination test for audit.
-17. Service-account no-role negative test for every tool class.
-18. Unknown resource structured error test for every URI class.
-19. No-mutation test for every plan-only tool alias.
-20. Remote TLS/deployment profile smoke test.
+12. Prompt-injection corpus expansion beyond current fixtures.
+13. Golden answer drift check in CI.
+14. Resource pagination test for logs.
+15. Resource pagination test for audit.
+16. Service-account no-role negative test for every tool class.
+17. Unknown resource structured error test for every URI class.
+18. No-mutation test for every plan-only tool alias.
+19. Remote TLS/deployment profile smoke test.
+20. Remote MCP per-client audit attribution test.
 
 ## Next 3 Goals
 
@@ -72,10 +71,10 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
    - Non-goals: multi-tenant UI, SSO provider implementation.
    - Acceptance: cross-tenant fixture tests fail closed.
 
-3. **MCP Audit Durability Integration Proof**
-   - Scope: Postgres-backed compliance recorder test for MCP resource/tool/prompt/denied events, hash-chain verification, redaction proof.
-   - Non-goals: new audit product features.
-   - Acceptance: optional Postgres integration target proves persisted MCP audit entries.
+3. **MCP Remote Audit Contract Hardening**
+   - Scope: remote-style actor/client metadata, tenant scope, pagination, and audit attribution tests on top of the existing Postgres MCP hash-chain proof.
+   - Non-goals: new audit product features or action-tier MCP.
+   - Acceptance: remote MCP remains disabled by default and audit contract tests fail closed for missing identity or scope.
 
 ## Next 30 Backlog Items
 
@@ -83,7 +82,7 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 |---:|---|---|---|
 | 1 | Add remote MCP auth contract tests | security | none |
 | 2 | Add tenant fixture model for MCP resources | test | auth scopes |
-| 3 | Add Postgres MCP audit-chain test | test | Postgres harness |
+| 3 | Add remote MCP audit attribution tests | test | remote auth contract |
 | 4 | Add audit search pagination | code | API/store support |
 | 5 | Add log resource pagination | code | log store support |
 | 6 | Extend local response-size caps to any future remote transport contract | code | transport design |

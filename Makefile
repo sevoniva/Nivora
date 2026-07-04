@@ -14,7 +14,7 @@ test-postgres-integration:
 	@if [ "$$NIVORA_RUN_POSTGRES_INTEGRATION" != "true" ]; then \
 		echo "Skipping PostgreSQL recovery integration tests; set NIVORA_RUN_POSTGRES_INTEGRATION=true and DATABASE_URL to run them."; \
 	else \
-		GOPROXY=$(GOPROXY) DATABASE_URL="$(DATABASE_URL)" NIVORA_RUN_POSTGRES_INTEGRATION=true $(GO) test -p 1 -run 'TestPostgresIntegration' ./internal/adapters/repository/postgres ./internal/app/runtime; \
+		GOPROXY=$(GOPROXY) DATABASE_URL="$(DATABASE_URL)" NIVORA_RUN_POSTGRES_INTEGRATION=true $(GO) test -p 1 -run 'TestPostgresIntegration' ./internal/adapters/repository/postgres ./internal/app/runtime ./internal/api/mcp; \
 	fi
 
 test-race:
@@ -144,7 +144,7 @@ verify-postgres:
 	@if [ "$$NIVORA_RUN_POSTGRES_INTEGRATION" != "true" ]; then \
 		echo "Skipping Postgres integration tests; set NIVORA_RUN_POSTGRES_INTEGRATION=true and DATABASE_URL"; \
 	else \
-		GOPROXY=$(GOPROXY) DATABASE_URL="$(DATABASE_URL)" NIVORA_RUN_POSTGRES_INTEGRATION=true $(GO) test -p 1 -count=1 -run 'TestPostgresIntegration' ./internal/adapters/repository/postgres ./internal/app/runtime; \
+		GOPROXY=$(GOPROXY) DATABASE_URL="$(DATABASE_URL)" NIVORA_RUN_POSTGRES_INTEGRATION=true $(GO) test -p 1 -count=1 -run 'TestPostgresIntegration' ./internal/adapters/repository/postgres ./internal/app/runtime ./internal/api/mcp; \
 	fi
 
 verify-helm-safety:

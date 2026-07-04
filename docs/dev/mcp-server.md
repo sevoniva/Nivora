@@ -108,7 +108,7 @@ MCP records:
 - `mcp.tool.denied`
 - `mcp.prompt.rendered`
 
-Local tests can use the in-memory recorder. Runtime wiring uses the compliance service recorder, so PostgreSQL runtime mode persists MCP audit through the existing compliance audit path and hash-chain tables.
+Local tests can use the in-memory recorder. Runtime wiring uses the compliance service recorder, so PostgreSQL runtime mode persists MCP audit through the existing compliance audit path and hash-chain tables. `TestPostgresIntegrationMCPAuditHashChain` proves MCP resource and denied-tool audit entries are persisted with a hash chain when PostgreSQL integration tests are enabled.
 
 ## Limitations
 

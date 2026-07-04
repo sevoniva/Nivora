@@ -14,7 +14,7 @@ Current maturity: **local beta foundation, remote no-go**.
 | P1 | Audit search may be too broad for remote exposure | Compliance data overexposure | audit.read resource exists | Scope and pagination audit search | MCP/Compliance | MCP Audit Scope Closure | medium |
 | P1 | Response size limits are inconsistent | Resource exhaustion | log truncation exists, general cap missing | Add response cap helper before remote | MCP/SRE | MCP Transport Limits | medium |
 | P1 | Rate limits are absent | Abuse and noisy neighbor risk | no remote transport | Add rate-limit design and tests | MCP/SRE | MCP Remote Abuse Controls | medium |
-| P1 | Remote audit-chain proof is missing | Weak incident reconstruction | local/compliance tests exist | Add Postgres MCP audit integration | MCP/Compliance | MCP Audit Durability Proof | medium |
+| P1 | Remote audit attribution proof is missing | Weak incident reconstruction across remote clients | local/compliance tests and Postgres MCP hash-chain proof exist | Add remote client identity and scope attribution tests before remote exposure | MCP/Compliance | MCP Remote Audit Contract | medium |
 | P1 | New MCP tools may bypass scenario coverage | Drift | validator checks current corpus | Require permission matrix and scenario rows for new tools | MCP/QA | MCP Catalog Drift Gate | small |
 | P1 | Golden answers may become generic or overconfident | Bad operator guidance | golden answers exist | Add style/safety linter | MCP/Product | MCP Golden Answer Quality Gate | small |
 | P1 | Plugin capability data could reveal internal inventory remotely | Metadata leak | plugin resource exists | Scope plugin resource output | MCP/Plugin | MCP Metadata Scope Review | small |

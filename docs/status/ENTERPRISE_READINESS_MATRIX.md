@@ -97,7 +97,7 @@ No row in this matrix should be read as a GA production claim.
 | MCP tenant scope | foundation | tenant scope review, scoped PipelineDefinition/Artifact/SecurityScan/Runner filtering | PipelineRun/PipelineDefinition/DeploymentRun/ReleaseExecution/Artifact/SecurityScan/Runner MCP scope tests | tenant scope docs | Remote IDOR risk remains for future resource families and unscoped historical records | First-class runner ownership, remote-safe metadata profile, and negative tests for new resources | MCP |
 | MCP prompt injection defense | beta | prompt templates/scenarios | prompt tests | MCP security docs | Corpus can grow | Add adversarial scenarios | MCP |
 | MCP redaction | beta | sanitizer/tests | server/scenario tests | MCP security docs | New fields can drift | Central corpus gate | MCP |
-| MCP audit | foundation | compliance recorder | unit/compliance tests | MCP audit docs | Dedicated Postgres audit chain missing | MCP audit integration proof | MCP |
+| MCP audit | foundation | compliance recorder and Postgres hash-chain proof | unit/compliance tests plus `TestPostgresIntegrationMCPAuditHashChain` | MCP audit docs | Remote client attribution and audit scope policy are still future work | Remote audit contract tests before remote MCP exposure | MCP |
 | MCP scenario corpus | beta | scenario YAML | validator/tests | scenario README | Coverage must grow with tools | Require enterprise abuse cases | MCP |
 | MCP golden answers | beta | golden markdown | validator/tests | scenario README | Style drift possible | Golden-answer linter | MCP |
 | MCP rate limit | foundation | local stdio JSON-RPC request limit | MCP rate-limit tests | MCP security docs | Remote per-client rate limits missing | Add remote per-client limits before exposure | MCP |

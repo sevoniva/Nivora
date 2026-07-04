@@ -12,7 +12,7 @@ This audit covers the local MCP control-plane surface. It records what an AI cli
 | Read-only resources | implemented with RBAC and redaction | `internal/api/mcp/server.go`, `internal/api/mcp/server_test.go`, `internal/api/mcp/scenario_test.go` | Tenant filtering is not complete for every future remote resource. |
 | Plan-only tools | implemented; return `mutated=false` | `internal/api/mcp/server.go`, `TestMCPPlanOnlyToolsReturnMutatedFalse` | Plan output is still summary-level for some runtime areas. |
 | Destructive actions | denied | `blockedActionTools` in `internal/api/mcp/server.go`, scenario tests | No action-tier MCP should be exposed without a separate design. |
-| Audit | compliance recorder path exists | `NewComplianceAuditRecorder`, `TestMCPComplianceAuditRecorderPersistsToComplianceSearch` | Dedicated remote-style Postgres MCP audit-chain test remains future work. |
+| Audit | compliance recorder path exists with Postgres hash-chain proof | `NewComplianceAuditRecorder`, `TestMCPComplianceAuditRecorderPersistsToComplianceSearch`, `TestPostgresIntegrationMCPAuditHashChain`, CI `MCP audit hash chain verification` | Remote client identity and per-client audit policy remain future work. |
 | Redaction | implemented for JSON outputs and audit entries | `mustJSON`, `sanitizeJSON`, redaction tests | Continue expanding adversarial examples as more tools are added. |
 | Golden scenarios | implemented and validated | `examples/mcp/scenarios`, `examples/mcp/golden-answers`, `scripts/validate-mcp-scenarios.sh` | Scenarios are local fixtures, not live production evidence. |
 
@@ -110,7 +110,7 @@ All prompt templates now state that logs, events, manifests, audit messages, and
 ## Remaining Risks
 
 1. Remote MCP is not implemented and should stay blocked until OAuth/OIDC, rate limits, tenant filters, and remote audit tests exist.
-2. MCP audit persistence is proven at unit/compliance-service level, but a dedicated remote-style Postgres MCP audit-chain test remains future work.
+2. MCP audit persistence is proven at unit/compliance-service level and through a Postgres hash-chain integration test, but remote client identity and per-client audit policy remain future work.
 3. Tenant filtering is not proven for every MCP resource/tool.
 4. Plan-only summaries can be misread as execution evidence if prompts are ignored.
 5. Shell runner output can contain adversarial text; prompts and golden scenarios mitigate but do not sandbox workloads.
@@ -121,5 +121,5 @@ Continue hardening before feature expansion:
 
 1. Remote read-only MCP contract tests.
 2. Tenant-filtered MCP resources and tools.
-3. Dedicated Postgres MCP audit-chain integration test.
+3. Remote MCP auth, tenant-scope, limit, and audit contract tests.
 4. Response limits, pagination, and rate-limit design for remote transport.

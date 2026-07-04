@@ -53,11 +53,12 @@ Current scenario evidence:
 - Golden answers: `examples/mcp/golden-answers/`
 - Scenario tests: `internal/api/mcp/scenario_test.go`
 - Smoke script: `scripts/smoke-mcp-local.sh`
+- Postgres MCP audit hash-chain proof: `TestPostgresIntegrationMCPAuditHashChain` and CI `MCP audit hash chain verification`
 
 ## Remaining Top Risks
 
 1. Remote MCP identity and tenant filtering are not implemented.
-2. MCP audit hash-chain verification is not yet proven through a dedicated remote-style Postgres test.
+2. Remote MCP audit attribution is not yet proven because remote identity/client metadata is still future work.
 3. Prompt-injection resilience is mostly prompt guidance and scenario coverage, not a full adversarial test corpus.
 4. AI can still misinterpret unknown live state if prompts are ignored.
 5. Runner shell execution is hardened but not an OS-level sandbox.
@@ -70,5 +71,5 @@ Proceed with **Remote Read-Only MCP Design Validation** before any action-tier w
 - add OAuth/OIDC or service-account scoped remote auth contract tests
 - add tenant-filtered MCP resource tests
 - add remote response-size, request-timeout, and rate-limit contract tests
-- add Postgres MCP audit-chain integration proof
+- add remote MCP audit attribution and scope contract tests on top of the existing Postgres hash-chain proof
 - expand adversarial log/prompt-injection fixtures

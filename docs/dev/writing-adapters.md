@@ -28,6 +28,12 @@ Good capability names:
 - `notification.noop`
 - `security.scan_noop`
 
+You can inspect the built-in registry locally:
+
+```bash
+nivora plugins capabilities artifact-oci --local
+```
+
 ## External Plugins
 
 External plugins are future work. The Phase 7.4 protocol skeleton is intentionally small:

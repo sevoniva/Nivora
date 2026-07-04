@@ -1210,6 +1210,7 @@ func newPluginsCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "plugins", Short: "Plugin and adapter registry utilities"}
 	cmd.AddCommand(newPluginsListCommand())
 	cmd.AddCommand(newPluginsInspectCommand())
+	cmd.AddCommand(newPluginsCapabilitiesCommand())
 	cmd.AddCommand(newPluginsValidateCommand())
 	return cmd
 }
@@ -1259,6 +1260,35 @@ func newPluginsInspectCommand() *cobra.Command {
 				return nil
 			}
 			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/plugins/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().BoolVar(&local, "local", false, "use the local built-in registry without contacting a server")
+	return cmd
+}
+
+func newPluginsCapabilitiesCommand() *cobra.Command {
+	var serverURL string
+	var local bool
+	cmd := &cobra.Command{
+		Use:   "capabilities <name>",
+		Short: "List capabilities exposed by a plugin",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if local {
+				capabilities, err := pluginusecase.NewDefaultRegistry().Capabilities(cmd.Context(), args[0])
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), capabilities)
+				return nil
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/plugins/"+args[0]+"/capabilities", nil)
 			if err != nil {
 				return err
 			}

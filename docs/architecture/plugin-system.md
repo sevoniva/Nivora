@@ -77,3 +77,16 @@ The `Execute` method is only a placeholder shape. Before any external plugin can
 - `POST /api/v1/plugins/validate`
 
 These endpoints expose metadata only.
+
+## CLI
+
+The CLI mirrors the metadata API:
+
+```bash
+nivora plugins list --local
+nivora plugins inspect artifact-oci --local
+nivora plugins capabilities artifact-oci --local
+nivora plugins validate --file examples/plugins/templates/artifact-plugin.yaml --local
+```
+
+`plugins capabilities` reads declared capability metadata. It does not load code, install plugins, or execute adapter behavior.

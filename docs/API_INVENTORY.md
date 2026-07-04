@@ -12,7 +12,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | PipelineRun | `POST /api/v1/pipeline-runs`, `GET /api/v1/pipeline-runs`, `GET /api/v1/pipeline-runs/{id}`, logs/events/timeline/cancel | shell runtime foundation, optional pagination on list/log/event/timeline reads |
 | Runner protocol | register, heartbeat, claim, append logs, update status, offline detect, token rotate/revoke | runner mutation uses runner tokens or RBAC where applicable |
 | DeploymentRun | `POST /api/v1/deployments`, plan/apply, get, resources, health, diff, snapshot, rollback plan, logs/events/timeline/cancel/resume | apply and rollback remain guarded |
-| Release orchestration | releases, release artifacts, plan/deploy, executions, targets, timeline, cancel/resume | sequential local orchestration foundation |
+| Release orchestration | releases, release artifacts, plan/deploy, executions, targets, timeline, cancel/resume, release evidence | sequential local orchestration foundation |
 | Release target catalog | `GET/POST /api/v1/release-targets`, get/update/disable/validate | metadata only; unsafe flags default false |
 | Artifact / release binding | inspect, resolve, release create/list/get/artifacts, registry validate | OCI-compatible foundation; vendor management APIs are not implemented |
 | Security / policy | scans, findings, stored scan/finding queries, policy evaluate, release/deployment security | noop/fake scanners and built-in policy rules |

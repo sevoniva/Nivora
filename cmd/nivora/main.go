@@ -2288,6 +2288,7 @@ func newReleaseCommand() *cobra.Command {
 	cmd.AddCommand(newReleasePlanCommand())
 	cmd.AddCommand(newReleaseDeployCommand())
 	cmd.AddCommand(newReleaseSecurityCommand())
+	cmd.AddCommand(newReleaseEvidenceCommand())
 	cmd.AddCommand(newReleaseExecutionCommand())
 	return cmd
 }
@@ -2392,6 +2393,38 @@ func newReleaseSecurityCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newReleaseEvidenceCommand() *cobra.Command {
+	var serverURL string
+	var format string
+	cmd := &cobra.Command{
+		Use:   "evidence <release-id>",
+		Short: "Generate or export release evidence from a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if format == "" || format == "json" {
+				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/"+args[0]+"/evidence", nil)
+				if err != nil {
+					return err
+				}
+				printJSON(cmd.OutOrStdout(), payload)
+				return nil
+			}
+			if format != "markdown" {
+				return fmt.Errorf("--format must be json or markdown")
+			}
+			body, err := doRaw(cmd.Context(), http.MethodGet, serverURL, "/api/v1/evidence/release/"+args[0]+"?format=markdown", nil)
+			if err != nil {
+				return err
+			}
+			_, _ = cmd.OutOrStdout().Write(body)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&format, "format", "json", "evidence output format: json or markdown")
 	return cmd
 }
 

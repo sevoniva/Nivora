@@ -73,6 +73,22 @@ func GenerateEvidenceBundle(service *complianceusecase.Service) http.HandlerFunc
 	}
 }
 
+func GenerateReleaseEvidenceBundle(service *complianceusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		releaseID := chi.URLParam(r, "id")
+		if releaseID == "" {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "release id is required"})
+			return
+		}
+		bundle, err := service.EvidenceBundle(r.Context(), complianceusecase.EvidenceInput{SubjectType: "release", SubjectID: releaseID})
+		if err != nil {
+			respondComplianceResult(w, r, nil, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, bundle)
+	}
+}
+
 func GetEvidenceBundleByID(service *complianceusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		bundle, err := service.GetEvidenceBundle(r.Context(), chi.URLParam(r, "id"))

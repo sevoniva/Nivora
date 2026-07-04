@@ -58,4 +58,14 @@ func TestArtifactAndReleaseRoutes(t *testing.T) {
 			t.Fatalf("%s status = %d body = %s", path, rec.Code, rec.Body.String())
 		}
 	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/releases/"+releaseID+"/evidence", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("release evidence status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"subjectType":"release"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"artifacts"`)) {
+		t.Fatalf("release evidence body = %s", rec.Body.String())
+	}
 }

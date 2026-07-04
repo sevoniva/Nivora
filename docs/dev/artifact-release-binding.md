@@ -19,6 +19,17 @@ go run ./cmd/nivora release create --local --file examples/releases/simple-relea
 
 The local command creates an in-memory Release record, binds ReleaseArtifacts, emits events, and records audit entries. The local process does not persist records after the command exits.
 
+## Generate Release Evidence
+
+For server-backed release records:
+
+```bash
+nivora release evidence <release-id>
+nivora release evidence <release-id> --format markdown
+```
+
+The matching API is `POST /api/v1/releases/{id}/evidence`. It creates a compliance evidence bundle for the release and includes available release, artifact binding, event, and audit references. It does not deploy, approve, roll back, or mutate ReleaseExecution state.
+
 ## Deployment Planning With Artifacts
 
 Deployment specs can include artifact references. Phase 2.2 verifies simple Kubernetes workload image references against those artifacts and adds warnings to the DeploymentPlan when:

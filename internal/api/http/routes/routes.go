@@ -219,6 +219,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/releases", apimiddleware.RequirePermission(authService, "release.create", handlers.RespondError, handlers.CreateRelease(artifactService)))
 		api.Post("/releases/{id}/plan", apimiddleware.RequirePermission(authService, "release.create", handlers.RespondError, handlers.PlanRelease(releaseService)))
 		api.Post("/releases/{id}/deploy", apimiddleware.RequirePermission(authService, "release.create", handlers.RespondError, handlers.DeployRelease(releaseService)))
+		api.Post("/releases/{id}/evidence", apimiddleware.RequirePermission(authService, "audit.read", handlers.RespondError, handlers.GenerateReleaseEvidenceBundle(complianceService)))
 		api.Get("/releases/{id}/plan", handlers.GetReleasePlan(releaseService))
 		api.Get("/releases/{id}/executions", handlers.ListReleaseExecutions(releaseService))
 		api.Get("/releases/{id}/security", handlers.GetReleaseSecurity(releaseService))

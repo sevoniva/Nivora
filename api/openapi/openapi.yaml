@@ -1773,6 +1773,19 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReleaseExecutionRecord"
+  /api/v1/releases/{id}/evidence:
+    post:
+      summary: Generate and persist a release evidence bundle
+      description: Generates an EvidenceBundle for a Release by reusing the compliance evidence store. This does not deploy or mutate release execution state.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "201":
+          description: Release evidence bundle
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/EvidenceBundle"
   /api/v1/releases/{id}/executions:
     get:
       summary: List ReleaseExecutions for a Release

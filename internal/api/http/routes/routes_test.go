@@ -65,7 +65,7 @@ func TestHealthRoutes(t *testing.T) {
 	}
 }
 
-func TestPlaceholderRoute(t *testing.T) {
+func TestVisualizationIndexRoute(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
@@ -76,18 +76,21 @@ func TestPlaceholderRoute(t *testing.T) {
 
 	router.ServeHTTP(rec, req)
 
-	if rec.Code != http.StatusNotImplemented {
+	if rec.Code != http.StatusOK {
 		t.Fatalf("status = %d", rec.Code)
 	}
-	var body map[string]any
+	var body struct {
+		Surfaces []struct {
+			Group string `json:"group"`
+			Path  string `json:"path"`
+		} `json:"surfaces"`
+		Count int `json:"count"`
+	}
 	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
 		t.Fatalf("response is not json: %v", err)
 	}
-	if body["code"] != "not_implemented" {
-		t.Fatalf("code = %v", body["code"])
-	}
-	if body["path"] != "/api/v1/visualization" {
-		t.Fatalf("path = %v", body["path"])
+	if body.Count == 0 || len(body.Surfaces) == 0 {
+		t.Fatalf("empty visualization index: %#v", body)
 	}
 }
 

@@ -242,6 +242,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/deployments/{id}/cancel", apimiddleware.RequirePermission(authService, "deployment.cancel", handlers.RespondError, handlers.CancelDeploymentRun(deploymentService)))
 		api.Post("/deployments/{id}/resume", apimiddleware.RequirePermission(authService, "deployment.approve", handlers.RespondError, handlers.ResumeDeploymentRunAfterApproval(deploymentService)))
 		api.Post("/deployments/{id}/sync", apimiddleware.RequirePermission(authService, "deployment.create", handlers.RespondError, handlers.SyncDeploymentArgoCD(deploymentService)))
+		api.Get("/visualization", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListVisualizationSurfaces()))
 		api.Get("/visualization/pipeline-runs/{id}/dag", handlers.GetVisualizationPipelineDAG(pipelineService))
 		api.Get("/visualization/pipeline-runs/{id}/timeline", handlers.GetVisualizationPipelineTimeline(pipelineService))
 		api.Get("/visualization/pipeline-runs/{id}/summary", handlers.GetVisualizationPipelineSummary(pipelineService))
@@ -288,7 +289,5 @@ type routeGroup struct {
 }
 
 func placeholderGroups() []routeGroup {
-	return []routeGroup{
-		{"/visualization", "visualization"},
-	}
+	return []routeGroup{}
 }

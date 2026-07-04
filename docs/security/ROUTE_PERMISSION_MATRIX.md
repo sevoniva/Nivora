@@ -63,7 +63,7 @@ Auth modes:
 | GET | `/api/v1/audit-logs` | `audit.read` | org/project/environment | user/service account | yes | no | yes | Aggregate audit read path backed by the same compliance audit search. |
 | GET | `/api/v1/events`, `/api/v1/logs` | `project.read` | project/runtime | user/service account | yes | no | yes | Aggregate read-only runtime observability paths; scope filtering remains foundation-level. |
 | POST | `/api/v1/retention-policy` | `policy.manage` | org/project/environment | user/service account | yes | no | yes | Retention mutation is policy-sensitive. |
-| Placeholder | `/api/v1/visualization` | placeholder | read model | user/service account | yes | no | yes | Structured `not_implemented` for the aggregate visualization root only. |
+| GET | `/api/v1/visualization` | `project.read` | read model | user/service account | yes | no | yes | Read-only backend visualization API index. |
 | GET | `/api/v1/visualization/*` | authenticated; audit timeline requires `audit.read` | read model | user/service account | yes | no | yes | Backend visualization only, no frontend production claim. |
 | GET/POST | `/api/v1/plugins*` | authenticated foundation routes | system | user/service account | yes | no | yes | Registry/capability metadata only; no unsafe dynamic loading. |
 | GET/POST | `/api/v1/tenancy/*` | authenticated read; `project.write` for quota mutation | org/project | user/service account | yes | no | yes | Quotas are foundation-level. |

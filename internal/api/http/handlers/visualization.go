@@ -18,6 +18,41 @@ import (
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
+type visualizationSurface struct {
+	Group              string `json:"group"`
+	Method             string `json:"method"`
+	Path               string `json:"path"`
+	Description        string `json:"description"`
+	RequiredPermission string `json:"requiredPermission"`
+	Status             string `json:"status"`
+}
+
+func ListVisualizationSurfaces() http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		surfaces := []visualizationSurface{
+			{Group: "pipeline", Method: http.MethodGet, Path: "/api/v1/visualization/pipeline-runs/{id}/dag", Description: "PipelineRun DAG graph model", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "pipeline", Method: http.MethodGet, Path: "/api/v1/visualization/pipeline-runs/{id}/timeline", Description: "PipelineRun timeline items", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "pipeline", Method: http.MethodGet, Path: "/api/v1/visualization/pipeline-runs/{id}/summary", Description: "PipelineRun summary badge and counts", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "deployment", Method: http.MethodGet, Path: "/api/v1/visualization/deployments/{id}/timeline", Description: "DeploymentRun timeline items", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "deployment", Method: http.MethodGet, Path: "/api/v1/visualization/deployments/{id}/resources", Description: "Deployment resource nodes", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "deployment", Method: http.MethodGet, Path: "/api/v1/visualization/deployments/{id}/diff", Description: "Deployment diff summary", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "deployment", Method: http.MethodGet, Path: "/api/v1/visualization/deployments/{id}/health", Description: "Deployment health summary", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "release", Method: http.MethodGet, Path: "/api/v1/visualization/releases/{id}/overview", Description: "Release plan and execution overview", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "release", Method: http.MethodGet, Path: "/api/v1/visualization/releases/executions/{id}/timeline", Description: "ReleaseExecution timeline items", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "release", Method: http.MethodGet, Path: "/api/v1/visualization/releases/executions/{id}/targets", Description: "ReleaseExecution target rows", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "environment", Method: http.MethodGet, Path: "/api/v1/visualization/environments/{id}/topology", Description: "Environment topology read model", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "runner", Method: http.MethodGet, Path: "/api/v1/visualization/runners/summary", Description: "Runner dashboard summary", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "security", Method: http.MethodGet, Path: "/api/v1/visualization/security/summary", Description: "Security dashboard summary", RequiredPermission: "project.read", Status: "foundation"},
+			{Group: "audit", Method: http.MethodGet, Path: "/api/v1/visualization/audit/timeline", Description: "Aggregate audit timeline", RequiredPermission: "audit.read", Status: "foundation"},
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{
+			"surfaces": surfaces,
+			"count":    len(surfaces),
+			"warnings": []string{"visualization APIs are backend read models only; no production web console claim is implied"},
+		})
+	}
+}
+
 func GetVisualizationPipelineDAG(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		record, err := service.Get(r.Context(), chi.URLParam(r, "id"))

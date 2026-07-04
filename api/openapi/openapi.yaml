@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: Nivora API
   version: 0.9.0-rc.1
-  description: Hardened beta-candidate Nivora API for the DevOps delivery control plane. This surface includes foundation-level shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory skeletons, safe host deployment planning/noop execution, durable runner protocol foundations, backend visualization read models, lightweight observability/operations endpoints, read-only integration capability metadata, plugin capability registry metadata, and packaging assets. Nivora is not production-ready; some endpoints are experimental, foundation-only, or structured placeholders.
+  description: Hardened beta-candidate Nivora API for the DevOps delivery control plane. This surface includes foundation-level shell PipelineRun execution, controlled Kubernetes YAML DeploymentRun foundations, artifact/release binding, GitOps/Argo CD foundations, resource inventory and rollback planning, release orchestration, DevSecOps policy gates, SecretRef/Credential metadata, local auth/RBAC, approval/change-window/notification foundations, multi-cloud inventory skeletons, safe host deployment planning/noop execution, durable runner protocol foundations, backend visualization read models, lightweight observability/operations endpoints, read-only integration capability metadata, plugin capability registry metadata, and packaging assets. Nivora is not production-ready; some capabilities are experimental, foundation-only, skeleton, or placeholder-level even when their read APIs are implemented.
 servers:
   - url: http://localhost:8080
 security:
@@ -3124,10 +3124,15 @@ paths:
                 $ref: "#/components/schemas/IntegrationList"
   /api/v1/visualization:
     get:
-      summary: Visualization placeholder
+      summary: List visualization backend API surfaces
+      description: Returns the backend visualization read-model endpoints currently exposed by Nivora. This is an API discovery surface only; it does not imply a production web console.
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Visualization API surface index
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VisualizationSurfaceList"
 components:
   securitySchemes:
     BearerAuth:
@@ -4621,6 +4626,34 @@ components:
         updatedAt:
           type: string
           format: date-time
+    VisualizationSurfaceList:
+      type: object
+      properties:
+        surfaces:
+          type: array
+          items:
+            $ref: "#/components/schemas/VisualizationSurface"
+        count:
+          type: integer
+        warnings:
+          type: array
+          items:
+            type: string
+    VisualizationSurface:
+      type: object
+      properties:
+        group:
+          type: string
+        method:
+          type: string
+        path:
+          type: string
+        description:
+          type: string
+        requiredPermission:
+          type: string
+        status:
+          type: string
     PluginCapability:
       type: object
       properties:

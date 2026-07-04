@@ -49,6 +49,21 @@ func TestCatalogCreatesHierarchyAndDisablesResources(t *testing.T) {
 	if disabled.Enabled {
 		t.Fatalf("delete should disable environment, got %+v", disabled)
 	}
+
+	repository, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Service Repo", URL: "https://example.com/team/service.git"})
+	if err != nil {
+		t.Fatalf("create repository: %v", err)
+	}
+	if repository.ProjectID != project.ID || repository.Provider != "generic" || repository.DefaultBranch != "main" {
+		t.Fatalf("unexpected repository: %+v", repository)
+	}
+	disabledRepo, err := service.DisableRepository(ctx, repository.ID)
+	if err != nil {
+		t.Fatalf("disable repository: %v", err)
+	}
+	if disabledRepo.Enabled {
+		t.Fatalf("delete should disable repository, got %+v", disabledRepo)
+	}
 }
 
 func TestCatalogRejectsMissingParentsAndDuplicates(t *testing.T) {
@@ -75,5 +90,8 @@ func TestCatalogRejectsMissingParentsAndDuplicates(t *testing.T) {
 	}
 	if _, err := service.CreateApplication(ctx, CreateApplicationInput{ProjectID: project.ID, Name: ""}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("invalid application error = %v", err)
+	}
+	if _, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Repo", URL: "example.com/no-scheme"}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("invalid repository url error = %v", err)
 	}
 }

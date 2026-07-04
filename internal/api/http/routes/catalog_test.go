@@ -37,6 +37,12 @@ func TestCatalogRoutesCreateListUpdateAndDisable(t *testing.T) {
 	environment := postCatalogResource(t, router, "/api/v1/environments", `{"projectId":"`+projectID+`","name":"Production"}`, http.StatusCreated)
 	environmentID := stringField(t, environment, "id")
 
+	repository := postCatalogResource(t, router, "/api/v1/repositories", `{"projectId":"`+projectID+`","name":"Service Repo","url":"https://example.com/team/service.git","provider":"generic","credentialRef":"cred-ref"}`, http.StatusCreated)
+	repositoryID := stringField(t, repository, "id")
+	if stringField(t, repository, "credentialRef") != "cred-ref" {
+		t.Fatalf("repository credentialRef mismatch: %+v", repository)
+	}
+
 	req := httptest.NewRequest(http.MethodPatch, "/api/v1/environments/"+environmentID, strings.NewReader(`{"description":"release gate target"}`))
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -67,6 +73,16 @@ func TestCatalogRoutesCreateListUpdateAndDisable(t *testing.T) {
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), projectID) {
 		t.Fatalf("list projects status = %d body = %s", rec.Code, rec.Body.String())
 	}
+
+	req = httptest.NewRequest(http.MethodDelete, "/api/v1/repositories/"+repositoryID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("disable repository status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), `"enabled":false`) {
+		t.Fatalf("disable repository body = %s", rec.Body.String())
+	}
 }
 
 func TestCatalogRoutesValidateParentsAndDuplicates(t *testing.T) {
@@ -77,6 +93,7 @@ func TestCatalogRoutesValidateParentsAndDuplicates(t *testing.T) {
 	router := newTestRouter(cfg)
 
 	postCatalogResource(t, router, "/api/v1/projects", `{"orgId":"missing","name":"Delivery"}`, http.StatusNotFound)
+	postCatalogResource(t, router, "/api/v1/repositories", `{"projectId":"missing","name":"Repo","url":"https://example.com/team/service.git"}`, http.StatusNotFound)
 	postCatalogResource(t, router, "/api/v1/orgs", `{"name":"Platform"}`, http.StatusCreated)
 	postCatalogResource(t, router, "/api/v1/orgs", `{"name":"platform"}`, http.StatusConflict)
 }

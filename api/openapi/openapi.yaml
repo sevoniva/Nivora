@@ -891,10 +891,82 @@ paths:
                 $ref: "#/components/schemas/Environment"
   /api/v1/repositories:
     get:
-      summary: Repositories placeholder
+      summary: List SCM repositories
+      description: Lists repository catalog records. This metadata route does not perform provider-specific SCM network calls.
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Repository list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  repositories:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/SCMRepository"
+    post:
+      summary: Create SCM repository
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SCMRepositoryCreateRequest"
+      responses:
+        "201":
+          description: Repository created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SCMRepository"
+  /api/v1/repositories/{id}:
+    get:
+      summary: Get SCM repository
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Repository
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SCMRepository"
+    patch:
+      summary: Update SCM repository
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SCMRepositoryUpdateRequest"
+      responses:
+        "200":
+          description: Repository updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SCMRepository"
+    delete:
+      summary: Disable SCM repository
+      description: Disables the repository catalog record instead of hard-deleting it.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Repository disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SCMRepository"
   /api/v1/artifact-registries:
     get:
       summary: Artifact registries placeholder
@@ -2907,6 +2979,37 @@ components:
           properties:
             projectId:
               type: string
+    SCMRepository:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+        provider:
+          type: string
+          enum: [generic, github, gitlab, gitea]
+        defaultBranch:
+          type: string
+        credentialRef:
+          type: string
+          description: CredentialRef id only; secret values are never returned.
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
     OrgCreateRequest:
       type: object
       required: [name]
@@ -2944,6 +3047,49 @@ components:
     EnvironmentCreateRequest:
       allOf:
         - $ref: "#/components/schemas/ApplicationCreateRequest"
+    SCMRepositoryCreateRequest:
+      type: object
+      required: [projectId, name, url]
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        name:
+          type: string
+        url:
+          type: string
+        provider:
+          type: string
+        defaultBranch:
+          type: string
+        credentialRef:
+          type: string
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        enabled:
+          type: boolean
+    SCMRepositoryUpdateRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+        provider:
+          type: string
+        defaultBranch:
+          type: string
+        credentialRef:
+          type: string
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        enabled:
+          type: boolean
     CatalogUpdateRequest:
       type: object
       properties:

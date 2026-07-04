@@ -24,11 +24,16 @@ type Service struct {
 }
 
 type Repository struct {
-	ID        string
-	ProjectID string
-	Name      string
-	URL       string
-	Provider  string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID            string            `json:"id" yaml:"id"`
+	ProjectID     string            `json:"projectId" yaml:"projectId"`
+	Name          string            `json:"name" yaml:"name"`
+	URL           string            `json:"url" yaml:"url"`
+	Provider      string            `json:"provider" yaml:"provider"`
+	DefaultBranch string            `json:"defaultBranch,omitempty" yaml:"defaultBranch,omitempty"`
+	CredentialRef string            `json:"credentialRef,omitempty" yaml:"credentialRef,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled       bool              `json:"enabled" yaml:"enabled"`
+	CreatedAt     time.Time         `json:"createdAt" yaml:"createdAt"`
+	UpdatedAt     time.Time         `json:"updatedAt" yaml:"updatedAt"`
 }

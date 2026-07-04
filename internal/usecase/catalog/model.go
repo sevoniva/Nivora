@@ -36,6 +36,11 @@ type Store interface {
 	GetEnvironment(ctx context.Context, id string) (domainenv.Environment, error)
 	ListEnvironments(ctx context.Context, projectID string) ([]domainenv.Environment, error)
 	UpdateEnvironment(ctx context.Context, environment domainenv.Environment) (domainenv.Environment, error)
+
+	CreateRepository(ctx context.Context, repository domainapp.Repository) (domainapp.Repository, error)
+	GetRepository(ctx context.Context, id string) (domainapp.Repository, error)
+	ListRepositories(ctx context.Context, projectID string) ([]domainapp.Repository, error)
+	UpdateRepository(ctx context.Context, repository domainapp.Repository) (domainapp.Repository, error)
 }
 
 type CreateOrgInput struct {
@@ -115,4 +120,28 @@ type UpdateEnvironmentInput struct {
 	Labels      map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
 	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	Enabled     *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type CreateRepositoryInput struct {
+	ID            string            `json:"id,omitempty" yaml:"id,omitempty"`
+	ProjectID     string            `json:"projectId" yaml:"projectId"`
+	Name          string            `json:"name" yaml:"name"`
+	URL           string            `json:"url" yaml:"url"`
+	Provider      string            `json:"provider,omitempty" yaml:"provider,omitempty"`
+	DefaultBranch string            `json:"defaultBranch,omitempty" yaml:"defaultBranch,omitempty"`
+	CredentialRef string            `json:"credentialRef,omitempty" yaml:"credentialRef,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled       *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
+}
+
+type UpdateRepositoryInput struct {
+	Name          *string           `json:"name,omitempty" yaml:"name,omitempty"`
+	URL           *string           `json:"url,omitempty" yaml:"url,omitempty"`
+	Provider      *string           `json:"provider,omitempty" yaml:"provider,omitempty"`
+	DefaultBranch *string           `json:"defaultBranch,omitempty" yaml:"defaultBranch,omitempty"`
+	CredentialRef *string           `json:"credentialRef,omitempty" yaml:"credentialRef,omitempty"`
+	Labels        map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled       *bool             `json:"enabled,omitempty" yaml:"enabled,omitempty"`
 }

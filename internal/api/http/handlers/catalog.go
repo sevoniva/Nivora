@@ -270,6 +270,71 @@ func DisableEnvironment(service *catalogusecase.Service) http.HandlerFunc {
 	}
 }
 
+func ListRepositories(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		repositories, err := service.ListRepositories(r.Context(), r.URL.Query().Get("projectId"))
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{"repositories": repositories})
+	}
+}
+
+func CreateRepository(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input catalogusecase.CreateRepositoryInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_json", Message: "request body must be valid JSON"})
+			return
+		}
+		repository, err := service.CreateRepository(r.Context(), input)
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusCreated, repository)
+	}
+}
+
+func GetRepository(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		repository, err := service.GetRepository(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, repository)
+	}
+}
+
+func UpdateRepository(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input catalogusecase.UpdateRepositoryInput
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_json", Message: "request body must be valid JSON"})
+			return
+		}
+		repository, err := service.UpdateRepository(r.Context(), chi.URLParam(r, "id"), input)
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, repository)
+	}
+}
+
+func DisableRepository(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		repository, err := service.DisableRepository(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, repository)
+	}
+}
+
 func respondCatalogError(w http.ResponseWriter, r *http.Request, err error) {
 	switch {
 	case errors.Is(err, catalogusecase.ErrInvalid):

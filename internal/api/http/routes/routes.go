@@ -104,6 +104,11 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/environments/{id}", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.GetEnvironment(catalogService)))
 		api.Patch("/environments/{id}", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.UpdateEnvironment(catalogService)))
 		api.Delete("/environments/{id}", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.DisableEnvironment(catalogService)))
+		api.Get("/repositories", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListRepositories(catalogService)))
+		api.Post("/repositories", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.CreateRepository(catalogService)))
+		api.Get("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetRepository(catalogService)))
+		api.Patch("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.UpdateRepository(catalogService)))
+		api.Delete("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.DisableRepository(catalogService)))
 		api.Get("/pipeline-runs", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListPipelineRuns(pipelineService)))
 		api.Post("/pipeline-runs", apimiddleware.RequirePermission(authService, "pipeline.run", handlers.RespondError, handlers.CreatePipelineRun(pipelineService)))
 		api.Get("/pipeline-runs/{id}", handlers.GetPipelineRun(pipelineService))
@@ -259,7 +264,6 @@ type routeGroup struct {
 
 func placeholderGroups() []routeGroup {
 	return []routeGroup{
-		{"/repositories", "repositories"},
 		{"/artifact-registries", "artifact registries"},
 		{"/pipelines", "pipelines"},
 		{"/policies", "policies"},

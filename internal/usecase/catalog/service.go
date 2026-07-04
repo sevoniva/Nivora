@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"fmt"
+	"net/url"
 	"strings"
 	"time"
 
@@ -336,6 +337,102 @@ func (s *Service) DisableEnvironment(ctx context.Context, id string) (domainenv.
 	return s.UpdateEnvironment(ctx, id, UpdateEnvironmentInput{Enabled: &disabled})
 }
 
+func (s *Service) CreateRepository(ctx context.Context, input CreateRepositoryInput) (domainapp.Repository, error) {
+	projectID := strings.TrimSpace(input.ProjectID)
+	if projectID == "" {
+		return domainapp.Repository{}, fmt.Errorf("%w: repository projectId is required", ErrInvalid)
+	}
+	if _, err := s.store.GetProject(ctx, projectID); err != nil {
+		return domainapp.Repository{}, fmt.Errorf("%w: project %q", ErrNotFound, projectID)
+	}
+	name := strings.TrimSpace(input.Name)
+	if name == "" {
+		return domainapp.Repository{}, fmt.Errorf("%w: repository name is required", ErrInvalid)
+	}
+	repoURL := strings.TrimSpace(input.URL)
+	if err := validateRepositoryURL(repoURL); err != nil {
+		return domainapp.Repository{}, err
+	}
+	repositories, _ := s.store.ListRepositories(ctx, projectID)
+	for _, existing := range repositories {
+		if strings.EqualFold(existing.Name, name) || strings.EqualFold(existing.URL, repoURL) {
+			return domainapp.Repository{}, fmt.Errorf("%w: repository %q", ErrAlreadyExists, name)
+		}
+	}
+	now := s.now().UTC()
+	enabled := true
+	if input.Enabled != nil {
+		enabled = *input.Enabled
+	}
+	repository := domainapp.Repository{
+		ID:            defaultID(input.ID, "repo"),
+		ProjectID:     projectID,
+		Name:          name,
+		URL:           repoURL,
+		Provider:      defaultProvider(input.Provider),
+		DefaultBranch: defaultBranch(input.DefaultBranch),
+		CredentialRef: strings.TrimSpace(input.CredentialRef),
+		Labels:        copyMap(input.Labels),
+		Metadata:      copyMap(input.Metadata),
+		Enabled:       enabled,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	return s.store.CreateRepository(ctx, repository)
+}
+
+func (s *Service) GetRepository(ctx context.Context, id string) (domainapp.Repository, error) {
+	return s.store.GetRepository(ctx, strings.TrimSpace(id))
+}
+
+func (s *Service) ListRepositories(ctx context.Context, projectID string) ([]domainapp.Repository, error) {
+	return s.store.ListRepositories(ctx, strings.TrimSpace(projectID))
+}
+
+func (s *Service) UpdateRepository(ctx context.Context, id string, input UpdateRepositoryInput) (domainapp.Repository, error) {
+	repository, err := s.store.GetRepository(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return domainapp.Repository{}, err
+	}
+	if input.Name != nil {
+		repository.Name = strings.TrimSpace(*input.Name)
+		if repository.Name == "" {
+			return domainapp.Repository{}, fmt.Errorf("%w: repository name is required", ErrInvalid)
+		}
+	}
+	if input.URL != nil {
+		repository.URL = strings.TrimSpace(*input.URL)
+		if err := validateRepositoryURL(repository.URL); err != nil {
+			return domainapp.Repository{}, err
+		}
+	}
+	if input.Provider != nil {
+		repository.Provider = defaultProvider(*input.Provider)
+	}
+	if input.DefaultBranch != nil {
+		repository.DefaultBranch = defaultBranch(*input.DefaultBranch)
+	}
+	if input.CredentialRef != nil {
+		repository.CredentialRef = strings.TrimSpace(*input.CredentialRef)
+	}
+	if input.Labels != nil {
+		repository.Labels = copyMap(input.Labels)
+	}
+	if input.Metadata != nil {
+		repository.Metadata = copyMap(input.Metadata)
+	}
+	if input.Enabled != nil {
+		repository.Enabled = *input.Enabled
+	}
+	repository.UpdatedAt = s.now().UTC()
+	return s.store.UpdateRepository(ctx, repository)
+}
+
+func (s *Service) DisableRepository(ctx context.Context, id string) (domainapp.Repository, error) {
+	disabled := false
+	return s.UpdateRepository(ctx, id, UpdateRepositoryInput{Enabled: &disabled})
+}
+
 func (s *Service) findOrgByNameOrSlug(ctx context.Context, name string, slug string) (domainorg.Org, error) {
 	orgs, err := s.store.ListOrgs(ctx)
 	if err != nil {
@@ -363,6 +460,38 @@ func defaultID(id string, prefix string) string {
 		return fmt.Sprintf("%s-%d", prefix, time.Now().UnixNano())
 	}
 	return prefix + "-" + hex.EncodeToString(random)
+}
+
+func validateRepositoryURL(raw string) error {
+	if strings.TrimSpace(raw) == "" {
+		return fmt.Errorf("%w: repository url is required", ErrInvalid)
+	}
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" {
+		return fmt.Errorf("%w: repository url must include a scheme", ErrInvalid)
+	}
+	switch parsed.Scheme {
+	case "https", "http", "ssh", "git":
+		return nil
+	default:
+		return fmt.Errorf("%w: unsupported repository url scheme %q", ErrInvalid, parsed.Scheme)
+	}
+}
+
+func defaultProvider(provider string) string {
+	provider = strings.TrimSpace(strings.ToLower(provider))
+	if provider == "" {
+		return "generic"
+	}
+	return provider
+}
+
+func defaultBranch(branch string) string {
+	branch = strings.TrimSpace(branch)
+	if branch == "" {
+		return "main"
+	}
+	return branch
 }
 
 func defaultSlug(slug string, name string) string {

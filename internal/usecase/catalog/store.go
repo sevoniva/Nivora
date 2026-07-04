@@ -18,6 +18,7 @@ type MemoryStore struct {
 	projects     map[string]domainproject.Project
 	applications map[string]domainapp.Application
 	environments map[string]domainenv.Environment
+	repositories map[string]domainapp.Repository
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -26,6 +27,7 @@ func NewMemoryStore() *MemoryStore {
 		projects:     map[string]domainproject.Project{},
 		applications: map[string]domainapp.Application{},
 		environments: map[string]domainenv.Environment{},
+		repositories: map[string]domainapp.Repository{},
 	}
 }
 
@@ -199,6 +201,49 @@ func (s *MemoryStore) UpdateEnvironment(ctx context.Context, environment domaine
 	return copyEnvironment(environment), nil
 }
 
+func (s *MemoryStore) CreateRepository(ctx context.Context, repository domainapp.Repository) (domainapp.Repository, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.repositories[repository.ID]; ok {
+		return domainapp.Repository{}, fmt.Errorf("%w: repository id %q", ErrAlreadyExists, repository.ID)
+	}
+	s.repositories[repository.ID] = copyRepository(repository)
+	return copyRepository(repository), nil
+}
+
+func (s *MemoryStore) GetRepository(ctx context.Context, id string) (domainapp.Repository, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	repository, ok := s.repositories[id]
+	if !ok {
+		return domainapp.Repository{}, fmt.Errorf("%w: repository %q", ErrNotFound, id)
+	}
+	return copyRepository(repository), nil
+}
+
+func (s *MemoryStore) ListRepositories(ctx context.Context, projectID string) ([]domainapp.Repository, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]domainapp.Repository, 0, len(s.repositories))
+	for _, repository := range s.repositories {
+		if projectID == "" || repository.ProjectID == projectID {
+			out = append(out, copyRepository(repository))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (s *MemoryStore) UpdateRepository(ctx context.Context, repository domainapp.Repository) (domainapp.Repository, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.repositories[repository.ID]; !ok {
+		return domainapp.Repository{}, fmt.Errorf("%w: repository %q", ErrNotFound, repository.ID)
+	}
+	s.repositories[repository.ID] = copyRepository(repository)
+	return copyRepository(repository), nil
+}
+
 func copyOrg(org domainorg.Org) domainorg.Org {
 	org.Labels = copyMap(org.Labels)
 	org.Metadata = copyMap(org.Metadata)
@@ -221,4 +266,10 @@ func copyEnvironment(environment domainenv.Environment) domainenv.Environment {
 	environment.Labels = copyMap(environment.Labels)
 	environment.Metadata = copyMap(environment.Metadata)
 	return environment
+}
+
+func copyRepository(repository domainapp.Repository) domainapp.Repository {
+	repository.Labels = copyMap(repository.Labels)
+	repository.Metadata = copyMap(repository.Metadata)
+	return repository
 }

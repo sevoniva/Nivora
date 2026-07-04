@@ -31,6 +31,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	r := chi.NewRouter()
 	runtimeCenter := runtimecenter.NewService(pipelineService, deploymentService, releaseService)
 	catalogService := catalogusecase.NewService(catalogusecase.NewMemoryStore())
+	pipelineCatalog := pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore())
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
 	r.Use(middleware.RealIP)
@@ -109,6 +110,11 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetRepository(catalogService)))
 		api.Patch("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.UpdateRepository(catalogService)))
 		api.Delete("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.DisableRepository(catalogService)))
+		api.Get("/pipelines", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListPipelineDefinitions(pipelineCatalog)))
+		api.Post("/pipelines", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.CreatePipelineDefinition(pipelineCatalog)))
+		api.Get("/pipelines/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPipelineDefinition(pipelineCatalog)))
+		api.Patch("/pipelines/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.UpdatePipelineDefinition(pipelineCatalog)))
+		api.Delete("/pipelines/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.DisablePipelineDefinition(pipelineCatalog)))
 		api.Get("/pipeline-runs", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListPipelineRuns(pipelineService)))
 		api.Post("/pipeline-runs", apimiddleware.RequirePermission(authService, "pipeline.run", handlers.RespondError, handlers.CreatePipelineRun(pipelineService)))
 		api.Get("/pipeline-runs/{id}", handlers.GetPipelineRun(pipelineService))
@@ -265,7 +271,6 @@ type routeGroup struct {
 func placeholderGroups() []routeGroup {
 	return []routeGroup{
 		{"/artifact-registries", "artifact registries"},
-		{"/pipelines", "pipelines"},
 		{"/policies", "policies"},
 		{"/audit-logs", "audit logs"},
 		{"/events", "events"},

@@ -49,19 +49,24 @@ func (s JobRunStatus) Valid() bool {
 }
 
 type Pipeline struct {
-	ID        string    `json:"id"`
-	ProjectID string    `json:"projectId,omitempty"`
-	Name      string    `json:"name"`
-	CreatedAt time.Time `json:"createdAt"`
-	UpdatedAt time.Time `json:"updatedAt"`
+	ID          string            `json:"id"`
+	ProjectID   string            `json:"projectId,omitempty"`
+	Name        string            `json:"name"`
+	Description string            `json:"description,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty"`
+	Enabled     bool              `json:"enabled"`
+	CreatedAt   time.Time         `json:"createdAt"`
+	UpdatedAt   time.Time         `json:"updatedAt"`
 }
 
 type PipelineVersion struct {
-	ID         string    `json:"id"`
-	PipelineID string    `json:"pipelineId"`
-	Version    int       `json:"version"`
-	CreatedAt  time.Time `json:"createdAt"`
-	UpdatedAt  time.Time `json:"updatedAt"`
+	ID             string    `json:"id"`
+	PipelineID     string    `json:"pipelineId"`
+	Version        int       `json:"version"`
+	DefinitionHash string    `json:"definitionHash,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
 }
 
 type PipelineRun struct {

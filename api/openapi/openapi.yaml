@@ -1225,10 +1225,81 @@ paths:
                 $ref: "#/components/schemas/CredentialValidationResult"
   /api/v1/pipelines:
     get:
-      summary: Pipelines placeholder
+      summary: List pipeline definitions
+      parameters:
+        - name: projectId
+          in: query
+          required: false
+          schema:
+            type: string
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Pipeline definition list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pipelines:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PipelineDefinitionRecord"
+    post:
+      summary: Create pipeline definition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PipelineDefinitionCreateRequest"
+      responses:
+        "201":
+          description: Pipeline definition created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineDefinitionRecord"
+  /api/v1/pipelines/{id}:
+    get:
+      summary: Get pipeline definition
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Pipeline definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineDefinitionRecord"
+    patch:
+      summary: Update pipeline definition
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PipelineDefinitionUpdateRequest"
+      responses:
+        "200":
+          description: Pipeline definition updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineDefinitionRecord"
+    delete:
+      summary: Disable pipeline definition
+      description: Disables the pipeline definition instead of hard-deleting it.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Pipeline definition disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineDefinitionRecord"
   /api/v1/pipeline-runs:
     get:
       summary: List PipelineRuns in the in-memory Phase 1.5 runtime
@@ -4979,6 +5050,86 @@ components:
               type: string
         spec:
           $ref: "#/components/schemas/PipelineSpec"
+    PipelineCatalogItem:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PipelineCatalogVersion:
+      type: object
+      properties:
+        id:
+          type: string
+        pipelineId:
+          type: string
+        version:
+          type: integer
+        definitionHash:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PipelineDefinitionRecord:
+      type: object
+      properties:
+        pipeline:
+          $ref: "#/components/schemas/PipelineCatalogItem"
+        version:
+          $ref: "#/components/schemas/PipelineCatalogVersion"
+        definition:
+          $ref: "#/components/schemas/PipelineDefinition"
+    PipelineDefinitionCreateRequest:
+      type: object
+      required: [definition]
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        description:
+          type: string
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        enabled:
+          type: boolean
+        definition:
+          $ref: "#/components/schemas/PipelineDefinition"
+    PipelineDefinitionUpdateRequest:
+      type: object
+      properties:
+        description:
+          type: string
+        labels:
+          $ref: "#/components/schemas/CatalogMetadata"
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        enabled:
+          type: boolean
+        definition:
+          $ref: "#/components/schemas/PipelineDefinition"
     PipelineSpec:
       type: object
       required: [stages]

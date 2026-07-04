@@ -38,8 +38,10 @@ Auth modes:
 | POST | `/api/v1/artifacts/inspect`, `/api/v1/artifacts/resolve` | `release.create` | project/application | user/service account | yes | no | yes | Registry credentials must remain behind SecretRef/CredentialRef. |
 | POST | `/api/v1/artifact-registries/validate` | `release.create` | project | user/service account | yes | no | yes | Validation must not echo credentials. |
 | Placeholder | `/api/v1/artifact-registries` | placeholder | project | user/service account | yes | no | yes | Full registry CRUD is not implemented. |
+| GET | `/api/v1/pipelines`, `/api/v1/pipelines/{id}` | `project.read` | project/pipeline | user/service account | yes | no | yes | Foundation pipeline definition catalog. |
+| POST | `/api/v1/pipelines` | `project.write` | project/pipeline | user/service account | yes | no | yes | Creates a validated Pipeline definition record; does not execute it. |
+| PATCH/DELETE | `/api/v1/pipelines/{id}` | `project.write` | project/pipeline | user/service account | yes | no | yes | Update can create a new definition version; delete disables instead of hard-deleting. |
 | GET/POST | `/api/v1/pipeline-runs*` | `project.read` for list, `pipeline.run` for create/cancel | project | user/service account | yes | no | yes | Shell executor is not a sandbox. |
-| Placeholder | `/api/v1/pipelines` | placeholder | project | user/service account | yes | no | yes | Pipeline CRUD placeholder only. |
 | GET | `/api/v1/runners`, `/api/v1/runners/{id}` | `runner.manage` | runner group/project | user/service account | yes | no | yes | Runner metadata includes token metadata only, never token hashes/raw values. |
 | POST | `/api/v1/runners/register`, `/api/v1/runners/{id}/token/*`, `/api/v1/runners/offline-detect` | `runner.manage` | runner group/project | user/service account | yes | no | yes | Raw runner token returned only at registration/rotation. |
 | POST | `/api/v1/runners/{id}/heartbeat` | runner token for same runner | runner | runner | yes | yes | no | Runner token scoped to URL runner id and validated by usecase. |

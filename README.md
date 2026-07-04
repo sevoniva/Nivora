@@ -936,6 +936,8 @@ go run ./cmd/nivora release plan --file examples/releases/multi-target-release.y
 go run ./cmd/nivora release deploy --file examples/releases/sequential-release.yaml --local
 ```
 
+Server-backed release and deployment commands are RBAC-protected. Use `--token-env NIVORA_AUTH_TOKEN` for server calls instead of passing token values directly.
+
 This is not a production workflow engine. Parallel execution, durable approvals, host/cloud targets, and production GitOps automation remain future work.
 
 Run a minimal shell PipelineRun through the API:

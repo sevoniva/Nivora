@@ -60,8 +60,8 @@ nivora approvals reject <id> --comment "not ready" --token-env NIVORA_AUTH_TOKEN
 nivora approvals cancel <id> --comment "superseded" --token-env NIVORA_AUTH_TOKEN
 nivora approvals expire <id> --comment "expired" --token-env NIVORA_AUTH_TOKEN
 nivora approvals resume <id> --token-env NIVORA_AUTH_TOKEN
-nivora deployment resume <deployment-run-id> --approval-status Approved
-nivora release execution resume <execution-id> --approval-status Approved
+nivora deployment resume <deployment-run-id> --approval-status Approved --token-env NIVORA_AUTH_TOKEN
+nivora release execution resume <execution-id> --approval-status Approved --token-env NIVORA_AUTH_TOKEN
 ```
 
 ## Notes

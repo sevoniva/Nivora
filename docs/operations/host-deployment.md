@@ -34,7 +34,7 @@ The noop executor records per-host details, logs, events, audit records, and tim
 For a running server, the CLI can submit the same dry-run/noop host definition through the existing DeploymentRun API:
 
 ```sh
-nivora deployment host run --file examples/deployments/host-dry-run.yaml --local=false --server http://localhost:8080
+nivora deployment host run --file examples/deployments/host-dry-run.yaml --local=false --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
 ```
 
 Server-backed host run is intentionally limited to dry-run/noop input. The CLI rejects server-backed host runs that request `options.apply: true`, `host.allowRemoteHostDeploy: true`, `--confirm`, or `--allow-remote-host-deploy`.
@@ -63,7 +63,7 @@ host:
 Host rollback is guarded and restores the `current` symlink from `previous`. It does not delete release directories by default.
 
 ```sh
-nivora deployment rollback <deployment-run-id> --confirm
+nivora deployment rollback <deployment-run-id> --confirm --token-env NIVORA_AUTH_TOKEN
 ```
 
 Real service restart behavior should use `serviceName` or `restartCommand`, and credentials must be supplied by SecretRef/CredentialRef.

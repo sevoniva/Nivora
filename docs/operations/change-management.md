@@ -33,8 +33,8 @@ nivora approvals approve <id> --comment "approved for current window" --token-en
 nivora approvals reject <id> --comment "policy exception not accepted" --token-env NIVORA_AUTH_TOKEN
 nivora approvals cancel <id> --comment "superseded" --token-env NIVORA_AUTH_TOKEN
 nivora approvals expire <id> --comment "window expired" --token-env NIVORA_AUTH_TOKEN
-nivora deployment resume <deployment-run-id> --approval-status Approved
-nivora release execution resume <execution-id> --approval-status Approved
+nivora deployment resume <deployment-run-id> --approval-status Approved --token-env NIVORA_AUTH_TOKEN
+nivora release execution resume <execution-id> --approval-status Approved --token-env NIVORA_AUTH_TOKEN
 nivora change-window create --file examples/change-windows/prod-window.yaml --token-env NIVORA_AUTH_TOKEN
 nivora change-window list --token-env NIVORA_AUTH_TOKEN
 nivora change-window get <change-window-id> --token-env NIVORA_AUTH_TOKEN

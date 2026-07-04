@@ -3336,6 +3336,7 @@ func newReleaseCreateCommand() *cobra.Command {
 	var file string
 	var local bool
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "create --file <release.yaml>",
 		Short: "Create a release and bind artifacts",
@@ -3352,7 +3353,7 @@ func newReleaseCreateCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases", body)
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases", body, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
@@ -3375,17 +3376,19 @@ func newReleaseCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&file, "file", "", "release definition file")
 	cmd.Flags().BoolVar(&local, "local", true, "create release in the in-process local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token for --local=false")
 	return cmd
 }
 
 func newReleaseGetCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "get <release-id>",
 		Short: "Get a release from a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+args[0], nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3394,17 +3397,19 @@ func newReleaseGetCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newReleaseArtifactsCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "artifacts <release-id>",
 		Short: "List release artifacts from a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+args[0]+"/artifacts", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+url.PathEscape(args[0])+"/artifacts", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3413,17 +3418,19 @@ func newReleaseArtifactsCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newReleaseCancelCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "cancel <release-id>",
 		Short: "Cancel a Release record without executing rollback or deployment actions",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/"+args[0]+"/cancel", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/"+url.PathEscape(args[0])+"/cancel", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3432,17 +3439,19 @@ func newReleaseCancelCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newReleaseSecurityCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "security <release-id>",
 		Short: "Get release security gate output from a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+args[0]+"/security", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/"+url.PathEscape(args[0])+"/security", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3451,11 +3460,13 @@ func newReleaseSecurityCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newReleaseEvidenceCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var format string
 	cmd := &cobra.Command{
 		Use:   "evidence <release-id>",
@@ -3463,7 +3474,7 @@ func newReleaseEvidenceCommand() *cobra.Command {
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if format == "" || format == "json" {
-				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/"+args[0]+"/evidence", nil)
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/"+url.PathEscape(args[0])+"/evidence", nil, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
@@ -3473,7 +3484,7 @@ func newReleaseEvidenceCommand() *cobra.Command {
 			if format != "markdown" {
 				return fmt.Errorf("--format must be json or markdown")
 			}
-			body, err := doRaw(cmd.Context(), http.MethodGet, serverURL, "/api/v1/evidence/release/"+args[0]+"?format=markdown", nil)
+			body, err := doRawWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/evidence/release/"+url.PathEscape(args[0])+"?format=markdown", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3482,6 +3493,7 @@ func newReleaseEvidenceCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&format, "format", "json", "evidence output format: json or markdown")
 	return cmd
 }
@@ -3490,6 +3502,7 @@ func newReleasePlanCommand() *cobra.Command {
 	var file string
 	var local bool
 	var serverURL string
+	var tokenEnv string
 	var environment string
 	var strategy string
 	var targets []string
@@ -3507,11 +3520,11 @@ func newReleasePlanCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				path := "/api/v1/releases/" + def.Spec.ReleaseID + "/plan"
+				path := "/api/v1/releases/" + url.PathEscape(def.Spec.ReleaseID) + "/plan"
 				if def.Spec.ReleaseID == "" {
 					path = "/api/v1/releases/local/plan"
 				}
-				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, path, body)
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, path, body, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
@@ -3529,6 +3542,7 @@ func newReleasePlanCommand() *cobra.Command {
 	cmd.Flags().StringVar(&file, "file", "", "release orchestration definition file")
 	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 2.7 local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token for --local=false")
 	cmd.Flags().StringVar(&environment, "environment", "", "environment name for Release ID mode")
 	cmd.Flags().StringVar(&strategy, "strategy", "", "execution strategy for Release ID mode: plan-only, sequential, or parallel")
 	cmd.Flags().StringArrayVar(&targets, "target", nil, "target for Release ID mode, repeated as name[:type]; only noop/webhook targets are accepted without --file")
@@ -3539,6 +3553,7 @@ func newReleaseDeployCommand() *cobra.Command {
 	var file string
 	var local bool
 	var serverURL string
+	var tokenEnv string
 	var environment string
 	var strategy string
 	var targets []string
@@ -3556,11 +3571,11 @@ func newReleaseDeployCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				path := "/api/v1/releases/" + def.Spec.ReleaseID + "/deploy"
+				path := "/api/v1/releases/" + url.PathEscape(def.Spec.ReleaseID) + "/deploy"
 				if def.Spec.ReleaseID == "" {
 					path = "/api/v1/releases/local/deploy"
 				}
-				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, path, body)
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, path, body, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
@@ -3586,6 +3601,7 @@ func newReleaseDeployCommand() *cobra.Command {
 	cmd.Flags().StringVar(&file, "file", "", "release orchestration definition file")
 	cmd.Flags().BoolVar(&local, "local", true, "deploy with the in-process Phase 2.7 local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token for --local=false")
 	cmd.Flags().StringVar(&environment, "environment", "", "environment name for Release ID mode")
 	cmd.Flags().StringVar(&strategy, "strategy", "", "execution strategy for Release ID mode: plan-only, sequential, or parallel")
 	cmd.Flags().StringArrayVar(&targets, "target", nil, "target for Release ID mode, repeated as name[:type]; only noop/webhook targets are accepted without --file")
@@ -3697,12 +3713,13 @@ func newReleaseExecutionCommand() *cobra.Command {
 
 func newReleaseExecutionInspectCommand(name string, short string, suffix string) *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   name + " <execution-id>",
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/executions/"+args[0]+suffix, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/releases/executions/"+url.PathEscape(args[0])+suffix, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3711,17 +3728,19 @@ func newReleaseExecutionInspectCommand(name string, short string, suffix string)
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newReleaseExecutionCancelCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "cancel <execution-id>",
 		Short: "Cancel a ReleaseExecution on a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/executions/"+args[0]+"/cancel", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/executions/"+url.PathEscape(args[0])+"/cancel", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3730,11 +3749,13 @@ func newReleaseExecutionCancelCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newReleaseExecutionResumeCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var status string
 	cmd := &cobra.Command{
 		Use:   "resume <execution-id> --approval-status Approved",
@@ -3745,7 +3766,7 @@ func newReleaseExecutionResumeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/executions/"+args[0]+"/resume", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/releases/executions/"+url.PathEscape(args[0])+"/resume", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -3754,6 +3775,7 @@ func newReleaseExecutionResumeCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&status, "approval-status", "Approved", "approval status: Approved, Rejected, Expired, or Canceled")
 	return cmd
 }
@@ -4308,6 +4330,7 @@ func newDeploymentHostCommand() *cobra.Command {
 func newDeploymentHostPlanCommand() *cobra.Command {
 	var local bool
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "plan --file <deployment.yaml>",
 		Short: "Build a safe host deployment plan",
@@ -4328,7 +4351,7 @@ func newDeploymentHostPlanCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/host/plan", body)
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/host/plan", body, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
@@ -4346,6 +4369,7 @@ func newDeploymentHostPlanCommand() *cobra.Command {
 	cmd.Flags().String("file", "", "host deployment definition file")
 	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process local host runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token for --local=false")
 	return cmd
 }
 
@@ -4354,6 +4378,7 @@ func newDeploymentHostRunCommand() *cobra.Command {
 	var confirm bool
 	var allowRemote bool
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "run --file <deployment.yaml>",
 		Short: "Run a host DeploymentRun through the safe local/noop or server runtime",
@@ -4377,7 +4402,7 @@ func newDeploymentHostRunCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments", body)
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments", body, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
@@ -4405,12 +4430,14 @@ func newDeploymentHostRunCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm explicit host apply")
 	cmd.Flags().BoolVar(&allowRemote, "allow-remote-host-deploy", false, "allow guarded remote host deployment when the spec also opts in")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token for --local=false")
 	return cmd
 }
 
 func newDeploymentLocalInspectCommand(name string, short string, suffix string, selector func(deploymentusecase.RunRecord) any) *cobra.Command {
 	var local bool
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   name + " [--local <deployment.yaml> | <deployment-run-id>]",
 		Short: short,
@@ -4428,7 +4455,7 @@ func newDeploymentLocalInspectCommand(name string, short string, suffix string, 
 				printJSON(cmd.OutOrStdout(), selector(result.Record))
 				return nil
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/deployments/"+args[0]+suffix, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/deployments/"+url.PathEscape(args[0])+suffix, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4438,12 +4465,14 @@ func newDeploymentLocalInspectCommand(name string, short string, suffix string, 
 	}
 	cmd.Flags().BoolVar(&local, "local", false, "evaluate a local deployment definition instead of querying a server")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newDeploymentPlanCommand() *cobra.Command {
 	var local bool
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "plan --local <deployment.yaml>",
 		Short: "Render and plan a YAML DeploymentRun locally or against a Nivora server",
@@ -4461,7 +4490,7 @@ func newDeploymentPlanCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/plan", body)
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/plan", body, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
@@ -4478,12 +4507,14 @@ func newDeploymentPlanCommand() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&local, "local", true, "plan with the in-process Phase 2.2 local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token for --local=false")
 	return cmd
 }
 
 func newDeploymentRunCommand() *cobra.Command {
 	var local bool
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "run --local <deployment.yaml>",
 		Short: "Run a non-destructive YAML DeploymentRun locally or against a Nivora server",
@@ -4501,7 +4532,7 @@ func newDeploymentRunCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments", body)
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments", body, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
@@ -4526,6 +4557,7 @@ func newDeploymentRunCommand() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process Phase 2.2 local runtime")
 	cmd.Flags().StringVar(&serverURL, "server", "", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token for --local=false")
 	return cmd
 }
 
@@ -4540,6 +4572,7 @@ func newDeploymentApplyCommand() *cobra.Command {
 	var local bool
 	var confirm bool
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "apply --local <deployment.yaml> --confirm",
 		Short: "Run an explicit local YAML apply through the configured manifest client",
@@ -4559,7 +4592,7 @@ func newDeploymentApplyCommand() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/apply", body)
+				payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/apply", body, os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
@@ -4587,12 +4620,14 @@ func newDeploymentApplyCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&local, "local", true, "apply with the in-process Phase 2.2 local runtime")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm explicit local apply")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token for --local=false")
 	return cmd
 }
 
 func newDeploymentRollbackCommand() *cobra.Command {
 	var confirm bool
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "rollback <deployment-run-id> --confirm",
 		Short: "Run a guarded manifest-restore rollback for a DeploymentRun",
@@ -4605,7 +4640,7 @@ func newDeploymentRollbackCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+args[0]+"/rollback", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+url.PathEscape(args[0])+"/rollback", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4615,17 +4650,19 @@ func newDeploymentRollbackCommand() *cobra.Command {
 	}
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm guarded rollback")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newDeploymentGetCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "get <deployment-run-id>",
 		Short: "Get a DeploymentRun from a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/deployments/"+args[0], nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/deployments/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4634,17 +4671,19 @@ func newDeploymentGetCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newDeploymentInspectCommand(name string, short string, suffix string) *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   name + " <deployment-run-id>",
 		Short: short,
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/deployments/"+args[0]+suffix, nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/deployments/"+url.PathEscape(args[0])+suffix, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4653,17 +4692,19 @@ func newDeploymentInspectCommand(name string, short string, suffix string) *cobr
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newDeploymentCancelCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
 		Use:   "cancel <deployment-run-id>",
 		Short: "Cancel a DeploymentRun on a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+args[0]+"/cancel", nil)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+url.PathEscape(args[0])+"/cancel", nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4672,11 +4713,13 @@ func newDeploymentCancelCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 
 func newDeploymentResumeCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var status string
 	cmd := &cobra.Command{
 		Use:   "resume <deployment-run-id> --approval-status Approved",
@@ -4687,7 +4730,7 @@ func newDeploymentResumeCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+args[0]+"/resume", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+url.PathEscape(args[0])+"/resume", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4696,12 +4739,14 @@ func newDeploymentResumeCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&status, "approval-status", "Approved", "approval status: Approved, Rejected, Expired, or Canceled")
 	return cmd
 }
 
 func newDeploymentSyncCommand() *cobra.Command {
 	var serverURL string
+	var tokenEnv string
 	var confirm bool
 	var allowSync bool
 	cmd := &cobra.Command{
@@ -4716,7 +4761,7 @@ func newDeploymentSyncCommand() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+args[0]+"/sync", body)
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/deployments/"+url.PathEscape(args[0])+"/sync", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4725,6 +4770,7 @@ func newDeploymentSyncCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm sync request")
 	cmd.Flags().BoolVar(&allowSync, "allow-sync", false, "allow guarded sync request")
 	return cmd
@@ -5476,6 +5522,10 @@ func withQuery(path string, values url.Values) string {
 }
 
 func doRaw(ctx context.Context, method string, serverURL string, path string, body []byte) ([]byte, error) {
+	return doRawWithToken(ctx, method, serverURL, path, body, "")
+}
+
+func doRawWithToken(ctx context.Context, method string, serverURL string, path string, body []byte, token string) ([]byte, error) {
 	if serverURL == "" {
 		return nil, fmt.Errorf("server URL is required")
 	}
@@ -5485,6 +5535,9 @@ func doRaw(ctx context.Context, method string, serverURL string, path string, bo
 	}
 	if body != nil {
 		req.Header.Set("Content-Type", "application/json")
+	}
+	if token != "" {
+		req.Header.Set("Authorization", "Bearer "+token)
 	}
 	resp, err := http.DefaultClient.Do(req)
 	if err != nil {

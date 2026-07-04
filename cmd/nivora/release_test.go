@@ -2,8 +2,14 @@ package main
 
 import (
 	"bytes"
+	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestReleaseCommandIncludesEvidenceAndCancel(t *testing.T) {
@@ -89,4 +95,171 @@ func TestReleaseIDModeRejectsExplicitLocalMode(t *testing.T) {
 	if err == nil || !strings.Contains(err.Error(), "server-backed release state") {
 		t.Fatalf("expected server-backed error, got err=%v out=%s", err, out.String())
 	}
+}
+
+func TestReleaseServerCommandsUseBearerToken(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "release-token")
+	releaseFile := writeReleaseDefinition(t)
+	tests := []struct {
+		name       string
+		cmd        *cobra.Command
+		args       []string
+		wantMethod string
+		wantPath   string
+		wantQuery  string
+		response   string
+	}{
+		{
+			name:       "create",
+			cmd:        newReleaseCreateCommand(),
+			args:       []string{"--file", releaseFile, "--local=false", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/v1/releases",
+			response:   `{"release":{"id":"rel-1","version":"1.0.0"}}`,
+		},
+		{
+			name:       "get",
+			cmd:        newReleaseGetCommand(),
+			args:       []string{"rel-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/v1/releases/rel-1",
+			response:   `{"id":"rel-1"}`,
+		},
+		{
+			name:       "artifacts",
+			cmd:        newReleaseArtifactsCommand(),
+			args:       []string{"rel-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/v1/releases/rel-1/artifacts",
+			response:   `[{"id":"artifact-1"}]`,
+		},
+		{
+			name:       "cancel",
+			cmd:        newReleaseCancelCommand(),
+			args:       []string{"rel-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/v1/releases/rel-1/cancel",
+			response:   `{"id":"rel-1","status":"Canceled"}`,
+		},
+		{
+			name:       "security",
+			cmd:        newReleaseSecurityCommand(),
+			args:       []string{"rel-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/v1/releases/rel-1/security",
+			response:   `{"releaseId":"rel-1"}`,
+		},
+		{
+			name:       "evidence json",
+			cmd:        newReleaseEvidenceCommand(),
+			args:       []string{"rel-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/v1/releases/rel-1/evidence",
+			response:   `{"id":"evidence-1"}`,
+		},
+		{
+			name:       "evidence markdown",
+			cmd:        newReleaseEvidenceCommand(),
+			args:       []string{"rel-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN", "--format", "markdown"},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/v1/evidence/release/rel-1",
+			wantQuery:  "format=markdown",
+			response:   `# Evidence`,
+		},
+		{
+			name:       "plan",
+			cmd:        newReleasePlanCommand(),
+			args:       []string{"rel-1", "--environment", "dev", "--target", "audit-only", "--local=false", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/v1/releases/rel-1/plan",
+			response:   `{"id":"rplan-1"}`,
+		},
+		{
+			name:       "deploy",
+			cmd:        newReleaseDeployCommand(),
+			args:       []string{"rel-1", "--environment", "dev", "--target", "audit-only", "--local=false", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/v1/releases/rel-1/deploy",
+			response:   `{"id":"rexec-1"}`,
+		},
+		{
+			name:       "execution get",
+			cmd:        newReleaseExecutionInspectCommand("get", "Get a ReleaseExecution", ""),
+			args:       []string{"rexec-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodGet,
+			wantPath:   "/api/v1/releases/executions/rexec-1",
+			response:   `{"id":"rexec-1"}`,
+		},
+		{
+			name:       "execution cancel",
+			cmd:        newReleaseExecutionCancelCommand(),
+			args:       []string{"rexec-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/v1/releases/executions/rexec-1/cancel",
+			response:   `{"id":"rexec-1","status":"Canceled"}`,
+		},
+		{
+			name:       "execution resume",
+			cmd:        newReleaseExecutionResumeCommand(),
+			args:       []string{"rexec-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN", "--approval-status", "Approved"},
+			wantMethod: http.MethodPost,
+			wantPath:   "/api/v1/releases/executions/rexec-1/resume",
+			response:   `{"id":"rexec-1","status":"Running"}`,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			var called bool
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				called = true
+				if r.Method != tt.wantMethod || r.URL.Path != tt.wantPath {
+					t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+				}
+				if tt.wantQuery != "" && r.URL.RawQuery != tt.wantQuery {
+					t.Fatalf("query = %q, want %q", r.URL.RawQuery, tt.wantQuery)
+				}
+				if got := r.Header.Get("Authorization"); got != "Bearer release-token" {
+					t.Fatalf("Authorization header = %q", got)
+				}
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = w.Write([]byte(tt.response))
+			}))
+			defer server.Close()
+
+			args := replaceServerURL(tt.args, server.URL)
+			var out bytes.Buffer
+			tt.cmd.SetOut(&out)
+			tt.cmd.SetErr(&out)
+			tt.cmd.SetArgs(args)
+			if err := tt.cmd.Execute(); err != nil {
+				t.Fatalf("%s failed: %v output=%s", tt.name, err, out.String())
+			}
+			if !called {
+				t.Fatalf("%s did not call server", tt.name)
+			}
+		})
+	}
+}
+
+func writeReleaseDefinition(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "release.yaml")
+	content := `apiVersion: nivora.io/v1alpha1
+kind: Release
+metadata:
+  name: demo-release
+spec:
+  version: 1.0.0
+  application: demo
+  environment: dev
+  artifacts:
+    - name: demo
+      type: image
+      reference: example.invalid/sevoniva/demo:1.0.0
+`
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write release file: %v", err)
+	}
+	return path
 }

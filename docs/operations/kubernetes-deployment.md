@@ -55,8 +55,10 @@ nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --con
 Guarded server-backed rollback:
 
 ```sh
-nivora deployment rollback <deployment-run-id> --confirm
+nivora deployment rollback <deployment-run-id> --confirm --token-env NIVORA_AUTH_TOKEN
 ```
+
+Server-backed deployment reads, apply, rollback, and sync commands use `--token-env` for the Nivora API bearer token. Local `--local` planning and dry-run commands do not need a server token.
 
 ## API
 

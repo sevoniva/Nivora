@@ -180,6 +180,8 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/pipelines/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPipelineDefinition(pipelineCatalog)))
 		api.Patch("/pipelines/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.UpdatePipelineDefinition(pipelineCatalog)))
 		api.Delete("/pipelines/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.DisablePipelineDefinition(pipelineCatalog)))
+		api.Get("/pipelines/{id}/versions", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListPipelineDefinitionVersions(pipelineCatalog)))
+		api.Post("/pipelines/{id}/runs", apimiddleware.RequirePermission(authService, "pipeline.run", handlers.RespondError, handlers.RunPipelineDefinition(pipelineCatalog, pipelineService)))
 		api.Get("/pipeline-runs", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListPipelineRuns(pipelineService)))
 		api.Post("/pipeline-runs", apimiddleware.RequirePermission(authService, "pipeline.run", handlers.RespondError, handlers.CreatePipelineRun(pipelineService)))
 		api.Get("/pipeline-runs/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPipelineRun(pipelineService)))

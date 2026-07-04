@@ -279,6 +279,54 @@ func TestTenantIsolationPipelineRunDetailRoutes(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationPipelineDefinitionCatalogRoutes(t *testing.T) {
+	router, auth := newIsoRouter(t)
+	tokenA := createScopedToken(t, auth, "pipeline-def-a", domainauth.RoleMaintainer, "project", "project-a")
+	tokenB := createScopedToken(t, auth, "pipeline-def-b", domainauth.RoleDeveloper, "project", "project-b")
+	defID := createProjectPipelineDefinition(t, router, tokenA, "pipeline-def-a")
+
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/pipelines/"+defID, nil)
+	req.Header.Set("Authorization", "Bearer "+tokenA)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-A should read own pipeline definition, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	for _, path := range []string{
+		"/api/v1/pipelines/" + defID,
+		"/api/v1/pipelines/" + defID + "/versions",
+	} {
+		req = httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+tokenB)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("project-B should be forbidden for %s, got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+defID+"/runs", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-B should be forbidden from running project-A definition, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipelines", nil)
+	req.Header.Set("Authorization", "Bearer "+tokenB)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-B should list scoped pipeline definitions, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	body := rec.Body.String()
+	if strings.Contains(body, defID) || strings.Contains(body, "project-a") || strings.Contains(body, "pipeline-def-a") {
+		t.Fatalf("project-B pipeline definition list leaked project-A data, body=%s", body)
+	}
+}
+
 func TestTenantIsolationListDeployments(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	tokenA := createScopedToken(t, auth, "deploy-list-a", domainauth.RoleDeveloper, "project", "project-a")
@@ -554,6 +602,34 @@ func createProjectPipelineRun(t *testing.T, router http.Handler, token, name str
 	id, ok := run["id"].(string)
 	if !ok || id == "" {
 		t.Fatalf("pipeline create response missing run id: %s", rec.Body.String())
+	}
+	return id
+}
+
+func createProjectPipelineDefinition(t *testing.T, router http.Handler, token, name string) string {
+	t.Helper()
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/pipelines", strings.NewReader(`{"projectId":"ignored-by-scoped-token","definition":{"apiVersion":"nivora.io/v1alpha1","kind":"Pipeline","metadata":{"name":"`+name+`"},"spec":{"stages":[{"name":"build","jobs":[{"name":"echo","executor":"shell","steps":[{"name":"say","run":"printf `+name+`"}]}]}]}}}`))
+	req.Header.Set("Authorization", "Bearer "+token)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for project pipeline definition create, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var body map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &body); err != nil {
+		t.Fatalf("decode pipeline definition create response: %v", err)
+	}
+	pipeline, ok := body["pipeline"].(map[string]any)
+	if !ok {
+		t.Fatalf("pipeline definition create response missing pipeline object: %s", rec.Body.String())
+	}
+	id, ok := pipeline["id"].(string)
+	if !ok || id == "" {
+		t.Fatalf("pipeline definition create response missing pipeline id: %s", rec.Body.String())
+	}
+	if projectID, _ := pipeline["projectId"].(string); projectID != "project-a" {
+		t.Fatalf("scoped token should force project-a projectId, got %q body=%s", projectID, rec.Body.String())
 	}
 	return id
 }

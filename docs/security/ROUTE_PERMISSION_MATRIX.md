@@ -40,8 +40,9 @@ Auth modes:
 | GET/POST/DELETE | `/api/v1/credentials*` | `credential.manage` | org/project/environment/runner/global | user/service account | yes | no | yes | Responses return metadata/SecretRef only. |
 | POST | `/api/v1/artifacts/inspect`, `/api/v1/artifacts/resolve` | `release.create` | project/application | user/service account | yes | no | yes | Registry credentials must remain behind SecretRef/CredentialRef. |
 | POST | `/api/v1/artifact-registries/validate` | authenticated foundation route | project | user/service account | yes | no | yes | Validation must not echo credentials. |
-| GET | `/api/v1/pipelines`, `/api/v1/pipelines/{id}` | `project.read` | project/pipeline | user/service account | yes | no | yes | Foundation pipeline definition catalog. |
+| GET | `/api/v1/pipelines`, `/api/v1/pipelines/{id}`, `/api/v1/pipelines/{id}/versions` | `project.read` | project/pipeline | user/service account | yes | no | yes | Foundation pipeline definition catalog. Version history currently returns the saved current version plus `historyComplete=false`. |
 | POST | `/api/v1/pipelines` | `project.write` | project/pipeline | user/service account | yes | no | yes | Creates a validated Pipeline definition record; does not execute it. |
+| POST | `/api/v1/pipelines/{id}/runs` | `pipeline.run` | project/pipeline | user/service account | yes | no | yes | Creates a PipelineRun from the saved definition and records `pipelineId`/`pipelineVersionId`; disabled definitions are rejected. |
 | PATCH/DELETE | `/api/v1/pipelines/{id}` | `project.write` | project/pipeline | user/service account | yes | no | yes | Update can create a new definition version; delete disables instead of hard-deleting. |
 | GET/POST | `/api/v1/pipeline-runs*` | `project.read` for list, `pipeline.run` for create/cancel | project | user/service account | yes | no | yes | Shell executor is not a sandbox; run detail/log/event/timeline reads are guarded by stored project scope. |
 | GET | `/api/v1/runners`, `/api/v1/runners/{id}` | `runner.manage` | runner group/project | user/service account | yes | no | yes | Runner metadata includes token metadata only, never token hashes/raw values. |

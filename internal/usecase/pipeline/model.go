@@ -120,10 +120,12 @@ type RuntimeRecoverySummary struct {
 }
 
 type CreateRunInput struct {
-	Definition    Definition
-	ProjectID     string
-	ActorID       string
-	CorrelationID string
+	Definition        Definition
+	ProjectID         string
+	PipelineID        string
+	PipelineVersionID string
+	ActorID           string
+	CorrelationID     string
 }
 
 type CreateRunResult struct {

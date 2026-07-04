@@ -53,6 +53,8 @@ var criticalRoutes = []struct {
 	{"DELETE", "/api/v1/repositories/repo-1", domainauth.PermissionProjectWrite, true},
 	{"GET", "/api/v1/pipelines", domainauth.PermissionProjectRead, false},
 	{"POST", "/api/v1/pipelines", domainauth.PermissionProjectWrite, true},
+	{"GET", "/api/v1/pipelines/pipe-1/versions", domainauth.PermissionProjectRead, false},
+	{"POST", "/api/v1/pipelines/pipe-1/runs", domainauth.PermissionPipelineRun, true},
 	{"PATCH", "/api/v1/pipelines/pipe-1", domainauth.PermissionProjectWrite, true},
 	{"DELETE", "/api/v1/pipelines/pipe-1", domainauth.PermissionProjectWrite, true},
 	{"GET", "/api/v1/service-accounts", domainauth.PermissionCredentialManage, false},

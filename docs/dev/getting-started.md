@@ -26,6 +26,17 @@ go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
 
 The command prints the PipelineRun ID, final status, duration, log count, and captured logs.
 
+## Store And Run A Pipeline Definition
+
+With a running server, Pipeline definitions can be stored in the catalog and then used to create a PipelineRun:
+
+```sh
+go run ./cmd/nivora pipeline definition create --server http://localhost:8080 --project-id project-a --file examples/pipelines/simple-shell.yaml
+go run ./cmd/nivora pipeline definition run <pipeline-id> --server http://localhost:8080
+```
+
+See [Pipeline Definition Catalog](pipeline-definitions.md) for the current API and CLI limits.
+
 ## Run the API Smoke Test
 
 ```sh
@@ -57,7 +68,7 @@ go run ./cmd/nivora pipeline timeline <pipeline-run-id> --server http://localhos
 
 ## Current Limitations
 
-- Runtime state is in memory.
+- The default local development config uses memory stores. Use `database.runtime_store: postgres` for production-like persistence testing.
 - Local CLI mode executes and prints a run but does not persist it across CLI invocations.
-- No production Kubernetes, Argo CD, cloud, Git provider, or full artifact registry integrations are implemented in this phase. Phase 2.2 includes local artifact reference parsing and ReleaseArtifact binding only.
+- No production Kubernetes, Argo CD, cloud, Git provider, or full artifact registry integrations are complete.
 - The project is not production-ready.

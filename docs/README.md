@@ -127,6 +127,7 @@ For a quick path through the project:
 ## Developer Checks
 
 - [API Contract Checks](dev/api-contract.md)
+- [Pipeline Definition Catalog](dev/pipeline-definitions.md)
 - [MCP Tools](dev/mcp-tools.md)
 - [Runtime Recovery Tests](dev/runtime-recovery-tests.md)
 - [Testing Strategy](dev/testing-strategy.md)

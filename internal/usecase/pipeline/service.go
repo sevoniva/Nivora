@@ -82,6 +82,13 @@ func (s *Service) CreateQueued(ctx context.Context, input CreateRunInput) (Creat
 
 	record := s.newRecord(input.Definition)
 	record.Pipeline.ProjectID = strings.TrimSpace(input.ProjectID)
+	if pipelineID := strings.TrimSpace(input.PipelineID); pipelineID != "" {
+		record.Pipeline.ID = pipelineID
+		record.Run.PipelineID = pipelineID
+	}
+	if versionID := strings.TrimSpace(input.PipelineVersionID); versionID != "" {
+		record.Run.PipelineVersionID = versionID
+	}
 	record.Run.CorrelationID = input.CorrelationID
 	if err := s.store.Save(ctx, record); err != nil {
 		return CreateRunResult{}, err

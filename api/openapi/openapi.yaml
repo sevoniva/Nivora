@@ -1662,9 +1662,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/PipelineDefinitionRecord"
+  /api/v1/pipelines/{id}/versions:
+    get:
+      summary: List pipeline definition versions
+      description: Returns the current saved Pipeline definition version. Historical version storage is foundation-level and not complete yet.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Pipeline definition version list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pipelineId:
+                    type: string
+                  versions:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PipelineCatalogVersion"
+                  historyComplete:
+                    type: boolean
+                  currentVersionId:
+                    type: string
+  /api/v1/pipelines/{id}/runs:
+    post:
+      summary: Run a saved pipeline definition
+      description: Creates and runs a PipelineRun from the currently saved Pipeline definition. Dangerous executor defaults are unchanged.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "201":
+          description: PipelineRun created from saved definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunRecord"
+        "409":
+          description: Pipeline definition is disabled
   /api/v1/pipeline-runs:
     get:
-      summary: List PipelineRuns in the in-memory Phase 1.5 runtime
+      summary: List PipelineRuns
       parameters:
         - $ref: "#/components/parameters/Limit"
         - $ref: "#/components/parameters/Offset"
@@ -6027,6 +6066,8 @@ components:
         pipelineId:
           type: string
           format: uuid
+        pipelineVersionId:
+          type: string
         correlationId:
           type: string
         status:

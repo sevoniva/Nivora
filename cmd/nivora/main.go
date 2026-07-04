@@ -3008,6 +3008,8 @@ func newPipelineCommand() *cobra.Command {
 	definitions.AddCommand(newPipelineDefinitionGetCommand())
 	definitions.AddCommand(newPipelineDefinitionUpdateCommand())
 	definitions.AddCommand(newPipelineDefinitionDisableCommand())
+	definitions.AddCommand(newPipelineDefinitionVersionsCommand())
+	definitions.AddCommand(newPipelineDefinitionRunCommand())
 	cmd.AddCommand(definitions)
 	cmd.AddCommand(newPipelineRunCommand())
 	cmd.AddCommand(newPipelineGetCommand())
@@ -3175,28 +3177,68 @@ func newPipelineDefinitionDisableCommand() *cobra.Command {
 	return cmd
 }
 
+func newPipelineDefinitionVersionsCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "versions <pipeline-id>",
+		Short: "List available versions for a pipeline definition",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/pipelines/"+args[0]+"/versions", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newPipelineDefinitionRunCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var printLogs bool
+	cmd := &cobra.Command{
+		Use:   "run <pipeline-id>",
+		Short: "Run a saved pipeline definition through a Nivora server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/pipelines/"+args[0]+"/runs", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printPipelineRunSummary(cmd.OutOrStdout(), payload)
+			if printLogs {
+				printLogSummary(cmd.OutOrStdout(), payload)
+			}
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().BoolVar(&printLogs, "logs", true, "print captured logs")
+	return cmd
+}
+
 func newPipelineRunCommand() *cobra.Command {
 	var local bool
 	var printLogs bool
 	var serverURL string
+	var tokenEnv string
 	cmd := &cobra.Command{
-		Use:   "run --local <pipeline.yaml>",
-		Short: "Run a pipeline definition locally or against a Nivora server",
+		Use:   "run --local <pipeline.yaml> | run --local=false <pipeline-id-or-yaml>",
+		Short: "Run a pipeline definition locally, from a saved catalog definition, or against a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			def, err := pipelineusecase.LoadDefinitionFile(args[0])
-			if err != nil {
-				return err
-			}
 			if !local {
 				if serverURL == "" {
 					return fmt.Errorf("--server is required when --local=false")
 				}
-				body, err := json.Marshal(def)
-				if err != nil {
-					return err
-				}
-				payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/pipeline-runs", body)
+				payload, err := runPipelineAgainstServer(cmd.Context(), serverURL, args[0], os.Getenv(tokenEnv))
 				if err != nil {
 					return err
 				}
@@ -3205,6 +3247,10 @@ func newPipelineRunCommand() *cobra.Command {
 					printLogSummary(cmd.OutOrStdout(), payload)
 				}
 				return nil
+			}
+			def, err := pipelineusecase.LoadDefinitionFile(args[0])
+			if err != nil {
+				return err
 			}
 			started := time.Now()
 			result, err := server.NewPipelineService().CreateAndRun(cmd.Context(), pipelineusecase.CreateRunInput{Definition: def})
@@ -3229,7 +3275,23 @@ func newPipelineRunCommand() *cobra.Command {
 	cmd.Flags().BoolVar(&local, "local", true, "run with the in-process Phase 1 local runtime")
 	cmd.Flags().BoolVar(&printLogs, "logs", true, "print captured logs")
 	cmd.Flags().StringVar(&serverURL, "server", "", "Nivora server URL for --local=false")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token for --local=false")
 	return cmd
+}
+
+func runPipelineAgainstServer(ctx context.Context, serverURL string, idOrFile string, token string) (any, error) {
+	if _, err := os.Stat(idOrFile); err == nil {
+		def, err := pipelineusecase.LoadDefinitionFile(idOrFile)
+		if err != nil {
+			return nil, err
+		}
+		body, err := json.Marshal(def)
+		if err != nil {
+			return nil, err
+		}
+		return doJSONWithToken(ctx, http.MethodPost, serverURL, "/api/v1/pipeline-runs", body, token)
+	}
+	return doJSONWithToken(ctx, http.MethodPost, serverURL, "/api/v1/pipelines/"+idOrFile+"/runs", nil, token)
 }
 
 func newPipelineGetCommand() *cobra.Command {

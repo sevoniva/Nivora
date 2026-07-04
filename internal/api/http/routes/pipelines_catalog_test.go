@@ -41,6 +41,33 @@ func TestPipelineDefinitionCatalogRoutes(t *testing.T) {
 		t.Fatalf("unexpected create response: %s", rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipelines/"+created.Pipeline.ID+"/versions", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), created.Version.DefinitionHash) {
+		t.Fatalf("versions status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+created.Pipeline.ID+"/runs", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("run from definition status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var runResponse struct {
+		Run struct {
+			PipelineID        string `json:"pipelineId"`
+			PipelineVersionID string `json:"pipelineVersionId"`
+			Status            string `json:"status"`
+		} `json:"run"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &runResponse); err != nil {
+		t.Fatalf("decode run response: %v", err)
+	}
+	if runResponse.Run.PipelineID != created.Pipeline.ID || runResponse.Run.PipelineVersionID == "" || runResponse.Run.Status != "Succeeded" {
+		t.Fatalf("run did not preserve catalog identity: %s", rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipelines?projectId=project-a", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -53,5 +80,12 @@ func TestPipelineDefinitionCatalogRoutes(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"enabled":false`) {
 		t.Fatalf("disable pipeline definition status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+created.Pipeline.ID+"/runs", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), "pipeline_definition_disabled") {
+		t.Fatalf("disabled definition run status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }

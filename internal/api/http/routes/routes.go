@@ -18,6 +18,7 @@ import (
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+	integrationusecase "github.com/sevoniva/nivora/internal/usecase/integration"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
@@ -35,6 +36,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	pipelineCatalog := pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore())
 	policyCatalog := policyusecase.NewService(policyusecase.NewMemoryStore())
 	artifactRegistryCatalog := artifactusecase.NewRegistryService(artifactusecase.NewRegistryMemoryStore())
+	integrationService := integrationusecase.NewService(pluginRegistry)
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
 	r.Use(middleware.RealIP)
@@ -151,6 +153,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/host-groups", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.CreateHostGroup(deploymentService)))
 		api.Get("/host-groups/{id}", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.GetHostGroup(deploymentService)))
 		api.Post("/deployments/host/plan", apimiddleware.RequirePermission(authService, "deployment.create", handlers.RespondError, handlers.PlanHostDeployment(deploymentService)))
+		api.Get("/integrations", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListIntegrations(integrationService)))
 		api.Get("/integrations/argocd/applications/{name}/status", apimiddleware.RequirePermission(authService, "deployment.create", handlers.RespondError, handlers.GetArgoCDApplicationStatus(deploymentService)))
 		api.Get("/integrations/argocd/applications/{name}/resources", apimiddleware.RequirePermission(authService, "deployment.create", handlers.RespondError, handlers.GetArgoCDApplicationResources(deploymentService)))
 		api.Post("/integrations/argocd/applications/{name}/sync", apimiddleware.RequirePermission(authService, "deployment.create", handlers.RespondError, handlers.SyncArgoCDApplication(deploymentService)))
@@ -286,7 +289,6 @@ type routeGroup struct {
 
 func placeholderGroups() []routeGroup {
 	return []routeGroup{
-		{"/integrations", "integrations"},
 		{"/visualization", "visualization"},
 	}
 }

@@ -36,8 +36,7 @@ Auth modes:
 | GET/POST | `/api/v1/secrets`, `/api/v1/secrets/*` | `credential.manage` | org/project/environment/runner/global | user/service account | yes | no | yes | Responses return refs only, never secret values. |
 | GET/POST/DELETE | `/api/v1/credentials*` | `credential.manage` | org/project/environment/runner/global | user/service account | yes | no | yes | Responses return metadata/SecretRef only. |
 | POST | `/api/v1/artifacts/inspect`, `/api/v1/artifacts/resolve` | `release.create` | project/application | user/service account | yes | no | yes | Registry credentials must remain behind SecretRef/CredentialRef. |
-| POST | `/api/v1/artifact-registries/validate` | `release.create` | project | user/service account | yes | no | yes | Validation must not echo credentials. |
-| Placeholder | `/api/v1/artifact-registries` | placeholder | project | user/service account | yes | no | yes | Full registry CRUD is not implemented. |
+| POST | `/api/v1/artifact-registries/validate` | authenticated foundation route | project | user/service account | yes | no | yes | Validation must not echo credentials. |
 | GET | `/api/v1/pipelines`, `/api/v1/pipelines/{id}` | `project.read` | project/pipeline | user/service account | yes | no | yes | Foundation pipeline definition catalog. |
 | POST | `/api/v1/pipelines` | `project.write` | project/pipeline | user/service account | yes | no | yes | Creates a validated Pipeline definition record; does not execute it. |
 | PATCH/DELETE | `/api/v1/pipelines/{id}` | `project.write` | project/pipeline | user/service account | yes | no | yes | Update can create a new definition version; delete disables instead of hard-deleting. |
@@ -53,6 +52,7 @@ Auth modes:
 | GET/POST/PATCH/DELETE | `/api/v1/artifact-registries*` | `project.read` for list/get; `credential.manage` for create/update/disable | project/credential | user/service account | yes | no | yes | Registry records contain CredentialRef metadata only; no registry secret values. |
 | GET/POST | `/api/v1/deployments*` | authenticated reads; `deployment.create`, `deployment.cancel`, or `deployment.approve` for mutations | environment/target | user/service account | yes | no | yes | Apply/sync/rollback remain guarded and not default. |
 | GET/POST | `/api/v1/host-groups`, `/api/v1/deployments/host/plan` | `environment.read`, `environment.write`, `deployment.create` | environment | user/service account | yes | no | yes | Remote host deploy is disabled by default. |
+| GET | `/api/v1/integrations` | `project.read` | system/project | user/service account | yes | no | yes | Read-only adapter/plugin capability index; skeleton/noop/foundation entries are labeled. |
 | GET/POST | `/api/v1/integrations/argocd/applications/*` | `deployment.create` | environment/target | user/service account | yes | no | yes | Argo sync is guarded; no production automation claim. |
 | GET/POST | `/api/v1/approvals*` | authenticated reads; `deployment.approve` for decisions | environment/deployment | user/service account | yes | no | yes | Decisions must be audited. |
 | GET/POST | `/api/v1/change-windows*`, `/api/v1/notifications*` | authenticated foundation routes | environment | user/service account | yes | no | yes | Real external notification delivery is not required in tests. |
@@ -63,7 +63,7 @@ Auth modes:
 | GET | `/api/v1/audit-logs` | `audit.read` | org/project/environment | user/service account | yes | no | yes | Aggregate audit read path backed by the same compliance audit search. |
 | GET | `/api/v1/events`, `/api/v1/logs` | `project.read` | project/runtime | user/service account | yes | no | yes | Aggregate read-only runtime observability paths; scope filtering remains foundation-level. |
 | POST | `/api/v1/retention-policy` | `policy.manage` | org/project/environment | user/service account | yes | no | yes | Retention mutation is policy-sensitive. |
-| Placeholder | `/api/v1/audit-logs`, `/api/v1/events`, `/api/v1/logs`, `/api/v1/integrations` | placeholder | varies | user/service account | yes | no | yes | Structured `not_implemented`. |
+| Placeholder | `/api/v1/visualization` | placeholder | read model | user/service account | yes | no | yes | Structured `not_implemented` for the aggregate visualization root only. |
 | GET | `/api/v1/visualization/*` | authenticated; audit timeline requires `audit.read` | read model | user/service account | yes | no | yes | Backend visualization only, no frontend production claim. |
 | GET/POST | `/api/v1/plugins*` | authenticated foundation routes | system | user/service account | yes | no | yes | Registry/capability metadata only; no unsafe dynamic loading. |
 | GET/POST | `/api/v1/tenancy/*` | authenticated read; `project.write` for quota mutation | org/project | user/service account | yes | no | yes | Quotas are foundation-level. |

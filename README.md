@@ -33,6 +33,7 @@ Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/sta
 | Host deployment | Experimental plan/dry-run/noop and guarded SSH surface |
 | Web console | Experimental minimal UI that consumes backend APIs |
 | MCP control plane | Foundation; local stdio read-only and plan-only AI access, denied action tools, runner-token rejection, compliance-backed audit, and 26 validated operator scenarios with golden answers; remote MCP remains no-go |
+| Integration capability index | Foundation; read-only `/api/v1/integrations` labels built-in, skeleton, noop, foundation, and experimental adapter capabilities |
 | Packaging | Partial; Docker Compose, Helm, production-like values, and smoke checks exist |
 | Observability / audit | Partial; diagnostics, metrics, runtime recovery center, production doctor, runbooks, and audit/evidence export foundations; production retention/export still needs hardening |
 
@@ -568,6 +569,8 @@ flowchart TB
 ## Integration Model
 
 All external systems should connect through ports and adapters. The adapter names below are target integration directions unless explicitly documented as implemented.
+
+The read-only `/api/v1/integrations` endpoint exposes the current adapter/plugin capability index. It is metadata only: it does not configure providers, call external services, or return credentials. Skeleton, noop, foundation-only, and experimental adapters are labeled as such.
 
 ```mermaid
 flowchart LR

@@ -182,6 +182,70 @@ func TestCancelExecution(t *testing.T) {
 	}
 }
 
+func TestCancelExecutionCancelsLinkedNonTerminalDeploymentRuns(t *testing.T) {
+	store := NewMemoryStore()
+	deployments := &cancelSpyDeploymentService{
+		records: map[string]deploymentusecase.RunRecord{
+			"drun-running": {Run: domaindeployment.DeploymentRun{ID: "drun-running", Status: domaindeployment.DeploymentRunDeploying}},
+			"drun-done":    {Run: domaindeployment.DeploymentRun{ID: "drun-done", Status: domaindeployment.DeploymentRunSucceeded}},
+		},
+	}
+	service := NewService(store, fakeArtifactService{}, deployments, allowPolicy{}, nil)
+	now := time.Now()
+	record := ExecutionRecord{
+		Release: release.Release{ID: "rel-cascade", Name: "cascade", Version: "1.0.0"},
+		Plan: ReleasePlan{
+			ID:        "rplan-cascade",
+			ReleaseID: "rel-cascade",
+		},
+		Execution: ReleaseExecution{
+			ID:               "rexec-cascade",
+			ReleaseID:        "rel-cascade",
+			Status:           ExecutionRunning,
+			DeploymentRunIDs: []string{"drun-running", "drun-done"},
+			Targets: []TargetExecution{
+				{TargetName: "running", DeploymentRunID: "drun-running", Status: ExecutionRunning},
+				{TargetName: "done", DeploymentRunID: "drun-done", Status: ExecutionSucceeded},
+			},
+			CreatedAt: now,
+			UpdatedAt: now,
+		},
+		Deployments: []deploymentusecase.RunRecord{
+			{Run: domaindeployment.DeploymentRun{ID: "drun-running", Status: domaindeployment.DeploymentRunDeploying}},
+			{Run: domaindeployment.DeploymentRun{ID: "drun-done", Status: domaindeployment.DeploymentRunSucceeded}},
+		},
+	}
+	if err := store.SaveExecution(context.Background(), record); err != nil {
+		t.Fatalf("save execution: %v", err)
+	}
+
+	canceled, err := service.Cancel(context.Background(), record.Execution.ID, "operator")
+	if err != nil {
+		t.Fatalf("Cancel() error = %v", err)
+	}
+	if canceled.Execution.Status != ExecutionCanceled {
+		t.Fatalf("execution status = %s, want %s", canceled.Execution.Status, ExecutionCanceled)
+	}
+	if got := deployments.cancelCount("drun-running"); got != 1 {
+		t.Fatalf("running deployment cancel count = %d, want 1", got)
+	}
+	if got := deployments.cancelCount("drun-done"); got != 0 {
+		t.Fatalf("terminal deployment cancel count = %d, want 0", got)
+	}
+	for _, target := range canceled.Execution.Targets {
+		switch target.DeploymentRunID {
+		case "drun-running":
+			if target.Status != ExecutionCanceled {
+				t.Fatalf("running target status = %s, want %s", target.Status, ExecutionCanceled)
+			}
+		case "drun-done":
+			if target.Status != ExecutionSucceeded {
+				t.Fatalf("done target status = %s, want %s", target.Status, ExecutionSucceeded)
+			}
+		}
+	}
+}
+
 func TestCancelExecutionsForReleaseCancelsOnlyNonTerminalRecords(t *testing.T) {
 	service := newTestService(allowPolicy{}).WithGovernance(testGovernance{})
 	waitingDef := testDefinition(false, StrategySequential)
@@ -442,6 +506,41 @@ func (fakeDeploymentService) CreateAndRun(ctx context.Context, input deploymentu
 	}}, nil
 }
 
+func (fakeDeploymentService) Cancel(ctx context.Context, id string, actorID string) (deploymentusecase.RunRecord, error) {
+	return deploymentusecase.RunRecord{Run: domaindeployment.DeploymentRun{ID: id, Status: domaindeployment.DeploymentRunCanceled}}, nil
+}
+
 func (fakeDeploymentService) Timeline(ctx context.Context, id string) ([]deploymentusecase.TimelineEntry, error) {
 	return []deploymentusecase.TimelineEntry{{Type: "devops.deployment.succeeded", Time: time.Now(), Subject: id, Status: "Succeeded"}}, nil
+}
+
+type cancelSpyDeploymentService struct {
+	fakeDeploymentService
+	records  map[string]deploymentusecase.RunRecord
+	canceled []string
+}
+
+func (s *cancelSpyDeploymentService) Cancel(ctx context.Context, id string, actorID string) (deploymentusecase.RunRecord, error) {
+	record, ok := s.records[id]
+	if !ok {
+		return deploymentusecase.RunRecord{}, deploymentusecase.ErrRunNotFound
+	}
+	if record.Run.Status == domaindeployment.DeploymentRunSucceeded || record.Run.Status == domaindeployment.DeploymentRunFailed ||
+		record.Run.Status == domaindeployment.DeploymentRunCanceled || record.Run.Status == domaindeployment.DeploymentRunRolledBack {
+		return record, deploymentusecase.ErrRunTerminal
+	}
+	s.canceled = append(s.canceled, id)
+	record.Run.Status = domaindeployment.DeploymentRunCanceled
+	s.records[id] = record
+	return record, nil
+}
+
+func (s *cancelSpyDeploymentService) cancelCount(id string) int {
+	count := 0
+	for _, item := range s.canceled {
+		if item == id {
+			count++
+		}
+	}
+	return count
 }

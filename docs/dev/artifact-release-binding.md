@@ -38,7 +38,7 @@ Server-backed release records can be canceled without executing rollback or targ
 nivora release cancel <release-id>
 ```
 
-The matching API is `POST /api/v1/releases/{id}/cancel`. It marks the Release record `Canceled`, appends a release event, records release audit evidence, and safely cancels non-terminal ReleaseExecutions for the same Release. It does not execute rollback, delete resources, or mutate ReleaseExecutions that are already terminal. The response includes `canceledExecutionIds` so operators can confirm which execution records changed.
+The matching API is `POST /api/v1/releases/{id}/cancel`. It marks the Release record `Canceled`, appends a release event, records release audit evidence, and safely cancels non-terminal ReleaseExecutions for the same Release. Each canceled ReleaseExecution also asks linked non-terminal DeploymentRuns to cancel. It does not execute rollback, delete resources, or mutate ReleaseExecutions or DeploymentRuns that are already terminal. The response includes `canceledExecutionIds` so operators can confirm which execution records changed.
 
 ## Query Tracked Artifacts
 

@@ -1879,7 +1879,7 @@ paths:
   /api/v1/releases/{id}/cancel:
     post:
       summary: Cancel a Release record
-      description: Marks the Release record as Canceled, records release-level event and audit entries, and cancels non-terminal ReleaseExecutions for the same Release. This does not execute rollback, delete resources, or mutate already-terminal ReleaseExecutions.
+      description: Marks the Release record as Canceled, records release-level event and audit entries, cancels non-terminal ReleaseExecutions for the same Release, and asks linked non-terminal DeploymentRuns to cancel. This does not execute rollback, delete resources, or mutate already-terminal ReleaseExecutions or DeploymentRuns.
       parameters:
         - $ref: "#/components/parameters/ID"
       responses:
@@ -2010,6 +2010,7 @@ paths:
   /api/v1/releases/executions/{execution_id}/cancel:
     post:
       summary: Cancel a ReleaseExecution
+      description: Cancels a non-terminal ReleaseExecution and attempts to cancel linked non-terminal DeploymentRuns. Already-terminal DeploymentRuns are left unchanged, and this endpoint does not execute rollback or delete resources.
       parameters:
         - name: execution_id
           in: path

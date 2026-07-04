@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -41,6 +42,7 @@ type ArtifactService interface {
 type DeploymentService interface {
 	Plan(ctx context.Context, input deploymentusecase.CreateRunInput) (deploymentusecase.CreateRunResult, error)
 	CreateAndRun(ctx context.Context, input deploymentusecase.CreateRunInput) (deploymentusecase.CreateRunResult, error)
+	Cancel(ctx context.Context, id string, actorID string) (deploymentusecase.RunRecord, error)
 	Timeline(ctx context.Context, id string) ([]deploymentusecase.TimelineEntry, error)
 }
 
@@ -343,6 +345,9 @@ func (s *Service) CancelExecutionsForRelease(ctx context.Context, releaseID stri
 }
 
 func (s *Service) cancelRecord(ctx context.Context, record ExecutionRecord, actorID string) (ExecutionRecord, error) {
+	if s.deployments != nil {
+		record = s.cancelDeploymentRuns(ctx, record, actorID)
+	}
 	record.Execution.Status = ExecutionCanceled
 	record.Execution.Reason = "canceled by request"
 	now := s.now()
@@ -357,6 +362,32 @@ func (s *Service) cancelRecord(ctx context.Context, record ExecutionRecord, acto
 		return ExecutionRecord{}, err
 	}
 	return s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionCanceled, "Release execution canceled", actorID, "Release execution canceled")
+}
+
+func (s *Service) cancelDeploymentRuns(ctx context.Context, record ExecutionRecord, actorID string) ExecutionRecord {
+	terminal := map[string]bool{}
+	for _, deployment := range record.Deployments {
+		if deployment.Run.ID != "" && isTerminal(mapDeploymentStatus(deployment.Run.Status)) {
+			terminal[deployment.Run.ID] = true
+		}
+	}
+	for _, runID := range record.Execution.DeploymentRunIDs {
+		runID = strings.TrimSpace(runID)
+		if runID == "" || terminal[runID] {
+			continue
+		}
+		canceled, err := s.deployments.Cancel(ctx, runID, actorID)
+		if err != nil {
+			if errors.Is(err, deploymentusecase.ErrRunTerminal) {
+				continue
+			}
+			record = appendTargetWarningForDeploymentRun(record, runID, "deployment cancel failed: "+err.Error())
+			continue
+		}
+		record = replaceDeploymentRecord(record, canceled)
+		record = markTargetStatusForDeploymentRun(record, runID, ExecutionCanceled)
+	}
+	return record
 }
 
 func (s *Service) runSequential(ctx context.Context, record ExecutionRecord, actorID string) (ExecutionRecord, error) {
@@ -605,6 +636,35 @@ func (s *Service) markTargetCompleted(record ExecutionRecord, name string, runID
 			record.Execution.Targets[i].DeploymentRunID = runID
 			record.Execution.Targets[i].Status = status
 			record.Execution.Targets[i].Warnings = append(record.Execution.Targets[i].Warnings, warnings...)
+		}
+	}
+	return record
+}
+
+func replaceDeploymentRecord(record ExecutionRecord, deployment deploymentusecase.RunRecord) ExecutionRecord {
+	for i := range record.Deployments {
+		if record.Deployments[i].Run.ID == deployment.Run.ID {
+			record.Deployments[i] = deployment
+			return record
+		}
+	}
+	record.Deployments = append(record.Deployments, deployment)
+	return record
+}
+
+func markTargetStatusForDeploymentRun(record ExecutionRecord, runID string, status ExecutionStatus) ExecutionRecord {
+	for i := range record.Execution.Targets {
+		if record.Execution.Targets[i].DeploymentRunID == runID && !isTerminal(record.Execution.Targets[i].Status) {
+			record.Execution.Targets[i].Status = status
+		}
+	}
+	return record
+}
+
+func appendTargetWarningForDeploymentRun(record ExecutionRecord, runID string, warning string) ExecutionRecord {
+	for i := range record.Execution.Targets {
+		if record.Execution.Targets[i].DeploymentRunID == runID {
+			record.Execution.Targets[i].Warnings = append(record.Execution.Targets[i].Warnings, warning)
 		}
 	}
 	return record

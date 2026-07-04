@@ -44,6 +44,17 @@ go run ./cmd/nivora target validate target-id
 
 These commands manage metadata only. They do not run apply, sync, remote host deployment, rollback, or Git push.
 
+## Cancellation
+
+Server-backed ReleaseExecution records can be canceled explicitly:
+
+```sh
+go run ./cmd/nivora release execution cancel <execution-id>
+go run ./cmd/nivora release cancel <release-id>
+```
+
+Canceling a ReleaseExecution marks the execution `Canceled`, marks non-terminal target executions `Canceled`, and asks linked non-terminal DeploymentRuns to cancel through the DeploymentRun service. Canceling a Release also cascades to non-terminal ReleaseExecutions for that Release. These paths do not run rollback, delete resources, or mutate already-terminal execution records.
+
 ## Current Limitations
 
 - Sequential execution is the only real execution strategy.

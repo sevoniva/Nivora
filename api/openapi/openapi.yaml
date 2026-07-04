@@ -2895,10 +2895,83 @@ paths:
                   $ref: "#/components/schemas/TimelineItem"
   /api/v1/policies:
     get:
-      summary: Policies placeholder
+      summary: List policy definitions
+      parameters:
+        - name: projectId
+          in: query
+          schema:
+            type: string
+        - name: environmentId
+          in: query
+          schema:
+            type: string
       responses:
-        "501":
-          $ref: "#/components/responses/NotImplemented"
+        "200":
+          description: Policy definitions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  policies:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/PolicyDefinition"
+    post:
+      summary: Create policy definition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyCreateRequest"
+      responses:
+        "201":
+          description: Policy definition created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyDefinition"
+  /api/v1/policies/{id}:
+    get:
+      summary: Get policy definition
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Policy definition
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyDefinition"
+    patch:
+      summary: Update policy definition
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PolicyUpdateRequest"
+      responses:
+        "200":
+          description: Policy definition updated
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyDefinition"
+    delete:
+      summary: Disable policy definition
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Policy definition disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PolicyDefinition"
   /api/v1/audit-logs:
     get:
       summary: Audit logs placeholder
@@ -4970,6 +5043,55 @@ components:
           type: boolean
         approvalOnCritical:
           type: boolean
+    PolicyDefinition:
+      type: object
+      properties:
+        id:
+          type: string
+        projectId:
+          type: string
+        environmentId:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        type:
+          type: string
+          description: Built-in policy family such as security, artifact, deployment, approval, change_window, or generic.
+        mode:
+          type: string
+          description: Foundation gate behavior such as allow, warn, deny, or require_approval.
+        criticalDenyThreshold:
+          type: integer
+        highWarnThreshold:
+          type: integer
+        requireDigest:
+          type: boolean
+        approvalOnCritical:
+          type: boolean
+        labels:
+          type: object
+          additionalProperties:
+            type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        enabled:
+          type: boolean
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PolicyCreateRequest:
+      allOf:
+        - $ref: "#/components/schemas/PolicyDefinition"
+    PolicyUpdateRequest:
+      allOf:
+        - $ref: "#/components/schemas/PolicyDefinition"
     PolicyEvaluationRequest:
       type: object
       properties:

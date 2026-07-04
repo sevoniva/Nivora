@@ -13,12 +13,22 @@ type Approval struct {
 }
 
 type Policy struct {
-	ID        string
-	ProjectID string
-	Name      string
-	Mode      string
-	CreatedAt time.Time
-	UpdatedAt time.Time
+	ID                 string            `json:"id" yaml:"id"`
+	ProjectID          string            `json:"projectId,omitempty" yaml:"projectId,omitempty"`
+	EnvironmentID      string            `json:"environmentId,omitempty" yaml:"environmentId,omitempty"`
+	Name               string            `json:"name" yaml:"name"`
+	Description        string            `json:"description,omitempty" yaml:"description,omitempty"`
+	Type               string            `json:"type" yaml:"type"`
+	Mode               string            `json:"mode" yaml:"mode"`
+	CriticalDeny       int               `json:"criticalDenyThreshold,omitempty" yaml:"criticalDenyThreshold,omitempty"`
+	HighWarn           int               `json:"highWarnThreshold,omitempty" yaml:"highWarnThreshold,omitempty"`
+	RequireDigest      bool              `json:"requireDigest,omitempty" yaml:"requireDigest,omitempty"`
+	ApprovalOnCritical bool              `json:"approvalOnCritical,omitempty" yaml:"approvalOnCritical,omitempty"`
+	Labels             map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata           map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	Enabled            bool              `json:"enabled" yaml:"enabled"`
+	CreatedAt          time.Time         `json:"createdAt" yaml:"createdAt"`
+	UpdatedAt          time.Time         `json:"updatedAt" yaml:"updatedAt"`
 }
 
 type PolicyResult struct {

@@ -15,3 +15,13 @@ Phase 3.0 supports minimal built-in policy behavior:
 - `--require-digest` denies references without `@sha256:`.
 
 DeploymentRun and ReleaseExecution pre-checks can attach security decisions through the local security service. Deny stops execution; warn continues with warnings. Approval-required gates are modeled but durable approval workflow remains future work.
+
+Policy definitions can also be managed through the server-backed foundation catalog:
+
+```sh
+nivora policy create --name "Require digest" --project-id demo --environment-id prod --require-digest
+nivora policy list --project-id demo
+nivora policy disable policy-example
+```
+
+The catalog records built-in gate configuration only. OPA, Kyverno, Gatekeeper, and external policy distribution are future work.

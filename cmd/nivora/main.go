@@ -27,6 +27,7 @@ import (
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
+	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	"github.com/sevoniva/nivora/internal/version"
@@ -1435,6 +1436,11 @@ func newSecurityScanManifestCommand() *cobra.Command {
 
 func newPolicyCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "policy", Short: "Policy gate utilities"}
+	cmd.AddCommand(newPolicyListCommand())
+	cmd.AddCommand(newPolicyCreateCommand())
+	cmd.AddCommand(newPolicyGetCommand())
+	cmd.AddCommand(newPolicyUpdateCommand())
+	cmd.AddCommand(newPolicyDisableCommand())
 	evaluate := &cobra.Command{
 		Use:   "evaluate --subject <reference>",
 		Short: "Evaluate built-in policy gates locally",
@@ -1458,6 +1464,200 @@ func newPolicyCommand() *cobra.Command {
 	evaluate.Flags().Bool("require-digest", false, "deny mutable artifact references without sha256 digest")
 	cmd.AddCommand(evaluate)
 	return cmd
+}
+
+func newPolicyListCommand() *cobra.Command {
+	var projectID string
+	var environmentID string
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List policy definitions from a Nivora server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			query := url.Values{}
+			if projectID != "" {
+				query.Set("projectId", projectID)
+			}
+			if environmentID != "" {
+				query.Set("environmentId", environmentID)
+			}
+			path := "/api/v1/policies"
+			if encoded := query.Encode(); encoded != "" {
+				path += "?" + encoded
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, path, nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&projectID, "project-id", "", "filter policies by project id")
+	cmd.Flags().StringVar(&environmentID, "environment-id", "", "filter policies by environment id")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newPolicyCreateCommand() *cobra.Command {
+	var input policyusecase.CreateInput
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "create --name <name>",
+		Short: "Create a built-in policy gate definition",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if input.Name == "" {
+				return fmt.Errorf("--name is required")
+			}
+			body, err := json.Marshal(input)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPost, serverURL, "/api/v1/policies", body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	bindPolicyCreateFlags(cmd, &input)
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newPolicyGetCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "get <policy-id>",
+		Short: "Get a policy definition",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodGet, serverURL, "/api/v1/policies/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newPolicyUpdateCommand() *cobra.Command {
+	var name string
+	var description string
+	var policyType string
+	var mode string
+	var projectID string
+	var environmentID string
+	var criticalDeny int
+	var highWarn int
+	var requireDigest bool
+	var approvalOnCritical bool
+	var enabled bool
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "update <policy-id>",
+		Short: "Update a policy definition",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			bodyMap := map[string]any{}
+			if cmd.Flags().Changed("name") {
+				bodyMap["name"] = name
+			}
+			if cmd.Flags().Changed("description") {
+				bodyMap["description"] = description
+			}
+			if cmd.Flags().Changed("type") {
+				bodyMap["type"] = policyType
+			}
+			if cmd.Flags().Changed("mode") {
+				bodyMap["mode"] = mode
+			}
+			if cmd.Flags().Changed("project-id") {
+				bodyMap["projectId"] = projectID
+			}
+			if cmd.Flags().Changed("environment-id") {
+				bodyMap["environmentId"] = environmentID
+			}
+			if cmd.Flags().Changed("critical-deny-threshold") {
+				bodyMap["criticalDenyThreshold"] = criticalDeny
+			}
+			if cmd.Flags().Changed("high-warn-threshold") {
+				bodyMap["highWarnThreshold"] = highWarn
+			}
+			if cmd.Flags().Changed("require-digest") {
+				bodyMap["requireDigest"] = requireDigest
+			}
+			if cmd.Flags().Changed("approval-on-critical") {
+				bodyMap["approvalOnCritical"] = approvalOnCritical
+			}
+			if cmd.Flags().Changed("enabled") {
+				bodyMap["enabled"] = enabled
+			}
+			if len(bodyMap) == 0 {
+				return fmt.Errorf("at least one update flag is required")
+			}
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSON(cmd.Context(), http.MethodPatch, serverURL, "/api/v1/policies/"+args[0], body)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&name, "name", "", "policy name")
+	cmd.Flags().StringVar(&description, "description", "", "policy description")
+	cmd.Flags().StringVar(&policyType, "type", "", "policy type")
+	cmd.Flags().StringVar(&mode, "mode", "", "policy mode")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "project scope id")
+	cmd.Flags().StringVar(&environmentID, "environment-id", "", "environment scope id")
+	cmd.Flags().IntVar(&criticalDeny, "critical-deny-threshold", 0, "critical finding count that denies")
+	cmd.Flags().IntVar(&highWarn, "high-warn-threshold", 0, "high finding count that warns")
+	cmd.Flags().BoolVar(&requireDigest, "require-digest", false, "deny artifact references without sha256 digest")
+	cmd.Flags().BoolVar(&approvalOnCritical, "approval-on-critical", false, "require approval on critical findings")
+	cmd.Flags().BoolVar(&enabled, "enabled", true, "enable or disable the policy")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func newPolicyDisableCommand() *cobra.Command {
+	var serverURL string
+	cmd := &cobra.Command{
+		Use:   "disable <policy-id>",
+		Short: "Disable a policy definition without deleting it",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSON(cmd.Context(), http.MethodDelete, serverURL, "/api/v1/policies/"+args[0], nil)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	return cmd
+}
+
+func bindPolicyCreateFlags(cmd *cobra.Command, input *policyusecase.CreateInput) {
+	cmd.Flags().StringVar(&input.ID, "id", "", "optional policy id")
+	cmd.Flags().StringVar(&input.ProjectID, "project-id", "", "project scope id")
+	cmd.Flags().StringVar(&input.EnvironmentID, "environment-id", "", "environment scope id")
+	cmd.Flags().StringVar(&input.Name, "name", "", "policy name")
+	cmd.Flags().StringVar(&input.Description, "description", "", "policy description")
+	cmd.Flags().StringVar(&input.Type, "type", "security", "policy type")
+	cmd.Flags().StringVar(&input.Mode, "mode", "warn", "policy mode")
+	cmd.Flags().IntVar(&input.CriticalDeny, "critical-deny-threshold", 0, "critical finding count that denies")
+	cmd.Flags().IntVar(&input.HighWarn, "high-warn-threshold", 1, "high finding count that warns")
+	cmd.Flags().BoolVar(&input.RequireDigest, "require-digest", false, "deny artifact references without sha256 digest")
+	cmd.Flags().BoolVar(&input.ApprovalOnCritical, "approval-on-critical", false, "require approval on critical findings")
 }
 
 func newArtifactCommand() *cobra.Command {

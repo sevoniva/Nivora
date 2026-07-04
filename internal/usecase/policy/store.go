@@ -1,0 +1,90 @@
+package policy
+
+import (
+	"context"
+	"fmt"
+	"sort"
+	"sync"
+
+	domainpolicy "github.com/sevoniva/nivora/internal/domain/policy"
+)
+
+type Store interface {
+	Create(ctx context.Context, policy domainpolicy.Policy) (domainpolicy.Policy, error)
+	Get(ctx context.Context, id string) (domainpolicy.Policy, error)
+	List(ctx context.Context, projectID string, environmentID string) ([]domainpolicy.Policy, error)
+	Update(ctx context.Context, policy domainpolicy.Policy) (domainpolicy.Policy, error)
+}
+
+type MemoryStore struct {
+	mu       sync.RWMutex
+	policies map[string]domainpolicy.Policy
+}
+
+func NewMemoryStore() *MemoryStore {
+	return &MemoryStore{policies: map[string]domainpolicy.Policy{}}
+}
+
+func (s *MemoryStore) Create(ctx context.Context, policy domainpolicy.Policy) (domainpolicy.Policy, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.policies[policy.ID]; ok {
+		return domainpolicy.Policy{}, fmt.Errorf("%w: id %q", ErrAlreadyExists, policy.ID)
+	}
+	s.policies[policy.ID] = copyPolicy(policy)
+	return copyPolicy(policy), nil
+}
+
+func (s *MemoryStore) Get(ctx context.Context, id string) (domainpolicy.Policy, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	policy, ok := s.policies[id]
+	if !ok {
+		return domainpolicy.Policy{}, fmt.Errorf("%w: %q", ErrNotFound, id)
+	}
+	return copyPolicy(policy), nil
+}
+
+func (s *MemoryStore) List(ctx context.Context, projectID string, environmentID string) ([]domainpolicy.Policy, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]domainpolicy.Policy, 0, len(s.policies))
+	for _, policy := range s.policies {
+		if projectID != "" && policy.ProjectID != projectID {
+			continue
+		}
+		if environmentID != "" && policy.EnvironmentID != environmentID {
+			continue
+		}
+		out = append(out, copyPolicy(policy))
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i].Name < out[j].Name })
+	return out, nil
+}
+
+func (s *MemoryStore) Update(ctx context.Context, policy domainpolicy.Policy) (domainpolicy.Policy, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.policies[policy.ID]; !ok {
+		return domainpolicy.Policy{}, fmt.Errorf("%w: %q", ErrNotFound, policy.ID)
+	}
+	s.policies[policy.ID] = copyPolicy(policy)
+	return copyPolicy(policy), nil
+}
+
+func copyPolicy(policy domainpolicy.Policy) domainpolicy.Policy {
+	policy.Labels = copyMap(policy.Labels)
+	policy.Metadata = copyMap(policy.Metadata)
+	return policy
+}
+
+func copyMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(in))
+	for k, v := range in {
+		out[k] = v
+	}
+	return out
+}

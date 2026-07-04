@@ -71,7 +71,7 @@ func TestPlaceholderRoute(t *testing.T) {
 		t.Fatalf("load default config: %v", err)
 	}
 	router := newTestRouter(cfg)
-	req := httptest.NewRequest(http.MethodGet, "/api/v1/policies", nil)
+	req := httptest.NewRequest(http.MethodGet, "/api/v1/audit-logs", nil)
 	rec := httptest.NewRecorder()
 
 	router.ServeHTTP(rec, req)
@@ -86,7 +86,7 @@ func TestPlaceholderRoute(t *testing.T) {
 	if body["code"] != "not_implemented" {
 		t.Fatalf("code = %v", body["code"])
 	}
-	if body["path"] != "/api/v1/policies" {
+	if body["path"] != "/api/v1/audit-logs" {
 		t.Fatalf("path = %v", body["path"])
 	}
 }

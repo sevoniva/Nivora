@@ -56,7 +56,7 @@ Auth modes:
 | GET/POST | `/api/v1/approvals*` | authenticated reads; `deployment.approve` for decisions | environment/deployment | user/service account | yes | no | yes | Decisions must be audited. |
 | GET/POST | `/api/v1/change-windows*`, `/api/v1/notifications*` | authenticated foundation routes | environment | user/service account | yes | no | yes | Real external notification delivery is not required in tests. |
 | POST/GET | `/api/v1/security/scans*`, `/api/v1/policies/evaluate` | `policy.manage` for scan/evaluate; authenticated findings reads | policy/security | user/service account | yes | no | yes | Noop/fake scanners are foundation only. |
-| Placeholder | `/api/v1/policies` | placeholder | policy | user/service account | yes | no | yes | Policy CRUD placeholder. |
+| GET/POST/PATCH/DELETE | `/api/v1/policies*` | `project.read` for list/get; `policy.manage` for create/update/disable | policy | user/service account | yes | no | yes | Policy catalog stores built-in gate definitions only; no OPA/Kyverno integration. |
 | GET/POST | `/api/v1/cloud/*` | authenticated foundation routes | org/project | user/service account | yes | no | yes | Fake/skeleton inventory only; no cloud deployment. |
 | GET | `/api/v1/audit/search`, `/api/v1/evidence/*`, `/api/v1/retention-policy` | `audit.read` | org/project/environment | user/service account | yes | no | yes | Auditor role can read audit/evidence. |
 | POST | `/api/v1/retention-policy` | `policy.manage` | org/project/environment | user/service account | yes | no | yes | Retention mutation is policy-sensitive. |

@@ -20,6 +20,7 @@ import (
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
+	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	runtimecenter "github.com/sevoniva/nivora/internal/usecase/runtimecenter"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
@@ -32,6 +33,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	runtimeCenter := runtimecenter.NewService(pipelineService, deploymentService, releaseService)
 	catalogService := catalogusecase.NewService(catalogusecase.NewMemoryStore())
 	pipelineCatalog := pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore())
+	policyCatalog := policyusecase.NewService(policyusecase.NewMemoryStore())
 	r.Use(middleware.RequestID)
 	r.Use(apimiddleware.RequestContext())
 	r.Use(middleware.RealIP)
@@ -154,6 +156,11 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/security/scans", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.CreateSecurityScan(securityService)))
 		api.Get("/security/scans/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetSecurityScan(securityService)))
 		api.Get("/security/scans/{id}/findings", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetSecurityFindings(securityService)))
+		api.Get("/policies", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListPolicies(policyCatalog)))
+		api.Post("/policies", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.CreatePolicy(policyCatalog)))
+		api.Get("/policies/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPolicy(policyCatalog)))
+		api.Patch("/policies/{id}", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.UpdatePolicy(policyCatalog)))
+		api.Delete("/policies/{id}", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.DisablePolicy(policyCatalog)))
 		api.Post("/policies/evaluate", apimiddleware.RequirePermission(authService, "policy.manage", handlers.RespondError, handlers.EvaluatePolicy(securityService)))
 		api.Post("/approvals", apimiddleware.RequirePermission(authService, "deployment.approve", handlers.RespondError, handlers.CreateApproval(approvalService)))
 		api.Get("/approvals", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListApprovals(approvalService)))
@@ -271,7 +278,6 @@ type routeGroup struct {
 func placeholderGroups() []routeGroup {
 	return []routeGroup{
 		{"/artifact-registries", "artifact registries"},
-		{"/policies", "policies"},
 		{"/audit-logs", "audit logs"},
 		{"/events", "events"},
 		{"/logs", "logs"},

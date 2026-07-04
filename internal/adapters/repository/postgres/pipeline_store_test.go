@@ -57,6 +57,55 @@ func TestClaimRecordJobUpdatesLeaseAndReturnsPlan(t *testing.T) {
 	}
 }
 
+func TestClaimRecordJobRespectsRunnerProjectScope(t *testing.T) {
+	now := time.Date(2026, 5, 19, 1, 2, 3, 0, time.UTC)
+	leaseUntil := now.Add(30 * time.Second)
+	record := pipelineusecase.RunRecord{
+		Pipeline: domainpipeline.Pipeline{ID: "pipe-1", ProjectID: "project-b", Name: "scoped"},
+		Definition: pipelineusecase.Definition{
+			Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+				Name: "build",
+				Jobs: []pipelineusecase.Job{{
+					Name:     "echo",
+					Executor: "shell",
+					Steps:    []pipelineusecase.Step{{Name: "say", Run: "printf scoped"}},
+				}},
+			}}},
+		},
+		Run: domainpipeline.PipelineRun{ID: "prun-scoped", Status: domainpipeline.PipelineRunQueued, CreatedAt: now, UpdatedAt: now},
+		Stages: []pipelineusecase.StageRecord{{
+			Stage: domainpipeline.StageRun{ID: "stage-1", PipelineRunID: "prun-scoped", Status: domainpipeline.JobRunPending},
+			Jobs: []pipelineusecase.JobRecord{{
+				Job:   domainpipeline.JobRun{ID: "job-1", StageRunID: "stage-1", Status: domainpipeline.JobRunPending, Attempt: 1},
+				Steps: []domainpipeline.StepRun{{ID: "step-1", JobRunID: "job-1", Status: domainpipeline.JobRunPending}},
+			}},
+		}},
+	}
+	runner := domainrunner.Runner{
+		ID:        "runner-project-a",
+		Status:    "online",
+		Labels:    map[string]string{"projectId": "project-a"},
+		Executors: []string{"shell"},
+	}
+
+	claim, ok := claimRecordJob(&record, runner, leaseUntil, now)
+	if ok || claim.JobRunID != "" {
+		t.Fatalf("project-a runner should not claim project-b record: ok=%v claim=%#v", ok, claim)
+	}
+	if record.Run.Status != domainpipeline.PipelineRunQueued || record.Stages[0].Jobs[0].Job.RunnerID != "" {
+		t.Fatalf("scope mismatch mutated record: run=%#v job=%#v", record.Run, record.Stages[0].Jobs[0].Job)
+	}
+
+	record.Pipeline.ProjectID = "project-a"
+	claim, ok = claimRecordJob(&record, runner, leaseUntil, now)
+	if !ok {
+		t.Fatal("project-a runner should claim project-a record")
+	}
+	if claim.PipelineRunID != "prun-scoped" || claim.JobRunID != "job-1" || claim.RunnerID != "runner-project-a" {
+		t.Fatalf("unexpected claim: %#v", claim)
+	}
+}
+
 func TestUpdateRecordJobStatusMarksFailure(t *testing.T) {
 	now := time.Date(2026, 5, 19, 1, 2, 3, 0, time.UTC)
 	record := pipelineusecase.RunRecord{

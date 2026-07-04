@@ -12,6 +12,7 @@ import (
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
+	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
 func createScopedToken(t *testing.T, svc *authusecase.Service, name, role, scopeType, scopeID string) string {
@@ -631,6 +632,63 @@ func TestTenantIsolationRunnerScopeFilteringAndMutation(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationRunnerClaimRespectsProjectScope(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	authService := authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+	pipelineService := newTestPipelineService()
+	router := newTestRouterWithPipelineAndAuth(cfg, pipelineService, authService)
+	projectAAdmin := createScopedToken(t, authService, "runner-claim-admin-a", domainauth.RoleAdmin, "project", "project-a")
+	runnerA, runnerAToken := registerScopedRunnerWithToken(t, router, projectAAdmin, `{"id":"claim-runner-project-a","name":"claim-runner-project-a","status":"online","executors":["shell"],"labels":{"projectId":"project-b"}}`)
+	if labels, _ := runnerA["labels"].(map[string]any); labels["projectId"] != "project-a" {
+		t.Fatalf("scoped runner should be forced to project-a labels: %#v", runnerA)
+	}
+
+	projectB, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition: tenantClaimDefinition("claim-project-b"),
+		ProjectID:  "project-b",
+	})
+	if err != nil {
+		t.Fatalf("create project-b queued run: %v", err)
+	}
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/runners/claim-runner-project-a/jobs/claim", nil)
+	req.Header.Set("X-Nivora-Runner-Token", runnerAToken)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict {
+		t.Fatalf("project-a runner should not claim project-b run %s, got %d body=%s", projectB.Record.Run.ID, rec.Code, rec.Body.String())
+	}
+
+	projectA, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition: tenantClaimDefinition("claim-project-a"),
+		ProjectID:  "project-a",
+	})
+	if err != nil {
+		t.Fatalf("create project-a queued run: %v", err)
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/runners/claim-runner-project-a/jobs/claim", nil)
+	req.Header.Set("X-Nivora-Runner-Token", runnerAToken)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-a runner should claim project-a run, got %d body=%s", rec.Code, rec.Body.String())
+	}
+	var claim struct {
+		PipelineRunID string `json:"pipelineRunId"`
+		RunnerID      string `json:"runnerId"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &claim); err != nil {
+		t.Fatalf("decode claim: %v", err)
+	}
+	if claim.PipelineRunID != projectA.Record.Run.ID || claim.RunnerID != "claim-runner-project-a" {
+		t.Fatalf("unexpected claim: %#v want run=%s", claim, projectA.Record.Run.ID)
+	}
+}
+
 func TestTenantIsolationEvidenceBundles(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	developerA := createScopedToken(t, auth, "evidence-dev-a", domainauth.RoleDeveloper, "project", "project-a")
@@ -759,6 +817,25 @@ func createProjectPipelineRun(t *testing.T, router http.Handler, token, name str
 		t.Fatalf("pipeline create response missing run id: %s", rec.Body.String())
 	}
 	return id
+}
+
+func tenantClaimDefinition(name string) pipelineusecase.Definition {
+	return pipelineusecase.Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Pipeline",
+		Metadata:   pipelineusecase.Metadata{Name: name},
+		Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+			Name: "build",
+			Jobs: []pipelineusecase.Job{{
+				Name:     "echo",
+				Executor: "shell",
+				Steps: []pipelineusecase.Step{{
+					Name: "say",
+					Run:  "printf " + name,
+				}},
+			}},
+		}}},
+	}
 }
 
 func createProjectPipelineDefinition(t *testing.T, router http.Handler, token, name string) string {
@@ -941,6 +1018,12 @@ func createProjectArtifact(t *testing.T, router http.Handler, token, name string
 
 func registerScopedRunner(t *testing.T, router http.Handler, token string, body string) map[string]any {
 	t.Helper()
+	runner, _ := registerScopedRunnerWithToken(t, router, token, body)
+	return runner
+}
+
+func registerScopedRunnerWithToken(t *testing.T, router http.Handler, token string, body string) (map[string]any, string) {
+	t.Helper()
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/runners/register", strings.NewReader(body))
 	req.Header.Set("Authorization", "Bearer "+token)
 	req.Header.Set("Content-Type", "application/json")
@@ -960,5 +1043,13 @@ func registerScopedRunner(t *testing.T, router http.Handler, token string, body 
 	if !ok {
 		t.Fatalf("runner register response missing runner object: %s", rec.Body.String())
 	}
-	return runner
+	tokenPayload, ok := response["token"].(map[string]any)
+	if !ok {
+		t.Fatalf("runner register response missing token object: %s", rec.Body.String())
+	}
+	rawToken, ok := tokenPayload["token"].(string)
+	if !ok || rawToken == "" {
+		t.Fatalf("runner register response missing one-time token: %s", rec.Body.String())
+	}
+	return runner, rawToken
 }

@@ -353,6 +353,40 @@ func TestRunnerClaimRespectsConcurrency(t *testing.T) {
 	}
 }
 
+func TestRunnerClaimRespectsProjectScopeLabel(t *testing.T) {
+	service := newTestService()
+	result, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:        "runner-project-a",
+		Name:      "runner-project-a",
+		Status:    "online",
+		Labels:    map[string]string{"projectId": "project-a"},
+		Executors: []string{"shell"},
+	})
+	if err != nil {
+		t.Fatalf("register scoped runner: %v", err)
+	}
+	if err := service.ValidateRunnerToken(context.Background(), result.Runner.ID, result.Token.Token); err != nil {
+		t.Fatalf("validate token: %v", err)
+	}
+	if _, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "other"`), ProjectID: "project-b"}); err != nil {
+		t.Fatalf("create project-b queued run: %v", err)
+	}
+	if _, err := service.ClaimJob(context.Background(), "runner-project-a", time.Minute); !errors.Is(err, ErrNoClaimableJob) {
+		t.Fatalf("project-a runner should not claim project-b job, got %v", err)
+	}
+	projectA, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "own"`), ProjectID: "project-a"})
+	if err != nil {
+		t.Fatalf("create project-a queued run: %v", err)
+	}
+	claim, err := service.ClaimJob(context.Background(), "runner-project-a", time.Minute)
+	if err != nil {
+		t.Fatalf("claim project-a job: %v", err)
+	}
+	if claim.PipelineRunID != projectA.Record.Run.ID {
+		t.Fatalf("runner claimed wrong project run: claim=%#v projectA=%s", claim, projectA.Record.Run.ID)
+	}
+}
+
 func TestRunnerClaimLogStatusCancelAndOutbox(t *testing.T) {
 	service := newTestService()
 	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})

@@ -826,6 +826,9 @@ func updateRecordJobStatus(record *pipelineusecase.RunRecord, jobRunID string, s
 }
 
 func claimRecordJob(record *pipelineusecase.RunRecord, runner domainrunner.Runner, leaseUntil time.Time, now time.Time) (pipelineusecase.JobClaim, bool) {
+	if !runnerCanClaimPipelineRecord(runner, *record) {
+		return pipelineusecase.JobClaim{}, false
+	}
 	if record.Run.Status == domainpipeline.PipelineRunQueued {
 		record.Run.Status = domainpipeline.PipelineRunRunning
 		record.Run.StartedAt = &now
@@ -873,6 +876,28 @@ func claimRecordJob(record *pipelineusecase.RunRecord, runner domainrunner.Runne
 		}
 	}
 	return pipelineusecase.JobClaim{}, false
+}
+
+func runnerCanClaimPipelineRecord(runner domainrunner.Runner, record pipelineusecase.RunRecord) bool {
+	if projectID := runner.Labels["projectId"]; projectID != "" && record.Pipeline.ProjectID != projectID {
+		return false
+	}
+	if environmentID := runner.Labels["environmentId"]; environmentID != "" {
+		recordEnvironmentID := firstNonEmpty(record.Pipeline.Labels["environmentId"], record.Pipeline.Metadata["environmentId"])
+		if recordEnvironmentID != environmentID {
+			return false
+		}
+	}
+	return true
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func claimDetails(record pipelineusecase.RunRecord, jobRunID string) ([]string, []string, string) {

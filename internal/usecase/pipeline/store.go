@@ -241,6 +241,9 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 	sort.Strings(runIDs)
 	for _, runID := range runIDs {
 		record := s.runs[runID]
+		if !runnerCanClaimRecord(runner, record) {
+			continue
+		}
 		if record.Run.Status != domainpipeline.PipelineRunQueued && record.Run.Status != domainpipeline.PipelineRunRunning {
 			continue
 		}
@@ -288,6 +291,28 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 		s.runs[runID] = cloneRecord(record)
 	}
 	return JobClaim{}, ErrNoClaimableJob
+}
+
+func runnerCanClaimRecord(runner domainrunner.Runner, record RunRecord) bool {
+	if projectID := runner.Labels["projectId"]; projectID != "" && record.Pipeline.ProjectID != projectID {
+		return false
+	}
+	if environmentID := runner.Labels["environmentId"]; environmentID != "" {
+		recordEnvironmentID := firstNonEmpty(record.Pipeline.Labels["environmentId"], record.Pipeline.Metadata["environmentId"])
+		if recordEnvironmentID != environmentID {
+			return false
+		}
+	}
+	return true
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if value != "" {
+			return value
+		}
+	}
+	return ""
 }
 
 func (s *MemoryStore) UpdateJobStatus(ctx context.Context, jobRunID string, status domainpipeline.JobRunStatus, reason string, at time.Time) (RunRecord, error) {

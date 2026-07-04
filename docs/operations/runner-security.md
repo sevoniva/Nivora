@@ -28,6 +28,8 @@ Runner tokens are valid only for:
 
 Administrative runner APIs require control-plane authentication and `runner.manage` permission.
 
+Project-scoped runner registrations are forced to the caller's project scope, and job claim checks compare the runner's `projectId` label against queued PipelineRun ownership in both memory and PostgreSQL stores. This prevents a valid runner token from claiming another project's queued job through the runner protocol. This is still a metadata guardrail, not an OS sandbox or a complete enterprise runner-group policy.
+
 ## Incident Response
 
 If a runner is suspected compromised:

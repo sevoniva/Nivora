@@ -39,6 +39,8 @@ Runner tokens are sensitive credentials. Nivora stores token hashes and returns 
 
 Runner protocol endpoints accept `X-Nivora-Runner-Token` only for heartbeat, claim, log append, and status update paths. The token is scoped to the URL runner id and validated again in the usecase before mutation.
 
+When a runner carries a scoped `projectId` label, job claim checks require the queued PipelineRun to belong to the same project. This check runs in both memory and PostgreSQL claim paths and is covered by usecase and HTTP tenant isolation tests. Environment-scoped claim fixtures and first-class runner group ownership remain future hardening work.
+
 ## Cancellation
 
 Cancellation is best-effort. The server can mark cancellation requested, and runners should observe it promptly, but Nivora does not currently guarantee termination of every child process or external operation. Use OS/container-level process supervision for stronger isolation.

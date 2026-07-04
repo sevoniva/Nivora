@@ -26,6 +26,11 @@ type DefinitionRecord struct {
 	Definition Definition                     `json:"definition"`
 }
 
+type DefinitionVersionRecord struct {
+	Version    domainpipeline.PipelineVersion `json:"version"`
+	Definition Definition                     `json:"definition"`
+}
+
 type DefinitionCreateInput struct {
 	ID          string            `json:"id,omitempty"`
 	ProjectID   string            `json:"projectId,omitempty"`
@@ -49,6 +54,7 @@ type DefinitionCatalogStore interface {
 	GetDefinition(ctx context.Context, id string) (DefinitionRecord, error)
 	ListDefinitions(ctx context.Context, projectID string) ([]DefinitionRecord, error)
 	ListDefinitionVersions(ctx context.Context, id string) ([]domainpipeline.PipelineVersion, error)
+	GetDefinitionVersion(ctx context.Context, id string, version int) (DefinitionVersionRecord, error)
 	UpdateDefinition(ctx context.Context, record DefinitionRecord) (DefinitionRecord, error)
 }
 
@@ -123,6 +129,20 @@ func (c *DefinitionCatalog) Versions(ctx context.Context, id string) ([]domainpi
 	return versions, nil
 }
 
+func (c *DefinitionCatalog) Version(ctx context.Context, id string, version int) (DefinitionVersionRecord, error) {
+	if version <= 0 {
+		return DefinitionVersionRecord{}, fmt.Errorf("pipeline definition version must be greater than zero")
+	}
+	record, err := c.store.GetDefinition(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return DefinitionVersionRecord{}, err
+	}
+	if record.Version.Version == version {
+		return DefinitionVersionRecord{Version: record.Version, Definition: record.Definition}, nil
+	}
+	return c.store.GetDefinitionVersion(ctx, record.Pipeline.ID, version)
+}
+
 func (c *DefinitionCatalog) Update(ctx context.Context, id string, input DefinitionUpdateInput) (DefinitionRecord, error) {
 	record, err := c.store.GetDefinition(ctx, strings.TrimSpace(id))
 	if err != nil {
@@ -168,13 +188,13 @@ func (c *DefinitionCatalog) Disable(ctx context.Context, id string) (DefinitionR
 type DefinitionMemoryStore struct {
 	mu       sync.RWMutex
 	records  map[string]DefinitionRecord
-	versions map[string][]domainpipeline.PipelineVersion
+	versions map[string][]DefinitionVersionRecord
 }
 
 func NewDefinitionMemoryStore() *DefinitionMemoryStore {
 	return &DefinitionMemoryStore{
 		records:  map[string]DefinitionRecord{},
-		versions: map[string][]domainpipeline.PipelineVersion{},
+		versions: map[string][]DefinitionVersionRecord{},
 	}
 }
 
@@ -185,7 +205,7 @@ func (s *DefinitionMemoryStore) CreateDefinition(ctx context.Context, record Def
 		return DefinitionRecord{}, fmt.Errorf("%w: pipeline id %q", ErrPipelineDefinitionAlreadyExists, record.Pipeline.ID)
 	}
 	s.records[record.Pipeline.ID] = cloneDefinitionRecord(record)
-	s.versions[record.Pipeline.ID] = appendVersion(s.versions[record.Pipeline.ID], record.Version)
+	s.versions[record.Pipeline.ID] = appendVersion(s.versions[record.Pipeline.ID], DefinitionVersionRecord{Version: record.Version, Definition: record.Definition})
 	return cloneDefinitionRecord(record), nil
 }
 
@@ -218,9 +238,27 @@ func (s *DefinitionMemoryStore) ListDefinitionVersions(ctx context.Context, id s
 	if _, ok := s.records[id]; !ok {
 		return nil, fmt.Errorf("%w: pipeline %q", ErrPipelineDefinitionNotFound, id)
 	}
-	versions := append([]domainpipeline.PipelineVersion(nil), s.versions[id]...)
-	sort.Slice(versions, func(i, j int) bool { return versions[i].Version < versions[j].Version })
+	records := append([]DefinitionVersionRecord(nil), s.versions[id]...)
+	sort.Slice(records, func(i, j int) bool { return records[i].Version.Version < records[j].Version.Version })
+	versions := make([]domainpipeline.PipelineVersion, 0, len(records))
+	for _, record := range records {
+		versions = append(versions, record.Version)
+	}
 	return versions, nil
+}
+
+func (s *DefinitionMemoryStore) GetDefinitionVersion(ctx context.Context, id string, version int) (DefinitionVersionRecord, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if _, ok := s.records[id]; !ok {
+		return DefinitionVersionRecord{}, fmt.Errorf("%w: pipeline %q", ErrPipelineDefinitionNotFound, id)
+	}
+	for _, record := range s.versions[id] {
+		if record.Version.Version == version {
+			return cloneDefinitionVersionRecord(record), nil
+		}
+	}
+	return DefinitionVersionRecord{}, fmt.Errorf("%w: pipeline %q version %d", ErrPipelineDefinitionNotFound, id, version)
 }
 
 func (s *DefinitionMemoryStore) UpdateDefinition(ctx context.Context, record DefinitionRecord) (DefinitionRecord, error) {
@@ -230,13 +268,14 @@ func (s *DefinitionMemoryStore) UpdateDefinition(ctx context.Context, record Def
 		return DefinitionRecord{}, fmt.Errorf("%w: pipeline %q", ErrPipelineDefinitionNotFound, record.Pipeline.ID)
 	}
 	s.records[record.Pipeline.ID] = cloneDefinitionRecord(record)
-	s.versions[record.Pipeline.ID] = appendVersion(s.versions[record.Pipeline.ID], record.Version)
+	s.versions[record.Pipeline.ID] = appendVersion(s.versions[record.Pipeline.ID], DefinitionVersionRecord{Version: record.Version, Definition: record.Definition})
 	return cloneDefinitionRecord(record), nil
 }
 
-func appendVersion(versions []domainpipeline.PipelineVersion, version domainpipeline.PipelineVersion) []domainpipeline.PipelineVersion {
+func appendVersion(versions []DefinitionVersionRecord, version DefinitionVersionRecord) []DefinitionVersionRecord {
+	version = cloneDefinitionVersionRecord(version)
 	for i, existing := range versions {
-		if existing.ID == version.ID || existing.Version == version.Version {
+		if existing.Version.ID == version.Version.ID || existing.Version.Version == version.Version.Version {
 			versions[i] = version
 			return versions
 		}
@@ -263,6 +302,11 @@ func definitionHash(def Definition) string {
 func cloneDefinitionRecord(record DefinitionRecord) DefinitionRecord {
 	record.Pipeline.Labels = cloneMap(record.Pipeline.Labels)
 	record.Pipeline.Metadata = cloneMap(record.Pipeline.Metadata)
+	record.Definition.Spec.Stages = cloneSpecStages(record.Definition.Spec.Stages)
+	return record
+}
+
+func cloneDefinitionVersionRecord(record DefinitionVersionRecord) DefinitionVersionRecord {
 	record.Definition.Spec.Stages = cloneSpecStages(record.Definition.Spec.Stages)
 	return record
 }

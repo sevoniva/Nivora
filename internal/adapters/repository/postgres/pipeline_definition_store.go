@@ -87,6 +87,35 @@ func (s *PipelineDefinitionStore) ListDefinitionVersions(ctx context.Context, id
 	return []domainpipeline.PipelineVersion{record.Version}, nil
 }
 
+func (s *PipelineDefinitionStore) GetDefinitionVersion(ctx context.Context, id string, version int) (pipelineusecase.DefinitionVersionRecord, error) {
+	var record pipelineusecase.DefinitionVersionRecord
+	var definitionJSON []byte
+	err := s.pool.QueryRow(ctx, `SELECT id, pipeline_id, version, definition_hash, definition, created_at, updated_at
+		FROM pipeline_definition_versions WHERE pipeline_id=$1 AND version=$2`, id, version).Scan(
+		&record.Version.ID,
+		&record.Version.PipelineID,
+		&record.Version.Version,
+		&record.Version.DefinitionHash,
+		&definitionJSON,
+		&record.Version.CreatedAt,
+		&record.Version.UpdatedAt,
+	)
+	if errors.Is(err, pgx.ErrNoRows) {
+		current, currentErr := s.GetDefinition(ctx, id)
+		if currentErr == nil && current.Version.Version == version {
+			return pipelineusecase.DefinitionVersionRecord{Version: current.Version, Definition: current.Definition}, nil
+		}
+		return pipelineusecase.DefinitionVersionRecord{}, fmt.Errorf("%w: pipeline %q version %d", pipelineusecase.ErrPipelineDefinitionNotFound, id, version)
+	}
+	if err != nil {
+		return pipelineusecase.DefinitionVersionRecord{}, err
+	}
+	if err := json.Unmarshal(definitionJSON, &record.Definition); err != nil {
+		return pipelineusecase.DefinitionVersionRecord{}, err
+	}
+	return record, nil
+}
+
 func (s *PipelineDefinitionStore) UpdateDefinition(ctx context.Context, record pipelineusecase.DefinitionRecord) (pipelineusecase.DefinitionRecord, error) {
 	if err := s.insertOrUpdate(ctx, record, true); err != nil {
 		if duplicateKey(err) {

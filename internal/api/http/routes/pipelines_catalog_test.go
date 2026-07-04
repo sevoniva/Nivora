@@ -30,6 +30,7 @@ func TestPipelineDefinitionCatalogRoutes(t *testing.T) {
 			Enabled bool   `json:"enabled"`
 		} `json:"pipeline"`
 		Version struct {
+			ID             string `json:"id"`
 			Version        int    `json:"version"`
 			DefinitionHash string `json:"definitionHash"`
 		} `json:"version"`
@@ -69,6 +70,39 @@ func TestPipelineDefinitionCatalogRoutes(t *testing.T) {
 		t.Fatalf("versions status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+created.Pipeline.ID+"/runs?version=1", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("run first definition version status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var firstRunResponse struct {
+		Run struct {
+			PipelineID        string `json:"pipelineId"`
+			PipelineVersionID string `json:"pipelineVersionId"`
+			Status            string `json:"status"`
+		} `json:"run"`
+		Logs []struct {
+			Content string `json:"content"`
+		} `json:"logs"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &firstRunResponse); err != nil {
+		t.Fatalf("decode first version run response: %v", err)
+	}
+	if firstRunResponse.Run.PipelineID != created.Pipeline.ID || firstRunResponse.Run.PipelineVersionID != created.Version.ID || firstRunResponse.Run.Status != "Succeeded" {
+		t.Fatalf("first version run did not preserve catalog identity: %s", rec.Body.String())
+	}
+	if len(firstRunResponse.Logs) == 0 || !strings.Contains(firstRunResponse.Logs[0].Content, "ok") {
+		t.Fatalf("first version run did not use version 1 definition: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+created.Pipeline.ID+"/runs?version=abc", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "invalid_pipeline_version") {
+		t.Fatalf("invalid version status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/pipelines/"+created.Pipeline.ID+"/runs", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -85,7 +119,7 @@ func TestPipelineDefinitionCatalogRoutes(t *testing.T) {
 	if err := json.Unmarshal(rec.Body.Bytes(), &runResponse); err != nil {
 		t.Fatalf("decode run response: %v", err)
 	}
-	if runResponse.Run.PipelineID != created.Pipeline.ID || runResponse.Run.PipelineVersionID == "" || runResponse.Run.Status != "Succeeded" {
+	if runResponse.Run.PipelineID != created.Pipeline.ID || runResponse.Run.PipelineVersionID != updated.Version.ID || runResponse.Run.Status != "Succeeded" {
 		t.Fatalf("run did not preserve catalog identity: %s", rec.Body.String())
 	}
 

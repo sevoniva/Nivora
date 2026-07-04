@@ -4104,12 +4104,20 @@ func newPipelineDefinitionRunCommand() *cobra.Command {
 	var serverURL string
 	var tokenEnv string
 	var printLogs bool
+	var version int
 	cmd := &cobra.Command{
 		Use:   "run <pipeline-id>",
 		Short: "Run a saved pipeline definition through a Nivora server",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/pipelines/"+args[0]+"/runs", nil, os.Getenv(tokenEnv))
+			path := "/api/v1/pipelines/" + url.PathEscape(args[0]) + "/runs"
+			if cmd.Flags().Changed("version") {
+				if version <= 0 {
+					return fmt.Errorf("--version must be greater than zero")
+				}
+				path += "?version=" + url.QueryEscape(fmt.Sprintf("%d", version))
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, path, nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}
@@ -4123,6 +4131,7 @@ func newPipelineDefinitionRunCommand() *cobra.Command {
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().BoolVar(&printLogs, "logs", true, "print captured logs")
+	cmd.Flags().IntVar(&version, "version", 0, "run a saved historical pipeline definition version")
 	return cmd
 }
 
@@ -4193,7 +4202,7 @@ func runPipelineAgainstServer(ctx context.Context, serverURL string, idOrFile st
 		}
 		return doJSONWithToken(ctx, http.MethodPost, serverURL, "/api/v1/pipeline-runs", body, token)
 	}
-	return doJSONWithToken(ctx, http.MethodPost, serverURL, "/api/v1/pipelines/"+idOrFile+"/runs", nil, token)
+	return doJSONWithToken(ctx, http.MethodPost, serverURL, "/api/v1/pipelines/"+url.PathEscape(idOrFile)+"/runs", nil, token)
 }
 
 func newPipelineGetCommand() *cobra.Command {

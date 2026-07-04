@@ -22,6 +22,7 @@ func TestControlPlaneServerCommandsUseBearerToken(t *testing.T) {
 		args       []string
 		wantMethod string
 		wantPath   string
+		wantQuery  string
 		response   string
 	}{
 		{name: "audit verify", cmd: newAuditVerifyCommand(), args: []string{"--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/audit/verify", response: `{"valid":true}`},
@@ -60,6 +61,7 @@ func TestControlPlaneServerCommandsUseBearerToken(t *testing.T) {
 		{name: "pipeline logs", cmd: newPipelineInspectCommand("logs", "Get PipelineRun logs", "/logs"), args: []string{"prun-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/pipeline-runs/prun-1/logs", response: `[]`},
 		{name: "pipeline cancel", cmd: newPipelineCancelCommand(), args: []string{"prun-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/pipeline-runs/prun-1/cancel", response: runResponse},
 		{name: "pipeline definition versions", cmd: newPipelineDefinitionVersionsCommand(), args: []string{"pipe-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/pipelines/pipe-1/versions", response: `{"pipelineId":"pipe-1","versions":[]}`},
+		{name: "pipeline definition run version", cmd: newPipelineDefinitionRunCommand(), args: []string{"pipe-1", "--version", "2", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/pipelines/pipe-1/runs", wantQuery: "version=2", response: runResponse},
 
 		{name: "runner list", cmd: newRunnerListCommand(), args: []string{"--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/runners", response: `[]`},
 		{name: "runner register", cmd: newRunnerRegisterCommand(), args: []string{"--name", "runner-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/runners/register", response: `{"id":"runner-1"}`},
@@ -76,6 +78,9 @@ func TestControlPlaneServerCommandsUseBearerToken(t *testing.T) {
 				called = true
 				if r.Method != tt.wantMethod || r.URL.Path != tt.wantPath {
 					t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+				}
+				if tt.wantQuery != "" && r.URL.RawQuery != tt.wantQuery {
+					t.Fatalf("unexpected query %q, want %q", r.URL.RawQuery, tt.wantQuery)
 				}
 				if got := r.Header.Get("Authorization"); got != "Bearer control-plane-token" {
 					t.Fatalf("Authorization header = %q", got)

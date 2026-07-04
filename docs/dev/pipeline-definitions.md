@@ -27,6 +27,12 @@ go run ./cmd/nivora pipeline definition run <pipeline-id> --server http://localh
 
 The created PipelineRun records the catalog `pipelineId` and `pipelineVersionId` so later logs, events, audit entries, and timelines can be traced back to the saved definition.
 
+To rerun a saved historical version, pass the version number:
+
+```bash
+go run ./cmd/nivora pipeline definition run <pipeline-id> --version 1 --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
+```
+
 The shorthand command also supports catalog IDs when `--local=false`:
 
 ```bash
@@ -43,7 +49,7 @@ go run ./cmd/nivora pipeline definition versions <pipeline-id> --server http://l
 
 The endpoint returns persisted version metadata for versions created through catalog create/update operations. Each entry includes the version number, definition hash, and timestamps. `historyComplete` is true for the configured catalog store when it can enumerate the saved history.
 
-This is a traceability feature, not a rollback or scheduling mechanism. Running a saved definition still uses the current catalog definition.
+This is a traceability and rerun feature, not a rollback or scheduling mechanism.
 
 ## Safety
 

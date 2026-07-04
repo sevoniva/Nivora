@@ -32,6 +32,20 @@ func TestDefinitionCatalogCreateUpdateAndDisable(t *testing.T) {
 	if len(versions) != 2 || versions[0].Version != 1 || versions[1].Version != 2 {
 		t.Fatalf("unexpected versions: %+v", versions)
 	}
+	firstVersion, err := catalog.Version(ctx, record.Pipeline.ID, 1)
+	if err != nil {
+		t.Fatalf("get first version: %v", err)
+	}
+	if firstVersion.Version.ID != record.Version.ID || firstVersion.Definition.Metadata.Name != "build" {
+		t.Fatalf("unexpected first version record: %+v", firstVersion)
+	}
+	secondVersion, err := catalog.Version(ctx, record.Pipeline.ID, 2)
+	if err != nil {
+		t.Fatalf("get second version: %v", err)
+	}
+	if secondVersion.Version.ID != updated.Version.ID || secondVersion.Definition.Metadata.Name != "build-v2" {
+		t.Fatalf("unexpected second version record: %+v", secondVersion)
+	}
 
 	disabled, err := catalog.Disable(ctx, record.Pipeline.ID)
 	if err != nil {

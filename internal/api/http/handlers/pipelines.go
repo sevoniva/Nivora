@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -127,12 +128,28 @@ func RunPipelineDefinition(catalog *pipelineusecase.DefinitionCatalog, service *
 			RespondError(w, r, http.StatusConflict, dto.ErrorResponse{Code: "pipeline_definition_disabled", Message: "pipeline definition is disabled"})
 			return
 		}
+		definition := record.Definition
+		versionID := record.Version.ID
+		if requestedVersion := r.URL.Query().Get("version"); requestedVersion != "" {
+			versionNumber, err := strconv.Atoi(requestedVersion)
+			if err != nil || versionNumber <= 0 {
+				RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_pipeline_version", Message: "version must be a positive integer"})
+				return
+			}
+			versionRecord, err := catalog.Version(r.Context(), record.Pipeline.ID, versionNumber)
+			if err != nil {
+				respondPipelineDefinitionError(w, r, err)
+				return
+			}
+			definition = versionRecord.Definition
+			versionID = versionRecord.Version.ID
+		}
 		start := time.Now()
 		result, err := service.CreateAndRun(r.Context(), pipelineusecase.CreateRunInput{
-			Definition:        record.Definition,
+			Definition:        definition,
 			ProjectID:         record.Pipeline.ProjectID,
 			PipelineID:        record.Pipeline.ID,
-			PipelineVersionID: record.Version.ID,
+			PipelineVersionID: versionID,
 			CorrelationID:     apimiddleware.CorrelationID(r.Context()),
 		})
 		if err != nil {

@@ -39,3 +39,14 @@ func TestPipelineRunHelpMentionsCatalogMode(t *testing.T) {
 		}
 	}
 }
+
+func TestPipelineDefinitionRunRejectsInvalidVersion(t *testing.T) {
+	cmd := newPipelineDefinitionRunCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"pipe-1", "--version", "0"})
+	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "--version must be greater than zero") {
+		t.Fatalf("expected invalid version error, got err=%v output=%s", err, out.String())
+	}
+}

@@ -143,6 +143,20 @@ func TestPostgresIntegrationCatalogAndPipelineDefinitionRecovery(t *testing.T) {
 	if len(versions) != 2 || versions[0].Version != 1 || versions[1].Version != 2 {
 		t.Fatalf("loaded definition versions = %#v", versions)
 	}
+	firstVersion, err := pipelineCatalog.Version(ctx, definition.Pipeline.ID, 1)
+	if err != nil {
+		t.Fatalf("reload first pipeline definition version: %v", err)
+	}
+	if firstVersion.Version.ID != definition.Version.ID || firstVersion.Definition.Metadata.Name != "build" {
+		t.Fatalf("loaded first definition version = %#v", firstVersion)
+	}
+	secondVersion, err := pipelineCatalog.Version(ctx, definition.Pipeline.ID, 2)
+	if err != nil {
+		t.Fatalf("reload second pipeline definition version: %v", err)
+	}
+	if secondVersion.Version.ID != updatedDefinition.Version.ID || secondVersion.Definition.Metadata.Name != "build-v2" {
+		t.Fatalf("loaded second definition version = %#v", secondVersion)
+	}
 }
 
 func ptrPipelineDefinition(def pipelineusecase.Definition) *pipelineusecase.Definition {

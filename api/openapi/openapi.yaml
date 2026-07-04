@@ -1708,9 +1708,16 @@ paths:
   /api/v1/pipelines/{id}/runs:
     post:
       summary: Run a saved pipeline definition
-      description: Creates and runs a PipelineRun from the currently saved Pipeline definition. Dangerous executor defaults are unchanged.
+      description: Creates and runs a PipelineRun from the current Pipeline definition by default, or from a saved historical definition version when the optional version query is provided. Dangerous executor defaults are unchanged.
       parameters:
         - $ref: "#/components/parameters/ID"
+        - name: version
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: Saved Pipeline definition version number to run.
       responses:
         "201":
           description: PipelineRun created from saved definition

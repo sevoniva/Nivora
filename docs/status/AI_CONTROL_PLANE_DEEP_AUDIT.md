@@ -51,7 +51,7 @@ This audit covers the local MCP control-plane surface. It records what an AI cli
 | `nivora_get_deployment_diff` | implemented | `project.read` | no | `Deployments.Diff` | fixture-backed scenario tests | future remote read-only candidate |
 | `nivora_get_release_execution` | implemented | `project.read` | no | `Releases.GetExecution` | fixture-backed scenario tests | future remote read-only candidate |
 | `nivora_get_runner_summary` | implemented | `project.read` | no | `runnerSummary` | scenario tests | future remote read-only candidate |
-| `nivora_search_audit` | implemented | `audit.read` | no | `Compliance.SearchAudit` | audit boundary tests | future remote read-only candidate with pagination and tenant filters |
+| `nivora_search_audit` | implemented | `audit.read` | no | `Compliance.SearchAudit` | audit boundary and pagination tests | future remote read-only candidate with tenant filters and remote attribution |
 | `nivora_get_capability_status` | implemented | `project.read` | no | capability resource wrapper | scenario tests | future remote read-only candidate |
 | `nivora_explain_pipeline_failure` | plan-only | `deployment.create` | no | `explainPipeline` | fixture-backed mutated=false tests | future remote plan-only candidate |
 | `nivora_explain_deployment` | plan-only | `deployment.create` | no | `explainDeploymentRisk` | fixture-backed mutated=false tests | future remote plan-only candidate |
@@ -102,7 +102,7 @@ All prompt templates now state that logs, events, manifests, audit messages, and
 | DeploymentRun | run record, timeline, resources, health, diff, plan-only local planning | MCP cannot apply, rollback, prune, delete, or prove live cluster state. |
 | ReleaseExecution | execution record, target summary, timeline, readiness explanation | MCP cannot approve, reject, or execute release targets. |
 | Runners | fleet summary and runtime counters | MCP cannot register runners, rotate tokens, or inspect host OS state. |
-| Audit | audit search with `audit.read` | Remote pagination and tenant filters are future work. |
+| Audit | audit search with `audit.read` and limit/offset pagination | Tenant filters and remote attribution are future work. |
 | Security | summary and local policy evaluation | No external scanner integration is required or proven through MCP. |
 | Artifacts | local reference parsing/inspection | Network digest resolution is outside MCP local inspect. |
 | Plugins | capability registry | No dynamic external plugin execution through MCP. |

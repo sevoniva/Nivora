@@ -48,7 +48,7 @@ Production configuration now also fails closed when MCP is enabled with `mcp.rea
 6. Tenant-filtered ReleaseExecution resource test.
 7. Tenant-filtered runner summary test.
 8. Tenant-filtered audit search test.
-9. Remote MCP pagination contract test for large result sets.
+9. Broader remote MCP pagination contract tests for resource reads and large result sets.
 10. Distributed MCP rate-limit design and tests.
 11. Remote MCP request timeout depth test.
 12. Prompt-injection corpus expansion beyond current fixtures.
@@ -85,9 +85,9 @@ Production configuration now also fails closed when MCP is enabled with `mcp.rea
 | 1 | Expand remote MCP OIDC/service-account auth contract tests | security | current bearer route tests |
 | 2 | Add tenant fixture model for MCP resources | test | auth scopes |
 | 3 | Add remote MCP audit attribution tests | test | remote auth contract |
-| 4 | Add audit search pagination | code | API/store support |
-| 5 | Add log resource pagination | code | log store support |
-| 6 | Add MCP pagination contract for remote-scale event/log/audit reads | code | current response cap |
+| 4 | Add resource-level MCP pagination | code | current search pagination |
+| 5 | Add large-result MCP pagination scenarios | test | current event/log/audit search pagination |
+| 6 | Add pagination to evidence/artifact/security MCP lists where needed | code | current response cap |
 | 7 | Add deeper remote MCP request timeout contract tests | test | current JSON-RPC timeout |
 | 8 | Add rate-limit design doc | docs | remote RFC |
 | 9 | Add service-account examples without secrets | docs | auth docs |

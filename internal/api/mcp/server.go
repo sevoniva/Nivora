@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -165,6 +166,8 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			"releaseId":       stringProperty("Release id"),
 			"artifactId":      stringProperty("Artifact id"),
 			"securityScanId":  stringProperty("SecurityScan id"),
+			"limit":           integerProperty("page size, 1-100"),
+			"offset":          integerProperty("zero-based offset"),
 		}, nil)),
 		tool("nivora_search_logs", "Search aggregate runtime logs with MCP response caps", objectSchema(map[string]any{
 			"runId":           stringProperty("pipeline or deployment run id"),
@@ -175,6 +178,8 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			"stepRunId":       stringProperty("StepRun id"),
 			"stream":          stringProperty("stdout, stderr, or system"),
 			"contains":        stringProperty("case-insensitive log content substring"),
+			"limit":           integerProperty("page size, 1-100"),
+			"offset":          integerProperty("zero-based offset"),
 		}, nil)),
 		tool("nivora_get_catalog_summary", "Read organization, project, application, environment, repository, and target catalog summary", objectSchema(map[string]any{
 			"orgId":     stringProperty("optional org id filter"),
@@ -227,6 +232,8 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			"scopeId":       stringProperty("scope id"),
 			"requestId":     stringProperty("request id"),
 			"correlationId": stringProperty("correlation id"),
+			"limit":         integerProperty("page size, 1-100"),
+			"offset":        integerProperty("zero-based offset"),
 		}, nil)),
 		tool("nivora_get_capability_status", "Read the current capability status document", nil),
 	}
@@ -386,7 +393,7 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 	case uri == "nivora://policy/results/summary":
 		return s.policyResultSummary(ctx, "", "")
 	case uri == "nivora://audit/search":
-		return s.services.Compliance.SearchAudit(ctx, complianceusecase.AuditSearchInput{})
+		return s.auditSearch(ctx, complianceusecase.AuditSearchInput{}, mcpPage{})
 	case uri == "nivora://evidence/bundles":
 		bundles, err := s.services.Compliance.SearchEvidenceBundles(ctx, "", "")
 		if err != nil {
@@ -580,6 +587,10 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 	case "nivora_get_runtime_recovery_status":
 		return s.runtimeRecoveryStatus(ctx)
 	case "nivora_search_events":
+		page, err := mcpPageFromArgs(arguments)
+		if err != nil {
+			return nil, err
+		}
 		return s.eventSearch(ctx, mcpEventFilter{
 			Type:            stringArg(arguments, "type"),
 			Source:          stringArg(arguments, "source"),
@@ -590,8 +601,14 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			ReleaseID:       stringArg(arguments, "releaseId"),
 			ArtifactID:      stringArg(arguments, "artifactId"),
 			SecurityScanID:  stringArg(arguments, "securityScanId"),
+			Limit:           page.Limit,
+			Offset:          page.Offset,
 		})
 	case "nivora_search_logs":
+		page, err := mcpPageFromArgs(arguments)
+		if err != nil {
+			return nil, err
+		}
 		return s.logSearch(ctx, mcpLogFilter{
 			RunID:           stringArg(arguments, "runId"),
 			PipelineRunID:   stringArg(arguments, "pipelineRunId"),
@@ -601,6 +618,8 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			StepRunID:       stringArg(arguments, "stepRunId"),
 			Stream:          stringArg(arguments, "stream"),
 			Contains:        stringArg(arguments, "contains"),
+			Limit:           page.Limit,
+			Offset:          page.Offset,
 		})
 	case "nivora_get_catalog_summary":
 		return s.catalogSummary(ctx, stringArg(arguments, "orgId"), stringArg(arguments, "projectId"))
@@ -727,7 +746,11 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		}
 		return map[string]any{"bundles": bundles, "count": len(bundles), "mutated": false}, nil
 	case "nivora_search_audit":
-		return s.services.Compliance.SearchAudit(ctx, complianceusecase.AuditSearchInput{
+		page, err := mcpPageFromArgs(arguments)
+		if err != nil {
+			return nil, err
+		}
+		return s.auditSearch(ctx, complianceusecase.AuditSearchInput{
 			Subject:       stringArg(arguments, "subject"),
 			SubjectType:   stringArg(arguments, "subjectType"),
 			SubjectID:     stringArg(arguments, "subjectId"),
@@ -737,7 +760,7 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			ScopeID:       stringArg(arguments, "scopeId"),
 			RequestID:     stringArg(arguments, "requestId"),
 			CorrelationID: stringArg(arguments, "correlationId"),
-		})
+		}, page)
 	case "nivora_get_capability_status":
 		return s.readResourcePayload(ctx, "nivora://capabilities/current")
 	case "nivora_explain_pipeline_failure":
@@ -1092,7 +1115,10 @@ func (s *Server) policyResultSummary(ctx context.Context, subjectType string, su
 	}, nil
 }
 
-const mcpAggregateResponseLimit = 100
+const (
+	mcpAggregateResponseLimit = 100
+	mcpAggregateMaxPageLimit  = 100
+)
 
 type mcpEventFilter struct {
 	Type            string
@@ -1104,6 +1130,8 @@ type mcpEventFilter struct {
 	ReleaseID       string
 	ArtifactID      string
 	SecurityScanID  string
+	Limit           int
+	Offset          int
 }
 
 type mcpLogFilter struct {
@@ -1115,6 +1143,13 @@ type mcpLogFilter struct {
 	StepRunID       string
 	Stream          string
 	Contains        string
+	Limit           int
+	Offset          int
+}
+
+type mcpPage struct {
+	Limit  int
+	Offset int
 }
 
 func (s *Server) eventSearch(ctx context.Context, filter mcpEventFilter) (any, error) {
@@ -1184,15 +1219,21 @@ func (s *Server) eventSearch(ctx context.Context, filter mcpEventFilter) (any, e
 			filtered = append(filtered, evt)
 		}
 	}
-	limited, truncated := limitMCPItems(filtered, mcpAggregateResponseLimit)
+	page, err := normalizeMCPPage(filter.Limit, filter.Offset)
+	if err != nil {
+		return nil, err
+	}
+	limited, pagination, truncated := paginateMCPItems(filtered, page)
 	return map[string]any{
-		"filters":   filter,
-		"events":    limited,
-		"count":     len(filtered),
-		"limit":     mcpAggregateResponseLimit,
-		"truncated": truncated,
-		"warnings":  warnings,
-		"mutated":   false,
+		"filters":    filter,
+		"events":     limited,
+		"count":      len(filtered),
+		"limit":      page.Limit,
+		"offset":     page.Offset,
+		"pagination": pagination,
+		"truncated":  truncated,
+		"warnings":   warnings,
+		"mutated":    false,
 	}, nil
 }
 
@@ -1236,15 +1277,42 @@ func (s *Server) logSearch(ctx context.Context, filter mcpLogFilter) (any, error
 			filtered = append(filtered, log)
 		}
 	}
-	limited, truncated := limitMCPItems(filtered, mcpAggregateResponseLimit)
+	page, err := normalizeMCPPage(filter.Limit, filter.Offset)
+	if err != nil {
+		return nil, err
+	}
+	limited, pagination, truncated := paginateMCPItems(filtered, page)
 	return map[string]any{
-		"filters":   filter,
-		"logs":      truncateLogs(limited),
-		"count":     len(filtered),
-		"limit":     mcpAggregateResponseLimit,
-		"truncated": truncated,
-		"warnings":  warnings,
-		"mutated":   false,
+		"filters":    filter,
+		"logs":       truncateLogs(limited),
+		"count":      len(filtered),
+		"limit":      page.Limit,
+		"offset":     page.Offset,
+		"pagination": pagination,
+		"truncated":  truncated,
+		"warnings":   warnings,
+		"mutated":    false,
+	}, nil
+}
+
+func (s *Server) auditSearch(ctx context.Context, input complianceusecase.AuditSearchInput, page mcpPage) (any, error) {
+	result, err := s.services.Compliance.SearchAudit(ctx, input)
+	if err != nil {
+		return nil, err
+	}
+	normalizedPage, err := normalizeMCPPage(page.Limit, page.Offset)
+	if err != nil {
+		return nil, err
+	}
+	limited, pagination, truncated := paginateMCPItems(result.Items, normalizedPage)
+	return map[string]any{
+		"items":      limited,
+		"count":      result.Count,
+		"limit":      normalizedPage.Limit,
+		"offset":     normalizedPage.Offset,
+		"pagination": pagination,
+		"truncated":  truncated,
+		"mutated":    false,
 	}, nil
 }
 
@@ -1328,11 +1396,39 @@ func containsFoldMCP(value string, needle string) bool {
 	return strings.Contains(strings.ToLower(value), strings.ToLower(needle))
 }
 
-func limitMCPItems[T any](items []T, limit int) ([]T, bool) {
-	if limit <= 0 || len(items) <= limit {
-		return items, false
+func paginateMCPItems[T any](items []T, page mcpPage) ([]T, map[string]any, bool) {
+	start := page.Offset
+	if start > len(items) {
+		start = len(items)
 	}
-	return items[:limit], true
+	end := start + page.Limit
+	if end > len(items) {
+		end = len(items)
+	}
+	hasMore := end < len(items)
+	return items[start:end], map[string]any{
+		"limit":      page.Limit,
+		"offset":     page.Offset,
+		"total":      len(items),
+		"nextOffset": end,
+		"hasMore":    hasMore,
+	}, hasMore
+}
+
+func normalizeMCPPage(limit int, offset int) (mcpPage, error) {
+	if limit == 0 {
+		limit = mcpAggregateResponseLimit
+	}
+	if limit < 0 {
+		return mcpPage{}, OperationError{Code: "mcp_invalid_arguments", Message: "limit must be a positive integer"}
+	}
+	if limit > mcpAggregateMaxPageLimit {
+		return mcpPage{}, OperationError{Code: "mcp_invalid_arguments", Message: fmt.Sprintf("limit must be <= %d", mcpAggregateMaxPageLimit)}
+	}
+	if offset < 0 {
+		return mcpPage{}, OperationError{Code: "mcp_invalid_arguments", Message: "offset must be a non-negative integer"}
+	}
+	return mcpPage{Limit: limit, Offset: offset}, nil
 }
 
 func (s *Server) catalogSummary(ctx context.Context, orgID string, projectID string) (any, error) {
@@ -1723,6 +1819,10 @@ func stringProperty(description string) map[string]any {
 	return map[string]any{"type": "string", "description": description}
 }
 
+func integerProperty(description string) map[string]any {
+	return map[string]any{"type": "integer", "description": description}
+}
+
 func textToolResult(text string) ToolResult {
 	return ToolResult{Content: []ToolContent{{Type: "text", Text: text}}}
 }
@@ -1817,6 +1917,45 @@ func requiredString(args map[string]any, key string) (string, error) {
 func stringArg(args map[string]any, key string) string {
 	value, _ := args[key].(string)
 	return strings.TrimSpace(value)
+}
+
+func mcpPageFromArgs(args map[string]any) (mcpPage, error) {
+	limit, err := intArg(args, "limit")
+	if err != nil {
+		return mcpPage{}, err
+	}
+	offset, err := intArg(args, "offset")
+	if err != nil {
+		return mcpPage{}, err
+	}
+	return normalizeMCPPage(limit, offset)
+}
+
+func intArg(args map[string]any, key string) (int, error) {
+	value, ok := args[key]
+	if !ok || value == nil {
+		return 0, nil
+	}
+	switch typed := value.(type) {
+	case int:
+		return typed, nil
+	case int64:
+		return int(typed), nil
+	case float64:
+		parsed := int(typed)
+		if float64(parsed) != typed {
+			return 0, OperationError{Code: "mcp_invalid_arguments", Message: key + " must be an integer"}
+		}
+		return parsed, nil
+	case string:
+		parsed, err := strconv.Atoi(strings.TrimSpace(typed))
+		if err != nil {
+			return 0, OperationError{Code: "mcp_invalid_arguments", Message: key + " must be an integer"}
+		}
+		return parsed, nil
+	default:
+		return 0, OperationError{Code: "mcp_invalid_arguments", Message: key + " must be an integer"}
+	}
 }
 
 func firstNonEmpty(values ...string) string {

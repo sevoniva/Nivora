@@ -478,12 +478,66 @@ func TestMCPAggregateEventsAndLogsReadOnly(t *testing.T) {
 		t.Fatalf("log search result = %#v", logResult)
 	}
 
+	pagedEvents, err := server.CallTool(ctx, "nivora_search_events", map[string]any{"limit": 1, "offset": 1})
+	if err != nil {
+		t.Fatalf("paged event search transport error: %v", err)
+	}
+	pagedEventBody := pagedEvents.Content[0].Text
+	if pagedEvents.IsError || !strings.Contains(pagedEventBody, `"pagination"`) || !strings.Contains(pagedEventBody, `"limit": 1`) || !strings.Contains(pagedEventBody, `"offset": 1`) {
+		t.Fatalf("paged event search result = %#v body = %s", pagedEvents, pagedEventBody)
+	}
+
+	pagedLogs, err := server.CallTool(ctx, "nivora_search_logs", map[string]any{"limit": 1, "offset": 1})
+	if err != nil {
+		t.Fatalf("paged log search transport error: %v", err)
+	}
+	pagedLogBody := pagedLogs.Content[0].Text
+	if pagedLogs.IsError || !strings.Contains(pagedLogBody, `"pagination"`) || !strings.Contains(pagedLogBody, `"limit": 1`) || !strings.Contains(pagedLogBody, `"offset": 1`) {
+		t.Fatalf("paged log search result = %#v body = %s", pagedLogs, pagedLogBody)
+	}
+
+	invalidLimit, err := server.CallTool(ctx, "nivora_search_logs", map[string]any{"limit": 101})
+	if err != nil {
+		t.Fatalf("invalid limit transport error: %v", err)
+	}
+	if !invalidLimit.IsError || !strings.Contains(invalidLimit.Content[0].Text, "mcp_invalid_arguments") {
+		t.Fatalf("expected invalid pagination limit, got %#v", invalidLimit)
+	}
+
 	for _, body := range []string{eventBody, logBody} {
 		for _, forbidden := range []string{"should-not-leak", "tokenHash", "BEGIN PRIVATE KEY", "Authorization: Bearer"} {
 			if strings.Contains(body, forbidden) {
 				t.Fatalf("aggregate observability MCP output leaked sensitive value %q: %s", forbidden, body)
 			}
 		}
+	}
+}
+
+func TestMCPAuditSearchPagination(t *testing.T) {
+	ctx := context.Background()
+	server := newTestMCPServer(t, domainauth.RoleAuditor, "token")
+	for i, id := range []string{"audit-page-0", "audit-page-1", "audit-page-2"} {
+		if err := server.services.Compliance.RecordAudit(ctx, audit.AuditLog{
+			ID:        id,
+			ActorID:   "mcp-auditor",
+			Action:    "Paged audit",
+			Subject:   "mcp-page",
+			CreatedAt: time.Unix(int64(i), 0).UTC(),
+		}); err != nil {
+			t.Fatalf("record audit: %v", err)
+		}
+	}
+
+	result, err := server.CallTool(ctx, "nivora_search_audit", map[string]any{"subject": "mcp-page", "limit": 1, "offset": 1})
+	if err != nil {
+		t.Fatalf("audit search transport error: %v", err)
+	}
+	body := result.Content[0].Text
+	if result.IsError || !strings.Contains(body, `"pagination"`) || !strings.Contains(body, `"limit": 1`) || !strings.Contains(body, `"offset": 1`) || !strings.Contains(body, `"total": 3`) {
+		t.Fatalf("audit search pagination body = %s", body)
+	}
+	if !strings.Contains(body, "audit-page-1") || strings.Contains(body, "audit-page-0") || strings.Contains(body, "audit-page-2") {
+		t.Fatalf("audit search returned wrong page: %s", body)
 	}
 }
 

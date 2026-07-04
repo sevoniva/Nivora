@@ -121,6 +121,7 @@ type RuntimeRecoverySummary struct {
 
 type CreateRunInput struct {
 	Definition    Definition
+	ProjectID     string
 	ActorID       string
 	CorrelationID string
 }

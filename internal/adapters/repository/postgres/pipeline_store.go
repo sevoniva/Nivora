@@ -81,7 +81,7 @@ func (s *PipelineStore) ListFiltered(ctx context.Context, scopeType, scopeID str
 	if scopeType == "project" {
 		rows, err = s.pool.Query(ctx, `SELECT record FROM runtime_pipeline_runs WHERE record->'pipeline'->>'projectId' = $1 ORDER BY created_at, id`, scopeID)
 	} else {
-		rows, err = s.pool.Query(ctx, `SELECT record FROM runtime_pipeline_runs ORDER BY created_at, id`)
+		return []pipelineusecase.RunRecord{}, nil
 	}
 	if err != nil {
 		return nil, err

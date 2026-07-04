@@ -12,6 +12,7 @@ import (
 	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
 	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
+	"github.com/sevoniva/nivora/internal/domain/tenant"
 	"github.com/sevoniva/nivora/internal/infra/telemetry"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
@@ -27,8 +28,14 @@ func CreatePipelineRun(service *pipelineusecase.Service) http.HandlerFunc {
 			return
 		}
 		start := time.Now()
+		projectID := ""
+		subject := apimiddleware.Subject(r.Context())
+		if subject.ScopeType == tenant.ScopeProject {
+			projectID = subject.ScopeID
+		}
 		result, err := service.CreateAndRun(r.Context(), pipelineusecase.CreateRunInput{
 			Definition:    def,
+			ProjectID:     projectID,
 			CorrelationID: apimiddleware.CorrelationID(r.Context()),
 		})
 		if err != nil {
@@ -90,8 +97,9 @@ func GetPipelineRunLogs(service *pipelineusecase.Service) http.HandlerFunc {
 func pipelineRunResponse(record pipelineusecase.RunRecord) map[string]any {
 	return map[string]any{
 		"pipeline": map[string]any{
-			"id":   record.Pipeline.ID,
-			"name": record.Pipeline.Name,
+			"id":        record.Pipeline.ID,
+			"projectId": record.Pipeline.ProjectID,
+			"name":      record.Pipeline.Name,
 		},
 		"run": map[string]any{
 			"id":            record.Run.ID,

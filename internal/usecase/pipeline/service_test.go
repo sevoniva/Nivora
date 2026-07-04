@@ -46,6 +46,35 @@ func TestCreateAndRunSuccess(t *testing.T) {
 	}
 }
 
+func TestCreateQueuedPersistsProjectScope(t *testing.T) {
+	service := newTestService()
+	result, err := service.CreateQueued(context.Background(), CreateRunInput{
+		Definition: testDefinition(`printf "hello"`),
+		ProjectID:  " project-a ",
+	})
+	if err != nil {
+		t.Fatalf("create queued: %v", err)
+	}
+	if result.Record.Pipeline.ProjectID != "project-a" {
+		t.Fatalf("project id = %q", result.Record.Pipeline.ProjectID)
+	}
+
+	own, err := service.ListFiltered(context.Background(), "project", "project-a")
+	if err != nil {
+		t.Fatalf("list own project: %v", err)
+	}
+	if len(own) != 1 || own[0].Run.ID != result.Record.Run.ID {
+		t.Fatalf("own project list = %#v", own)
+	}
+	other, err := service.ListFiltered(context.Background(), "project", "project-b")
+	if err != nil {
+		t.Fatalf("list other project: %v", err)
+	}
+	if len(other) != 0 {
+		t.Fatalf("other project list should be empty, got %#v", other)
+	}
+}
+
 func TestCreateAndRunFailure(t *testing.T) {
 	service := newTestService()
 	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: testDefinition(`printf "bad" >&2; exit 7`)})

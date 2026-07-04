@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/sevoniva/nivora/internal/domain/audit"
@@ -80,6 +81,7 @@ func (s *Service) CreateQueued(ctx context.Context, input CreateRunInput) (Creat
 	}
 
 	record := s.newRecord(input.Definition)
+	record.Pipeline.ProjectID = strings.TrimSpace(input.ProjectID)
 	record.Run.CorrelationID = input.CorrelationID
 	if err := s.store.Save(ctx, record); err != nil {
 		return CreateRunResult{}, err

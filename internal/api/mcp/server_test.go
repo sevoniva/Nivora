@@ -434,6 +434,63 @@ func TestMCPTenantScopeFiltersDeploymentReadsAndAggregates(t *testing.T) {
 	}
 }
 
+func TestMCPTenantScopeFiltersPipelineReadsAndAggregates(t *testing.T) {
+	ctx := context.Background()
+	pipelines := runtime.NewPipelineService()
+	projectA := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-pipeline-project-a",
+		Username:  "sa-pipeline-project-a",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-a",
+	})
+	projectA.services.Pipelines = pipelines
+	projectB := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-pipeline-project-b",
+		Username:  "sa-pipeline-project-b",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-b",
+	})
+	projectB.services.Pipelines = pipelines
+
+	runA := createScopedMCPPipelineRun(t, pipelines, "project-a")
+	runB := createScopedMCPPipelineRun(t, pipelines, "project-b")
+
+	if _, err := projectA.ReadResource(ctx, "nivora://pipelines/runs/"+runA); err != nil {
+		t.Fatalf("project A read own pipeline run: %v", err)
+	}
+	if _, err := projectA.ReadResource(ctx, "nivora://pipelines/runs/"+runA+"/logs"); err != nil {
+		t.Fatalf("project A read own pipeline logs: %v", err)
+	}
+	_, err := projectA.ReadResource(ctx, "nivora://pipelines/runs/"+runB)
+	var op OperationError
+	if !errors.As(err, &op) || op.Code != "mcp_scope_denied" {
+		t.Fatalf("expected scope denial for cross-project pipeline run, got %T %v", err, err)
+	}
+
+	result, err := projectA.CallTool(ctx, "nivora_search_events", map[string]any{"pipelineRunId": runB})
+	if err != nil {
+		t.Fatalf("cross-project pipeline event search transport error: %v", err)
+	}
+	if !resultCountIsZero(t, result) {
+		t.Fatalf("cross-project pipeline event search returned data: %#v", result)
+	}
+	result, err = projectA.CallTool(ctx, "nivora_search_logs", map[string]any{"pipelineRunId": runB})
+	if err != nil {
+		t.Fatalf("cross-project pipeline log search transport error: %v", err)
+	}
+	if !resultCountIsZero(t, result) {
+		t.Fatalf("cross-project pipeline log search returned data: %#v", result)
+	}
+
+	if _, err := projectB.ReadResource(ctx, "nivora://pipelines/runs/"+runB+"/timeline"); err != nil {
+		t.Fatalf("project B read own pipeline timeline: %v", err)
+	}
+}
+
 func TestMCPEvidenceBundleRequiresAuditRead(t *testing.T) {
 	ctx := context.Background()
 	viewer := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
@@ -1018,6 +1075,31 @@ func createScopedMCPDeploymentRun(t *testing.T, store *deploymentusecase.MemoryS
 		t.Fatalf("save scoped deployment fixture: %v", err)
 	}
 	return record.Run.ID
+}
+
+func createScopedMCPPipelineRun(t *testing.T, pipelines *pipelineusecase.Service, projectID string) string {
+	t.Helper()
+	result, err := pipelines.CreateAndRun(context.Background(), pipelineusecase.CreateRunInput{
+		ActorID:   "mcp-pipeline-scope-fixture",
+		ProjectID: projectID,
+		Definition: pipelineusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Pipeline",
+			Metadata:   pipelineusecase.Metadata{Name: "mcp-scope-" + projectID},
+			Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+				Name: "scope",
+				Jobs: []pipelineusecase.Job{{
+					Name:     "emit",
+					Executor: "shell",
+					Steps:    []pipelineusecase.Step{{Name: "stdout", Run: `printf "` + projectID + `"`}},
+				}},
+			}}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create scoped pipeline fixture: %v", err)
+	}
+	return result.Record.Run.ID
 }
 
 func resultCountIsZero(t *testing.T, result ToolResult) bool {

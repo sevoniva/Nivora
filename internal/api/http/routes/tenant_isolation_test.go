@@ -197,6 +197,9 @@ func TestTenantIsolationListPipelineRuns(t *testing.T) {
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusCreated {
+		t.Fatalf("expected 201 for project-A create pipeline run, got %d body=%s", rec.Code, rec.Body.String())
+	}
 
 	// List pipeline runs as project-A — should return results (scoped).
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs", nil)
@@ -206,6 +209,10 @@ func TestTenantIsolationListPipelineRuns(t *testing.T) {
 	// With scope filtering, project-A should only see its own runs.
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200 for project-A list, got %d", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "list-pipe-a") || !strings.Contains(body, "project-a") {
+		t.Fatalf("project-A list should contain its own pipeline run and project scope, body=%s", body)
 	}
 	t.Logf("project-A scoped list pipeline-runs: %d", rec.Code)
 
@@ -219,9 +226,12 @@ func TestTenantIsolationListPipelineRuns(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Errorf("expected 200 for project-B list, got %d", rec.Code)
 	}
-	body := rec.Body.String()
+	body = rec.Body.String()
 	if strings.Contains(body, "list-pipe-a") || strings.Contains(body, "list-a") {
 		t.Errorf("project-B list should NOT contain project-A data, got body containing project-A reference")
+	}
+	if strings.Contains(body, "project-a") {
+		t.Errorf("project-B list should NOT contain project-A scope, body=%s", body)
 	}
 	t.Logf("project-B scoped list (should be empty/filtered): %d", rec.Code)
 

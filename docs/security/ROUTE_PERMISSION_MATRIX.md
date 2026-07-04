@@ -36,6 +36,7 @@ Auth modes:
 | GET | `/api/v1/repositories`, `/api/v1/repositories/{id}` | `project.read` | project/repository | user/service account | yes | no | yes | Foundation SCM repository catalog; no provider network calls. |
 | POST | `/api/v1/repositories` | `project.write` | project/repository | user/service account | yes | no | yes | Parent project is validated; CredentialRef id only. |
 | PATCH/DELETE | `/api/v1/repositories/{id}` | `project.write` | project/repository | user/service account | yes | no | yes | Delete disables instead of hard-deleting. |
+| POST | `/api/v1/repositories/{id}/validate` | `project.read` | project/repository | user/service account | yes | no | yes | Metadata-only validation; does not contact SCM providers or resolve CredentialRef values. |
 | GET/POST | `/api/v1/secrets`, `/api/v1/secrets/*` | `credential.manage` | org/project/environment/runner/global | user/service account | yes | no | yes | Responses return refs only, never secret values. |
 | GET/POST/DELETE | `/api/v1/credentials*` | `credential.manage` | org/project/environment/runner/global | user/service account | yes | no | yes | Responses return metadata/SecretRef only. |
 | POST | `/api/v1/artifacts/inspect`, `/api/v1/artifacts/resolve` | `release.create` | project/application | user/service account | yes | no | yes | Registry credentials must remain behind SecretRef/CredentialRef. |

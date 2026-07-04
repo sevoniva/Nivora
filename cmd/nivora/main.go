@@ -1676,6 +1676,7 @@ func newRepositoryCommand() *cobra.Command {
 	cmd.AddCommand(newRepositoryCreateCommand())
 	cmd.AddCommand(newRepositoryUpdateCommand())
 	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable a repository", "/api/v1/repositories"))
+	cmd.AddCommand(newRepositoryValidateCommand())
 	return cmd
 }
 
@@ -2028,6 +2029,27 @@ func newRepositoryUpdateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&defaultBranch, "default-branch", "", "default branch")
 	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id for future SCM access")
 	cmd.Flags().BoolVar(&enabled, "enabled", true, "resource enabled state")
+	return cmd
+}
+
+func newRepositoryValidateCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "validate <id>",
+		Short: "Validate an SCM repository catalog record",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/repositories/"+url.PathEscape(args[0])+"/validate", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 

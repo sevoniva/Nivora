@@ -1109,6 +1109,25 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SCMRepository"
+  /api/v1/repositories/{id}/validate:
+    post:
+      summary: Validate SCM repository metadata
+      description: Requires `project.read`. Validates the repository catalog record shape only; it does not call external SCM providers, resolve CredentialRef values, or return secret values.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Repository metadata is valid for the foundation catalog scope
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SCMRepositoryValidationResult"
+        "400":
+          description: Repository metadata is invalid or disabled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SCMRepositoryValidationResult"
   /api/v1/artifact-registries:
     get:
       summary: List artifact registry definitions
@@ -4005,6 +4024,21 @@ components:
           $ref: "#/components/schemas/CatalogMetadata"
         enabled:
           type: boolean
+    SCMRepositoryValidationResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        repositoryId:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        errors:
+          type: array
+          items:
+            type: string
     CatalogUpdateRequest:
       type: object
       properties:

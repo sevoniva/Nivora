@@ -54,9 +54,18 @@ func TestCatalogRoutesCreateListUpdateAndDisable(t *testing.T) {
 	if stringField(t, repository, "credentialRef") != "cred-ref" {
 		t.Fatalf("repository credentialRef mismatch: %+v", repository)
 	}
-
-	req := httptest.NewRequest(http.MethodPatch, "/api/v1/environments/"+environmentID, strings.NewReader(`{"description":"release gate target"}`))
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/repositories/"+repositoryID+"/validate", nil)
 	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"valid":true`) {
+		t.Fatalf("validate repository status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "cred-ref") || strings.Contains(rec.Body.String(), "password-value") || strings.Contains(rec.Body.String(), "raw-token") {
+		t.Fatalf("validate repository response should not expose credential values: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPatch, "/api/v1/environments/"+environmentID, strings.NewReader(`{"description":"release gate target"}`))
+	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK {
 		t.Fatalf("update environment status = %d body = %s", rec.Code, rec.Body.String())
@@ -121,6 +130,12 @@ func TestCatalogRoutesCreateListUpdateAndDisable(t *testing.T) {
 	}
 	if !strings.Contains(rec.Body.String(), `"enabled":false`) {
 		t.Fatalf("disable repository body = %s", rec.Body.String())
+	}
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/repositories/"+repositoryID+"/validate", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "repository is disabled") {
+		t.Fatalf("validate disabled repository status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }
 

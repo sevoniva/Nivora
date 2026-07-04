@@ -353,6 +353,10 @@ func (s *Service) CreateRepository(ctx context.Context, input CreateRepositoryIn
 	if err := validateRepositoryURL(repoURL); err != nil {
 		return domainapp.Repository{}, err
 	}
+	provider := defaultProvider(input.Provider)
+	if err := validateRepositoryProvider(provider); err != nil {
+		return domainapp.Repository{}, err
+	}
 	repositories, _ := s.store.ListRepositories(ctx, projectID)
 	for _, existing := range repositories {
 		if strings.EqualFold(existing.Name, name) || strings.EqualFold(existing.URL, repoURL) {
@@ -369,7 +373,7 @@ func (s *Service) CreateRepository(ctx context.Context, input CreateRepositoryIn
 		ProjectID:     projectID,
 		Name:          name,
 		URL:           repoURL,
-		Provider:      defaultProvider(input.Provider),
+		Provider:      provider,
 		DefaultBranch: defaultBranch(input.DefaultBranch),
 		CredentialRef: strings.TrimSpace(input.CredentialRef),
 		Labels:        copyMap(input.Labels),
@@ -408,6 +412,9 @@ func (s *Service) UpdateRepository(ctx context.Context, id string, input UpdateR
 	}
 	if input.Provider != nil {
 		repository.Provider = defaultProvider(*input.Provider)
+		if err := validateRepositoryProvider(repository.Provider); err != nil {
+			return domainapp.Repository{}, err
+		}
 	}
 	if input.DefaultBranch != nil {
 		repository.DefaultBranch = defaultBranch(*input.DefaultBranch)
@@ -431,6 +438,14 @@ func (s *Service) UpdateRepository(ctx context.Context, id string, input UpdateR
 func (s *Service) DisableRepository(ctx context.Context, id string) (domainapp.Repository, error) {
 	disabled := false
 	return s.UpdateRepository(ctx, id, UpdateRepositoryInput{Enabled: &disabled})
+}
+
+func (s *Service) ValidateRepository(ctx context.Context, id string) (RepositoryValidationResult, error) {
+	repository, err := s.store.GetRepository(ctx, strings.TrimSpace(id))
+	if err != nil {
+		return RepositoryValidationResult{}, err
+	}
+	return validateRepository(repository), nil
 }
 
 func (s *Service) CreateReleaseTarget(ctx context.Context, input CreateReleaseTargetInput) (domainenv.ReleaseTarget, error) {
@@ -625,6 +640,55 @@ func validateRepositoryURL(raw string) error {
 	default:
 		return fmt.Errorf("%w: unsupported repository url scheme %q", ErrInvalid, parsed.Scheme)
 	}
+}
+
+func validateRepositoryProvider(provider string) error {
+	switch strings.TrimSpace(strings.ToLower(provider)) {
+	case "generic", "github", "gitlab", "gitea":
+		return nil
+	default:
+		return fmt.Errorf("%w: unsupported repository provider %q", ErrInvalid, provider)
+	}
+}
+
+func validateRepository(repository domainapp.Repository) RepositoryValidationResult {
+	result := validateRepositoryShape(repository)
+	if !repository.Enabled {
+		result.Errors = append(result.Errors, "repository is disabled")
+	}
+	if len(result.Errors) > 0 {
+		result.Valid = false
+	}
+	return result
+}
+
+func validateRepositoryShape(repository domainapp.Repository) RepositoryValidationResult {
+	result := RepositoryValidationResult{Valid: true, RepositoryID: repository.ID}
+	if strings.TrimSpace(repository.ProjectID) == "" {
+		result.Errors = append(result.Errors, "projectId is required")
+	}
+	if strings.TrimSpace(repository.Name) == "" {
+		result.Errors = append(result.Errors, "name is required")
+	}
+	if err := validateRepositoryURL(repository.URL); err != nil {
+		result.Errors = append(result.Errors, err.Error())
+	}
+	if err := validateRepositoryProvider(repository.Provider); err != nil {
+		result.Errors = append(result.Errors, err.Error())
+	}
+	if strings.TrimSpace(repository.DefaultBranch) == "" {
+		result.Errors = append(result.Errors, "defaultBranch is required")
+	}
+	if strings.TrimSpace(repository.CredentialRef) != "" {
+		result.Warnings = append(result.Warnings, "credentialRef is metadata only; repository validation does not resolve or return secret values")
+	}
+	if strings.TrimSpace(repository.Provider) != "" && strings.TrimSpace(repository.Provider) != "generic" {
+		result.Warnings = append(result.Warnings, "provider-specific network validation is not implemented; this is metadata validation only")
+	}
+	if len(result.Errors) > 0 {
+		result.Valid = false
+	}
+	return result
 }
 
 func defaultProvider(provider string) string {

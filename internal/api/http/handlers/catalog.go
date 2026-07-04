@@ -335,6 +335,21 @@ func DisableRepository(service *catalogusecase.Service) http.HandlerFunc {
 	}
 }
 
+func ValidateRepository(service *catalogusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		result, err := service.ValidateRepository(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		status := http.StatusOK
+		if !result.Valid {
+			status = http.StatusBadRequest
+		}
+		RespondJSON(w, status, result)
+	}
+}
+
 func ListReleaseTargets(service *catalogusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		targets, err := service.ListReleaseTargets(r.Context(), r.URL.Query().Get("projectId"), r.URL.Query().Get("environmentId"))

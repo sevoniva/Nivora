@@ -57,12 +57,26 @@ func TestCatalogCreatesHierarchyAndDisablesResources(t *testing.T) {
 	if repository.ProjectID != project.ID || repository.Provider != "generic" || repository.DefaultBranch != "main" {
 		t.Fatalf("unexpected repository: %+v", repository)
 	}
+	repositoryCheck, err := service.ValidateRepository(ctx, repository.ID)
+	if err != nil {
+		t.Fatalf("validate repository: %v", err)
+	}
+	if !repositoryCheck.Valid {
+		t.Fatalf("repository should validate: %+v", repositoryCheck)
+	}
 	disabledRepo, err := service.DisableRepository(ctx, repository.ID)
 	if err != nil {
 		t.Fatalf("disable repository: %v", err)
 	}
 	if disabledRepo.Enabled {
 		t.Fatalf("delete should disable repository, got %+v", disabledRepo)
+	}
+	repositoryCheck, err = service.ValidateRepository(ctx, repository.ID)
+	if err != nil {
+		t.Fatalf("validate disabled repository: %v", err)
+	}
+	if repositoryCheck.Valid || len(repositoryCheck.Errors) == 0 {
+		t.Fatalf("disabled repository should not validate: %+v", repositoryCheck)
 	}
 }
 
@@ -93,6 +107,20 @@ func TestCatalogRejectsMissingParentsAndDuplicates(t *testing.T) {
 	}
 	if _, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Repo", URL: "example.com/no-scheme"}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("invalid repository url error = %v", err)
+	}
+	if _, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Repo", URL: "https://example.com/team/service.git", Provider: "unknown"}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("invalid repository provider error = %v", err)
+	}
+	repository, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Repo", URL: "https://example.com/team/service.git", Provider: "github", CredentialRef: "cred-ref"})
+	if err != nil {
+		t.Fatalf("create repository with credential ref: %v", err)
+	}
+	result, err := service.ValidateRepository(ctx, repository.ID)
+	if err != nil {
+		t.Fatalf("validate repository with credential ref: %v", err)
+	}
+	if !result.Valid || len(result.Warnings) < 2 {
+		t.Fatalf("expected metadata-only warnings for provider and credential ref: %+v", result)
 	}
 }
 

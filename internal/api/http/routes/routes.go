@@ -169,6 +169,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetRepository(catalogService)))
 		api.Patch("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.UpdateRepository(catalogService)))
 		api.Delete("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.DisableRepository(catalogService)))
+		api.Post("/repositories/{id}/validate", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ValidateRepository(catalogService)))
 		api.Get("/release-targets", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.ListReleaseTargets(catalogService)))
 		api.Post("/release-targets", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.CreateReleaseTarget(catalogService)))
 		api.Get("/release-targets/{id}", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.GetReleaseTarget(catalogService)))

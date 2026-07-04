@@ -41,6 +41,12 @@ The same shape exists for:
 
 `DELETE` disables the resource by setting `enabled=false`. It does not hard-delete state.
 
+Repository records also expose:
+
+- `POST /api/v1/repositories/{id}/validate`
+
+This validates metadata shape, enabled state, supported provider names, URL shape, and branch presence. It does not contact GitHub, GitLab, Gitea, or other SCM services, and it does not resolve or return CredentialRef values.
+
 ## CLI Shape
 
 The CLI mirrors the API:
@@ -51,6 +57,7 @@ nivora project create --org-id org-123 --name delivery
 nivora application create --project-id project-123 --name api
 nivora environment create --project-id project-123 --name prod
 nivora repository create --project-id project-123 --name service --url https://example.com/team/service.git
+nivora repository validate repo-123 --token-env NIVORA_AUTH_TOKEN
 ```
 
 List, get, update, and disable commands are available for each resource group.
@@ -58,8 +65,8 @@ List, get, update, and disable commands are available for each resource group.
 ## Current Limits
 
 - The default runtime wiring uses an in-memory catalog store.
-- PostgreSQL catalog persistence is future work.
+- PostgreSQL catalog persistence is available when `database.runtime_store: postgres` is configured.
 - Fine-grained tenant lifecycle workflows are future work.
-- Repository catalog entries store metadata and CredentialRef ids only; they do not call GitHub, GitLab, Gitea, or other SCM APIs yet.
+- Repository catalog entries store metadata and CredentialRef ids only; validation does not call GitHub, GitLab, Gitea, or other SCM APIs.
 - RBAC protects the routes, but full enterprise SSO remains future work.
 - Nivora is still a beta-candidate foundation, not production-ready.

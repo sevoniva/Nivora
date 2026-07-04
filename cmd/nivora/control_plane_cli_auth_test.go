@@ -36,6 +36,8 @@ func TestControlPlaneServerCommandsUseBearerToken(t *testing.T) {
 		{name: "plugins capabilities", cmd: newPluginsCapabilitiesCommand(), args: []string{"scanner-noop", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/plugins/scanner-noop/capabilities", response: `[]`},
 		{name: "plugins validate", cmd: newPluginsValidateCommand(), args: []string{"--file", pluginFile, "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/plugins/validate", response: `{"valid":true}`},
 
+		{name: "repository validate", cmd: newRepositoryValidateCommand(), args: []string{"repo-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/repositories/repo-1/validate", response: `{"valid":true,"repositoryId":"repo-1"}`},
+
 		{name: "policy attach", cmd: newPolicyAttachCommand(), args: []string{"policy-1", "--scope-type", "project", "--scope-id", "project-a", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodPost, wantPath: "/api/v1/policies/policy-1/attachments", response: `{"id":"attach-1"}`},
 		{name: "policy attachments", cmd: newPolicyAttachmentsCommand(), args: []string{"policy-1", "--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/policies/policy-1/attachments", response: `[]`},
 		{name: "policy list", cmd: newPolicyListCommand(), args: []string{"--server", "SERVER_URL", "--token-env", "NIVORA_TEST_TOKEN"}, wantMethod: http.MethodGet, wantPath: "/api/v1/policies", response: `[]`},

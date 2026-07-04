@@ -190,3 +190,10 @@ type ReleaseTargetValidationResult struct {
 	Warnings []string `json:"warnings,omitempty"`
 	Errors   []string `json:"errors,omitempty"`
 }
+
+type RepositoryValidationResult struct {
+	Valid        bool     `json:"valid"`
+	RepositoryID string   `json:"repositoryId,omitempty"`
+	Warnings     []string `json:"warnings,omitempty"`
+	Errors       []string `json:"errors,omitempty"`
+}

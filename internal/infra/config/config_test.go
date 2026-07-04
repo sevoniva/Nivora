@@ -106,6 +106,10 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 			c.MCP.Enabled = true
 			c.MCP.AllowActionTools = true
 		}},
+		{"mcp not readonly", func(c *Config) {
+			c.MCP.Enabled = true
+			c.MCP.ReadOnly = false
+		}},
 		{"mcp unsupported mode", func(c *Config) {
 			c.MCP.Enabled = true
 			c.MCP.Mode = "http"

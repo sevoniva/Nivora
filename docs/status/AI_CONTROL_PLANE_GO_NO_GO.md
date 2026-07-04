@@ -36,6 +36,8 @@ Current maturity: **hardened beta-candidate foundation, not production-ready**.
 19. New tools could bypass mutated=false unless tests stay strict.
 20. Documentation could overstate beta capabilities if not reviewed; tenant IDOR, cross-project audit, missing resource, massive log, and evidence-bundle scenarios must stay in the corpus.
 
+Production configuration now also fails closed when MCP is enabled with `mcp.readonly=false`; this guards the current local foundation from accidental action-tier configuration.
+
 ## Top 20 Missing Tests
 
 1. Remote bearer auth MCP contract test.

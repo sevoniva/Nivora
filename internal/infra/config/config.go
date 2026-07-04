@@ -247,6 +247,9 @@ func (c Config) Validate() error {
 			if c.MCP.Mode != "stdio" {
 				return errors.New("config mcp.mode must be stdio in production for this foundation phase")
 			}
+			if !c.MCP.ReadOnly {
+				return errors.New("config mcp.readonly=false is not allowed in this foundation phase")
+			}
 			if c.MCP.AllowActionTools {
 				return errors.New("config mcp.allow_action_tools=true is not allowed in this foundation phase")
 			}

@@ -2,6 +2,8 @@
 
 Nivora's MCP server is a local stdio foundation for AI-assisted inspection and planning. It is disabled by default and does not expose action tools.
 
+In production mode, MCP must remain read-only in this foundation phase. Configuration validation rejects enabled MCP with `mcp.readonly=false`.
+
 ## Safe Tool Classes
 
 Read-only tools and resources expose control-plane state such as:

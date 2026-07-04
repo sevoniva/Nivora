@@ -55,6 +55,7 @@ Current scenario evidence:
 - Catalog drift and plan-only non-mutation tests: `TestMCPPermissionMatrixCoversCatalogEntries`, `TestMCPPlanOnlyToolsReturnMutatedFalseAndDoNotCreateDeploymentRuns`
 - Smoke script: `scripts/smoke-mcp-local.sh`
 - Postgres MCP audit hash-chain proof: `TestPostgresIntegrationMCPAuditHashChain` and CI `MCP audit hash chain verification`
+- Production configuration validation rejects enabled MCP when `mcp.readonly=false`
 
 ## Remaining Top Risks
 

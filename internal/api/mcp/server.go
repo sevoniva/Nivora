@@ -324,14 +324,21 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 	case uri == "nivora://catalog/summary":
 		return s.catalogSummary(ctx, "", "")
 	case uri == "nivora://pipelines/definitions":
-		definitions, err := s.services.PipelineDefs.List(ctx, "")
+		definitions, err := s.scopedPipelineDefinitions(ctx, "")
 		if err != nil {
 			return nil, err
 		}
 		return map[string]any{"definitions": definitions}, nil
 	case strings.HasPrefix(uri, "nivora://pipelines/definitions/"):
 		id := strings.TrimPrefix(uri, "nivora://pipelines/definitions/")
-		return s.services.PipelineDefs.Get(ctx, id)
+		definition, err := s.services.PipelineDefs.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensurePipelineDefinitionScope(definition, "pipeline definition "+id); err != nil {
+			return nil, err
+		}
+		return definition, nil
 	case strings.HasPrefix(uri, "nivora://pipelines/runs/"):
 		return s.pipelineResource(ctx, strings.TrimPrefix(uri, "nivora://pipelines/runs/"))
 	case strings.HasPrefix(uri, "nivora://deployments/"):
@@ -577,7 +584,7 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 	case "nivora_get_catalog_summary":
 		return s.catalogSummary(ctx, stringArg(arguments, "orgId"), stringArg(arguments, "projectId"))
 	case "nivora_list_pipeline_definitions":
-		definitions, err := s.services.PipelineDefs.List(ctx, stringArg(arguments, "projectId"))
+		definitions, err := s.scopedPipelineDefinitions(ctx, stringArg(arguments, "projectId"))
 		if err != nil {
 			return nil, err
 		}
@@ -589,6 +596,9 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		}
 		definition, err := s.services.PipelineDefs.Get(ctx, id)
 		if err != nil {
+			return nil, err
+		}
+		if err := s.ensurePipelineDefinitionScope(definition, "pipeline definition "+id); err != nil {
 			return nil, err
 		}
 		return map[string]any{"definition": definition, "mutated": false}, nil
@@ -1354,6 +1364,28 @@ func (s *Server) catalogSummary(ctx context.Context, orgID string, projectID str
 
 func (s *Server) ensurePipelineScope(record pipelineusecase.RunRecord, resource string) error {
 	return s.ensureSubjectScope(resource, record.Pipeline.ProjectID, "")
+}
+
+func (s *Server) ensurePipelineDefinitionScope(record pipelineusecase.DefinitionRecord, resource string) error {
+	return s.ensureSubjectScope(resource, record.Pipeline.ProjectID, "")
+}
+
+func (s *Server) scopedPipelineDefinitions(ctx context.Context, requestedProjectID string) ([]pipelineusecase.DefinitionRecord, error) {
+	subject := s.services.Subject
+	switch strings.TrimSpace(subject.ScopeType) {
+	case "":
+		return s.services.PipelineDefs.List(ctx, requestedProjectID)
+	case domaintenant.ScopeGlobal:
+		return s.services.PipelineDefs.List(ctx, requestedProjectID)
+	case domaintenant.ScopeProject:
+		scopeID := strings.TrimSpace(subject.ScopeID)
+		if scopeID == "" {
+			return []pipelineusecase.DefinitionRecord{}, nil
+		}
+		return s.services.PipelineDefs.List(ctx, scopeID)
+	default:
+		return []pipelineusecase.DefinitionRecord{}, nil
+	}
 }
 
 func (s *Server) ensureDeploymentScope(record deploymentusecase.RunRecord, resource string) error {

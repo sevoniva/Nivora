@@ -251,6 +251,73 @@ func TestMCPCatalogAndPipelineDefinitionsReadOnly(t *testing.T) {
 	}
 }
 
+func TestMCPTenantScopeFiltersPipelineDefinitions(t *testing.T) {
+	ctx := context.Background()
+	definitions := pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore())
+	projectA := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-definition-project-a",
+		Username:  "sa-definition-project-a",
+		Roles:     []string{domainauth.RoleViewer},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-a",
+	})
+	projectA.services.PipelineDefs = definitions
+	projectB := newTestMCPServerWithSubject(t, domainauth.Subject{
+		ID:        "sa-definition-project-b",
+		Username:  "sa-definition-project-b",
+		Roles:     []string{domainauth.RoleViewer},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-b",
+	})
+	projectB.services.PipelineDefs = definitions
+
+	defA := createScopedMCPPipelineDefinition(t, definitions, "project-a", "mcp-def-a")
+	defB := createScopedMCPPipelineDefinition(t, definitions, "project-b", "mcp-def-b")
+
+	resource, err := projectA.ReadResource(ctx, "nivora://pipelines/definitions")
+	if err != nil {
+		t.Fatalf("project A definition list resource: %v", err)
+	}
+	if !strings.Contains(resource.Text, defA) || strings.Contains(resource.Text, defB) || strings.Contains(resource.Text, "project-b") {
+		t.Fatalf("project A definition list leaked or missed scoped data: %s", resource.Text)
+	}
+
+	result, err := projectA.CallTool(ctx, "nivora_list_pipeline_definitions", map[string]any{"projectId": "project-b"})
+	if err != nil {
+		t.Fatalf("project A definition list tool transport: %v", err)
+	}
+	if result.IsError || !strings.Contains(result.Content[0].Text, defA) || strings.Contains(result.Content[0].Text, defB) || strings.Contains(result.Content[0].Text, "project-b") {
+		t.Fatalf("project A definition list tool leaked or missed scoped data: %#v", result)
+	}
+
+	if _, err := projectA.ReadResource(ctx, "nivora://pipelines/definitions/"+defB); err == nil {
+		t.Fatalf("project A should not read project B pipeline definition resource")
+	} else {
+		var op OperationError
+		if !errors.As(err, &op) || op.Code != "mcp_scope_denied" {
+			t.Fatalf("expected scope denial for cross-project definition resource, got %T %v", err, err)
+		}
+	}
+
+	result, err = projectA.CallTool(ctx, "nivora_get_pipeline_definition", map[string]any{"id": defB})
+	if err != nil {
+		t.Fatalf("project A definition get tool transport: %v", err)
+	}
+	if !result.IsError || !strings.Contains(result.Content[0].Text, "mcp_scope_denied") {
+		t.Fatalf("project A should receive scope denial for project B definition tool, got %#v", result)
+	}
+
+	result, err = projectB.CallTool(ctx, "nivora_get_pipeline_definition", map[string]any{"id": defB})
+	if err != nil {
+		t.Fatalf("project B definition get tool transport: %v", err)
+	}
+	if result.IsError || !strings.Contains(result.Content[0].Text, defB) || strings.Contains(result.Content[0].Text, defA) {
+		t.Fatalf("project B should read own pipeline definition only, got %#v", result)
+	}
+}
+
 func TestMCPSecurityPolicyAndRuntimeReadOnly(t *testing.T) {
 	ctx := context.Background()
 	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
@@ -1287,6 +1354,30 @@ func createMCPCatalogAndPipelineFixture(t *testing.T, server *Server) (string, s
 		t.Fatalf("create pipeline definition fixture: %v", err)
 	}
 	return project.ID, definition.Pipeline.ID
+}
+
+func createScopedMCPPipelineDefinition(t *testing.T, catalog *pipelineusecase.DefinitionCatalog, projectID string, name string) string {
+	t.Helper()
+	record, err := catalog.Create(context.Background(), pipelineusecase.DefinitionCreateInput{
+		ProjectID: projectID,
+		Definition: pipelineusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Pipeline",
+			Metadata:   pipelineusecase.Metadata{Name: name},
+			Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+				Name: "build",
+				Jobs: []pipelineusecase.Job{{
+					Name:     "echo",
+					Executor: "shell",
+					Steps:    []pipelineusecase.Step{{Name: "hello", Run: "echo hello"}},
+				}},
+			}}},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create scoped pipeline definition fixture: %v", err)
+	}
+	return record.Pipeline.ID
 }
 
 func createMCPArtifactFixture(t *testing.T, server *Server) (string, string) {

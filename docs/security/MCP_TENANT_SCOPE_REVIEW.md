@@ -32,6 +32,7 @@ Current status: **partially proven for local MCP RBAC and scoped read models, no
 - Project-scoped service account can read its own scoped PipelineRun record, logs, and timeline.
 - Project-scoped service account is denied when reading another project's scoped PipelineRun.
 - Aggregate MCP event and log searches filter out scoped PipelineRun records outside the subject project.
+- Project-scoped service account can list and read only same-project PipelineDefinition records through MCP resources/tools; requested cross-project list filters are ignored in favor of the subject project.
 - HTTP project-scoped service account can read its own PipelineRun detail, logs, events, timeline, and visualization DAG/timeline/summary.
 - HTTP project-scoped service account is denied when directly reading another project's PipelineRun detail and visualization endpoints by ID.
 - HTTP aggregate `/api/v1/events`, `/api/v1/logs`, and visualization audit timeline are scoped for PipelineRun records.
@@ -77,7 +78,7 @@ Evidence:
 
 | Gap | Impact | Required Work |
 |---|---|---|
-| Resource ID ownership not checked for every MCP read | A remote subject could request another tenant's ID if underlying stores do not filter | Extend the scoped guard pattern to pipeline definitions and any future evidence/resource family before remote MCP exposure. |
+| Resource ID ownership not checked for every future MCP read | A remote subject could request another tenant's ID if new resources skip scoped guards | Extend the scoped guard pattern to every future resource/tool and keep route/resource contract tests as MCP grows. |
 | Audit and observability scope is not complete for every historical or unscoped record family | Older unscoped records can only be hidden or treated as global, which limits confidence for remote multi-tenant exposure | Add first-class scope metadata to every persisted evidence/audit/resource family and keep negative tests for historical unscoped records. |
 | Runner ownership is label-based | A runner without scope labels is hidden from scoped reads, but ownership is not first-class in the runner table/model | Add first-class RunnerGroup ownership persistence before treating runner fleet views as enterprise multi-tenant. |
 | Capability/runtime documents are broad | Metadata can reveal unsupported or experimental areas | Define a remote-safe capability summary profile before exposing remote MCP. |

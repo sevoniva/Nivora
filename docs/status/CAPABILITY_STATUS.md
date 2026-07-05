@@ -61,3 +61,4 @@ Nivora is **not production-ready**. All 11 core runtime stores have PostgreSQL i
 - OpenAPI and AsyncAPI describe a hardened beta-candidate foundation, not a production-ready platform.
 - External adapters labeled noop, fake, skeleton, placeholder, or experimental must not be described as complete integrations.
 - Successful MCP repository inspection/planning and workflow planning calls record domain-specific audit actions (`devops.mcp.repository.inspected`, `devops.mcp.workflow.planned`) without storing raw workflow content or secret values.
+- MCP repository/workflow tests cover cross-project denials for repository list/detail/latest snapshot/intelligence/DevOps-plan reads, stored WorkflowPlan/workflow detail reads, and repository-backed planning tools; remote MCP still remains experimental until distributed rate limits and operator guidance are complete.

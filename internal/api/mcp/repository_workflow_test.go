@@ -2,6 +2,7 @@ package mcp
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -9,6 +10,7 @@ import (
 
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	releaseusecase "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
@@ -184,6 +186,87 @@ func TestMCPRepositoryDevOpsPlanResourceAndToolArePlanOnly(t *testing.T) {
 	}
 }
 
+func TestMCPTenantScopeFiltersRepositoryAndWorkflowResources(t *testing.T) {
+	ctx := context.Background()
+	base := newTestMCPServer(t, domainauth.RoleDeveloper, "mcp-local")
+	projectA := base.WithSubject(domainauth.Subject{
+		ID:        "sa-repository-project-a",
+		Username:  "sa-repository-project-a",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-a",
+	})
+	projectB := base.WithSubject(domainauth.Subject{
+		ID:        "sa-repository-project-b",
+		Username:  "sa-repository-project-b",
+		Roles:     []string{domainauth.RoleDeveloper},
+		AuthMode:  "service_account",
+		ScopeType: "project",
+		ScopeID:   "project-b",
+	})
+
+	repoA := createScopedMCPRepositorySnapshot(t, base, "project-a", "repo-a", "mcp-repo-a")
+	repoB := createScopedMCPRepositorySnapshot(t, base, "project-b", "repo-b", "mcp-repo-b")
+	workflowA := createScopedMCPWorkflowPlan(t, base, repoA.ID, "workflow-a")
+	workflowB := createScopedMCPWorkflowPlan(t, base, repoB.ID, "workflow-b")
+
+	repositoryList, err := projectA.ReadResource(ctx, "nivora://repositories")
+	if err != nil {
+		t.Fatalf("project A repository list: %v", err)
+	}
+	if !strings.Contains(repositoryList.Text, repoA.ID) || strings.Contains(repositoryList.Text, repoB.ID) || strings.Contains(repositoryList.Text, "project-b") {
+		t.Fatalf("project A repository list leaked or missed scoped data: %s", repositoryList.Text)
+	}
+
+	for _, uri := range []string{
+		"nivora://repositories/" + repoB.ID,
+		"nivora://repositories/" + repoB.ID + "/snapshot/latest",
+		"nivora://repositories/" + repoB.ID + "/intelligence",
+		"nivora://repositories/" + repoB.ID + "/devops-plan",
+		"nivora://workflows/" + workflowB.ID + "/plan",
+		"nivora://workflows/" + workflowB.WorkflowID,
+	} {
+		if _, err := projectA.ReadResource(ctx, uri); err == nil {
+			t.Fatalf("project A should not read cross-project resource %s", uri)
+		} else {
+			assertMCPScopeDenied(t, err)
+		}
+	}
+
+	for name, args := range map[string]map[string]any{
+		"nivora_repository_snapshot_create":      {"repositoryId": repoB.ID, "localPath": repoB.LocalPath, "ref": "HEAD"},
+		"nivora_repository_intelligence_analyze": {"repositoryId": repoB.ID},
+		"nivora_repository_devops_plan":          {"repositoryId": repoB.ID},
+		"nivora_devops_readiness_review":         {"repositoryId": repoB.ID},
+		"nivora_workflow_draft_generate":         {"repositoryId": repoB.ID},
+	} {
+		result, err := projectA.CallTool(ctx, name, args)
+		if err != nil {
+			t.Fatalf("%s transport error: %v", name, err)
+		}
+		if !result.IsError || !strings.Contains(result.Content[0].Text, "mcp_scope_denied") {
+			t.Fatalf("%s should be scope denied for project A, got %#v", name, result)
+		}
+	}
+
+	snapshot, err := projectB.ReadResource(ctx, "nivora://repositories/"+repoB.ID+"/snapshot/latest")
+	if err != nil {
+		t.Fatalf("project B read own snapshot: %v", err)
+	}
+	if !strings.Contains(snapshot.Text, repoB.ID) || !strings.Contains(snapshot.Text, `"mutated": false`) {
+		t.Fatalf("project B snapshot missing scoped data or read-only marker: %s", snapshot.Text)
+	}
+
+	workflows, err := projectA.ReadResource(ctx, "nivora://workflows")
+	if err != nil {
+		t.Fatalf("project A workflow list: %v", err)
+	}
+	if !strings.Contains(workflows.Text, workflowA.WorkflowID) || strings.Contains(workflows.Text, workflowB.WorkflowID) || strings.Contains(workflows.Text, "project-b") {
+		t.Fatalf("project A workflow list leaked or missed scoped data: %s", workflows.Text)
+	}
+}
+
 func TestMCPWorkflowToolsPlanOnly(t *testing.T) {
 	workflow := `
 apiVersion: nivora.io/v1alpha1
@@ -221,6 +304,92 @@ jobs:
 	}
 	assertMCPAuditAction(t, recorder, EventDevOpsMCPWorkflowPlanned)
 	assertMCPAuditDoesNotContain(t, recorder, "go test ./...")
+}
+
+func assertMCPScopeDenied(t *testing.T, err error) {
+	t.Helper()
+	var op OperationError
+	if !errors.As(err, &op) || op.Code != "mcp_scope_denied" {
+		t.Fatalf("expected mcp_scope_denied, got %T %v", err, err)
+	}
+}
+
+type scopedMCPRepositorySnapshot struct {
+	ID        string
+	LocalPath string
+}
+
+func createScopedMCPRepositorySnapshot(t *testing.T, server *Server, projectID string, repositoryID string, name string) scopedMCPRepositorySnapshot {
+	t.Helper()
+	ctx := context.Background()
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.invalid/"+repositoryID+"\n\ngo 1.23\n"), 0o600); err != nil {
+		t.Fatalf("write go.mod fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Dockerfile"), []byte("FROM scratch\n"), 0o600); err != nil {
+		t.Fatalf("write Dockerfile fixture: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".env"), []byte("TOKEN=should-not-leak\n"), 0o600); err != nil {
+		t.Fatalf("write .env fixture: %v", err)
+	}
+	org, err := server.services.Catalog.CreateOrg(ctx, catalogusecase.CreateOrgInput{
+		Name: "Org " + projectID,
+		Slug: "org-" + projectID,
+	})
+	if err != nil {
+		t.Fatalf("create scoped org fixture: %v", err)
+	}
+	if _, err := server.services.Catalog.CreateProject(ctx, catalogusecase.CreateProjectInput{
+		ID:    projectID,
+		OrgID: org.ID,
+		Name:  "Project " + projectID,
+		Slug:  projectID,
+	}); err != nil {
+		t.Fatalf("create scoped project fixture: %v", err)
+	}
+	repository, err := server.services.Catalog.CreateRepository(ctx, catalogusecase.CreateRepositoryInput{
+		ID:            repositoryID,
+		ProjectID:     projectID,
+		Name:          name,
+		URL:           "file://" + root,
+		Provider:      "local",
+		DefaultBranch: "HEAD",
+		CredentialRef: "credential-ref-placeholder",
+	})
+	if err != nil {
+		t.Fatalf("create scoped repository fixture: %v", err)
+	}
+	if _, err := server.services.Repositories.CreateSnapshot(ctx, repositoryusecase.SnapshotInput{
+		Repository: repositoryUsecaseFromCatalog(repository),
+		Ref:        "HEAD",
+		LocalPath:  root,
+	}); err != nil {
+		t.Fatalf("create scoped repository snapshot fixture: %v", err)
+	}
+	return scopedMCPRepositorySnapshot{ID: repository.ID, LocalPath: root}
+}
+
+func createScopedMCPWorkflowPlan(t *testing.T, server *Server, repositoryID string, name string) workflowusecase.PlanRecord {
+	t.Helper()
+	record, err := server.services.Workflows.Plan(context.Background(), workflowusecase.PlanInput{
+		RepositoryID: repositoryID,
+		Content: `
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: ` + name + `
+on: [manual]
+jobs:
+  test:
+    steps:
+      - name: test
+        run: go test ./...
+`,
+	})
+	if err != nil {
+		t.Fatalf("create scoped workflow plan fixture: %v", err)
+	}
+	return record
 }
 
 func assertMCPAuditAction(t *testing.T, recorder *MemoryAuditRecorder, action string) {

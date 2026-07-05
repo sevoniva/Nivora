@@ -1981,6 +1981,21 @@ func (s *Server) record(ctx context.Context, event string, subject string, scope
 	s.logger.Info("mcp operation", "event", event, "subject", subject, "decision", decision, "reason", reason)
 }
 
+func (s *Server) RecordDenied(ctx context.Context, subject domainauth.Subject, operation string, reason string) {
+	if s == nil {
+		return
+	}
+	if strings.TrimSpace(subject.ID) == "" {
+		subject.ID = "anonymous"
+		subject.Username = "anonymous"
+		subject.DisplayName = "anonymous"
+	}
+	if strings.TrimSpace(subject.AuthMode) == "" {
+		subject.AuthMode = "unknown"
+	}
+	s.WithSubject(subject).record(ctx, EventToolDenied, operation, "system", "denied", reason)
+}
+
 func (s *Server) runtimeConfigSummary() map[string]any {
 	cfg := s.services.Config
 	return map[string]any{

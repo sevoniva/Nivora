@@ -126,6 +126,81 @@ func TestRemoteMCPRecordsAuditAttribution(t *testing.T) {
 	}
 }
 
+func TestRemoteMCPRecordsDeniedAuditAttribution(t *testing.T) {
+	cfg := config.Default()
+	cfg.MCP.Enabled = true
+	cfg.MCP.Mode = "http"
+	router, complianceService := newTestRouterWithCompliance(cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/mcp/rpc", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize"}`))
+	req.Header.Set(apimiddleware.HeaderRequestID, "req-mcp-denied")
+	req.Header.Set(apimiddleware.HeaderCorrelationID, "corr-mcp-denied")
+	req.Header.Set("X-Nivora-MCP-Client", "codex-denied-client")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized || !strings.Contains(rec.Body.String(), "mcp_bearer_required") {
+		t.Fatalf("remote MCP dev denial status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	audits, err := complianceService.SearchAudit(req.Context(), complianceusecase.AuditSearchInput{
+		ActorID:   "local-admin",
+		Action:    "mcp.tool.denied",
+		SubjectID: "remote_mcp_auth",
+	})
+	if err != nil {
+		t.Fatalf("search denied MCP audit: %v", err)
+	}
+	if len(audits.Items) != 1 {
+		t.Fatalf("expected one denied MCP audit record, got %#v", audits.Items)
+	}
+	entry := audits.Items[0]
+	if entry.Metadata["decision"] != "denied" || entry.Metadata["client_id"] != "codex-denied-client" || entry.Metadata["transport"] != "http" {
+		t.Fatalf("denied MCP audit metadata = %#v", entry)
+	}
+	if entry.RequestID != "req-mcp-denied" || entry.CorrelationID != "corr-mcp-denied" {
+		t.Fatalf("denied MCP audit missing request metadata: %#v", entry)
+	}
+}
+
+func TestRemoteMCPRecordsRunnerTokenDenialWithoutLeakage(t *testing.T) {
+	cfg := config.Default()
+	cfg.MCP.Enabled = true
+	cfg.MCP.Mode = "http"
+	router, complianceService := newTestRouterWithCompliance(cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/mcp/rpc", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize"}`))
+	req.Header.Set("Authorization", "Bearer nvr_runner_should_not_leak")
+	req.Header.Set("X-Nivora-MCP-Client", "runner-denied-client")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden || !strings.Contains(rec.Body.String(), "mcp_runner_token_denied") {
+		t.Fatalf("remote MCP runner-token denial status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	audits, err := complianceService.SearchAudit(req.Context(), complianceusecase.AuditSearchInput{
+		ActorID:   "runner-token",
+		Action:    "mcp.tool.denied",
+		SubjectID: "remote_mcp_auth",
+	})
+	if err != nil {
+		t.Fatalf("search runner-token denial MCP audit: %v", err)
+	}
+	if len(audits.Items) != 1 {
+		t.Fatalf("expected one runner-token denial MCP audit record, got %#v", audits.Items)
+	}
+	body, err := json.Marshal(audits.Items[0])
+	if err != nil {
+		t.Fatalf("marshal denied MCP audit: %v", err)
+	}
+	combined := rec.Body.String() + string(body)
+	if strings.Contains(combined, "nvr_runner_should_not_leak") {
+		t.Fatalf("remote MCP runner-token denial leaked token: %s", combined)
+	}
+	if audits.Items[0].Metadata["decision"] != "denied" || audits.Items[0].Metadata["client_id"] != "runner-denied-client" {
+		t.Fatalf("runner-token denial audit metadata = %#v", audits.Items[0])
+	}
+}
+
 func TestRemoteMCPActionAndBodyLimit(t *testing.T) {
 	cfg := remoteMCPTestConfig(t)
 	cfg.MCP.MaxRequestBytes = 64

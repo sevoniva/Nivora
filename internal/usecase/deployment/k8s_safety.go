@@ -64,6 +64,7 @@ func (p K8sSafetyPolicy) ValidateManifests(ctx context.Context, documents []Mani
 	if err := ctx.Err(); err != nil {
 		return K8sSafetyResult{Allowed: false, Checks: []K8sSafetyCheck{{Passed: false, Rule: "context", Message: err.Error()}}}
 	}
+	namespace = strings.TrimSpace(namespace)
 
 	result := K8sSafetyResult{Allowed: true}
 
@@ -79,13 +80,17 @@ func (p K8sSafetyPolicy) ValidateManifests(ctx context.Context, documents []Mani
 		})
 	}
 
-	for _, denied := range p.DeniedNamespaces {
-		if namespace == denied {
-			result.Allowed = false
-			result.Checks = append(result.Checks, K8sSafetyCheck{
-				Passed: false, Rule: "denied-namespace", Message: fmt.Sprintf("namespace %s is denied", denied),
-			})
-		}
+	if namespace != "" && containsK8sName(p.DeniedNamespaces, namespace) {
+		result.Allowed = false
+		result.Checks = append(result.Checks, K8sSafetyCheck{
+			Passed: false, Rule: "denied-namespace", Message: fmt.Sprintf("namespace %s is denied", namespace),
+		})
+	}
+	if namespace != "" && len(p.AllowedNamespaces) > 0 && !containsK8sName(p.AllowedNamespaces, namespace) {
+		result.Allowed = false
+		result.Checks = append(result.Checks, K8sSafetyCheck{
+			Passed: false, Rule: "allowed-namespace", Message: fmt.Sprintf("namespace %s is not in the allowed namespace list", namespace),
+		})
 	}
 
 	// Manifest size check.
@@ -113,7 +118,33 @@ func (p K8sSafetyPolicy) ValidateManifests(ctx context.Context, documents []Mani
 			continue
 		}
 		kind, _ := obj["kind"].(string)
-		name, _ := obj["metadata"].(map[string]interface{})["name"].(string)
+		metadata := nestedMap(obj, "metadata")
+		name, _ := metadata["name"].(string)
+		documentNamespace, _ := metadata["namespace"].(string)
+		documentNamespace = strings.TrimSpace(documentNamespace)
+		if documentNamespace != "" {
+			if namespace != "" && documentNamespace != namespace {
+				result.Allowed = false
+				result.Checks = append(result.Checks, K8sSafetyCheck{
+					Passed: false, Rule: "namespace-mismatch", Kind: kind, Name: name,
+					Message: fmt.Sprintf("%s/%s declares namespace %s but target namespace is %s", kind, name, documentNamespace, namespace),
+				})
+			}
+			if containsK8sName(p.DeniedNamespaces, documentNamespace) {
+				result.Allowed = false
+				result.Checks = append(result.Checks, K8sSafetyCheck{
+					Passed: false, Rule: "denied-namespace", Kind: kind, Name: name,
+					Message: fmt.Sprintf("%s/%s declares denied namespace %s", kind, name, documentNamespace),
+				})
+			}
+			if len(p.AllowedNamespaces) > 0 && !containsK8sName(p.AllowedNamespaces, documentNamespace) {
+				result.Allowed = false
+				result.Checks = append(result.Checks, K8sSafetyCheck{
+					Passed: false, Rule: "allowed-namespace", Kind: kind, Name: name,
+					Message: fmt.Sprintf("%s/%s declares namespace %s outside the allowed namespace list", kind, name, documentNamespace),
+				})
+			}
+		}
 
 		// Cluster-scoped check.
 		if p.DenyClusterScoped {
@@ -248,6 +279,16 @@ func k8sBool(obj map[string]interface{}, key string) bool {
 	if v, ok := obj[key]; ok {
 		if b, ok := v.(bool); ok {
 			return b
+		}
+	}
+	return false
+}
+
+func containsK8sName(values []string, value string) bool {
+	value = strings.TrimSpace(value)
+	for _, candidate := range values {
+		if strings.TrimSpace(candidate) == value {
+			return true
 		}
 	}
 	return false

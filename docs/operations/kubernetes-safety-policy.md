@@ -31,6 +31,8 @@ nivora deployment plan --local --policy examples/policies/kubernetes-safety-poli
 | `requireDigest` | false | Warns if container images lack a digest (`@sha256:...`) |
 | `maxManifestBytes` | 1MB | Rejects manifests exceeding this size |
 
+Namespace checks apply to both the Deployment target namespace and any explicit `metadata.namespace` inside rendered manifests. If a manifest declares a namespace that differs from the target namespace, Nivora rejects it before dry-run/apply so a manifest cannot silently escape the selected target namespace.
+
 ## Example: Safe Pod
 
 ```yaml

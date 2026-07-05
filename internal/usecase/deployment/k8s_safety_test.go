@@ -165,6 +165,64 @@ spec:
 	}
 }
 
+func TestK8sSafetyAllowedNamespaces(t *testing.T) {
+	p := DefaultK8sSafetyPolicy()
+	p.AllowedNamespaces = []string{"staging", "prod-apps"}
+	docs := []ManifestDocument{doc(`
+apiVersion: v1
+kind: Service
+metadata:
+  name: safe-service
+spec:
+  selector:
+    app: demo
+  ports:
+  - port: 80
+`)}
+	if result := p.ValidateManifests(context.Background(), docs, "staging"); !result.Allowed {
+		t.Fatalf("expected staging namespace to be allowed, checks: %#v", result.Checks)
+	}
+	if result := p.ValidateManifests(context.Background(), docs, "default"); result.Allowed {
+		t.Fatalf("expected default namespace to be denied by allowedNamespaces, checks: %#v", result.Checks)
+	}
+}
+
+func TestK8sSafetyRejectsManifestNamespaceMismatch(t *testing.T) {
+	p := DefaultK8sSafetyPolicy()
+	p.AllowedNamespaces = []string{"staging"}
+	docs := []ManifestDocument{doc(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wrong-namespace
+  namespace: prod
+data:
+  key: value
+`)}
+	result := p.ValidateManifests(context.Background(), docs, "staging")
+	if result.Allowed {
+		t.Fatalf("expected manifest namespace mismatch to be denied, checks: %#v", result.Checks)
+	}
+}
+
+func TestK8sSafetyRejectsManifestDeniedNamespace(t *testing.T) {
+	p := DefaultK8sSafetyPolicy()
+	p.RequireNamespace = false
+	docs := []ManifestDocument{doc(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kube-system-config
+  namespace: kube-system
+data:
+  key: value
+`)}
+	result := p.ValidateManifests(context.Background(), docs, "")
+	if result.Allowed {
+		t.Fatalf("expected manifest denied namespace to be rejected, checks: %#v", result.Checks)
+	}
+}
+
 func TestK8sSafetyDenyClusterScoped(t *testing.T) {
 	p := DefaultK8sSafetyPolicy()
 	docs := []ManifestDocument{doc(`

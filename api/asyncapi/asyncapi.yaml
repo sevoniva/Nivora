@@ -49,6 +49,26 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.pipeline.artifact.recorded:
+    address: devops.pipeline.artifact.recorded
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.pipeline.cache.recorded:
+    address: devops.pipeline.cache.recorded
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.pipeline.annotation.recorded:
+    address: devops.pipeline.annotation.recorded
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.pipeline.summary.recorded:
+    address: devops.pipeline.summary.recorded
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.job.run.assigned:
     address: devops.job.run.assigned
     messages:

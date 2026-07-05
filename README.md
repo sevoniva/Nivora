@@ -18,7 +18,7 @@ Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/sta
 
 | Area | Status |
 |---|---|
-| PipelineRun runtime | Implemented for local shell execution; not a full workflow engine |
+| PipelineRun runtime | Implemented for local shell execution with logs/events/audit plus artifact/cache/annotation/summary metadata reads; not a full workflow engine |
 | DeploymentRun runtime | Partial; YAML dry-run, guarded apply, inventory, health, diff, audit, and PostgreSQL persistence foundations exist |
 | Release and ReleaseExecution | Partial; sequential orchestration and PostgreSQL persistence foundations exist |
 | Release target catalog | Foundation; `/api/v1/release-targets` and `nivora target` manage target metadata with PostgreSQL persistence in configured server mode and unsafe operations disabled by default |

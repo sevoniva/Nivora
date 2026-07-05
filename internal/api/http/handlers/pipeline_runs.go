@@ -100,6 +100,55 @@ func GetPipelineRunLogs(service *pipelineusecase.Service) http.HandlerFunc {
 	}
 }
 
+func GetPipelineRunArtifacts(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {
+			return
+		}
+		artifacts, err := service.Artifacts(r.Context(), chi.URLParam(r, "id"))
+		if respondPaginated(w, r, artifacts, err) {
+			return
+		}
+		respondPipelineResult(w, r, nil, err)
+	}
+}
+
+func GetPipelineRunCaches(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {
+			return
+		}
+		caches, err := service.CacheEntries(r.Context(), chi.URLParam(r, "id"))
+		if respondPaginated(w, r, caches, err) {
+			return
+		}
+		respondPipelineResult(w, r, nil, err)
+	}
+}
+
+func GetPipelineRunAnnotations(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {
+			return
+		}
+		annotations, err := service.Annotations(r.Context(), chi.URLParam(r, "id"))
+		if respondPaginated(w, r, annotations, err) {
+			return
+		}
+		respondPipelineResult(w, r, nil, err)
+	}
+}
+
+func GetPipelineRunSummary(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {
+			return
+		}
+		summary, err := service.Summary(r.Context(), chi.URLParam(r, "id"))
+		respondPipelineResult(w, r, summary, err)
+	}
+}
+
 func pipelineRunResponse(record pipelineusecase.RunRecord) map[string]any {
 	return map[string]any{
 		"pipeline": map[string]any{
@@ -122,9 +171,13 @@ func pipelineRunResponse(record pipelineusecase.RunRecord) map[string]any {
 			"createdAt":         record.Run.CreatedAt,
 			"updatedAt":         record.Run.UpdatedAt,
 		},
-		"stages": record.Stages,
-		"logs":   record.Logs,
-		"events": record.Events,
+		"stages":      record.Stages,
+		"logs":        record.Logs,
+		"events":      record.Events,
+		"artifacts":   record.Artifacts,
+		"caches":      record.Caches,
+		"annotations": record.Annotations,
+		"summaries":   record.Summaries,
 	}
 }
 

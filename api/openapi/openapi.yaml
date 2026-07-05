@@ -2424,6 +2424,76 @@ paths:
                   $ref: "#/components/schemas/LogChunk"
         "404":
           description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/artifacts:
+    get:
+      summary: Get PipelineRun artifact metadata
+      description: Returns metadata and storage references only; artifact content is not returned by this API.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: PipelineRun artifact metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PipelineArtifact"
+        "404":
+          description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/caches:
+    get:
+      summary: Get PipelineRun cache metadata
+      description: Returns cache keys, hit state, sizes, and storage references only; cache blobs are not returned by this API.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: PipelineRun cache metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/PipelineCacheEntry"
+        "404":
+          description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/annotations:
+    get:
+      summary: Get PipelineRun annotations
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: PipelineRun annotations
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StepAnnotation"
+        "404":
+          description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/summary:
+    get:
+      summary: Get PipelineRun artifact, cache, annotation, and summary metadata
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: PipelineRun metadata summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunMetadataSummary"
+        "404":
+          description: PipelineRun not found
   /api/v1/pipeline-runs/{id}/events:
     get:
       summary: Get PipelineRun events
@@ -7699,6 +7769,182 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Event"
+        artifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PipelineArtifact"
+        caches:
+          type: array
+          items:
+            $ref: "#/components/schemas/PipelineCacheEntry"
+        annotations:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepAnnotation"
+        summaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepSummary"
+    PipelineArtifact:
+      type: object
+      properties:
+        id:
+          type: string
+        pipelineRunId:
+          type: string
+        stageRunId:
+          type: string
+        jobRunId:
+          type: string
+        stepRunId:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        sizeBytes:
+          type: integer
+          format: int64
+        contentHash:
+          type: string
+        storageRef:
+          type: string
+        retentionDays:
+          type: integer
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        createdAt:
+          type: string
+          format: date-time
+    PipelineCacheEntry:
+      type: object
+      properties:
+        id:
+          type: string
+        pipelineRunId:
+          type: string
+        jobRunId:
+          type: string
+        stepRunId:
+          type: string
+        key:
+          type: string
+        restoreKeys:
+          type: array
+          items:
+            type: string
+        scope:
+          type: string
+        hit:
+          type: boolean
+        sizeBytes:
+          type: integer
+          format: int64
+        storageRef:
+          type: string
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+    StepAnnotation:
+      type: object
+      properties:
+        id:
+          type: string
+        pipelineRunId:
+          type: string
+        stageRunId:
+          type: string
+        jobRunId:
+          type: string
+        stepRunId:
+          type: string
+        level:
+          type: string
+          enum: [notice, warning, error]
+        file:
+          type: string
+        line:
+          type: integer
+        column:
+          type: integer
+        title:
+          type: string
+        message:
+          type: string
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        createdAt:
+          type: string
+          format: date-time
+    StepSummary:
+      type: object
+      properties:
+        id:
+          type: string
+        pipelineRunId:
+          type: string
+        stageRunId:
+          type: string
+        jobRunId:
+          type: string
+        stepRunId:
+          type: string
+        title:
+          type: string
+        content:
+          type: string
+          description: Optional small inline summary content. Larger summaries should use storageRef.
+        storageRef:
+          type: string
+        format:
+          type: string
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    PipelineRunMetadataSummary:
+      type: object
+      properties:
+        pipelineRunId:
+          type: string
+        status:
+          type: string
+        artifactCount:
+          type: integer
+        cacheCount:
+          type: integer
+        annotationCount:
+          type: integer
+        summaryCount:
+          type: integer
+        artifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/PipelineArtifact"
+        caches:
+          type: array
+          items:
+            $ref: "#/components/schemas/PipelineCacheEntry"
+        annotations:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepAnnotation"
+        summaries:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepSummary"
+        generatedAt:
+          type: string
+          format: date-time
     StageRun:
       type: object
       properties:

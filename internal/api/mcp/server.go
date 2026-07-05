@@ -130,6 +130,10 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://pipelines/runs/{id}", "PipelineRun", "PipelineRun record by id"),
 		resource("nivora://pipelines/runs/{id}/timeline", "PipelineRun timeline", "PipelineRun timeline by id"),
 		resource("nivora://pipelines/runs/{id}/logs", "PipelineRun logs", "PipelineRun logs by id"),
+		resource("nivora://pipelines/runs/{id}/artifacts", "PipelineRun artifacts", "PipelineRun artifact metadata by id"),
+		resource("nivora://pipelines/runs/{id}/caches", "PipelineRun caches", "PipelineRun cache metadata by id"),
+		resource("nivora://pipelines/runs/{id}/annotations", "PipelineRun annotations", "PipelineRun annotations by id"),
+		resource("nivora://pipelines/runs/{id}/summary", "PipelineRun summary", "PipelineRun artifact, cache, annotation, and summary metadata by id"),
 		resource("nivora://deployments/{id}", "DeploymentRun", "DeploymentRun record by id"),
 		resource("nivora://deployments/{id}/timeline", "DeploymentRun timeline", "DeploymentRun timeline by id"),
 		resource("nivora://deployments/{id}/resources", "Deployment resources", "Deployment resource inventory by id"),
@@ -228,6 +232,10 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 		tool("nivora_get_pipeline_definition", "Read a pipeline definition by id", idSchema("id")),
 		tool("nivora_get_pipeline_run", "Read a PipelineRun by id", idSchema("id")),
 		tool("nivora_get_pipeline_timeline", "Read a PipelineRun timeline by id", idSchema("id")),
+		tool("nivora_get_pipeline_artifacts", "Read PipelineRun artifact metadata by id", idSchema("id")),
+		tool("nivora_get_pipeline_caches", "Read PipelineRun cache metadata by id", idSchema("id")),
+		tool("nivora_get_pipeline_annotations", "Read PipelineRun annotations by id", idSchema("id")),
+		tool("nivora_get_pipeline_summary", "Read PipelineRun artifact, cache, annotation, and summary metadata by id", idSchema("id")),
 		tool("nivora_get_deployment", "Read a DeploymentRun by id", idSchema("id")),
 		tool("nivora_get_deployment_health", "Read DeploymentRun health by id", idSchema("id")),
 		tool("nivora_get_deployment_diff", "Read DeploymentRun diff by id", idSchema("id")),
@@ -566,6 +574,54 @@ func (s *Server) pipelineResource(ctx context.Context, rest string) (any, error)
 		logs, err := s.services.Pipelines.Logs(ctx, id)
 		return truncateLogs(logs), err
 	}
+	if strings.HasSuffix(rest, "/artifacts") {
+		id := strings.TrimSuffix(rest, "/artifacts")
+		record, err := s.services.Pipelines.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensurePipelineScope(record, "pipeline run "+id); err != nil {
+			return nil, err
+		}
+		artifacts, err := s.services.Pipelines.Artifacts(ctx, id)
+		return map[string]any{"pipelineRunId": id, "artifacts": artifacts, "count": len(artifacts), "mutated": false}, err
+	}
+	if strings.HasSuffix(rest, "/caches") {
+		id := strings.TrimSuffix(rest, "/caches")
+		record, err := s.services.Pipelines.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensurePipelineScope(record, "pipeline run "+id); err != nil {
+			return nil, err
+		}
+		caches, err := s.services.Pipelines.CacheEntries(ctx, id)
+		return map[string]any{"pipelineRunId": id, "caches": caches, "count": len(caches), "mutated": false}, err
+	}
+	if strings.HasSuffix(rest, "/annotations") {
+		id := strings.TrimSuffix(rest, "/annotations")
+		record, err := s.services.Pipelines.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensurePipelineScope(record, "pipeline run "+id); err != nil {
+			return nil, err
+		}
+		annotations, err := s.services.Pipelines.Annotations(ctx, id)
+		return map[string]any{"pipelineRunId": id, "annotations": annotations, "count": len(annotations), "mutated": false}, err
+	}
+	if strings.HasSuffix(rest, "/summary") {
+		id := strings.TrimSuffix(rest, "/summary")
+		record, err := s.services.Pipelines.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensurePipelineScope(record, "pipeline run "+id); err != nil {
+			return nil, err
+		}
+		summary, err := s.services.Pipelines.Summary(ctx, id)
+		return map[string]any{"summary": summary, "mutated": false}, err
+	}
 	record, err := s.services.Pipelines.Get(ctx, rest)
 	if err != nil {
 		return nil, err
@@ -900,6 +956,30 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return s.pipelineResource(ctx, id+"/timeline")
+	case "nivora_get_pipeline_artifacts":
+		id, err := requiredString(arguments, "id")
+		if err != nil {
+			return nil, err
+		}
+		return s.pipelineResource(ctx, id+"/artifacts")
+	case "nivora_get_pipeline_caches":
+		id, err := requiredString(arguments, "id")
+		if err != nil {
+			return nil, err
+		}
+		return s.pipelineResource(ctx, id+"/caches")
+	case "nivora_get_pipeline_annotations":
+		id, err := requiredString(arguments, "id")
+		if err != nil {
+			return nil, err
+		}
+		return s.pipelineResource(ctx, id+"/annotations")
+	case "nivora_get_pipeline_summary":
+		id, err := requiredString(arguments, "id")
+		if err != nil {
+			return nil, err
+		}
+		return s.pipelineResource(ctx, id+"/summary")
 	case "nivora_get_deployment":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
@@ -2271,6 +2351,10 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_get_pipeline_definition",
 		"nivora_get_pipeline_run",
 		"nivora_get_pipeline_timeline",
+		"nivora_get_pipeline_artifacts",
+		"nivora_get_pipeline_caches",
+		"nivora_get_pipeline_annotations",
+		"nivora_get_pipeline_summary",
 		"nivora_get_deployment",
 		"nivora_get_deployment_health",
 		"nivora_get_deployment_diff",

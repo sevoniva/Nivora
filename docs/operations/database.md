@@ -1,6 +1,6 @@
 # Database Operations
 
-Nivora uses PostgreSQL as the target source of truth. Local demos still run with in-memory stores by default, but the runtime now has PostgreSQL-backed repository foundations for PipelineRun, DeploymentRun, release artifact binding, ReleasePlan, ReleaseExecution, catalog metadata, Pipeline definition state, repository snapshot/intelligence records, WorkflowPlan/WorkflowRun records, artifact registry catalogs, and policy catalogs.
+Nivora uses PostgreSQL as the target source of truth. Local demos still run with in-memory stores by default, but the runtime now has PostgreSQL-backed repository foundations for PipelineRun, Pipeline artifact/cache/annotation/summary metadata, DeploymentRun, release artifact binding, ReleasePlan, ReleaseExecution, catalog metadata, Pipeline definition state, repository snapshot/intelligence records, WorkflowPlan/WorkflowRun records, artifact registry catalogs, and policy catalogs.
 
 Nivora is not production-ready.
 
@@ -29,6 +29,7 @@ Current migration groups:
 - `000017_repository_workflow_persistence`: repository record, snapshot, and intelligence persistence for repository workflow foundations.
 - `000018_workflow_plan_persistence`: stored Nivora Workflow plan records with content hashes and redacted plan JSON.
 - `000019_workflow_run_persistence`: guarded WorkflowRun metadata records linked to queued PipelineRuns.
+- `000020_pipeline_metadata`: PipelineRun artifact, cache, annotation, and step-summary metadata tables. These tables store metadata and storage references, not artifact or cache blob content.
 
 Run migrations with:
 
@@ -66,6 +67,10 @@ The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to ma
 - `runtime_runners`
 - `runtime_event_outbox`
 - `idempotency_keys`
+- `runtime_pipeline_artifacts`
+- `runtime_pipeline_cache_entries`
+- `runtime_pipeline_annotations`
+- `runtime_pipeline_step_summaries`
 - `runtime_deployment_runs`
 - `runtime_deployment_logs`
 - `runtime_deployment_events`
@@ -108,6 +113,7 @@ The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to ma
 - Log chunks are ordered by `(pipeline_run_id, sequence)`.
 - Catalog records are persisted only when the server is configured with `database.runtime_store: postgres`; memory mode remains available for local development and unit tests.
 - Secret values must never be stored in runtime logs, events, audit records, or idempotency request hashes.
+- Pipeline artifact and cache tables store `storage_ref`, content hash, size, and metadata. Large content and blobs belong in an object store or external artifact/cache backend; the database is only the control-plane metadata source.
 
 ## Not Yet Complete
 

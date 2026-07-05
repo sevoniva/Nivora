@@ -48,6 +48,28 @@ func TestPipelineRunRoutes(t *testing.T) {
 		t.Fatalf("logs body = %s", rec.Body.String())
 	}
 
+	for _, path := range []string{"/artifacts", "/caches", "/annotations"} {
+		req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs/"+runID+path, nil)
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d body = %s", path, rec.Code, rec.Body.String())
+		}
+		if !bytes.Contains(rec.Body.Bytes(), []byte("[]")) {
+			t.Fatalf("%s body = %s", path, rec.Body.String())
+		}
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs/"+runID+"/summary", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("summary status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"artifactCount":0`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"annotationCount":0`)) {
+		t.Fatalf("summary body = %s", rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

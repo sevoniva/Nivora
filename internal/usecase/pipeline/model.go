@@ -10,13 +10,17 @@ import (
 )
 
 type RunRecord struct {
-	Pipeline   domainpipeline.Pipeline    `json:"pipeline"`
-	Run        domainpipeline.PipelineRun `json:"run"`
-	Definition Definition                 `json:"definition,omitempty"`
-	Stages     []StageRecord              `json:"stages"`
-	Logs       []event.LogChunk           `json:"logs,omitempty"`
-	Events     []event.Event              `json:"events,omitempty"`
-	Audits     []audit.AuditLog           `json:"audits,omitempty"`
+	Pipeline    domainpipeline.Pipeline    `json:"pipeline"`
+	Run         domainpipeline.PipelineRun `json:"run"`
+	Definition  Definition                 `json:"definition,omitempty"`
+	Stages      []StageRecord              `json:"stages"`
+	Logs        []event.LogChunk           `json:"logs,omitempty"`
+	Events      []event.Event              `json:"events,omitempty"`
+	Audits      []audit.AuditLog           `json:"audits,omitempty"`
+	Artifacts   []PipelineArtifact         `json:"artifacts,omitempty"`
+	Caches      []PipelineCacheEntry       `json:"caches,omitempty"`
+	Annotations []StepAnnotation           `json:"annotations,omitempty"`
+	Summaries   []StepSummary              `json:"summaries,omitempty"`
 }
 
 type StageRecord struct {
@@ -36,6 +40,83 @@ type TimelineEntry struct {
 	Status  string            `json:"status,omitempty"`
 	Message string            `json:"message,omitempty"`
 	Data    map[string]string `json:"data,omitempty"`
+}
+
+type PipelineArtifact struct {
+	ID            string            `json:"id"`
+	PipelineRunID string            `json:"pipelineRunId"`
+	StageRunID    string            `json:"stageRunId,omitempty"`
+	JobRunID      string            `json:"jobRunId,omitempty"`
+	StepRunID     string            `json:"stepRunId,omitempty"`
+	Name          string            `json:"name"`
+	Type          string            `json:"type,omitempty"`
+	SizeBytes     int64             `json:"sizeBytes,omitempty"`
+	ContentHash   string            `json:"contentHash,omitempty"`
+	StorageRef    string            `json:"storageRef,omitempty"`
+	RetentionDays int               `json:"retentionDays,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	CreatedAt     time.Time         `json:"createdAt"`
+}
+
+type PipelineCacheEntry struct {
+	ID            string            `json:"id"`
+	PipelineRunID string            `json:"pipelineRunId"`
+	JobRunID      string            `json:"jobRunId,omitempty"`
+	StepRunID     string            `json:"stepRunId,omitempty"`
+	Key           string            `json:"key"`
+	RestoreKeys   []string          `json:"restoreKeys,omitempty"`
+	Scope         string            `json:"scope,omitempty"`
+	Hit           bool              `json:"hit"`
+	SizeBytes     int64             `json:"sizeBytes,omitempty"`
+	StorageRef    string            `json:"storageRef,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	CreatedAt     time.Time         `json:"createdAt"`
+	ExpiresAt     *time.Time        `json:"expiresAt,omitempty"`
+}
+
+type StepAnnotation struct {
+	ID            string            `json:"id"`
+	PipelineRunID string            `json:"pipelineRunId"`
+	StageRunID    string            `json:"stageRunId,omitempty"`
+	JobRunID      string            `json:"jobRunId,omitempty"`
+	StepRunID     string            `json:"stepRunId,omitempty"`
+	Level         string            `json:"level"`
+	File          string            `json:"file,omitempty"`
+	Line          int               `json:"line,omitempty"`
+	Column        int               `json:"column,omitempty"`
+	Title         string            `json:"title,omitempty"`
+	Message       string            `json:"message"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	CreatedAt     time.Time         `json:"createdAt"`
+}
+
+type StepSummary struct {
+	ID            string            `json:"id"`
+	PipelineRunID string            `json:"pipelineRunId"`
+	StageRunID    string            `json:"stageRunId,omitempty"`
+	JobRunID      string            `json:"jobRunId,omitempty"`
+	StepRunID     string            `json:"stepRunId,omitempty"`
+	Title         string            `json:"title,omitempty"`
+	Content       string            `json:"content,omitempty"`
+	StorageRef    string            `json:"storageRef,omitempty"`
+	Format        string            `json:"format,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty"`
+	CreatedAt     time.Time         `json:"createdAt"`
+	UpdatedAt     time.Time         `json:"updatedAt"`
+}
+
+type PipelineRunSummary struct {
+	PipelineRunID   string               `json:"pipelineRunId"`
+	Status          string               `json:"status"`
+	ArtifactCount   int                  `json:"artifactCount"`
+	CacheCount      int                  `json:"cacheCount"`
+	AnnotationCount int                  `json:"annotationCount"`
+	SummaryCount    int                  `json:"summaryCount"`
+	Artifacts       []PipelineArtifact   `json:"artifacts,omitempty"`
+	Caches          []PipelineCacheEntry `json:"caches,omitempty"`
+	Annotations     []StepAnnotation     `json:"annotations,omitempty"`
+	Summaries       []StepSummary        `json:"summaries,omitempty"`
+	GeneratedAt     time.Time            `json:"generatedAt"`
 }
 
 type RunnerRecord struct {

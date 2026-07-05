@@ -71,6 +71,17 @@ type AuditRepository interface {
 	AuditBySubject(ctx context.Context, subject string) ([]audit.AuditLog, error)
 }
 
+type PipelineMetadataRepository interface {
+	SaveArtifact(ctx context.Context, artifact PipelineArtifact) error
+	ArtifactsByPipelineRun(ctx context.Context, runID string) ([]PipelineArtifact, error)
+	SaveCacheEntry(ctx context.Context, entry PipelineCacheEntry) error
+	CacheEntriesByPipelineRun(ctx context.Context, runID string) ([]PipelineCacheEntry, error)
+	SaveAnnotation(ctx context.Context, annotation StepAnnotation) error
+	AnnotationsByPipelineRun(ctx context.Context, runID string) ([]StepAnnotation, error)
+	SaveStepSummary(ctx context.Context, summary StepSummary) error
+	StepSummariesByPipelineRun(ctx context.Context, runID string) ([]StepSummary, error)
+}
+
 type RunnerRepository interface {
 	SaveRunnerGroup(ctx context.Context, group domainrunner.RunnerGroup) error
 	GetRunnerGroup(ctx context.Context, id string) (domainrunner.RunnerGroup, error)
@@ -95,25 +106,34 @@ type Store interface {
 	EventRepository
 	EventOutboxRepository
 	AuditRepository
+	PipelineMetadataRepository
 	RunnerRepository
 }
 
 type MemoryStore struct {
-	mu      sync.RWMutex
-	runs    map[string]RunRecord
-	runners map[string]domainrunner.Runner
-	groups  map[string]domainrunner.RunnerGroup
-	outbox  map[string]EventOutboxRecord
-	nextSeq map[string]int64
+	mu          sync.RWMutex
+	runs        map[string]RunRecord
+	runners     map[string]domainrunner.Runner
+	groups      map[string]domainrunner.RunnerGroup
+	outbox      map[string]EventOutboxRecord
+	nextSeq     map[string]int64
+	artifacts   map[string]PipelineArtifact
+	caches      map[string]PipelineCacheEntry
+	annotations map[string]StepAnnotation
+	summaries   map[string]StepSummary
 }
 
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		runs:    make(map[string]RunRecord),
-		runners: make(map[string]domainrunner.Runner),
-		groups:  make(map[string]domainrunner.RunnerGroup),
-		outbox:  make(map[string]EventOutboxRecord),
-		nextSeq: make(map[string]int64),
+		runs:        make(map[string]RunRecord),
+		runners:     make(map[string]domainrunner.Runner),
+		groups:      make(map[string]domainrunner.RunnerGroup),
+		outbox:      make(map[string]EventOutboxRecord),
+		nextSeq:     make(map[string]int64),
+		artifacts:   make(map[string]PipelineArtifact),
+		caches:      make(map[string]PipelineCacheEntry),
+		annotations: make(map[string]StepAnnotation),
+		summaries:   make(map[string]StepSummary),
 	}
 }
 
@@ -134,6 +154,18 @@ func (s *MemoryStore) Save(ctx context.Context, record RunRecord) error {
 		}
 		if record.Audits == nil {
 			record.Audits = existing.Audits
+		}
+		if record.Artifacts == nil {
+			record.Artifacts = existing.Artifacts
+		}
+		if record.Caches == nil {
+			record.Caches = existing.Caches
+		}
+		if record.Annotations == nil {
+			record.Annotations = existing.Annotations
+		}
+		if record.Summaries == nil {
+			record.Summaries = existing.Summaries
 		}
 	}
 	s.runs[record.Run.ID] = cloneRecord(record)
@@ -651,6 +683,179 @@ func (s *MemoryStore) AuditBySubject(ctx context.Context, subject string) ([]aud
 	return entries, nil
 }
 
+func (s *MemoryStore) SaveArtifact(ctx context.Context, artifact PipelineArtifact) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.runs[artifact.PipelineRunID]
+	if !ok {
+		return ErrRunNotFound
+	}
+	artifact.Metadata = cloneMap(artifact.Metadata)
+	s.artifacts[artifact.ID] = artifact
+	record.Artifacts = upsertArtifact(record.Artifacts, artifact)
+	s.runs[artifact.PipelineRunID] = cloneRecord(record)
+	return nil
+}
+
+func (s *MemoryStore) ArtifactsByPipelineRun(ctx context.Context, runID string) ([]PipelineArtifact, error) {
+	if _, err := s.Get(ctx, runID); err != nil {
+		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var artifacts []PipelineArtifact
+	for _, artifact := range s.artifacts {
+		if artifact.PipelineRunID == runID {
+			artifacts = append(artifacts, cloneArtifact(artifact))
+		}
+	}
+	sort.Slice(artifacts, func(i, j int) bool { return artifacts[i].CreatedAt.Before(artifacts[j].CreatedAt) })
+	if artifacts == nil {
+		artifacts = []PipelineArtifact{}
+	}
+	return artifacts, nil
+}
+
+func (s *MemoryStore) SaveCacheEntry(ctx context.Context, entry PipelineCacheEntry) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if _, ok := s.runs[entry.PipelineRunID]; !ok {
+		return ErrRunNotFound
+	}
+	entry.RestoreKeys = append([]string(nil), entry.RestoreKeys...)
+	entry.Metadata = cloneMap(entry.Metadata)
+	s.caches[entry.ID] = entry
+	record := s.runs[entry.PipelineRunID]
+	record.Caches = upsertCacheEntry(record.Caches, entry)
+	s.runs[entry.PipelineRunID] = cloneRecord(record)
+	return nil
+}
+
+func (s *MemoryStore) CacheEntriesByPipelineRun(ctx context.Context, runID string) ([]PipelineCacheEntry, error) {
+	if _, err := s.Get(ctx, runID); err != nil {
+		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var entries []PipelineCacheEntry
+	for _, entry := range s.caches {
+		if entry.PipelineRunID == runID {
+			entries = append(entries, cloneCacheEntry(entry))
+		}
+	}
+	sort.Slice(entries, func(i, j int) bool { return entries[i].CreatedAt.Before(entries[j].CreatedAt) })
+	if entries == nil {
+		entries = []PipelineCacheEntry{}
+	}
+	return entries, nil
+}
+
+func (s *MemoryStore) SaveAnnotation(ctx context.Context, annotation StepAnnotation) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.runs[annotation.PipelineRunID]
+	if !ok {
+		return ErrRunNotFound
+	}
+	annotation.Metadata = cloneMap(annotation.Metadata)
+	s.annotations[annotation.ID] = annotation
+	record.Annotations = upsertAnnotation(record.Annotations, annotation)
+	s.runs[annotation.PipelineRunID] = cloneRecord(record)
+	return nil
+}
+
+func (s *MemoryStore) AnnotationsByPipelineRun(ctx context.Context, runID string) ([]StepAnnotation, error) {
+	if _, err := s.Get(ctx, runID); err != nil {
+		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var annotations []StepAnnotation
+	for _, annotation := range s.annotations {
+		if annotation.PipelineRunID == runID {
+			annotations = append(annotations, cloneAnnotation(annotation))
+		}
+	}
+	sort.Slice(annotations, func(i, j int) bool { return annotations[i].CreatedAt.Before(annotations[j].CreatedAt) })
+	if annotations == nil {
+		annotations = []StepAnnotation{}
+	}
+	return annotations, nil
+}
+
+func (s *MemoryStore) SaveStepSummary(ctx context.Context, summary StepSummary) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	default:
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	record, ok := s.runs[summary.PipelineRunID]
+	if !ok {
+		return ErrRunNotFound
+	}
+	summary.Metadata = cloneMap(summary.Metadata)
+	s.summaries[summary.ID] = summary
+	record.Summaries = upsertSummary(record.Summaries, summary)
+	s.runs[summary.PipelineRunID] = cloneRecord(record)
+	return nil
+}
+
+func (s *MemoryStore) StepSummariesByPipelineRun(ctx context.Context, runID string) ([]StepSummary, error) {
+	if _, err := s.Get(ctx, runID); err != nil {
+		return nil, err
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	default:
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var summaries []StepSummary
+	for _, summary := range s.summaries {
+		if summary.PipelineRunID == runID {
+			summaries = append(summaries, cloneSummary(summary))
+		}
+	}
+	sort.Slice(summaries, func(i, j int) bool { return summaries[i].CreatedAt.Before(summaries[j].CreatedAt) })
+	if summaries == nil {
+		summaries = []StepSummary{}
+	}
+	return summaries, nil
+}
+
 func (s *MemoryStore) RegisterRunner(ctx context.Context, runner domainrunner.Runner) error {
 	select {
 	case <-ctx.Done():
@@ -892,6 +1097,10 @@ func cloneRecord(record RunRecord) RunRecord {
 	record.Logs = append([]event.LogChunk(nil), record.Logs...)
 	record.Events = append([]event.Event(nil), record.Events...)
 	record.Audits = append([]audit.AuditLog(nil), record.Audits...)
+	record.Artifacts = cloneArtifacts(record.Artifacts)
+	record.Caches = cloneCacheEntries(record.Caches)
+	record.Annotations = cloneAnnotations(record.Annotations)
+	record.Summaries = cloneSummaries(record.Summaries)
 	return record
 }
 
@@ -918,6 +1127,99 @@ func cloneRunnerGroup(group domainrunner.RunnerGroup) domainrunner.RunnerGroup {
 	group.EnvironmentIDs = append([]string(nil), group.EnvironmentIDs...)
 	group.Executors = append([]string(nil), group.Executors...)
 	return group
+}
+
+func upsertArtifact(items []PipelineArtifact, item PipelineArtifact) []PipelineArtifact {
+	for i := range items {
+		if items[i].ID == item.ID {
+			items[i] = cloneArtifact(item)
+			return items
+		}
+	}
+	return append(items, cloneArtifact(item))
+}
+
+func upsertCacheEntry(items []PipelineCacheEntry, item PipelineCacheEntry) []PipelineCacheEntry {
+	for i := range items {
+		if items[i].ID == item.ID {
+			items[i] = cloneCacheEntry(item)
+			return items
+		}
+	}
+	return append(items, cloneCacheEntry(item))
+}
+
+func upsertAnnotation(items []StepAnnotation, item StepAnnotation) []StepAnnotation {
+	for i := range items {
+		if items[i].ID == item.ID {
+			items[i] = cloneAnnotation(item)
+			return items
+		}
+	}
+	return append(items, cloneAnnotation(item))
+}
+
+func upsertSummary(items []StepSummary, item StepSummary) []StepSummary {
+	for i := range items {
+		if items[i].ID == item.ID {
+			items[i] = cloneSummary(item)
+			return items
+		}
+	}
+	return append(items, cloneSummary(item))
+}
+
+func cloneArtifacts(items []PipelineArtifact) []PipelineArtifact {
+	out := append([]PipelineArtifact(nil), items...)
+	for i := range out {
+		out[i] = cloneArtifact(out[i])
+	}
+	return out
+}
+
+func cloneArtifact(item PipelineArtifact) PipelineArtifact {
+	item.Metadata = cloneMap(item.Metadata)
+	return item
+}
+
+func cloneCacheEntry(item PipelineCacheEntry) PipelineCacheEntry {
+	item.RestoreKeys = append([]string(nil), item.RestoreKeys...)
+	item.Metadata = cloneMap(item.Metadata)
+	return item
+}
+
+func cloneCacheEntries(items []PipelineCacheEntry) []PipelineCacheEntry {
+	out := append([]PipelineCacheEntry(nil), items...)
+	for i := range out {
+		out[i] = cloneCacheEntry(out[i])
+	}
+	return out
+}
+
+func cloneAnnotations(items []StepAnnotation) []StepAnnotation {
+	out := append([]StepAnnotation(nil), items...)
+	for i := range out {
+		out[i] = cloneAnnotation(out[i])
+	}
+	return out
+}
+
+func cloneAnnotation(item StepAnnotation) StepAnnotation {
+	item.Metadata = cloneMap(item.Metadata)
+	return item
+}
+
+func cloneSummaries(items []StepSummary) []StepSummary {
+	out := append([]StepSummary(nil), items...)
+	for i := range out {
+		out[i] = cloneSummary(out[i])
+	}
+	return out
+}
+
+func cloneSummary(item StepSummary) StepSummary {
+	item.Metadata = cloneMap(item.Metadata)
+	return item
 }
 
 func activeJobsInRecords(records map[string]RunRecord, runnerID string) int {

@@ -321,6 +321,170 @@ func (s *PipelineStore) AuditBySubject(ctx context.Context, subject string) ([]a
 	return entries, rows.Err()
 }
 
+func (s *PipelineStore) SaveArtifact(ctx context.Context, artifact pipelineusecase.PipelineArtifact) error {
+	return s.withTx(ctx, func(tx pgx.Tx) error {
+		record, err := s.getForUpdate(ctx, tx, artifact.PipelineRunID)
+		if err != nil {
+			return err
+		}
+		if err := s.insertArtifact(ctx, tx, artifact); err != nil {
+			return err
+		}
+		record.Artifacts = upsertPipelineArtifact(record.Artifacts, artifact)
+		return s.saveRecord(ctx, tx, record)
+	})
+}
+
+func (s *PipelineStore) ArtifactsByPipelineRun(ctx context.Context, runID string) ([]pipelineusecase.PipelineArtifact, error) {
+	if _, err := s.Get(ctx, runID); err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT payload FROM runtime_pipeline_artifacts WHERE pipeline_run_id = $1 ORDER BY created_at, id`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var artifacts []pipelineusecase.PipelineArtifact
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		var artifact pipelineusecase.PipelineArtifact
+		if err := json.Unmarshal(raw, &artifact); err != nil {
+			return nil, err
+		}
+		artifacts = append(artifacts, artifact)
+	}
+	if artifacts == nil {
+		artifacts = []pipelineusecase.PipelineArtifact{}
+	}
+	return artifacts, rows.Err()
+}
+
+func (s *PipelineStore) SaveCacheEntry(ctx context.Context, entry pipelineusecase.PipelineCacheEntry) error {
+	return s.withTx(ctx, func(tx pgx.Tx) error {
+		record, err := s.getForUpdate(ctx, tx, entry.PipelineRunID)
+		if err != nil {
+			return err
+		}
+		if err := s.insertCacheEntry(ctx, tx, entry); err != nil {
+			return err
+		}
+		record.Caches = upsertPipelineCacheEntry(record.Caches, entry)
+		return s.saveRecord(ctx, tx, record)
+	})
+}
+
+func (s *PipelineStore) CacheEntriesByPipelineRun(ctx context.Context, runID string) ([]pipelineusecase.PipelineCacheEntry, error) {
+	if _, err := s.Get(ctx, runID); err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT payload FROM runtime_pipeline_cache_entries WHERE pipeline_run_id = $1 ORDER BY created_at, id`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var entries []pipelineusecase.PipelineCacheEntry
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		var entry pipelineusecase.PipelineCacheEntry
+		if err := json.Unmarshal(raw, &entry); err != nil {
+			return nil, err
+		}
+		entries = append(entries, entry)
+	}
+	if entries == nil {
+		entries = []pipelineusecase.PipelineCacheEntry{}
+	}
+	return entries, rows.Err()
+}
+
+func (s *PipelineStore) SaveAnnotation(ctx context.Context, annotation pipelineusecase.StepAnnotation) error {
+	return s.withTx(ctx, func(tx pgx.Tx) error {
+		record, err := s.getForUpdate(ctx, tx, annotation.PipelineRunID)
+		if err != nil {
+			return err
+		}
+		if err := s.insertAnnotation(ctx, tx, annotation); err != nil {
+			return err
+		}
+		record.Annotations = upsertStepAnnotation(record.Annotations, annotation)
+		return s.saveRecord(ctx, tx, record)
+	})
+}
+
+func (s *PipelineStore) AnnotationsByPipelineRun(ctx context.Context, runID string) ([]pipelineusecase.StepAnnotation, error) {
+	if _, err := s.Get(ctx, runID); err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT payload FROM runtime_pipeline_annotations WHERE pipeline_run_id = $1 ORDER BY created_at, id`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var annotations []pipelineusecase.StepAnnotation
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		var annotation pipelineusecase.StepAnnotation
+		if err := json.Unmarshal(raw, &annotation); err != nil {
+			return nil, err
+		}
+		annotations = append(annotations, annotation)
+	}
+	if annotations == nil {
+		annotations = []pipelineusecase.StepAnnotation{}
+	}
+	return annotations, rows.Err()
+}
+
+func (s *PipelineStore) SaveStepSummary(ctx context.Context, summary pipelineusecase.StepSummary) error {
+	return s.withTx(ctx, func(tx pgx.Tx) error {
+		record, err := s.getForUpdate(ctx, tx, summary.PipelineRunID)
+		if err != nil {
+			return err
+		}
+		if err := s.insertStepSummary(ctx, tx, summary); err != nil {
+			return err
+		}
+		record.Summaries = upsertStepSummary(record.Summaries, summary)
+		return s.saveRecord(ctx, tx, record)
+	})
+}
+
+func (s *PipelineStore) StepSummariesByPipelineRun(ctx context.Context, runID string) ([]pipelineusecase.StepSummary, error) {
+	if _, err := s.Get(ctx, runID); err != nil {
+		return nil, err
+	}
+	rows, err := s.pool.Query(ctx, `SELECT payload FROM runtime_pipeline_step_summaries WHERE pipeline_run_id = $1 ORDER BY created_at, id`, runID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var summaries []pipelineusecase.StepSummary
+	for rows.Next() {
+		var raw []byte
+		if err := rows.Scan(&raw); err != nil {
+			return nil, err
+		}
+		var summary pipelineusecase.StepSummary
+		if err := json.Unmarshal(raw, &summary); err != nil {
+			return nil, err
+		}
+		summaries = append(summaries, summary)
+	}
+	if summaries == nil {
+		summaries = []pipelineusecase.StepSummary{}
+	}
+	return summaries, rows.Err()
+}
+
 func (s *PipelineStore) SaveRunnerGroup(ctx context.Context, group domainrunner.RunnerGroup) error {
 	labels, err := json.Marshal(nonNilMap(group.Labels))
 	if err != nil {
@@ -737,6 +901,74 @@ func (s *PipelineStore) insertAudit(ctx context.Context, tx pgx.Tx, runID string
 	return err
 }
 
+func (s *PipelineStore) insertArtifact(ctx context.Context, tx pgx.Tx, artifact pipelineusecase.PipelineArtifact) error {
+	raw, err := json.Marshal(artifact)
+	if err != nil {
+		return err
+	}
+	metadata, err := json.Marshal(nonNilMap(artifact.Metadata))
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO runtime_pipeline_artifacts (id, pipeline_run_id, stage_run_id, job_run_id, step_run_id, name, artifact_type, size_bytes, content_hash, storage_ref, retention_days, metadata, payload, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		ON CONFLICT (id) DO UPDATE SET stage_run_id = EXCLUDED.stage_run_id, job_run_id = EXCLUDED.job_run_id, step_run_id = EXCLUDED.step_run_id, name = EXCLUDED.name, artifact_type = EXCLUDED.artifact_type, size_bytes = EXCLUDED.size_bytes, content_hash = EXCLUDED.content_hash, storage_ref = EXCLUDED.storage_ref, retention_days = EXCLUDED.retention_days, metadata = EXCLUDED.metadata, payload = EXCLUDED.payload`,
+		artifact.ID, artifact.PipelineRunID, artifact.StageRunID, artifact.JobRunID, artifact.StepRunID, artifact.Name, artifact.Type, artifact.SizeBytes, artifact.ContentHash, artifact.StorageRef, artifact.RetentionDays, metadata, raw, artifact.CreatedAt)
+	return err
+}
+
+func (s *PipelineStore) insertCacheEntry(ctx context.Context, tx pgx.Tx, entry pipelineusecase.PipelineCacheEntry) error {
+	raw, err := json.Marshal(entry)
+	if err != nil {
+		return err
+	}
+	restoreKeys, err := json.Marshal(entry.RestoreKeys)
+	if err != nil {
+		return err
+	}
+	metadata, err := json.Marshal(nonNilMap(entry.Metadata))
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO runtime_pipeline_cache_entries (id, pipeline_run_id, job_run_id, step_run_id, cache_key, restore_keys, scope, hit, size_bytes, storage_ref, metadata, payload, created_at, expires_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		ON CONFLICT (id) DO UPDATE SET job_run_id = EXCLUDED.job_run_id, step_run_id = EXCLUDED.step_run_id, cache_key = EXCLUDED.cache_key, restore_keys = EXCLUDED.restore_keys, scope = EXCLUDED.scope, hit = EXCLUDED.hit, size_bytes = EXCLUDED.size_bytes, storage_ref = EXCLUDED.storage_ref, metadata = EXCLUDED.metadata, payload = EXCLUDED.payload, expires_at = EXCLUDED.expires_at`,
+		entry.ID, entry.PipelineRunID, entry.JobRunID, entry.StepRunID, entry.Key, restoreKeys, entry.Scope, entry.Hit, entry.SizeBytes, entry.StorageRef, metadata, raw, entry.CreatedAt, entry.ExpiresAt)
+	return err
+}
+
+func (s *PipelineStore) insertAnnotation(ctx context.Context, tx pgx.Tx, annotation pipelineusecase.StepAnnotation) error {
+	raw, err := json.Marshal(annotation)
+	if err != nil {
+		return err
+	}
+	metadata, err := json.Marshal(nonNilMap(annotation.Metadata))
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO runtime_pipeline_annotations (id, pipeline_run_id, stage_run_id, job_run_id, step_run_id, level, file_path, line_number, column_number, title, message, metadata, payload, created_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
+		ON CONFLICT (id) DO UPDATE SET stage_run_id = EXCLUDED.stage_run_id, job_run_id = EXCLUDED.job_run_id, step_run_id = EXCLUDED.step_run_id, level = EXCLUDED.level, file_path = EXCLUDED.file_path, line_number = EXCLUDED.line_number, column_number = EXCLUDED.column_number, title = EXCLUDED.title, message = EXCLUDED.message, metadata = EXCLUDED.metadata, payload = EXCLUDED.payload`,
+		annotation.ID, annotation.PipelineRunID, annotation.StageRunID, annotation.JobRunID, annotation.StepRunID, annotation.Level, annotation.File, annotation.Line, annotation.Column, annotation.Title, annotation.Message, metadata, raw, annotation.CreatedAt)
+	return err
+}
+
+func (s *PipelineStore) insertStepSummary(ctx context.Context, tx pgx.Tx, summary pipelineusecase.StepSummary) error {
+	raw, err := json.Marshal(summary)
+	if err != nil {
+		return err
+	}
+	metadata, err := json.Marshal(nonNilMap(summary.Metadata))
+	if err != nil {
+		return err
+	}
+	_, err = tx.Exec(ctx, `INSERT INTO runtime_pipeline_step_summaries (id, pipeline_run_id, stage_run_id, job_run_id, step_run_id, title, content, storage_ref, format, metadata, payload, created_at, updated_at)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+		ON CONFLICT (id) DO UPDATE SET stage_run_id = EXCLUDED.stage_run_id, job_run_id = EXCLUDED.job_run_id, step_run_id = EXCLUDED.step_run_id, title = EXCLUDED.title, content = EXCLUDED.content, storage_ref = EXCLUDED.storage_ref, format = EXCLUDED.format, metadata = EXCLUDED.metadata, payload = EXCLUDED.payload, updated_at = EXCLUDED.updated_at`,
+		summary.ID, summary.PipelineRunID, summary.StageRunID, summary.JobRunID, summary.StepRunID, summary.Title, summary.Content, summary.StorageRef, summary.Format, metadata, raw, summary.CreatedAt, summary.UpdatedAt)
+	return err
+}
+
 func (s *PipelineStore) claimJobAt(ctx context.Context, runnerID string, leaseUntil time.Time, now time.Time) (pipelineusecase.JobClaim, error) {
 	var claim pipelineusecase.JobClaim
 	err := s.withTx(ctx, func(tx pgx.Tx) error {
@@ -1057,6 +1289,46 @@ func upsertAudit(entries []audit.AuditLog, entry audit.AuditLog) []audit.AuditLo
 		}
 	}
 	return append(entries, entry)
+}
+
+func upsertPipelineArtifact(items []pipelineusecase.PipelineArtifact, item pipelineusecase.PipelineArtifact) []pipelineusecase.PipelineArtifact {
+	for i := range items {
+		if items[i].ID == item.ID {
+			items[i] = item
+			return items
+		}
+	}
+	return append(items, item)
+}
+
+func upsertPipelineCacheEntry(items []pipelineusecase.PipelineCacheEntry, item pipelineusecase.PipelineCacheEntry) []pipelineusecase.PipelineCacheEntry {
+	for i := range items {
+		if items[i].ID == item.ID {
+			items[i] = item
+			return items
+		}
+	}
+	return append(items, item)
+}
+
+func upsertStepAnnotation(items []pipelineusecase.StepAnnotation, item pipelineusecase.StepAnnotation) []pipelineusecase.StepAnnotation {
+	for i := range items {
+		if items[i].ID == item.ID {
+			items[i] = item
+			return items
+		}
+	}
+	return append(items, item)
+}
+
+func upsertStepSummary(items []pipelineusecase.StepSummary, item pipelineusecase.StepSummary) []pipelineusecase.StepSummary {
+	for i := range items {
+		if items[i].ID == item.ID {
+			items[i] = item
+			return items
+		}
+	}
+	return append(items, item)
 }
 
 func terminalJob(status domainpipeline.JobRunStatus) bool {

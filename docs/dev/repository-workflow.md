@@ -60,6 +60,17 @@ POST /api/v1/workflows/run
 
 `GET /api/v1/workflows/runs` and `GET /api/v1/workflows/runs/{id}` refresh WorkflowRun status from the linked PipelineRun when that PipelineRun is still available in the configured runtime store.
 
+PipelineRun metadata read endpoints:
+
+```text
+GET /api/v1/pipeline-runs/{id}/artifacts
+GET /api/v1/pipeline-runs/{id}/caches
+GET /api/v1/pipeline-runs/{id}/annotations
+GET /api/v1/pipeline-runs/{id}/summary
+```
+
+These endpoints return control-plane metadata only. Artifact and cache blobs are not returned by the API. Large step summaries should use a storage reference instead of inline content.
+
 ## MCP Surface
 
 Local MCP tools and resources:
@@ -70,6 +81,10 @@ nivora_workflow_validate
 nivora_workflow_plan
 nivora://workflows
 nivora://workflows/{id}/plan
+nivora://pipelines/runs/{id}/artifacts
+nivora://pipelines/runs/{id}/caches
+nivora://pipelines/runs/{id}/annotations
+nivora://pipelines/runs/{id}/summary
 ```
 
 Each tool is read-only or plan-only and returns `mutated=false`. MCP does not execute workflow steps.
@@ -80,5 +95,6 @@ Each tool is read-only or plan-only and returns `mutated=false`. MCP does not ex
 - GitHub/GitLab/Gitea real network integrations are not implemented.
 - WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.
 - WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Read APIs refresh the metadata status from the linked PipelineRun, but workflow-level retry/cancel semantics are still owned by the PipelineRun runtime.
+- Pipeline artifact/cache/annotation/summary metadata persistence exists in memory and configured PostgreSQL runtime stores. Blob storage is not implemented by this metadata foundation; use storage references for content outside the control plane.
 - Workflow execution still belongs to PipelineRun, Runner, and Worker paths; MCP does not expose workflow action execution.
 - Shell execution is not a sandbox.

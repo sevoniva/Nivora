@@ -80,6 +80,106 @@ func TestCreateQueuedPersistsProjectScope(t *testing.T) {
 	}
 }
 
+func TestPipelineMetadataRecordsArtifactsCachesAnnotationsAndSummaries(t *testing.T) {
+	service := newTestService()
+	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})
+	if err != nil {
+		t.Fatalf("create queued: %v", err)
+	}
+	runID := created.Record.Run.ID
+	jobID := created.Record.Stages[0].Jobs[0].Job.ID
+	stepID := created.Record.Stages[0].Jobs[0].Steps[0].ID
+
+	artifact, err := service.RecordArtifact(context.Background(), PipelineArtifact{
+		PipelineRunID: runID,
+		JobRunID:      jobID,
+		StepRunID:     stepID,
+		Name:          "dist",
+		Type:          "archive",
+		ContentHash:   "sha256:test",
+		StorageRef:    "object://pipeline/dist",
+		Metadata:      map[string]string{" empty ": " ", "path": "dist/app.tar.gz"},
+	})
+	if err != nil {
+		t.Fatalf("record artifact: %v", err)
+	}
+	if artifact.ID == "" || artifact.Metadata["path"] != "dist/app.tar.gz" {
+		t.Fatalf("artifact normalization failed: %#v", artifact)
+	}
+	cache, err := service.RecordCacheEntry(context.Background(), PipelineCacheEntry{
+		PipelineRunID: runID,
+		JobRunID:      jobID,
+		Key:           "go-mod",
+		RestoreKeys:   []string{" go- ", "", "go-"},
+		StorageRef:    "object://cache/go-mod",
+		Hit:           true,
+	})
+	if err != nil {
+		t.Fatalf("record cache: %v", err)
+	}
+	if len(cache.RestoreKeys) != 1 || cache.RestoreKeys[0] != "go-" {
+		t.Fatalf("restore keys = %#v", cache.RestoreKeys)
+	}
+	annotation, err := service.RecordAnnotation(context.Background(), StepAnnotation{
+		PipelineRunID: runID,
+		JobRunID:      jobID,
+		StepRunID:     stepID,
+		Level:         "warn",
+		File:          "main.go",
+		Line:          12,
+		Message:       "lint warning",
+	})
+	if err != nil {
+		t.Fatalf("record annotation: %v", err)
+	}
+	if annotation.Level != "warning" {
+		t.Fatalf("annotation level = %q", annotation.Level)
+	}
+	summary, err := service.SaveStepSummary(context.Background(), StepSummary{
+		PipelineRunID: runID,
+		JobRunID:      jobID,
+		StepRunID:     stepID,
+		Title:         "Build summary",
+		Content:       "built archive",
+	})
+	if err != nil {
+		t.Fatalf("save summary: %v", err)
+	}
+	if summary.Format != "markdown" {
+		t.Fatalf("summary format = %q", summary.Format)
+	}
+
+	metadata, err := service.Summary(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if metadata.ArtifactCount != 1 || metadata.CacheCount != 1 || metadata.AnnotationCount != 1 || metadata.SummaryCount != 1 {
+		t.Fatalf("metadata counts = %#v", metadata)
+	}
+	reloaded, err := service.Get(context.Background(), runID)
+	if err != nil {
+		t.Fatalf("reload run: %v", err)
+	}
+	if len(reloaded.Artifacts) != 1 || len(reloaded.Caches) != 1 || len(reloaded.Annotations) != 1 || len(reloaded.Summaries) != 1 {
+		t.Fatalf("run record metadata not preserved: %#v", reloaded)
+	}
+}
+
+func TestPipelineSummaryRejectsLargeInlineContent(t *testing.T) {
+	service := newTestService()
+	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})
+	if err != nil {
+		t.Fatalf("create queued: %v", err)
+	}
+	_, err = service.SaveStepSummary(context.Background(), StepSummary{
+		PipelineRunID: created.Record.Run.ID,
+		Content:       strings.Repeat("x", maxInlineSummaryBytes+1),
+	})
+	if err == nil || !strings.Contains(err.Error(), "inline limit") {
+		t.Fatalf("expected inline limit error, got %v", err)
+	}
+}
+
 func TestCreateAndRunFailure(t *testing.T) {
 	service := newTestService()
 	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: testDefinition(`printf "bad" >&2; exit 7`)})

@@ -21,34 +21,39 @@ import (
 )
 
 const (
-	EventPipelineRunCreated    = "devops.pipeline.run.created"
-	EventPipelineRunQueued     = "devops.pipeline.run.queued"
-	EventPipelineRunPaused     = "devops.pipeline.run.paused"
-	EventPipelineRunStarted    = "devops.pipeline.run.started"
-	EventPipelineRunCompleted  = "devops.pipeline.run.completed"
-	EventPipelineRunFailed     = "devops.pipeline.run.failed"
-	EventPipelineRunCanceled   = "devops.pipeline.run.canceled"
-	EventJobRunAssigned        = "devops.job.run.assigned"
-	EventJobRunStarted         = "devops.job.run.started"
-	EventJobRunCompleted       = "devops.job.run.completed"
-	EventJobRunFailed          = "devops.job.run.failed"
-	EventJobRunRetrying        = "devops.job.run.retrying"
-	EventJobRunStatusUpdated   = "devops.job.run.status.updated"
-	EventJobRunLogAppended     = "devops.job.run.log.appended"
-	EventJobRunCancelRequested = "devops.job.run.cancel_requested"
-	EventRunnerRegistered      = "devops.runner.registered"
-	EventRunnerTokenRotated    = "devops.runner.token.rotated"
-	EventRunnerTokenRevoked    = "devops.runner.token.revoked"
-	EventRunnerOffline         = "devops.runner.offline"
-	EventRunnerHeartbeat       = "devops.runner.heartbeat"
-	EventRunnerJobClaimed      = "devops.runner.job.claimed"
-	EventPipelineRunRecovered  = "devops.pipeline.run.recovered"
-	EventPipelineRunTimedOut   = "devops.pipeline.run.timeout_reconciled"
+	EventPipelineRunCreated         = "devops.pipeline.run.created"
+	EventPipelineRunQueued          = "devops.pipeline.run.queued"
+	EventPipelineRunPaused          = "devops.pipeline.run.paused"
+	EventPipelineRunStarted         = "devops.pipeline.run.started"
+	EventPipelineRunCompleted       = "devops.pipeline.run.completed"
+	EventPipelineRunFailed          = "devops.pipeline.run.failed"
+	EventPipelineRunCanceled        = "devops.pipeline.run.canceled"
+	EventJobRunAssigned             = "devops.job.run.assigned"
+	EventJobRunStarted              = "devops.job.run.started"
+	EventJobRunCompleted            = "devops.job.run.completed"
+	EventJobRunFailed               = "devops.job.run.failed"
+	EventJobRunRetrying             = "devops.job.run.retrying"
+	EventJobRunStatusUpdated        = "devops.job.run.status.updated"
+	EventJobRunLogAppended          = "devops.job.run.log.appended"
+	EventJobRunCancelRequested      = "devops.job.run.cancel_requested"
+	EventPipelineArtifactRecorded   = "devops.pipeline.artifact.recorded"
+	EventPipelineCacheRecorded      = "devops.pipeline.cache.recorded"
+	EventPipelineAnnotationRecorded = "devops.pipeline.annotation.recorded"
+	EventPipelineSummaryRecorded    = "devops.pipeline.summary.recorded"
+	EventRunnerRegistered           = "devops.runner.registered"
+	EventRunnerTokenRotated         = "devops.runner.token.rotated"
+	EventRunnerTokenRevoked         = "devops.runner.token.revoked"
+	EventRunnerOffline              = "devops.runner.offline"
+	EventRunnerHeartbeat            = "devops.runner.heartbeat"
+	EventRunnerJobClaimed           = "devops.runner.job.claimed"
+	EventPipelineRunRecovered       = "devops.pipeline.run.recovered"
+	EventPipelineRunTimedOut        = "devops.pipeline.run.timeout_reconciled"
 
-	defaultStepTimeout  = 30 * time.Second
-	defaultRunLease     = 30 * time.Second
-	defaultStaleAfter   = 2 * time.Minute
-	defaultTimeoutAfter = 30 * time.Minute
+	defaultStepTimeout    = 30 * time.Second
+	defaultRunLease       = 30 * time.Second
+	defaultStaleAfter     = 2 * time.Minute
+	defaultTimeoutAfter   = 30 * time.Minute
+	maxInlineSummaryBytes = 16 * 1024
 )
 
 var ErrRunTerminal = errors.New("pipeline run is already terminal")
@@ -369,6 +374,160 @@ func (s *Service) Timeline(ctx context.Context, id string) ([]TimelineEntry, err
 		timeline = append(timeline, entry)
 	}
 	return timeline, nil
+}
+
+func (s *Service) RecordArtifact(ctx context.Context, artifact PipelineArtifact) (PipelineArtifact, error) {
+	if strings.TrimSpace(artifact.PipelineRunID) == "" {
+		return PipelineArtifact{}, fmt.Errorf("pipelineRunId is required")
+	}
+	if strings.TrimSpace(artifact.Name) == "" {
+		return PipelineArtifact{}, fmt.Errorf("artifact name is required")
+	}
+	if strings.TrimSpace(artifact.ID) == "" {
+		artifact.ID = newID("part")
+	}
+	if artifact.CreatedAt.IsZero() {
+		artifact.CreatedAt = s.now()
+	}
+	artifact.Metadata = compactMetadata(artifact.Metadata)
+	if err := s.store.SaveArtifact(ctx, artifact); err != nil {
+		return PipelineArtifact{}, err
+	}
+	if err := s.recordEvent(ctx, artifact.PipelineRunID, EventPipelineArtifactRecorded, artifact.ID, "recorded", "Pipeline artifact recorded"); err != nil {
+		return PipelineArtifact{}, err
+	}
+	return artifact, nil
+}
+
+func (s *Service) Artifacts(ctx context.Context, id string) ([]PipelineArtifact, error) {
+	return s.store.ArtifactsByPipelineRun(ctx, id)
+}
+
+func (s *Service) RecordCacheEntry(ctx context.Context, entry PipelineCacheEntry) (PipelineCacheEntry, error) {
+	if strings.TrimSpace(entry.PipelineRunID) == "" {
+		return PipelineCacheEntry{}, fmt.Errorf("pipelineRunId is required")
+	}
+	if strings.TrimSpace(entry.Key) == "" {
+		return PipelineCacheEntry{}, fmt.Errorf("cache key is required")
+	}
+	if strings.TrimSpace(entry.ID) == "" {
+		entry.ID = newID("pcache")
+	}
+	if entry.CreatedAt.IsZero() {
+		entry.CreatedAt = s.now()
+	}
+	entry.RestoreKeys = compactStrings(entry.RestoreKeys)
+	entry.Metadata = compactMetadata(entry.Metadata)
+	if err := s.store.SaveCacheEntry(ctx, entry); err != nil {
+		return PipelineCacheEntry{}, err
+	}
+	if err := s.recordEvent(ctx, entry.PipelineRunID, EventPipelineCacheRecorded, entry.ID, "recorded", "Pipeline cache metadata recorded"); err != nil {
+		return PipelineCacheEntry{}, err
+	}
+	return entry, nil
+}
+
+func (s *Service) CacheEntries(ctx context.Context, id string) ([]PipelineCacheEntry, error) {
+	return s.store.CacheEntriesByPipelineRun(ctx, id)
+}
+
+func (s *Service) RecordAnnotation(ctx context.Context, annotation StepAnnotation) (StepAnnotation, error) {
+	if strings.TrimSpace(annotation.PipelineRunID) == "" {
+		return StepAnnotation{}, fmt.Errorf("pipelineRunId is required")
+	}
+	if strings.TrimSpace(annotation.Message) == "" {
+		return StepAnnotation{}, fmt.Errorf("annotation message is required")
+	}
+	if strings.TrimSpace(annotation.ID) == "" {
+		annotation.ID = newID("pann")
+	}
+	annotation.Level = normalizeAnnotationLevel(annotation.Level)
+	if annotation.CreatedAt.IsZero() {
+		annotation.CreatedAt = s.now()
+	}
+	annotation.Metadata = compactMetadata(annotation.Metadata)
+	if err := s.store.SaveAnnotation(ctx, annotation); err != nil {
+		return StepAnnotation{}, err
+	}
+	if err := s.recordEvent(ctx, annotation.PipelineRunID, EventPipelineAnnotationRecorded, annotation.ID, annotation.Level, "Pipeline annotation recorded"); err != nil {
+		return StepAnnotation{}, err
+	}
+	return annotation, nil
+}
+
+func (s *Service) Annotations(ctx context.Context, id string) ([]StepAnnotation, error) {
+	return s.store.AnnotationsByPipelineRun(ctx, id)
+}
+
+func (s *Service) SaveStepSummary(ctx context.Context, summary StepSummary) (StepSummary, error) {
+	if strings.TrimSpace(summary.PipelineRunID) == "" {
+		return StepSummary{}, fmt.Errorf("pipelineRunId is required")
+	}
+	if strings.TrimSpace(summary.Content) == "" && strings.TrimSpace(summary.StorageRef) == "" {
+		return StepSummary{}, fmt.Errorf("summary content or storageRef is required")
+	}
+	if len(summary.Content) > maxInlineSummaryBytes {
+		return StepSummary{}, fmt.Errorf("summary content exceeds %d byte inline limit; use storageRef", maxInlineSummaryBytes)
+	}
+	if strings.TrimSpace(summary.ID) == "" {
+		summary.ID = newID("psum")
+	}
+	if summary.Format == "" {
+		summary.Format = "markdown"
+	}
+	now := s.now()
+	if summary.CreatedAt.IsZero() {
+		summary.CreatedAt = now
+	}
+	summary.UpdatedAt = now
+	summary.Metadata = compactMetadata(summary.Metadata)
+	if err := s.store.SaveStepSummary(ctx, summary); err != nil {
+		return StepSummary{}, err
+	}
+	if err := s.recordEvent(ctx, summary.PipelineRunID, EventPipelineSummaryRecorded, summary.ID, "recorded", "Pipeline summary recorded"); err != nil {
+		return StepSummary{}, err
+	}
+	return summary, nil
+}
+
+func (s *Service) StepSummaries(ctx context.Context, id string) ([]StepSummary, error) {
+	return s.store.StepSummariesByPipelineRun(ctx, id)
+}
+
+func (s *Service) Summary(ctx context.Context, id string) (PipelineRunSummary, error) {
+	record, err := s.store.Get(ctx, id)
+	if err != nil {
+		return PipelineRunSummary{}, err
+	}
+	artifacts, err := s.Artifacts(ctx, id)
+	if err != nil {
+		return PipelineRunSummary{}, err
+	}
+	annotations, err := s.Annotations(ctx, id)
+	if err != nil {
+		return PipelineRunSummary{}, err
+	}
+	caches, err := s.CacheEntries(ctx, id)
+	if err != nil {
+		return PipelineRunSummary{}, err
+	}
+	summaries, err := s.StepSummaries(ctx, id)
+	if err != nil {
+		return PipelineRunSummary{}, err
+	}
+	return PipelineRunSummary{
+		PipelineRunID:   id,
+		Status:          string(record.Run.Status),
+		ArtifactCount:   len(artifacts),
+		CacheCount:      len(caches),
+		AnnotationCount: len(annotations),
+		SummaryCount:    len(summaries),
+		Artifacts:       artifacts,
+		Caches:          caches,
+		Annotations:     annotations,
+		Summaries:       summaries,
+		GeneratedAt:     s.now(),
+	}, nil
 }
 
 func (s *Service) RegisterRunner(ctx context.Context, runner domainrunner.Runner) error {
@@ -1299,6 +1458,36 @@ func compactStrings(values []string) []string {
 		out = append(out, value)
 	}
 	return out
+}
+
+func compactMetadata(values map[string]string) map[string]string {
+	if len(values) == 0 {
+		return nil
+	}
+	out := make(map[string]string, len(values))
+	for key, value := range values {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || value == "" {
+			continue
+		}
+		out[key] = value
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func normalizeAnnotationLevel(level string) string {
+	switch strings.ToLower(strings.TrimSpace(level)) {
+	case "error":
+		return "error"
+	case "warning", "warn":
+		return "warning"
+	default:
+		return "notice"
+	}
 }
 
 func compactExecutorCapabilities(values []string) ([]string, error) {

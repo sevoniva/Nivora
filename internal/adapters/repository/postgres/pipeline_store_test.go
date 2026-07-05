@@ -282,6 +282,8 @@ func TestPersistenceMigrationIsReversibleAndIndexed(t *testing.T) {
 	down := readMigration(t, "000003_persistence_foundation.down.sql")
 	runnerGroupUp := readMigration(t, "000015_runtime_runner_groups.up.sql")
 	runnerGroupDown := readMigration(t, "000015_runtime_runner_groups.down.sql")
+	metadataUp := readMigration(t, "000020_pipeline_metadata.up.sql")
+	metadataDown := readMigration(t, "000020_pipeline_metadata.down.sql")
 
 	requiredTables := []string{
 		"runtime_pipeline_runs",
@@ -322,6 +324,32 @@ func TestPersistenceMigrationIsReversibleAndIndexed(t *testing.T) {
 	}
 	if !strings.Contains(runnerGroupDown, "DROP TABLE IF EXISTS runtime_runner_groups") {
 		t.Fatal("runner group down migration missing table drop")
+	}
+	for _, table := range []string{
+		"runtime_pipeline_artifacts",
+		"runtime_pipeline_cache_entries",
+		"runtime_pipeline_annotations",
+		"runtime_pipeline_step_summaries",
+	} {
+		if !strings.Contains(metadataUp, "CREATE TABLE IF NOT EXISTS "+table) {
+			t.Fatalf("pipeline metadata up migration missing table %s", table)
+		}
+		if !strings.Contains(metadataDown, "DROP TABLE IF EXISTS "+table) {
+			t.Fatalf("pipeline metadata down migration missing table drop %s", table)
+		}
+	}
+	for _, index := range []string{
+		"idx_runtime_pipeline_artifacts_run_created_at",
+		"idx_runtime_pipeline_cache_run_created_at",
+		"idx_runtime_pipeline_annotations_run_created_at",
+		"idx_runtime_pipeline_summaries_run_created_at",
+	} {
+		if !strings.Contains(metadataUp, index) {
+			t.Fatalf("pipeline metadata up migration missing index %s", index)
+		}
+		if !strings.Contains(metadataDown, index) {
+			t.Fatalf("pipeline metadata down migration missing index %s", index)
+		}
 	}
 }
 

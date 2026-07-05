@@ -44,7 +44,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://events", "nivora://logs", "nivora://catalog/summary", "nivora://workflows", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://releases", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://events", "nivora://logs", "nivora://catalog/summary", "nivora://workflows", "nivora://pipelines/definitions/{id}", "nivora://pipelines/runs/{id}/artifacts", "nivora://pipelines/runs/{id}/caches", "nivora://pipelines/runs/{id}/annotations", "nivora://pipelines/runs/{id}/summary", "nivora://deployments/{id}/health", "nivora://releases", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
 		if !hasResource(resources, want) {
 			t.Fatalf("resource %s missing from %#v", want, resources)
 		}
@@ -58,7 +58,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 			t.Fatalf("blocked action tool %s was exposed", blocked)
 		}
 	}
-	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_search_events", "nivora_search_logs", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_deployment_health", "nivora_list_releases", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_policy_results", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
+	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_search_events", "nivora_search_logs", "nivora_get_catalog_summary", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_pipeline_artifacts", "nivora_get_pipeline_caches", "nivora_get_pipeline_annotations", "nivora_get_pipeline_summary", "nivora_get_deployment_health", "nivora_list_releases", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_policy_results", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
 		if !hasTool(tools, want) {
 			t.Fatalf("tool %s missing from %#v", want, tools)
 		}
@@ -866,10 +866,26 @@ func TestMCPTenantScopeFiltersPipelineReadsAndAggregates(t *testing.T) {
 	if _, err := projectA.ReadResource(ctx, "nivora://pipelines/runs/"+runA+"/logs"); err != nil {
 		t.Fatalf("project A read own pipeline logs: %v", err)
 	}
+	if _, err := projectA.ReadResource(ctx, "nivora://pipelines/runs/"+runA+"/artifacts"); err != nil {
+		t.Fatalf("project A read own pipeline artifacts: %v", err)
+	}
+	if _, err := projectA.ReadResource(ctx, "nivora://pipelines/runs/"+runA+"/caches"); err != nil {
+		t.Fatalf("project A read own pipeline caches: %v", err)
+	}
+	if _, err := projectA.ReadResource(ctx, "nivora://pipelines/runs/"+runA+"/annotations"); err != nil {
+		t.Fatalf("project A read own pipeline annotations: %v", err)
+	}
+	if _, err := projectA.ReadResource(ctx, "nivora://pipelines/runs/"+runA+"/summary"); err != nil {
+		t.Fatalf("project A read own pipeline summary: %v", err)
+	}
 	_, err := projectA.ReadResource(ctx, "nivora://pipelines/runs/"+runB)
 	var op OperationError
 	if !errors.As(err, &op) || op.Code != "mcp_scope_denied" {
 		t.Fatalf("expected scope denial for cross-project pipeline run, got %T %v", err, err)
+	}
+	_, err = projectA.ReadResource(ctx, "nivora://pipelines/runs/"+runB+"/summary")
+	if !errors.As(err, &op) || op.Code != "mcp_scope_denied" {
+		t.Fatalf("expected scope denial for cross-project pipeline summary, got %T %v", err, err)
 	}
 
 	result, err := projectA.CallTool(ctx, "nivora_search_events", map[string]any{"pipelineRunId": runB})

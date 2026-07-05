@@ -255,6 +255,10 @@ func TestTenantIsolationPipelineRunDetailRoutes(t *testing.T) {
 	paths := []string{
 		"/api/v1/pipeline-runs/" + runID,
 		"/api/v1/pipeline-runs/" + runID + "/logs",
+		"/api/v1/pipeline-runs/" + runID + "/artifacts",
+		"/api/v1/pipeline-runs/" + runID + "/caches",
+		"/api/v1/pipeline-runs/" + runID + "/annotations",
+		"/api/v1/pipeline-runs/" + runID + "/summary",
 		"/api/v1/pipeline-runs/" + runID + "/events",
 		"/api/v1/pipeline-runs/" + runID + "/timeline",
 		"/api/v1/visualization/pipeline-runs/" + runID + "/dag",
@@ -942,6 +946,10 @@ func TestTenantIsolationRunnerAdminJobMutationRespectsEnvironmentScope(t *testin
 	paths := []string{
 		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID,
 		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/logs",
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/artifacts",
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/caches",
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/annotations",
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/summary",
 		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/events",
 		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/timeline",
 	}
@@ -958,6 +966,10 @@ func TestTenantIsolationRunnerAdminJobMutationRespectsEnvironmentScope(t *testin
 	for _, path := range []string{
 		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID,
 		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/logs",
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/artifacts",
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/caches",
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/annotations",
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/summary",
 		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/events",
 		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/timeline",
 	} {

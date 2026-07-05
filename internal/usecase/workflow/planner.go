@@ -37,22 +37,28 @@ func PlanDefinition(def Definition, options PlanOptions) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
+	permissionRequests, permissionWarnings, err := planPermissionRequests(def.Permissions)
+	if err != nil {
+		return Plan{}, err
+	}
 	plan := Plan{
-		WorkflowID:       workflowID(def),
-		Name:             def.Metadata.Name,
-		Triggers:         append([]string(nil), def.On.Events...),
-		ArtifactOutputs:  artifacts,
-		CacheHints:       caches,
-		SecurityIntent:   securityIntent,
-		ReleaseIntent:    releaseIntent,
-		DeploymentIntent: deploymentIntent,
-		EstimatedMode:    "plan-only",
-		ConversionReady:  true,
-		Warnings:         append([]string(nil), outputWarnings...),
-		CreatedAt:        time.Now().UTC(),
+		WorkflowID:         workflowID(def),
+		Name:               def.Metadata.Name,
+		Triggers:           append([]string(nil), def.On.Events...),
+		PermissionRequests: permissionRequests,
+		ArtifactOutputs:    artifacts,
+		CacheHints:         caches,
+		SecurityIntent:     securityIntent,
+		ReleaseIntent:      releaseIntent,
+		DeploymentIntent:   deploymentIntent,
+		EstimatedMode:      "plan-only",
+		ConversionReady:    true,
+		Warnings:           append([]string(nil), outputWarnings...),
+		CreatedAt:          time.Now().UTC(),
 	}
 	plan.Warnings = append(plan.Warnings, triggerWarnings(def.On.Events)...)
 	plan.SecurityWarnings = append(plan.SecurityWarnings, intentWarnings(securityIntent, releaseIntent, deploymentIntent)...)
+	plan.SecurityWarnings = append(plan.SecurityWarnings, permissionWarnings...)
 	for _, jobID := range order {
 		job := def.Jobs[jobID]
 		expansions, err := expandMatrix(job.Strategy.Matrix, options.MaxMatrixSize)
@@ -416,6 +422,84 @@ func planDeploymentIntent(values map[string]any) (*DeploymentIntentPlan, error) 
 	}
 	intent.Warnings = dedupeSorted(intent.Warnings)
 	return intent, nil
+}
+
+func planPermissionRequests(values map[string]string) ([]PermissionRequest, []string, error) {
+	if len(values) == 0 {
+		return nil, nil, nil
+	}
+	scopes := make([]string, 0, len(values))
+	for scope := range values {
+		scopes = append(scopes, scope)
+	}
+	sort.Strings(scopes)
+	requests := make([]PermissionRequest, 0, len(scopes))
+	warnings := []string{}
+	for _, rawScope := range scopes {
+		scope := strings.TrimSpace(rawScope)
+		access := normalizePermissionAccess(values[rawScope])
+		if scope == "" {
+			return nil, nil, fmt.Errorf("%w: workflow permission scope is required", ErrInvalid)
+		}
+		if secretLike(scope) && strings.ToLower(scope) != "id-token" {
+			return nil, nil, fmt.Errorf("%w: workflow permission scope %q looks secret-like and is not allowed", ErrInvalid, scope)
+		}
+		if access == "" {
+			return nil, nil, fmt.Errorf("%w: workflow permission %q access is required", ErrInvalid, scope)
+		}
+		if secretLike(access) {
+			return nil, nil, fmt.Errorf("%w: workflow permission %q access looks secret-like and is not allowed", ErrInvalid, scope)
+		}
+		request := PermissionRequest{
+			Scope:    scope,
+			Access:   access,
+			PlanOnly: true,
+		}
+		if !knownPermissionAccess(access) {
+			request.Warnings = append(request.Warnings, fmt.Sprintf("workflow permission %s requests unknown access %q; runtime authorization remains RBAC-gated", scope, access))
+		}
+		if broadPermissionAccess(access) {
+			request.Warnings = append(request.Warnings, fmt.Sprintf("workflow permission %s requests %s access; execution remains guarded by RBAC, runner policy, and explicit confirmation", scope, access))
+		}
+		if strings.EqualFold(scope, "id-token") && access != "none" {
+			request.Warnings = append(request.Warnings, "workflow id-token permission is foundation-only; Nivora workflow planning does not mint identity tokens")
+		}
+		request.Warnings = dedupeSorted(request.Warnings)
+		warnings = append(warnings, request.Warnings...)
+		requests = append(requests, request)
+	}
+	return requests, dedupeSorted(warnings), nil
+}
+
+func normalizePermissionAccess(value string) string {
+	access := strings.ToLower(strings.TrimSpace(value))
+	access = strings.ReplaceAll(access, "_", "-")
+	switch access {
+	case "read-only":
+		return "read"
+	case "plan-only":
+		return "plan"
+	default:
+		return access
+	}
+}
+
+func knownPermissionAccess(access string) bool {
+	switch access {
+	case "none", "read", "plan", "write", "run", "admin":
+		return true
+	default:
+		return false
+	}
+}
+
+func broadPermissionAccess(access string) bool {
+	switch access {
+	case "write", "run", "admin":
+		return true
+	default:
+		return false
+	}
 }
 
 func triggerWarnings(events []string) []string {

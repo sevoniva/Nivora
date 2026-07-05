@@ -134,6 +134,7 @@ type Plan struct {
 	ContentHash         string                `json:"contentHash,omitempty"`
 	Name                string                `json:"name"`
 	Triggers            []string              `json:"triggers,omitempty"`
+	PermissionRequests  []PermissionRequest   `json:"permissionRequests,omitempty"`
 	Jobs                []PlannedJob          `json:"jobs"`
 	Steps               []PlannedStep         `json:"steps"`
 	Edges               []Edge                `json:"edges,omitempty"`
@@ -150,6 +151,13 @@ type Plan struct {
 	ConversionReady     bool                  `json:"conversionReady"`
 	Warnings            []string              `json:"warnings,omitempty"`
 	CreatedAt           time.Time             `json:"createdAt"`
+}
+
+type PermissionRequest struct {
+	Scope    string   `json:"scope"`
+	Access   string   `json:"access"`
+	PlanOnly bool     `json:"planOnly"`
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 type PlannedJob struct {

@@ -5577,6 +5577,10 @@ components:
           type: array
           items:
             type: string
+        permissionRequests:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowPermissionRequest"
         jobs:
           type: array
           items:
@@ -5635,6 +5639,27 @@ components:
         createdAt:
           type: string
           format: date-time
+    WorkflowPermissionRequest:
+      type: object
+      description: Plan-only workflow permission request. It records declared workflow intent and does not grant runtime access without Nivora RBAC, runner policy, and explicit guarded execution.
+      properties:
+        scope:
+          type: string
+        access:
+          type: string
+          enum:
+            - none
+            - read
+            - plan
+            - write
+            - run
+            - admin
+        planOnly:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
     WorkflowArtifactSpec:
       type: object
       properties:

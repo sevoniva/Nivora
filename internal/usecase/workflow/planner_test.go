@@ -273,6 +273,67 @@ deployment:
 	}
 }
 
+func TestWorkflowPlanIncludesPermissionRequestsAndWarnings(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: permissions
+on: manual
+permissions:
+  contents: read
+  deployments: write
+  id-token: write
+jobs:
+  test:
+    runsOn: [self-hosted]
+    steps:
+      - run: echo ok
+`))
+	if err != nil {
+		t.Fatalf("parse workflow: %v", err)
+	}
+	plan, err := PlanDefinition(def, PlanOptions{})
+	if err != nil {
+		t.Fatalf("PlanDefinition: %v", err)
+	}
+	if len(plan.PermissionRequests) != 3 {
+		t.Fatalf("permission requests = %#v", plan.PermissionRequests)
+	}
+	if plan.PermissionRequests[0].Scope != "contents" || plan.PermissionRequests[0].Access != "read" || !plan.PermissionRequests[0].PlanOnly {
+		t.Fatalf("first permission request = %#v", plan.PermissionRequests[0])
+	}
+	joined := strings.Join(plan.SecurityWarnings, "\n")
+	for _, want := range []string{"deployments requests write access", "id-token permission is foundation-only"} {
+		if !strings.Contains(joined, want) {
+			t.Fatalf("missing permission warning %q in %q", want, joined)
+		}
+	}
+}
+
+func TestWorkflowPlanRejectsSecretLikePermissionScope(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: unsafe-permissions
+on: manual
+permissions:
+  password: read
+jobs:
+  test:
+    steps:
+      - run: echo ok
+`))
+	if err != nil {
+		t.Fatalf("parse workflow: %v", err)
+	}
+	_, err = PlanDefinition(def, PlanOptions{})
+	if err == nil || !strings.Contains(err.Error(), "permission scope") {
+		t.Fatalf("expected secret-like permission scope rejection, got %v", err)
+	}
+}
+
 func TestWorkflowPlanRejectsSecretLikeIntentValues(t *testing.T) {
 	def, err := ParseDefinition([]byte(`
 apiVersion: nivora.io/v1alpha1

@@ -64,9 +64,11 @@ nivora workflow reconcile --repository-id repo-dev --server http://localhost:808
 nivora workflow retry <workflow-run-id> --confirm --allow-pipeline-run --server http://localhost:8080
 ```
 
-The planner builds a DAG and checks dependency cycles, missing `needs` targets, matrix size limits, unsupported `uses`, artifact/cache declarations, plan-only security/release/deployment intent, and secret-like environment or intent values.
+The planner builds a DAG and checks dependency cycles, missing `needs` targets, matrix size limits, unsupported `uses`, artifact/cache declarations, workflow `permissions`, plan-only security/release/deployment intent, and secret-like environment or intent values.
 The run command is server-backed and queue-only. It creates WorkflowRun metadata plus a queued PipelineRun when the server authorizes the request; it does not execute workflow steps inside the CLI process.
 The cancel command asks the server to cancel the linked PipelineRun. The reconcile command scans non-terminal WorkflowRun metadata and refreshes status from linked PipelineRun state. The retry command requires explicit confirmation and queues a replacement PipelineRun from the stored WorkflowPlan for Failed, Canceled, or Timeout WorkflowRuns. These commands do not roll back deployments, delete resources, or execute workflow steps directly.
+
+Workflow-level `permissions` entries are recorded as plan-only permission requests. They make workflow intent visible to API, CLI, and MCP callers, but they do not grant runtime access by themselves. Write, run, admin, and `id-token` style requests produce security warnings and remain subject to Nivora RBAC, runner policy, explicit confirmation, and configured unsafe-operation gates.
 
 Workflow-level `artifacts` and `cache` entries are recorded as PipelineRun metadata when a guarded WorkflowRun queues a PipelineRun. The control plane records names, paths, cache keys, restore keys, retention hints, and metadata. It does not read artifact files, upload cache blobs, or store large content in the database.
 
@@ -144,6 +146,7 @@ Each tool is read-only or plan-only and returns `mutated=false`. MCP does not ex
 
 ## Known Limits
 
+- `make verify-workflow` runs the workflow planner unit tests and validates/plans the checked-in workflow examples without external SCM, registry, Kubernetes, or runner services.
 - RepositorySnapshot and RepositoryIntelligence are durable only in configured PostgreSQL server/MCP mode; local commands and default development mode still use in-memory state or direct local output.
 - GitHub/GitLab/Gitea real network integrations are not implemented.
 - WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.

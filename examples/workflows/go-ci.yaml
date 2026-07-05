@@ -7,6 +7,10 @@ metadata:
 on:
   - manual
   - push
+permissions:
+  contents: read
+  artifacts: write
+  deployments: plan
 jobs:
   test:
     runsOn:

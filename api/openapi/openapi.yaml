@@ -1580,6 +1580,47 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/workflows/runs/{id}/retry:
+    post:
+      summary: Retry a guarded Nivora Workflow run
+      description: Requires `workflow.run`, `confirm=true`, and `allowPipelineRun=true`. Retries a Failed, Canceled, or Timeout WorkflowRun by converting the stored WorkflowPlan into a new queued PipelineRun. It does not retry successful or running WorkflowRuns, does not run steps in the API handler, and does not roll back deployments or delete resources.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowRetryRequest"
+      responses:
+        "202":
+          description: Workflow retry queued through a new PipelineRun
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowRunResult"
+        "400":
+          description: Retry request is invalid or missing required confirmation
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Workflow run was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Workflow run is not retryable
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/workflows/runs/reconcile:
     post:
       summary: Reconcile guarded Nivora Workflow run metadata
@@ -5567,6 +5608,17 @@ components:
         allowPipelineRun:
           type: boolean
           description: Must be true to explicitly allow Workflow-to-PipelineRun queuing.
+    WorkflowRetryRequest:
+      type: object
+      properties:
+        correlationId:
+          type: string
+        confirm:
+          type: boolean
+          description: Must be true to retry a WorkflowRun.
+        allowPipelineRun:
+          type: boolean
+          description: Must be true to explicitly allow queuing the replacement PipelineRun.
     WorkflowRunRecord:
       type: object
       properties:

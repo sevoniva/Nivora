@@ -1823,6 +1823,7 @@ func newWorkflowCommand() *cobra.Command {
 	cmd.AddCommand(newWorkflowRunCommand())
 	cmd.AddCommand(newWorkflowCancelCommand())
 	cmd.AddCommand(newWorkflowReconcileCommand())
+	cmd.AddCommand(newWorkflowRetryCommand())
 	return cmd
 }
 
@@ -2444,6 +2445,41 @@ func newWorkflowReconcileCommand() *cobra.Command {
 	cmd.Flags().StringVar(&status, "status", "", "initial WorkflowRun status filter")
 	cmd.Flags().IntVar(&limit, "limit", 100, "maximum WorkflowRun records to scan")
 	cmd.Flags().IntVar(&offset, "offset", 0, "WorkflowRun list offset")
+	return cmd
+}
+
+func newWorkflowRetryCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var correlationID string
+	var confirm bool
+	var allowPipelineRun bool
+	cmd := &cobra.Command{
+		Use:   "retry <workflow-run-id>",
+		Short: "Retry a failed, canceled, or timed-out WorkflowRun through a new queued PipelineRun",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			body, err := json.Marshal(map[string]any{
+				"correlationId":    correlationID,
+				"confirm":          confirm,
+				"allowPipelineRun": allowPipelineRun,
+			})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/workflows/runs/"+url.PathEscape(args[0])+"/retry", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&correlationID, "correlation-id", "", "correlation id for runtime tracing")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm guarded WorkflowRun retry")
+	cmd.Flags().BoolVar(&allowPipelineRun, "allow-pipeline-run", false, "explicitly allow queuing a replacement PipelineRun")
 	return cmd
 }
 

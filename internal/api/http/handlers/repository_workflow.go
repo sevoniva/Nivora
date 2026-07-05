@@ -59,6 +59,12 @@ type workflowReconcileRequest struct {
 	Offset       int    `json:"offset,omitempty"`
 }
 
+type workflowRetryRequest struct {
+	CorrelationID    string `json:"correlationId,omitempty"`
+	Confirm          bool   `json:"confirm"`
+	AllowPipelineRun bool   `json:"allowPipelineRun"`
+}
+
 type devOpsPlanRequest struct {
 	RepositoryID string `json:"repositoryId"`
 }
@@ -328,6 +334,27 @@ func ReconcileWorkflowRuns(service *workflowusecase.Service, pipelines *pipeline
 	}
 }
 
+func RetryWorkflowRun(service *workflowusecase.Service, pipelines *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input workflowRetryRequest
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil && !errors.Is(err, io.EOF) {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_workflow_retry_request", Message: err.Error(), Path: r.URL.Path})
+			return
+		}
+		result, err := service.RetryRun(r.Context(), chi.URLParam(r, "id"), workflowusecase.RetryInput{
+			ActorID:          actorIDFromRequest(r),
+			CorrelationID:    input.CorrelationID,
+			Confirm:          input.Confirm,
+			AllowPipelineRun: input.AllowPipelineRun,
+		}, pipelines)
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusAccepted, result)
+	}
+}
+
 func RunWorkflowDefinition(service *workflowusecase.Service, pipelines *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var input workflowRunRequest
@@ -442,6 +469,10 @@ func respondWorkflowError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, workflowusecase.ErrRunTerminal) {
 		status = http.StatusConflict
 		code = "workflow_run_terminal"
+	}
+	if errors.Is(err, workflowusecase.ErrRunNotRetryable) {
+		status = http.StatusConflict
+		code = "workflow_run_not_retryable"
 	}
 	if errors.Is(err, workflowusecase.ErrInvalid) {
 		code = "invalid_workflow_definition"

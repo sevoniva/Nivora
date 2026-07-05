@@ -67,6 +67,7 @@ var criticalRoutes = []struct {
 	{"GET", "/api/v1/workflows/runs/wrun-rbac", domainauth.PermissionWorkflowRun, false},
 	{"POST", "/api/v1/workflows/runs/wrun-rbac/cancel", domainauth.PermissionWorkflowRun, true},
 	{"POST", "/api/v1/workflows/runs/reconcile", domainauth.PermissionWorkflowRun, true},
+	{"POST", "/api/v1/workflows/runs/wrun-rbac/retry", domainauth.PermissionWorkflowRun, true},
 	{"POST", "/api/v1/workflows/run", domainauth.PermissionWorkflowRun, true},
 	{"GET", "/api/v1/pipelines", domainauth.PermissionProjectRead, false},
 	{"POST", "/api/v1/pipelines", domainauth.PermissionProjectWrite, true},

@@ -307,6 +307,55 @@ func TestServiceCancelRunCancelsLinkedPipelineRun(t *testing.T) {
 	}
 }
 
+func TestServiceRetryRunCreatesNewQueuedPipelineRunFromStoredPlan(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	pipelines := newWorkflowPipelineService()
+	result, err := service.Run(context.Background(), RunInput{
+		Content:          executableWorkflow(t),
+		RepositoryID:     "repo-a",
+		ProjectID:        "project-a",
+		EnvironmentID:    "env-dev",
+		ActorID:          "user-a",
+		Confirm:          true,
+		AllowPipelineRun: true,
+	}, pipelines)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if _, err := service.CancelRun(context.Background(), result.WorkflowRun.ID, "user-a", pipelines); err != nil {
+		t.Fatalf("CancelRun: %v", err)
+	}
+	_, err = service.RetryRun(context.Background(), result.WorkflowRun.ID, RetryInput{Confirm: true}, pipelines)
+	if err == nil || !strings.Contains(err.Error(), "allowPipelineRun") {
+		t.Fatalf("expected guarded retry error, got %v", err)
+	}
+	retried, err := service.RetryRun(context.Background(), result.WorkflowRun.ID, RetryInput{
+		ActorID:          "user-a",
+		CorrelationID:    "corr-retry",
+		Confirm:          true,
+		AllowPipelineRun: true,
+	}, pipelines)
+	if err != nil {
+		t.Fatalf("RetryRun: %v", err)
+	}
+	if retried.WorkflowRun.ID == result.WorkflowRun.ID || retried.WorkflowRun.PipelineRunID == result.WorkflowRun.PipelineRunID {
+		t.Fatalf("retry reused original ids: original=%#v retried=%#v", result.WorkflowRun, retried.WorkflowRun)
+	}
+	if retried.WorkflowRun.WorkflowPlanID != result.WorkflowRun.WorkflowPlanID || retried.WorkflowRun.ProjectID != "project-a" || retried.WorkflowRun.EnvironmentID != "env-dev" {
+		t.Fatalf("retry did not preserve workflow ownership metadata: %#v", retried.WorkflowRun)
+	}
+	if retried.WorkflowRun.Status != RunQueued || retried.PipelineRun.Run.Status != domainpipeline.PipelineRunQueued {
+		t.Fatalf("retry statuses workflow=%s pipeline=%s", retried.WorkflowRun.Status, retried.PipelineRun.Run.Status)
+	}
+	if !strings.Contains(strings.Join(retried.WorkflowRun.Warnings, "\n"), result.WorkflowRun.ID) {
+		t.Fatalf("retry warning missing original run id: %#v", retried.WorkflowRun.Warnings)
+	}
+	_, err = service.RetryRun(context.Background(), retried.WorkflowRun.ID, RetryInput{Confirm: true, AllowPipelineRun: true}, pipelines)
+	if !errors.Is(err, ErrRunNotRetryable) {
+		t.Fatalf("expected non-retryable queued run error, got %v", err)
+	}
+}
+
 func executableWorkflow(t *testing.T) string {
 	t.Helper()
 	return `apiVersion: nivora.io/v1alpha1

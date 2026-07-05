@@ -274,6 +274,34 @@ jobs:
 	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), `"code":"workflow_run_terminal"`) {
 		t.Fatalf("workflow cancel terminal status = %d body = %s", rec.Code, rec.Body.String())
 	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/runs/"+cancelRunID+"/retry", strings.NewReader(`{"confirm":true,"allowPipelineRun":true,"correlationId":"corr-retry"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted || !strings.Contains(rec.Body.String(), `"status":"Queued"`) || !strings.Contains(rec.Body.String(), cancelRunID) {
+		t.Fatalf("workflow retry status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var retryResult map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &retryResult); err != nil {
+		t.Fatalf("decode workflow retry: %v", err)
+	}
+	retriedWorkflowRun, ok := retryResult["workflowRun"].(map[string]any)
+	if !ok {
+		t.Fatalf("retry workflowRun missing: %#v", retryResult)
+	}
+	retriedRunID := stringField(t, retriedWorkflowRun, "id")
+	if retriedRunID == cancelRunID {
+		t.Fatalf("retry reused original workflow run id")
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/runs/"+retriedRunID+"/retry", strings.NewReader(`{"confirm":true,"allowPipelineRun":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), `"code":"workflow_run_not_retryable"`) {
+		t.Fatalf("workflow retry non-retryable status = %d body = %s", rec.Code, rec.Body.String())
+	}
 }
 
 func quoteJSON(value string) string {

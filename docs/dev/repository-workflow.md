@@ -38,11 +38,12 @@ nivora workflow plan --file examples/workflows/go-ci.yaml
 nivora workflow run --file examples/workflows/go-ci.yaml --confirm --allow-pipeline-run --server http://localhost:8080
 nivora workflow cancel <workflow-run-id> --server http://localhost:8080
 nivora workflow reconcile --repository-id repo-dev --server http://localhost:8080
+nivora workflow retry <workflow-run-id> --confirm --allow-pipeline-run --server http://localhost:8080
 ```
 
 The planner builds a DAG and checks dependency cycles, missing `needs` targets, matrix size limits, unsupported `uses`, artifact/cache declarations, plan-only security/release/deployment intent, and secret-like environment or intent values.
 The run command is server-backed and queue-only. It creates WorkflowRun metadata plus a queued PipelineRun when the server authorizes the request; it does not execute workflow steps inside the CLI process.
-The cancel command asks the server to cancel the linked PipelineRun. The reconcile command scans non-terminal WorkflowRun metadata and refreshes status from linked PipelineRun state. Neither command retries workflows, rolls back deployments, deletes resources, or executes workflow steps directly.
+The cancel command asks the server to cancel the linked PipelineRun. The reconcile command scans non-terminal WorkflowRun metadata and refreshes status from linked PipelineRun state. The retry command requires explicit confirmation and queues a replacement PipelineRun from the stored WorkflowPlan for Failed, Canceled, or Timeout WorkflowRuns. These commands do not roll back deployments, delete resources, or execute workflow steps directly.
 
 Workflow-level `artifacts` and `cache` entries are recorded as PipelineRun metadata when a guarded WorkflowRun queues a PipelineRun. The control plane records names, paths, cache keys, restore keys, retention hints, and metadata. It does not read artifact files, upload cache blobs, or store large content in the database.
 
@@ -72,6 +73,7 @@ GET  /api/v1/workflows/plans/{id}
 GET  /api/v1/workflows/runs
 GET  /api/v1/workflows/runs/{id}
 POST /api/v1/workflows/runs/{id}/cancel
+POST /api/v1/workflows/runs/{id}/retry
 POST /api/v1/workflows/runs/reconcile
 POST /api/v1/workflows/run
 ```
@@ -81,6 +83,8 @@ POST /api/v1/workflows/run
 `GET /api/v1/workflows/runs` and `GET /api/v1/workflows/runs/{id}` refresh WorkflowRun status from the linked PipelineRun when that PipelineRun is still available in the configured runtime store.
 
 `POST /api/v1/workflows/runs/{id}/cancel` cancels the linked PipelineRun through the existing PipelineRun runtime and updates WorkflowRun metadata. It does not retry the workflow, roll back deployments, delete resources, or execute workflow steps directly.
+
+`POST /api/v1/workflows/runs/{id}/retry` requires `confirm=true` and `allowPipelineRun=true`. It retries only Failed, Canceled, or Timeout WorkflowRuns by creating a new queued PipelineRun from the stored WorkflowPlan.
 
 `POST /api/v1/workflows/runs/reconcile` scans non-terminal WorkflowRun records and repairs status drift from linked PipelineRun state. It is a metadata reconciliation path only.
 

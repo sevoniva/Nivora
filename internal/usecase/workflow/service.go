@@ -15,8 +15,9 @@ import (
 )
 
 var (
-	ErrNotFound    = errors.New("workflow record not found")
-	ErrRunTerminal = errors.New("workflow run is already terminal")
+	ErrNotFound        = errors.New("workflow record not found")
+	ErrRunTerminal     = errors.New("workflow run is already terminal")
+	ErrRunNotRetryable = errors.New("workflow run is not retryable")
 )
 
 type PipelineRunCreator interface {
@@ -357,6 +358,54 @@ func (s *Service) ReconcileRuns(ctx context.Context, filter RunListFilter, pipel
 	return result, nil
 }
 
+func (s *Service) RetryRun(ctx context.Context, id string, input RetryInput, pipelines PipelineRunCreator) (RunResult, error) {
+	if pipelines == nil {
+		return RunResult{}, fmt.Errorf("%w: pipeline runtime is required", ErrInvalid)
+	}
+	if !input.Confirm || !input.AllowPipelineRun {
+		return RunResult{}, fmt.Errorf("%w: workflow retry requires confirm=true and allowPipelineRun=true", ErrInvalid)
+	}
+	record, err := s.GetRun(ctx, id)
+	if err != nil {
+		return RunResult{}, err
+	}
+	if reader, ok := pipelines.(PipelineRunReader); ok {
+		record, err = s.refreshRunRecordStatus(ctx, record, reader)
+		if err != nil {
+			return RunResult{}, err
+		}
+	}
+	if !isRetryableRunStatus(record.Status) {
+		return RunResult{}, fmt.Errorf("%w: workflow run %s is %s", ErrRunNotRetryable, record.ID, record.Status)
+	}
+	result, err := s.Run(ctx, RunInput{
+		PlanID:           record.WorkflowPlanID,
+		RepositoryID:     record.RepositoryID,
+		ProjectID:        record.ProjectID,
+		EnvironmentID:    record.EnvironmentID,
+		Ref:              record.Ref,
+		ActorID:          strings.TrimSpace(input.ActorID),
+		CorrelationID:    strings.TrimSpace(input.CorrelationID),
+		Confirm:          input.Confirm,
+		AllowPipelineRun: input.AllowPipelineRun,
+	}, pipelines)
+	if err != nil {
+		return RunResult{}, err
+	}
+	warning := fmt.Sprintf("workflow run retried from %s", record.ID)
+	result.WorkflowRun.Warnings = append(result.WorkflowRun.Warnings, warning)
+	result.WorkflowRun.UpdatedAt = s.now().UTC()
+	if err := s.store.SaveRun(ctx, result.WorkflowRun); err != nil {
+		return RunResult{}, err
+	}
+	result.WorkflowRun, err = s.store.GetRun(ctx, result.WorkflowRun.ID)
+	if err != nil {
+		return RunResult{}, err
+	}
+	result.Warnings = append(result.Warnings, warning)
+	return result, nil
+}
+
 func (s *Service) CancelRun(ctx context.Context, id string, actorID string, pipelines PipelineRunCanceler) (RunRecord, error) {
 	record, err := s.GetRun(ctx, id)
 	if err != nil {
@@ -422,6 +471,15 @@ func (s *Service) refreshRunRecordStatus(ctx context.Context, record RunRecord, 
 func isTerminalRunStatus(status RunStatus) bool {
 	switch status {
 	case RunSucceeded, RunFailed, RunCanceled, RunTimeout:
+		return true
+	default:
+		return false
+	}
+}
+
+func isRetryableRunStatus(status RunStatus) bool {
+	switch status {
+	case RunFailed, RunCanceled, RunTimeout:
 		return true
 	default:
 		return false

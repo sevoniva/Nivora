@@ -262,6 +262,13 @@ type RunInput struct {
 	Options          PlanOptions
 }
 
+type RetryInput struct {
+	ActorID          string
+	CorrelationID    string
+	Confirm          bool
+	AllowPipelineRun bool
+}
+
 type RunRecord struct {
 	ID             string    `json:"id"`
 	WorkflowID     string    `json:"workflowId"`

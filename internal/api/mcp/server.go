@@ -124,11 +124,16 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://repositories/{id}/snapshot/latest", "Repository latest snapshot", "Latest repository snapshot metadata by id"),
 		resource("nivora://repositories/{id}/intelligence", "Repository intelligence", "Latest repository intelligence by id"),
 		resource("nivora://repositories/{id}/devops-plan", "Repository DevOps plan", "Latest saved plan-only build, test, package, security, release-candidate, and deployment summary by repository id"),
+		resource("nivora://repositories/{id}/workflows", "Repository workflows", "Stored workflow summaries linked to a repository by id"),
 		resource("nivora://workflows", "Workflows", "Stored workflow summaries visible to the MCP subject"),
 		resource("nivora://workflows/{id}", "Workflow", "Stored workflow summary by workflow id"),
 		resource("nivora://workflows/{id}/plan", "Workflow plan", "Stored workflow plan record by id"),
 		resource("nivora://workflows/runs", "Workflow runs", "Guarded WorkflowRun metadata visible to the MCP subject"),
 		resource("nivora://workflows/runs/{id}", "Workflow run", "Guarded WorkflowRun metadata by id"),
+		resource("nivora://workflow-runs/{id}/timeline", "Workflow run timeline", "Workflow run timeline aggregated from the linked PipelineRun"),
+		resource("nivora://workflow-runs/{id}/logs", "Workflow run logs", "Workflow run log chunks aggregated from the linked PipelineRun"),
+		resource("nivora://workflow-runs/{id}/artifacts", "Workflow run artifacts", "Workflow run artifact metadata aggregated from the linked PipelineRun"),
+		resource("nivora://workflow-runs/{id}/annotations", "Workflow run annotations", "Workflow run annotations aggregated from the linked PipelineRun"),
 		resource("nivora://pipelines/definitions", "Pipeline definitions", "Pipeline definition catalog"),
 		resource("nivora://pipelines/definitions/{id}", "Pipeline definition", "Pipeline definition record by id"),
 		resource("nivora://pipeline-runs/{id}/dag", "PipelineRun DAG", "PipelineRun graph nodes and edges by id"),
@@ -476,7 +481,9 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string, query url.
 		}
 		return s.workflowRunListResource(ctx, page)
 	case strings.HasPrefix(uri, "nivora://workflows/runs/"):
-		return s.workflowRunResource(ctx, strings.TrimPrefix(uri, "nivora://workflows/runs/"))
+		return s.workflowRunDispatch(ctx, strings.TrimPrefix(uri, "nivora://workflows/runs/"))
+	case strings.HasPrefix(uri, "nivora://workflow-runs/"):
+		return s.workflowRunDispatch(ctx, strings.TrimPrefix(uri, "nivora://workflow-runs/"))
 	case strings.HasPrefix(uri, "nivora://workflows/"):
 		rest := strings.TrimPrefix(uri, "nivora://workflows/")
 		if strings.HasSuffix(rest, "/plan") {
@@ -2375,6 +2382,20 @@ func (s *Server) repositoryResource(ctx context.Context, rest string) (any, erro
 			return nil, err
 		}
 		return map[string]any{"devopsPlan": record, "mutated": false}, nil
+	case strings.HasSuffix(rest, "/workflows"):
+		id := strings.TrimSuffix(rest, "/workflows")
+		repository, err := s.services.Catalog.GetRepository(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("repository "+id, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+		workflows, err := s.services.Workflows.ListWorkflows(ctx, workflowusecase.PlanListFilter{RepositoryID: id})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"repositoryId": id, "workflows": workflows, "count": len(workflows), "mutated": false}, nil
 	default:
 		repository, err := s.services.Catalog.GetRepository(ctx, rest)
 		if err != nil {
@@ -2524,9 +2545,34 @@ func (s *Server) workflowRunListResource(ctx context.Context, page mcpPage) (any
 }
 
 func (s *Server) workflowRunResource(ctx context.Context, id string) (any, error) {
+	run, err := s.loadWorkflowRun(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return map[string]any{"workflowRun": run, "mutated": false}, nil
+}
+
+// workflowRunDispatch routes a workflow run URI tail to either the run metadata
+// resource or one of its read-only sub-resources (timeline/logs/artifacts/
+// annotations). Both nivora://workflows/runs/{id}[/...] and the
+// nivora://workflow-runs/{id}[/...] alias land here.
+func (s *Server) workflowRunDispatch(ctx context.Context, rest string) (any, error) {
+	for _, kind := range []string{"timeline", "logs", "artifacts", "annotations"} {
+		if strings.HasSuffix(rest, "/"+kind) {
+			return s.workflowRunSubResource(ctx, strings.TrimSuffix(rest, "/"+kind), kind)
+		}
+	}
+	return s.workflowRunResource(ctx, rest)
+}
+
+// loadWorkflowRun fetches a WorkflowRun by id, refreshing status from the linked
+// PipelineRun when available, and enforces MCP subject scope. Sub-resource
+// handlers reuse this so timeline/logs/artifacts/annotations inherit the same
+// read-only scope gate as the workflow run itself.
+func (s *Server) loadWorkflowRun(ctx context.Context, id string) (workflowusecase.RunRecord, error) {
 	id = strings.TrimSpace(id)
 	if id == "" {
-		return nil, OperationError{Code: "invalid_request", Message: "workflow run id is required"}
+		return workflowusecase.RunRecord{}, OperationError{Code: "invalid_request", Message: "workflow run id is required"}
 	}
 	var (
 		run workflowusecase.RunRecord
@@ -2538,12 +2584,46 @@ func (s *Server) workflowRunResource(ctx context.Context, id string) (any, error
 		run, err = s.services.Workflows.GetRun(ctx, id)
 	}
 	if err != nil {
-		return nil, err
+		return workflowusecase.RunRecord{}, err
 	}
 	if err := s.ensureWorkflowRunScope(ctx, run); err != nil {
+		return workflowusecase.RunRecord{}, err
+	}
+	return run, nil
+}
+
+// workflowRunSubResource resolves a WorkflowRun sub-resource (timeline, logs,
+// artifacts, annotations) by delegating to the linked PipelineRun's read-only
+// methods. WorkflowRun itself stores only metadata; runtime evidence lives on
+// the underlying PipelineRun. Returns a structured not_implemented error when
+// the run has no linked PipelineRun or the pipeline runtime is unavailable.
+func (s *Server) workflowRunSubResource(ctx context.Context, id, kind string) (any, error) {
+	run, err := s.loadWorkflowRun(ctx, id)
+	if err != nil {
 		return nil, err
 	}
-	return map[string]any{"workflowRun": run, "mutated": false}, nil
+	if run.PipelineRunID == "" {
+		return nil, OperationError{Code: "not_implemented", Message: "workflow run " + id + " has no linked pipeline run; " + kind + " are unavailable"}
+	}
+	if s.services.Pipelines == nil {
+		return nil, OperationError{Code: "not_implemented", Message: "pipeline runtime is not configured; workflow run " + kind + " are unavailable"}
+	}
+	pipelineID := run.PipelineRunID
+	switch kind {
+	case "timeline":
+		return s.services.Pipelines.Timeline(ctx, pipelineID)
+	case "logs":
+		logs, lerr := s.services.Pipelines.Logs(ctx, pipelineID)
+		return truncateLogs(logs), lerr
+	case "artifacts":
+		artifacts, aerr := s.services.Pipelines.Artifacts(ctx, pipelineID)
+		return map[string]any{"workflowRunId": id, "pipelineRunId": pipelineID, "artifacts": artifacts, "count": len(artifacts), "mutated": false}, aerr
+	case "annotations":
+		annotations, anerr := s.services.Pipelines.Annotations(ctx, pipelineID)
+		return map[string]any{"workflowRunId": id, "pipelineRunId": pipelineID, "annotations": annotations, "count": len(annotations), "mutated": false}, anerr
+	default:
+		return nil, OperationError{Code: "invalid_request", Message: "unknown workflow run sub-resource: " + kind}
+	}
 }
 
 func (s *Server) ensureWorkflowRunScope(ctx context.Context, run workflowusecase.RunRecord) error {

@@ -211,13 +211,7 @@ func loadMCPAuditRecords(t *testing.T, pool *pgxpool.Pool) []mcpAuditRecordRow {
 }
 
 func computeMCPAuditRecordHash(record mcpAuditRecordRow) string {
-	createdAt := record.createdAt
-	if strings.HasPrefix(record.id, "mcp-audit-") {
-		parsed, err := time.Parse("20060102150405.000000000", strings.TrimPrefix(record.id, "mcp-audit-"))
-		if err == nil {
-			createdAt = parsed
-		}
-	}
+	createdAt := record.createdAt.UTC().Truncate(time.Microsecond)
 	canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
 		record.previousHash,
 		record.actorID,

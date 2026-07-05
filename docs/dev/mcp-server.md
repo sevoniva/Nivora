@@ -76,7 +76,7 @@ make validate-mcp-scenarios
 make verify-ai-control-plane
 ```
 
-The current corpus has 31 scenarios and 31 golden answers. Scenario tests create deterministic PipelineRun, DeploymentRun, ReleaseExecution, and security scan fixtures; they do not skip fixture-backed tools just because live external systems are absent.
+The current corpus has 32 scenarios and 32 golden answers. Scenario tests create deterministic PipelineRun, DeploymentRun, ReleaseExecution, repository readiness, and security scan fixtures; they do not skip fixture-backed tools just because live external systems are absent.
 
 ## Configuration
 

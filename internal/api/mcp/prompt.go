@@ -8,6 +8,7 @@ func promptCatalog() []Prompt {
 		prompt("diagnose_deployment_run", "Diagnose a DeploymentRun from Nivora facts", []PromptArgument{{Name: "id", Description: "DeploymentRun ID", Required: true}}),
 		prompt("release_readiness_review", "Review release execution readiness", []PromptArgument{{Name: "id", Description: "ReleaseExecution ID", Required: true}}),
 		prompt("audit_incident_summary", "Summarize audit evidence for an incident", []PromptArgument{{Name: "subject", Description: "Audit subject or subject ID", Required: true}}),
+		prompt("repository_devops_readiness_review", "Review repository intelligence and DevOps plan readiness", []PromptArgument{{Name: "repositoryId", Description: "Repository ID", Required: true}}),
 		prompt("policy_gate_review", "Review policy gate evidence and next checks", []PromptArgument{{Name: "subjectType", Description: "Subject type", Required: false}, {Name: "subjectId", Description: "Subject ID", Required: false}}),
 		prompt("runner_fleet_health_review", "Review runner fleet health from read-only data", nil),
 		prompt("mcp_safe_operation_check", "Check whether a requested action is safe for this MCP phase", []PromptArgument{{Name: "requestedAction", Description: "Requested action", Required: true}}),
@@ -55,6 +56,15 @@ func promptText(name string, args map[string]string) (string, bool) {
 			"Do not expose secrets, tokens, token hashes, kubeconfigs, private keys, or Authorization headers.",
 			"Separate audit facts from incident hypotheses.",
 			"List evidence gaps and the next read-only audit filters to try.",
+		}), true
+	case "repository_devops_readiness_review":
+		repositoryID := arg(args, "repositoryId", "<repository-id>")
+		return basePrompt("Review repository DevOps readiness for "+repositoryID, []string{
+			"Read nivora://repositories/" + repositoryID + ", nivora://repositories/" + repositoryID + "/snapshot/latest, nivora://repositories/" + repositoryID + "/intelligence, and nivora://repositories/" + repositoryID + "/devops-plan when they are available to the subject.",
+			"Use nivora_devops_readiness_review and nivora_workflow_draft_generate only as plan-only evidence; verify each result includes mutated=false.",
+			"Separate static repository detections, command candidates, workflow draft evidence, release-candidate posture, and deployment target hints.",
+			"State that detected commands are suggestions and were not executed by MCP or repository intelligence.",
+			"List missing evidence such as artifact digest binding, policy results, approvals, runner labels, and deployment dry-run evidence before recommending any guarded action outside MCP.",
 		}), true
 	case "policy_gate_review":
 		subjectType := arg(args, "subjectType", "<subject-type>")

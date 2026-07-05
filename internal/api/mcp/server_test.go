@@ -67,7 +67,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListPrompts: %v", err)
 	}
-	for _, want := range []string{"diagnose_pipeline_run", "release_readiness_review", "mcp_safe_operation_check"} {
+	for _, want := range []string{"diagnose_pipeline_run", "repository_devops_readiness_review", "release_readiness_review", "mcp_safe_operation_check"} {
 		if !hasPrompt(prompts, want) {
 			t.Fatalf("prompt %s missing from %#v", want, prompts)
 		}

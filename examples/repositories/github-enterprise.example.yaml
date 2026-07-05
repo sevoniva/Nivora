@@ -1,0 +1,18 @@
+apiVersion: nivora.io/v1alpha1
+kind: Repository
+metadata:
+  name: github-enterprise-service
+  labels:
+    provider: github-enterprise
+spec:
+  provider: github
+  url: https://github.example.invalid/org/service.git
+  defaultBranch: main
+  projectId: example-project
+  credentialRef: credential-ref-placeholder
+  metadata:
+    boundary: provider-skeleton
+    deployment: private-github-enterprise
+  notes:
+    - Example only. Nivora treats this as GitHub-compatible catalog metadata.
+    - Provider API writes and pull request automation remain future guarded work.

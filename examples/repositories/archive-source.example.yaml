@@ -1,0 +1,17 @@
+apiVersion: nivora.io/v1alpha1
+kind: Repository
+metadata:
+  name: offline-source-archive
+  labels:
+    provider: archive
+spec:
+  provider: archive
+  url: file:///replace/with/offline/source-archive.tar.gz
+  defaultBranch: snapshot
+  projectId: example-project
+  credentialRef: ""
+  metadata:
+    boundary: offline-source-package
+  notes:
+    - Example only. Do not include credentials or private keys in source archives.
+    - Archive provider metadata is a foundation shape; extraction/import lifecycle is future work.

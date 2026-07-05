@@ -2,6 +2,18 @@
 
 This guide covers the current local/foundation repository workflow path. It is safe for local development and CI tests because it does not require external SCM credentials or network access.
 
+## Create A Repository Catalog Record
+
+Repository catalog records can be created from a file so private and offline environments can keep repository metadata under review:
+
+```bash
+nivora repository create --file examples/repositories/generic-git.yaml --server http://localhost:8080
+```
+
+The file format uses `kind: Repository` with metadata and spec fields. Supported catalog provider values in this foundation path are `generic`, `generic_git` (normalized to `generic`), `github`, `gitlab`, `gitea`, `local`, and `archive`. `github`, `gitlab`, and `gitea` are provider metadata and adapter-skeleton labels in this path; Nivora does not call their product APIs, push commits, open pull requests, or resolve CredentialRef secret values during catalog create.
+
+Example files live in `examples/repositories/`. They use placeholder URLs and CredentialRef names only. Do not put tokens, SSH keys, passwords, or inline `https://user:password@...` URLs in repository definitions.
+
 ## Inspect A Local Repository
 
 ```bash

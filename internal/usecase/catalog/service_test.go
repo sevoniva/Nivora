@@ -115,6 +115,30 @@ func TestCatalogRejectsMissingParentsAndDuplicates(t *testing.T) {
 	if _, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Repo", URL: "https://example.com/team/service.git", Provider: "unknown"}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("invalid repository provider error = %v", err)
 	}
+	genericGitRepository, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Generic Git Repo", URL: "https://example.com/team/generic.git", Provider: "generic_git"})
+	if err != nil {
+		t.Fatalf("create generic_git repository alias: %v", err)
+	}
+	if genericGitRepository.Provider != "generic" {
+		t.Fatalf("generic_git provider should normalize to generic, got %q", genericGitRepository.Provider)
+	}
+	localRepository, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Local Repo", URL: "file:///tmp/nivora-local-repo", Provider: "local", DefaultBranch: "HEAD"})
+	if err != nil {
+		t.Fatalf("create local file repository metadata: %v", err)
+	}
+	if localRepository.Provider != "local" || localRepository.URL != "file:///tmp/nivora-local-repo" {
+		t.Fatalf("unexpected local repository: %+v", localRepository)
+	}
+	archiveRepository, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Archive Repo", URL: "file:///tmp/nivora-source.tar.gz", Provider: "archive", DefaultBranch: "snapshot"})
+	if err != nil {
+		t.Fatalf("create archive file repository metadata: %v", err)
+	}
+	if archiveRepository.Provider != "archive" {
+		t.Fatalf("unexpected archive provider: %+v", archiveRepository)
+	}
+	if _, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Generic File Repo", URL: "file:///tmp/nivora-generic", Provider: "generic"}); !errors.Is(err, ErrInvalid) {
+		t.Fatalf("generic file repository should require local/archive provider, got %v", err)
+	}
 	repository, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Repo", URL: "https://example.com/team/service.git", Provider: "github", CredentialRef: "cred-ref"})
 	if err != nil {
 		t.Fatalf("create repository with credential ref: %v", err)

@@ -1,0 +1,17 @@
+apiVersion: nivora.io/v1alpha1
+kind: Repository
+metadata:
+  name: gitlab-service
+  labels:
+    provider: gitlab
+spec:
+  provider: gitlab
+  url: https://gitlab.example.invalid/group/service.git
+  defaultBranch: main
+  projectId: example-project
+  credentialRef: credential-ref-placeholder
+  metadata:
+    boundary: provider-skeleton
+  notes:
+    - Example only. Nivora does not perform GitLab API writes in this foundation path.
+    - Keep tokens outside the repository and reference them through CredentialRef.

@@ -349,12 +349,12 @@ func (s *Service) CreateRepository(ctx context.Context, input CreateRepositoryIn
 	if name == "" {
 		return domainapp.Repository{}, fmt.Errorf("%w: repository name is required", ErrInvalid)
 	}
-	repoURL := strings.TrimSpace(input.URL)
-	if err := validateRepositoryURL(repoURL); err != nil {
-		return domainapp.Repository{}, err
-	}
 	provider := defaultProvider(input.Provider)
 	if err := validateRepositoryProvider(provider); err != nil {
+		return domainapp.Repository{}, err
+	}
+	repoURL := strings.TrimSpace(input.URL)
+	if err := validateRepositoryURL(repoURL, provider); err != nil {
 		return domainapp.Repository{}, err
 	}
 	repositories, _ := s.store.ListRepositories(ctx, projectID)
@@ -406,15 +406,15 @@ func (s *Service) UpdateRepository(ctx context.Context, id string, input UpdateR
 	}
 	if input.URL != nil {
 		repository.URL = strings.TrimSpace(*input.URL)
-		if err := validateRepositoryURL(repository.URL); err != nil {
-			return domainapp.Repository{}, err
-		}
 	}
 	if input.Provider != nil {
 		repository.Provider = defaultProvider(*input.Provider)
-		if err := validateRepositoryProvider(repository.Provider); err != nil {
-			return domainapp.Repository{}, err
-		}
+	}
+	if err := validateRepositoryProvider(repository.Provider); err != nil {
+		return domainapp.Repository{}, err
+	}
+	if err := validateRepositoryURL(repository.URL, repository.Provider); err != nil {
+		return domainapp.Repository{}, err
 	}
 	if input.DefaultBranch != nil {
 		repository.DefaultBranch = defaultBranch(*input.DefaultBranch)
@@ -626,7 +626,7 @@ func defaultID(id string, prefix string) string {
 	return prefix + "-" + hex.EncodeToString(random)
 }
 
-func validateRepositoryURL(raw string) error {
+func validateRepositoryURL(raw string, provider string) error {
 	if strings.TrimSpace(raw) == "" {
 		return fmt.Errorf("%w: repository url is required", ErrInvalid)
 	}
@@ -640,14 +640,21 @@ func validateRepositoryURL(raw string) error {
 	switch parsed.Scheme {
 	case "https", "http", "ssh", "git":
 		return nil
+	case "file":
+		switch defaultProvider(provider) {
+		case "local", "archive":
+			return nil
+		default:
+			return fmt.Errorf("%w: file repository urls require local or archive provider metadata", ErrInvalid)
+		}
 	default:
 		return fmt.Errorf("%w: unsupported repository url scheme %q", ErrInvalid, parsed.Scheme)
 	}
 }
 
 func validateRepositoryProvider(provider string) error {
-	switch strings.TrimSpace(strings.ToLower(provider)) {
-	case "generic", "github", "gitlab", "gitea":
+	switch defaultProvider(provider) {
+	case "generic", "github", "gitlab", "gitea", "local", "archive":
 		return nil
 	default:
 		return fmt.Errorf("%w: unsupported repository provider %q", ErrInvalid, provider)
@@ -673,7 +680,7 @@ func validateRepositoryShape(repository domainapp.Repository) RepositoryValidati
 	if strings.TrimSpace(repository.Name) == "" {
 		result.Errors = append(result.Errors, "name is required")
 	}
-	if err := validateRepositoryURL(repository.URL); err != nil {
+	if err := validateRepositoryURL(repository.URL, repository.Provider); err != nil {
 		result.Errors = append(result.Errors, err.Error())
 	}
 	if err := validateRepositoryProvider(repository.Provider); err != nil {
@@ -697,6 +704,9 @@ func validateRepositoryShape(repository domainapp.Repository) RepositoryValidati
 func defaultProvider(provider string) string {
 	provider = strings.TrimSpace(strings.ToLower(provider))
 	if provider == "" {
+		return "generic"
+	}
+	if provider == "generic_git" {
 		return "generic"
 	}
 	return provider

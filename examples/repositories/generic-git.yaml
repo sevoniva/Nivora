@@ -1,0 +1,19 @@
+apiVersion: nivora.io/v1alpha1
+kind: Repository
+metadata:
+  name: generic-platform-config
+  labels:
+    provider: generic-git
+    usage: gitops
+spec:
+  provider: generic_git
+  url: https://example.invalid/platform/config.git
+  defaultBranch: main
+  projectId: example-project
+  credentialRef: credential-ref-placeholder
+  metadata:
+    boundary: catalog-metadata-only
+    networkAccess: not-required-for-baseline-tests
+  notes:
+    - Placeholder URL only. Do not add credentials to repository URLs.
+    - Use CredentialRef metadata for future provider access; this example does not resolve secrets.

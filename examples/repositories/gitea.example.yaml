@@ -1,0 +1,17 @@
+apiVersion: nivora.io/v1alpha1
+kind: Repository
+metadata:
+  name: gitea-service
+  labels:
+    provider: gitea
+spec:
+  provider: gitea
+  url: https://gitea.example.invalid/org/service.git
+  defaultBranch: main
+  projectId: example-project
+  credentialRef: credential-ref-placeholder
+  metadata:
+    boundary: provider-skeleton
+  notes:
+    - Example only. Nivora does not perform Gitea API writes in this foundation path.
+    - Keep tokens outside the repository and reference them through CredentialRef.

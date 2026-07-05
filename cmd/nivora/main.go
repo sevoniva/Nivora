@@ -2130,6 +2130,7 @@ func newCatalogDisableCommand(name string, short string, path string) *cobra.Com
 func newRepositoryCreateCommand() *cobra.Command {
 	var serverURL string
 	var tokenEnv string
+	var file string
 	var projectID string
 	var name string
 	var repoURL string
@@ -2140,24 +2141,40 @@ func newRepositoryCreateCommand() *cobra.Command {
 		Use:   "create",
 		Short: "Create an SCM repository catalog record",
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if projectID == "" {
-				return fmt.Errorf("--project-id is required")
+			bodyMap := map[string]any{}
+			if file != "" {
+				var err error
+				bodyMap, err = repositoryCreateBodyFromFile(file)
+				if err != nil {
+					return err
+				}
 			}
-			if name == "" {
-				return fmt.Errorf("--name is required")
+			if cmd.Flags().Changed("project-id") || file == "" {
+				bodyMap["projectId"] = projectID
 			}
-			if repoURL == "" {
-				return fmt.Errorf("--url is required")
+			if cmd.Flags().Changed("name") || file == "" {
+				bodyMap["name"] = name
 			}
-			bodyMap := map[string]any{"projectId": projectID, "name": name, "url": repoURL}
-			if provider != "" {
+			if cmd.Flags().Changed("url") || file == "" {
+				bodyMap["url"] = repoURL
+			}
+			if cmd.Flags().Changed("provider") || file == "" {
 				bodyMap["provider"] = provider
 			}
-			if defaultBranch != "" {
+			if cmd.Flags().Changed("default-branch") || file == "" {
 				bodyMap["defaultBranch"] = defaultBranch
 			}
-			if credentialRef != "" {
+			if cmd.Flags().Changed("credential-ref") {
 				bodyMap["credentialRef"] = credentialRef
+			}
+			if repositoryCreateStringField(bodyMap, "projectId") == "" {
+				return fmt.Errorf("--project-id is required")
+			}
+			if repositoryCreateStringField(bodyMap, "name") == "" {
+				return fmt.Errorf("--name is required")
+			}
+			if repositoryCreateStringField(bodyMap, "url") == "" {
+				return fmt.Errorf("--url is required")
 			}
 			body, err := json.Marshal(bodyMap)
 			if err != nil {
@@ -2173,6 +2190,7 @@ func newRepositoryCreateCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&file, "file", "", "repository definition file")
 	cmd.Flags().StringVar(&projectID, "project-id", "", "parent project id")
 	cmd.Flags().StringVar(&name, "name", "", "repository name")
 	cmd.Flags().StringVar(&repoURL, "url", "", "repository URL")
@@ -2180,6 +2198,97 @@ func newRepositoryCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&defaultBranch, "default-branch", "main", "default branch")
 	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id for future SCM access; no secret value is accepted")
 	return cmd
+}
+
+func repositoryCreateBodyFromFile(file string) (map[string]any, error) {
+	content, err := os.ReadFile(file)
+	if err != nil {
+		return nil, err
+	}
+	var def struct {
+		APIVersion string `yaml:"apiVersion"`
+		Kind       string `yaml:"kind"`
+		Metadata   struct {
+			ID     string            `yaml:"id"`
+			Name   string            `yaml:"name"`
+			Labels map[string]string `yaml:"labels"`
+		} `yaml:"metadata"`
+		Spec struct {
+			ID            string            `yaml:"id"`
+			ProjectID     string            `yaml:"projectId"`
+			Name          string            `yaml:"name"`
+			URL           string            `yaml:"url"`
+			Provider      string            `yaml:"provider"`
+			DefaultBranch string            `yaml:"defaultBranch"`
+			CredentialRef string            `yaml:"credentialRef"`
+			Labels        map[string]string `yaml:"labels"`
+			Metadata      map[string]string `yaml:"metadata"`
+			Enabled       *bool             `yaml:"enabled"`
+		} `yaml:"spec"`
+	}
+	if err := yaml.Unmarshal(content, &def); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(def.Kind) != "" && strings.TrimSpace(def.Kind) != "Repository" {
+		return nil, fmt.Errorf("repository definition kind must be Repository")
+	}
+	labels := map[string]string{}
+	for key, value := range def.Metadata.Labels {
+		labels[key] = value
+	}
+	for key, value := range def.Spec.Labels {
+		labels[key] = value
+	}
+	bodyMap := map[string]any{}
+	if def.Metadata.ID != "" {
+		bodyMap["id"] = def.Metadata.ID
+	}
+	if def.Spec.ID != "" {
+		bodyMap["id"] = def.Spec.ID
+	}
+	if def.Metadata.Name != "" {
+		bodyMap["name"] = def.Metadata.Name
+	}
+	if def.Spec.Name != "" {
+		bodyMap["name"] = def.Spec.Name
+	}
+	if def.Spec.ProjectID != "" {
+		bodyMap["projectId"] = def.Spec.ProjectID
+	}
+	if def.Spec.URL != "" {
+		bodyMap["url"] = def.Spec.URL
+	}
+	if def.Spec.Provider != "" {
+		bodyMap["provider"] = def.Spec.Provider
+	}
+	if def.Spec.DefaultBranch != "" {
+		bodyMap["defaultBranch"] = def.Spec.DefaultBranch
+	}
+	if def.Spec.CredentialRef != "" {
+		bodyMap["credentialRef"] = def.Spec.CredentialRef
+	}
+	if len(labels) > 0 {
+		bodyMap["labels"] = labels
+	}
+	if len(def.Spec.Metadata) > 0 {
+		bodyMap["metadata"] = def.Spec.Metadata
+	}
+	if def.Spec.Enabled != nil {
+		bodyMap["enabled"] = *def.Spec.Enabled
+	}
+	return bodyMap, nil
+}
+
+func repositoryCreateStringField(body map[string]any, key string) string {
+	value, ok := body[key]
+	if !ok || value == nil {
+		return ""
+	}
+	text, ok := value.(string)
+	if !ok {
+		return ""
+	}
+	return strings.TrimSpace(text)
 }
 
 func newRepositoryUpdateCommand() *cobra.Command {

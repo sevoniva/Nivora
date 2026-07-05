@@ -5175,6 +5175,8 @@ components:
           description: SCM repository URL. Inline username/password userinfo is rejected; use CredentialRef instead.
         provider:
           type: string
+          description: Catalog provider metadata. `generic_git` is accepted as an input alias for generic Git metadata. `github`, `gitlab`, and `gitea` are foundation provider labels unless a future guarded adapter is configured. `local` and `archive` may use file URLs for local/offline metadata.
+          enum: [generic, generic_git, github, gitlab, gitea, local, archive]
         defaultBranch:
           type: string
         credentialRef:
@@ -5194,6 +5196,8 @@ components:
           type: string
         provider:
           type: string
+          description: Catalog provider metadata. `generic_git` is accepted as an input alias for generic Git metadata. `github`, `gitlab`, and `gitea` are foundation provider labels unless a future guarded adapter is configured. `local` and `archive` may use file URLs for local/offline metadata.
+          enum: [generic, generic_git, github, gitlab, gitea, local, archive]
         defaultBranch:
           type: string
         credentialRef:

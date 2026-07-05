@@ -227,6 +227,14 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			"name": stringProperty("optional repository name"),
 			"ref":  stringProperty("optional ref label"),
 		}, []string{"path"})),
+		tool("nivora_repository_snapshot_create", "Preview a repository metadata snapshot through the configured read-only repository provider", objectSchema(map[string]any{
+			"repositoryId": stringProperty("repository id"),
+			"ref":          stringProperty("optional ref label"),
+			"localPath":    stringProperty("optional local path for local/generic catalog records"),
+		}, []string{"repositoryId"})),
+		tool("nivora_repository_intelligence_analyze", "Preview static repository intelligence from the latest saved snapshot", objectSchema(map[string]any{
+			"repositoryId": stringProperty("repository id"),
+		}, []string{"repositoryId"})),
 		tool("nivora_repository_devops_plan", "Read a plan-only DevOps plan for a repository latest snapshot", objectSchema(map[string]any{
 			"repositoryId": stringProperty("repository id"),
 		}, []string{"repositoryId"})),
@@ -1041,6 +1049,69 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return map[string]any{"snapshot": snapshot, "intelligence": intelligence, "mutated": false}, nil
+	case "nivora_repository_snapshot_create":
+		repositoryID, err := requiredString(arguments, "repositoryId")
+		if err != nil {
+			return nil, err
+		}
+		repository, err := s.services.Catalog.GetRepository(ctx, repositoryID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("repository "+repositoryID, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+		previewService := repositoryusecase.NewService(repositoryusecase.NewMemoryStore(), scmgeneric.New())
+		previewRepository, err := previewService.SaveRepository(ctx, repositoryUsecaseFromCatalog(repository))
+		if err != nil {
+			return nil, err
+		}
+		snapshot, err := previewService.CreateSnapshot(ctx, repositoryusecase.SnapshotInput{
+			Repository: previewRepository,
+			Ref:        stringArg(arguments, "ref"),
+			LocalPath:  stringArg(arguments, "localPath"),
+		})
+		if err != nil {
+			return nil, err
+		}
+		intelligence, err := previewService.GetIntelligence(ctx, snapshot.RepositoryID, snapshot.ID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{
+			"snapshot":     snapshot,
+			"intelligence": intelligence,
+			"mutated":      false,
+			"warnings": []string{
+				"MCP repository snapshot creation is a preview and does not persist control-plane state",
+				"repository code is not executed and CredentialRef values are not resolved",
+			},
+		}, nil
+	case "nivora_repository_intelligence_analyze":
+		repositoryID, err := requiredString(arguments, "repositoryId")
+		if err != nil {
+			return nil, err
+		}
+		repository, err := s.services.Catalog.GetRepository(ctx, repositoryID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("repository "+repositoryID, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+		snapshot, err := s.services.Repositories.GetLatestSnapshot(ctx, repositoryID)
+		if err != nil {
+			return nil, err
+		}
+		intelligence := repositoryusecase.AnalyzeSnapshot(snapshot, time.Now().UTC())
+		return map[string]any{
+			"intelligence": intelligence,
+			"mutated":      false,
+			"warnings": []string{
+				"MCP repository intelligence analysis is a preview and does not persist control-plane state",
+				"repository code is not executed and CredentialRef values are not resolved",
+			},
+		}, nil
 	case "nivora_repository_devops_plan":
 		repositoryID, err := requiredString(arguments, "repositoryId")
 		if err != nil {
@@ -2681,7 +2752,10 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_inspect_artifact_reference",
 		"nivora_plan_deployment_local":
 		return domainauth.PermissionDeploymentCreate
-	case "nivora_workflow_validate", "nivora_workflow_plan":
+	case "nivora_repository_snapshot_create",
+		"nivora_repository_intelligence_analyze",
+		"nivora_workflow_validate",
+		"nivora_workflow_plan":
 		return domainauth.PermissionWorkflowPlan
 	case "nivora_status",
 		"nivora_get_runtime_recovery_status",

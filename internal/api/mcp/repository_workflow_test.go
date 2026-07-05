@@ -58,7 +58,7 @@ func TestMCPRepositoryDevOpsPlanResourceAndToolArePlanOnly(t *testing.T) {
 		t.Fatalf("write .env: %v", err)
 	}
 
-	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	server := newTestMCPServer(t, domainauth.RoleDeveloper, "mcp-local")
 	projectID, _ := createMCPCatalogAndPipelineFixture(t, server)
 	repositories, err := server.services.Catalog.ListRepositories(context.Background(), projectID)
 	if err != nil {
@@ -68,20 +68,47 @@ func TestMCPRepositoryDevOpsPlanResourceAndToolArePlanOnly(t *testing.T) {
 		t.Fatal("expected catalog repository fixture")
 	}
 	repositoryID := repositories[0].ID
-	saved, err := server.services.Repositories.SaveRepository(context.Background(), repositoryusecase.Repository{
-		ID:            repositoryID,
-		Name:          repositories[0].Name,
-		Provider:      repositoryusecase.ProviderLocal,
-		URL:           root,
-		DefaultBranch: "HEAD",
-		ProjectID:     projectID,
-		Status:        repositoryusecase.RepositoryStatusActive,
-	})
+
+	result, err := server.CallTool(context.Background(), "nivora_repository_snapshot_create", map[string]any{"repositoryId": repositoryID, "ref": "HEAD", "localPath": root})
 	if err != nil {
-		t.Fatalf("save repository usecase record: %v", err)
+		t.Fatalf("repository snapshot create transport error: %v", err)
 	}
-	if _, err := server.services.Repositories.CreateSnapshot(context.Background(), repositoryusecase.SnapshotInput{Repository: saved, Ref: "HEAD", LocalPath: root}); err != nil {
-		t.Fatalf("create repository snapshot: %v", err)
+	if result.IsError || len(result.Content) == 0 {
+		t.Fatalf("repository snapshot create result = %#v", result)
+	}
+	body := result.Content[0].Text
+	for _, want := range []string{`"mutated": false`, `"snapshot"`, `"intelligence"`, "go test ./...", "preview"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("repository snapshot create body missing %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "should-not-leak") {
+		t.Fatalf("repository snapshot create leaked .env content: %s", body)
+	}
+
+	catalogRepository, err := server.services.Catalog.GetRepository(context.Background(), repositoryID)
+	if err != nil {
+		t.Fatalf("get catalog repository: %v", err)
+	}
+	if _, err := server.services.Repositories.CreateSnapshot(context.Background(), repositoryusecase.SnapshotInput{Repository: repositoryUsecaseFromCatalog(catalogRepository), Ref: "HEAD", LocalPath: root}); err != nil {
+		t.Fatalf("create repository snapshot fixture: %v", err)
+	}
+
+	result, err = server.CallTool(context.Background(), "nivora_repository_intelligence_analyze", map[string]any{"repositoryId": repositoryID})
+	if err != nil {
+		t.Fatalf("repository intelligence analyze transport error: %v", err)
+	}
+	if result.IsError || len(result.Content) == 0 {
+		t.Fatalf("repository intelligence analyze result = %#v", result)
+	}
+	body = result.Content[0].Text
+	for _, want := range []string{`"mutated": false`, `"intelligence"`, "kind: Workflow", "preview"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("repository intelligence analyze body missing %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "should-not-leak") {
+		t.Fatalf("repository intelligence analyze leaked .env content: %s", body)
 	}
 
 	resource, err := server.ReadResource(context.Background(), "nivora://repositories/"+repositoryID+"/devops-plan")
@@ -97,14 +124,14 @@ func TestMCPRepositoryDevOpsPlanResourceAndToolArePlanOnly(t *testing.T) {
 		t.Fatalf("devops plan resource leaked .env content: %s", resource.Text)
 	}
 
-	result, err := server.CallTool(context.Background(), "nivora_repository_devops_plan", map[string]any{"repositoryId": repositoryID})
+	result, err = server.CallTool(context.Background(), "nivora_repository_devops_plan", map[string]any{"repositoryId": repositoryID})
 	if err != nil {
 		t.Fatalf("repository devops plan transport error: %v", err)
 	}
 	if result.IsError || len(result.Content) == 0 {
 		t.Fatalf("repository devops plan result = %#v", result)
 	}
-	body := result.Content[0].Text
+	body = result.Content[0].Text
 	for _, want := range []string{`"mutated": false`, `"releaseCandidate"`, "go build ./...", "metadata-only"} {
 		if !strings.Contains(body, want) {
 			t.Fatalf("devops plan tool body missing %q: %s", want, body)

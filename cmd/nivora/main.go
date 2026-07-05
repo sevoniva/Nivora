@@ -1811,6 +1811,8 @@ func newRepositoryCommand() *cobra.Command {
 	cmd.AddCommand(newRepositoryUpdateCommand())
 	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable a repository", "/api/v1/repositories"))
 	cmd.AddCommand(newRepositoryValidateCommand())
+	cmd.AddCommand(newRepositorySnapshotCommand())
+	cmd.AddCommand(newRepositoryAnalyzeCommand())
 	cmd.AddCommand(newRepositoryInspectCommand())
 	cmd.AddCommand(newRepositoryDevOpsPlanCommand())
 	cmd.AddCommand(newRepositoryReadinessReviewCommand())
@@ -2302,6 +2304,63 @@ func newRepositoryInspectCommand() *cobra.Command {
 	cmd.Flags().StringVar(&path, "path", "", "local repository path")
 	cmd.Flags().StringVar(&name, "name", "", "repository display name")
 	cmd.Flags().StringVar(&ref, "ref", "", "repository ref label for the snapshot")
+	return cmd
+}
+
+func newRepositorySnapshotCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var ref string
+	var localPath string
+	cmd := &cobra.Command{
+		Use:   "snapshot <repository-id>",
+		Short: "Create a read-only repository snapshot through the server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			bodyMap := map[string]string{}
+			if ref != "" {
+				bodyMap["ref"] = ref
+			}
+			if localPath != "" {
+				bodyMap["localPath"] = localPath
+			}
+			body, err := json.Marshal(bodyMap)
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/repositories/"+url.PathEscape(args[0])+"/snapshot", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&ref, "ref", "", "repository ref label for the snapshot")
+	cmd.Flags().StringVar(&localPath, "local-path", "", "local repository path for local/generic providers")
+	return cmd
+}
+
+func newRepositoryAnalyzeCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "analyze <repository-id>",
+		Short: "Analyze the latest saved repository snapshot through the server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/repositories/"+url.PathEscape(args[0])+"/analyze", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 

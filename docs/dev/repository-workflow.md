@@ -20,6 +20,17 @@ Detected commands are suggestions only. They are not executed by repository inte
 
 When the server or MCP process is configured with `database.runtime_store: postgres`, repository snapshots, repository intelligence, and workflow plan records are stored in PostgreSQL. The local `nivora repository inspect --path` and `nivora workflow plan --file` commands remain local commands and do not require a database.
 
+## Snapshot And Analyze Through The Server
+
+For cataloged repositories, the CLI can call the server-backed read-only snapshot and analysis APIs:
+
+```bash
+nivora repository snapshot <repository-id> --local-path . --ref HEAD --server http://localhost:8080
+nivora repository analyze <repository-id> --server http://localhost:8080
+```
+
+The snapshot command stores repository metadata for the configured local/generic provider. The analyze command refreshes static intelligence from the latest saved snapshot. These commands do not clone remote providers, resolve CredentialRef values, execute repository scripts, run scanners, create releases, or deploy.
+
 ## Plan Repository DevOps Candidates
 
 After a repository snapshot exists, Nivora can derive a plan-only DevOps summary:

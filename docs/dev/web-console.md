@@ -67,6 +67,9 @@ This runs:
 - `npm ci`
 - `npm run typecheck`
 - `npm run build`
+- `scripts/smoke-web-console.sh`
+
+The smoke script starts a local backend and Vite dev server when they are not already running, then verifies that the console root is reachable and that `/api/v1/version` works through the Vite proxy. This catches the common local failure mode where Vite is started from the wrong directory or the backend is not reachable, which otherwise appears in the browser as repeated request failures.
 
 ## Limitations
 

@@ -569,6 +569,15 @@ func TestMCPDeploymentAndReleasePlanResourcesAreReadOnly(t *testing.T) {
 			t.Fatalf("deployment plan missing %q: %s", want, deploymentPlan.Text)
 		}
 	}
+	deploymentExplain, err := server.CallTool(context.Background(), "nivora_explain_deployment_plan", map[string]any{"id": deploymentResult.Record.Run.ID})
+	if err != nil {
+		t.Fatalf("explain deployment plan: %v", err)
+	}
+	for _, want := range []string{`"deploymentPlanId"`, deploymentResult.Record.Run.ID, `"guardrails"`, `"mutated": false`} {
+		if deploymentExplain.IsError || !strings.Contains(deploymentExplain.Content[0].Text, want) {
+			t.Fatalf("deployment plan explain missing %q: %#v", want, deploymentExplain)
+		}
+	}
 
 	releaseDefinition := releaseusecase.Definition{
 		APIVersion: "nivora.io/v1alpha1",
@@ -622,6 +631,15 @@ func TestMCPDeploymentAndReleasePlanResourcesAreReadOnly(t *testing.T) {
 	for _, want := range []string{`"releasePlan"`, releasePlanRecord.Plan.ID, `"deploymentPlans"`, `"mutated": false`} {
 		if !strings.Contains(releasePlan.Text, want) {
 			t.Fatalf("release plan missing %q: %s", want, releasePlan.Text)
+		}
+	}
+	releaseExplain, err := server.CallTool(context.Background(), "nivora_explain_release_plan", map[string]any{"id": releasePlanRecord.Plan.ID})
+	if err != nil {
+		t.Fatalf("explain release plan: %v", err)
+	}
+	for _, want := range []string{`"releasePlanId"`, releasePlanRecord.Plan.ID, `"targetCount"`, `"guardrails"`, `"mutated": false`} {
+		if releaseExplain.IsError || !strings.Contains(releaseExplain.Content[0].Text, want) {
+			t.Fatalf("release plan explain missing %q: %#v", want, releaseExplain)
 		}
 	}
 }

@@ -58,7 +58,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 			t.Fatalf("blocked action tool %s was exposed", blocked)
 		}
 	}
-	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_search_events", "nivora_search_logs", "nivora_get_catalog_summary", "nivora_repository_snapshot_create", "nivora_repository_intelligence_analyze", "nivora_repository_devops_plan", "nivora_devops_readiness_review", "nivora_workflow_draft_generate", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_pipeline_artifacts", "nivora_get_pipeline_caches", "nivora_get_pipeline_annotations", "nivora_get_pipeline_summary", "nivora_get_deployment_health", "nivora_list_releases", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_policy_results", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
+	for _, want := range []string{"nivora_status", "nivora_get_runtime_recovery_status", "nivora_search_events", "nivora_search_logs", "nivora_get_catalog_summary", "nivora_repository_snapshot_create", "nivora_repository_intelligence_analyze", "nivora_repository_devops_plan", "nivora_devops_readiness_review", "nivora_workflow_draft_generate", "nivora_list_pipeline_definitions", "nivora_get_pipeline_definition", "nivora_get_pipeline_artifacts", "nivora_get_pipeline_caches", "nivora_get_pipeline_annotations", "nivora_get_pipeline_summary", "nivora_get_deployment_health", "nivora_explain_deployment_plan", "nivora_explain_release_plan", "nivora_list_releases", "nivora_list_artifacts", "nivora_get_artifact_releases", "nivora_list_security_findings", "nivora_get_policy_result_summary", "nivora_list_policy_results", "nivora_list_evidence_bundles", "nivora_get_evidence_bundle", "nivora_plan_deployment_local"} {
 		if !hasTool(tools, want) {
 			t.Fatalf("tool %s missing from %#v", want, tools)
 		}
@@ -1314,6 +1314,11 @@ func TestMCPPlanOnlyToolsReturnMutatedFalseAndDoNotCreateDeploymentRuns(t *testi
 	server, deployments := newTestMCPServerAndDeploymentService(t, domainauth.RoleDeveloper, "token")
 	pipelineRunID, deploymentRunID := createMCPObservabilityFixture(t, server)
 	releaseExecutionID := createMCPReleaseExecutionFixture(t, server)
+	releaseExecution, err := server.services.Releases.GetExecution(ctx, releaseExecutionID)
+	if err != nil {
+		t.Fatalf("load release execution fixture: %v", err)
+	}
+	releasePlanID := releaseExecution.Plan.ID
 
 	before, err := deployments.List(ctx)
 	if err != nil {
@@ -1326,8 +1331,10 @@ func TestMCPPlanOnlyToolsReturnMutatedFalseAndDoNotCreateDeploymentRuns(t *testi
 		{name: "nivora_explain_pipeline_failure", args: map[string]any{"id": pipelineRunID}},
 		{name: "nivora_explain_deployment", args: map[string]any{"id": deploymentRunID}},
 		{name: "nivora_explain_deployment_risk", args: map[string]any{"id": deploymentRunID}},
+		{name: "nivora_explain_deployment_plan", args: map[string]any{"id": deploymentRunID}},
 		{name: "nivora_explain_release", args: map[string]any{"id": releaseExecutionID}},
 		{name: "nivora_generate_release_readiness_summary", args: map[string]any{"id": releaseExecutionID}},
+		{name: "nivora_explain_release_plan", args: map[string]any{"id": releasePlanID}},
 		{name: "nivora_evaluate_policy_local", args: map[string]any{"subjectType": "artifact", "subjectId": "demo", "reference": "registry.example.com/team/app:latest"}},
 		{name: "nivora_inspect_artifact", args: map[string]any{"reference": "registry.example.com/team/app:latest", "type": "image"}},
 		{name: "nivora_inspect_artifact_reference", args: map[string]any{"reference": "registry.example.com/team/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "type": "image"}},

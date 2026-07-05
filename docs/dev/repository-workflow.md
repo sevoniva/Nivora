@@ -153,6 +153,8 @@ nivora_repository_inspect
 nivora_repository_devops_plan
 nivora_workflow_validate
 nivora_workflow_plan
+nivora_explain_deployment_plan
+nivora_explain_release_plan
 nivora://repositories/{id}/devops-plan
 nivora://workflows
 nivora://workflows/{id}/plan

@@ -339,8 +339,10 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			tool("nivora_explain_pipeline_failure", "Explain PipelineRun failure facts and likely next checks", idSchema("id")),
 			tool("nivora_explain_deployment", "Explain DeploymentRun risk from health, diff, warnings, and resources", idSchema("id")),
 			tool("nivora_explain_deployment_risk", "Explain DeploymentRun risk from health, diff, warnings, and resources", idSchema("id")),
+			tool("nivora_explain_deployment_plan", "Explain a stored DeploymentPlan without applying or mutating resources", idSchema("id")),
 			tool("nivora_explain_release", "Generate a ReleaseExecution readiness summary", idSchema("id")),
 			tool("nivora_generate_release_readiness_summary", "Generate a ReleaseExecution readiness summary", idSchema("id")),
+			tool("nivora_explain_release_plan", "Explain a stored ReleasePlan without deploying targets", idSchema("id")),
 			tool("nivora_evaluate_policy_local", "Evaluate local policy inputs without storing a result", objectSchema(map[string]any{
 				"subjectType": stringProperty("artifact, manifest, deployment_plan, or release"),
 				"subjectId":   stringProperty("subject id"),
@@ -1407,12 +1409,24 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return s.explainDeploymentRisk(ctx, id)
+	case "nivora_explain_deployment_plan":
+		id, err := requiredString(arguments, "id")
+		if err != nil {
+			return nil, err
+		}
+		return s.explainDeploymentPlan(ctx, id)
 	case "nivora_explain_release", "nivora_generate_release_readiness_summary":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
 			return nil, err
 		}
 		return s.releaseReadiness(ctx, id)
+	case "nivora_explain_release_plan":
+		id, err := requiredString(arguments, "id")
+		if err != nil {
+			return nil, err
+		}
+		return s.explainReleasePlan(ctx, id)
 	case "nivora_evaluate_policy_local":
 		result := s.services.Security.Evaluate(securityusecase.EvaluateInput{
 			SubjectType: domainsecurity.SubjectType(firstNonEmpty(stringArg(arguments, "subjectType"), "artifact")),
@@ -1483,6 +1497,40 @@ func (s *Server) explainDeploymentRisk(ctx context.Context, id string) (any, err
 	}, nil
 }
 
+func (s *Server) explainDeploymentPlan(ctx context.Context, id string) (any, error) {
+	record, err := s.services.Deployments.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureDeploymentScope(record, "deployment plan "+id); err != nil {
+		return nil, err
+	}
+	plan := record.Plan
+	return map[string]any{
+		"deploymentPlanId": id,
+		"deploymentRunId":  record.Run.ID,
+		"targetType":       plan.TargetType,
+		"targetContext":    plan.TargetContext,
+		"namespace":        plan.Namespace,
+		"manifestCount":    plan.ManifestCount,
+		"resourceCount":    len(plan.Resources),
+		"artifactCount":    len(plan.Artifacts),
+		"imageCount":       len(plan.ManifestImages),
+		"dryRun":           plan.DryRun,
+		"apply":            plan.Apply,
+		"wait":             plan.Wait,
+		"timeoutSeconds":   plan.TimeoutSeconds,
+		"diffSummary":      plan.DiffSummary,
+		"warnings":         plan.Warnings,
+		"guardrails": []string{
+			"this MCP tool is read-only and does not apply manifests, sync GitOps, deploy hosts, or execute rollback",
+			"apply, prune/delete, Argo CD sync, host deploy, and rollback remain separate guarded actions outside the MCP foundation",
+		},
+		"recommendation": "Review warnings, target type, resource count, artifact references, and diff summary before using any guarded deployment action.",
+		"mutated":        false,
+	}, nil
+}
+
 func (s *Server) releaseReadiness(ctx context.Context, id string) (any, error) {
 	record, err := s.services.Releases.GetExecution(ctx, id)
 	if err != nil {
@@ -1499,6 +1547,48 @@ func (s *Server) releaseReadiness(ctx context.Context, id string) (any, error) {
 		"approval":           record.Approval,
 		"mutated":            false,
 		"recommendation":     "Confirm policy, approvals, target health, artifact digest state, and rollback readiness before executing any guarded action.",
+	}, nil
+}
+
+func (s *Server) explainReleasePlan(ctx context.Context, id string) (any, error) {
+	record, err := s.services.Releases.GetPlanByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureReleasePlanScope(record, "release plan "+id); err != nil {
+		return nil, err
+	}
+	deniedPolicies := 0
+	for _, result := range record.Plan.PolicyResults {
+		if !result.Allowed {
+			deniedPolicies++
+		}
+	}
+	targetTypes := map[string]int{}
+	for _, target := range record.Plan.Targets {
+		targetTypes[target.TargetType]++
+	}
+	return map[string]any{
+		"releasePlanId":       record.Plan.ID,
+		"releaseId":           record.Plan.ReleaseID,
+		"environmentId":       record.Plan.EnvironmentID,
+		"environmentName":     record.Plan.EnvironmentName,
+		"strategy":            record.Plan.Strategy,
+		"concurrency":         record.Plan.Concurrency,
+		"targetCount":         len(record.Plan.Targets),
+		"targetTypes":         targetTypes,
+		"deploymentPlanCount": len(record.Plan.DeploymentPlans),
+		"artifactCount":       len(record.Plan.ArtifactSummary),
+		"policyResultCount":   len(record.Plan.PolicyResults),
+		"deniedPolicies":      deniedPolicies,
+		"ordering":            record.Plan.Ordering,
+		"warnings":            record.Plan.Warnings,
+		"guardrails": []string{
+			"this MCP tool is read-only and does not deploy, approve, cancel, sync, apply, or roll back targets",
+			"ReleaseExecution creation and target DeploymentRun execution remain guarded control-plane actions outside the MCP foundation",
+		},
+		"recommendation": "Review target ordering, denied policy count, warnings, artifact digest posture, approvals, and rollback readiness before deploying.",
+		"mutated":        false,
 	}, nil
 }
 
@@ -2746,8 +2836,10 @@ func (s *Server) toolPermission(name string) string {
 	case "nivora_explain_pipeline_failure",
 		"nivora_explain_deployment",
 		"nivora_explain_deployment_risk",
+		"nivora_explain_deployment_plan",
 		"nivora_explain_release",
 		"nivora_generate_release_readiness_summary",
+		"nivora_explain_release_plan",
 		"nivora_evaluate_policy_local",
 		"nivora_inspect_artifact",
 		"nivora_inspect_artifact_reference",

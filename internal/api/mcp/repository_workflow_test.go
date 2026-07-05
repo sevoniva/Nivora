@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
+	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 )
 
 func TestMCPRepositoryInspectToolIsPlanOnlyAndRedacted(t *testing.T) {
@@ -72,10 +73,27 @@ jobs:
 	}
 }
 
-func TestMCPStoredWorkflowResourceIsExplicitPlaceholder(t *testing.T) {
+func TestMCPStoredWorkflowPlanResourceReadsSavedPlan(t *testing.T) {
 	server := newTestMCPServer(t, domainauth.RoleDeveloper, "mcp-local")
-	_, err := server.ReadResource(context.Background(), "nivora://workflows/demo/plan")
-	if err == nil || !strings.Contains(err.Error(), "not implemented") {
-		t.Fatalf("expected workflow resource placeholder error, got %v", err)
+	record, err := server.services.Workflows.Plan(context.Background(), workflowusecase.PlanInput{Content: `
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: stored-mcp
+on: [manual]
+jobs:
+  test:
+    steps:
+      - run: go test ./...
+`})
+	if err != nil {
+		t.Fatalf("store workflow plan: %v", err)
+	}
+	resource, err := server.ReadResource(context.Background(), "nivora://workflows/"+record.ID+"/plan")
+	if err != nil {
+		t.Fatalf("ReadResource: %v", err)
+	}
+	if !strings.Contains(resource.Text, `"workflowPlan"`) || !strings.Contains(resource.Text, `"mutated": false`) {
+		t.Fatalf("workflow plan resource = %#v", resource)
 	}
 }

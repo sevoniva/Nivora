@@ -29,6 +29,7 @@ import (
 	runtimecenter "github.com/sevoniva/nivora/internal/usecase/runtimecenter"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	tenancyusecase "github.com/sevoniva/nivora/internal/usecase/tenancy"
+	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 	"github.com/sevoniva/nivora/internal/version"
 )
 
@@ -40,6 +41,7 @@ type routeOptions struct {
 	policyCatalog           *policyusecase.Service
 	artifactRegistryCatalog *artifactusecase.RegistryService
 	repositoryService       *repositoryusecase.Service
+	workflowService         *workflowusecase.Service
 }
 
 func WithCatalogService(service *catalogusecase.Service) Option {
@@ -82,6 +84,14 @@ func WithRepositoryService(service *repositoryusecase.Service) Option {
 	}
 }
 
+func WithWorkflowService(service *workflowusecase.Service) Option {
+	return func(options *routeOptions) {
+		if service != nil {
+			options.workflowService = service
+		}
+	}
+}
+
 func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, tenancyService *tenancyusecase.Service, complianceService *complianceusecase.Service, pluginRegistry *pluginusecase.Registry, opts ...Option) http.Handler {
 	r := chi.NewRouter()
 	runtimeCenter := runtimecenter.NewService(pipelineService, deploymentService, releaseService)
@@ -91,6 +101,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		policyCatalog:           policyusecase.NewService(policyusecase.NewMemoryStore()),
 		artifactRegistryCatalog: artifactusecase.NewRegistryService(artifactusecase.NewRegistryMemoryStore()),
 		repositoryService:       repositoryusecase.NewService(repositoryusecase.NewMemoryStore(), scmgeneric.New()),
+		workflowService:         workflowusecase.NewService(workflowusecase.NewMemoryStore()),
 	}
 	for _, opt := range opts {
 		opt(&routeConfig)
@@ -100,6 +111,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	policyCatalog := routeConfig.policyCatalog
 	artifactRegistryCatalog := routeConfig.artifactRegistryCatalog
 	repositoryService := routeConfig.repositoryService
+	workflowService := routeConfig.workflowService
 	deploymentService.WithRepositoryCatalog(catalogService)
 	deploymentService.WithPolicyCatalog(policyCatalog)
 	releaseService.WithPolicyCatalog(policyCatalog)
@@ -113,6 +125,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		Deployments:  deploymentService,
 		Catalog:      catalogService,
 		Artifacts:    artifactService,
+		Workflows:    workflowService,
 		Releases:     releaseService,
 		Security:     securityService,
 		Compliance:   complianceService,
@@ -209,8 +222,10 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/repositories/{id}/snapshots", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListRepositorySnapshots(repositoryService)))
 		api.Get("/repositories/{id}/intelligence", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetRepositoryIntelligence(repositoryService)))
 		api.Post("/repositories/{id}/analyze", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.AnalyzeRepository(repositoryService)))
+		api.Get("/workflows/plans", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.ListWorkflowPlans(workflowService)))
+		api.Get("/workflows/plans/{id}", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.GetWorkflowPlan(workflowService)))
 		api.Post("/workflows/validate", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.ValidateWorkflowDefinition()))
-		api.Post("/workflows/plan", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.PlanWorkflowDefinition()))
+		api.Post("/workflows/plan", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.PlanWorkflowDefinition(workflowService)))
 		api.Post("/workflows/run", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.WorkflowRunGuardedPlaceholder()))
 		api.Get("/release-targets", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.ListReleaseTargets(catalogService)))
 		api.Post("/release-targets", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.CreateReleaseTarget(catalogService)))

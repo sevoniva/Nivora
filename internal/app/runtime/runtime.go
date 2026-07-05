@@ -42,6 +42,7 @@ import (
 	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	tenancyusecase "github.com/sevoniva/nivora/internal/usecase/tenancy"
+	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 )
 
 func NewPipelineService() *pipelineusecase.Service {
@@ -107,6 +108,21 @@ func NewRepositoryServiceWithConfig(ctx context.Context, cfg config.Config) (*re
 		return nil, nil, err
 	}
 	return repositoryusecase.NewService(postgresrepo.NewRepositoryStore(pool), scmgeneric.New()), pool.Close, nil
+}
+
+func NewWorkflowService() *workflowusecase.Service {
+	return workflowusecase.NewService(workflowusecase.NewMemoryStore())
+}
+
+func NewWorkflowServiceWithConfig(ctx context.Context, cfg config.Config) (*workflowusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewWorkflowService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return workflowusecase.NewService(postgresrepo.NewWorkflowStore(pool)), pool.Close, nil
 }
 
 func NewDeploymentService() *deploymentusecase.Service {

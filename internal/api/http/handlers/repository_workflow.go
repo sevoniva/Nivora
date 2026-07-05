@@ -5,6 +5,7 @@ import (
 	"errors"
 	"io"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -21,7 +22,18 @@ type repositorySnapshotRequest struct {
 }
 
 type workflowDefinitionRequest struct {
-	Content string `json:"content"`
+	Content      string `json:"content"`
+	RepositoryID string `json:"repositoryId,omitempty"`
+	Path         string `json:"path,omitempty"`
+	Ref          string `json:"ref,omitempty"`
+}
+
+type workflowDefinitionPayload struct {
+	Content      string
+	Definition   workflowusecase.Definition
+	RepositoryID string
+	Path         string
+	Ref          string
 }
 
 func CreateRepositorySnapshot(catalog *catalogusecase.Service, repositories *repositoryusecase.Service) http.HandlerFunc {
@@ -91,12 +103,12 @@ func AnalyzeRepository(repositories *repositoryusecase.Service) http.HandlerFunc
 
 func ValidateWorkflowDefinition() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		def, err := workflowDefinitionFromRequest(r)
+		payload, err := workflowDefinitionFromRequest(r)
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_workflow_request", Message: err.Error(), Path: r.URL.Path})
 			return
 		}
-		plan, err := workflowusecase.PlanDefinition(def, workflowusecase.PlanOptions{})
+		plan, err := workflowusecase.PlanDefinition(payload.Definition, workflowusecase.PlanOptions{})
 		if err != nil {
 			RespondJSON(w, http.StatusBadRequest, map[string]any{"valid": false, "error": err.Error()})
 			return
@@ -105,19 +117,53 @@ func ValidateWorkflowDefinition() http.HandlerFunc {
 	}
 }
 
-func PlanWorkflowDefinition() http.HandlerFunc {
+func PlanWorkflowDefinition(service *workflowusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		def, err := workflowDefinitionFromRequest(r)
+		payload, err := workflowDefinitionFromRequest(r)
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_workflow_request", Message: err.Error(), Path: r.URL.Path})
 			return
 		}
-		plan, err := workflowusecase.PlanDefinition(def, workflowusecase.PlanOptions{})
+		record, err := service.Plan(r.Context(), workflowusecase.PlanInput{
+			Content:      payload.Content,
+			RepositoryID: payload.RepositoryID,
+			Path:         payload.Path,
+			Ref:          payload.Ref,
+		})
 		if err != nil {
-			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_workflow_definition", Message: err.Error(), Path: r.URL.Path})
+			respondWorkflowError(w, r, err)
 			return
 		}
-		RespondJSON(w, http.StatusOK, plan)
+		RespondJSON(w, http.StatusOK, record.Plan)
+	}
+}
+
+func ListWorkflowPlans(service *workflowusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+		plans, err := service.ListPlans(r.Context(), workflowusecase.PlanListFilter{
+			RepositoryID: r.URL.Query().Get("repositoryId"),
+			WorkflowID:   r.URL.Query().Get("workflowId"),
+			Limit:        limit,
+			Offset:       offset,
+		})
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{"plans": plans})
+	}
+}
+
+func GetWorkflowPlan(service *workflowusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, err := service.GetPlan(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record)
 	}
 }
 
@@ -131,23 +177,35 @@ func WorkflowRunGuardedPlaceholder() http.HandlerFunc {
 	}
 }
 
-func workflowDefinitionFromRequest(r *http.Request) (workflowusecase.Definition, error) {
+func workflowDefinitionFromRequest(r *http.Request) (workflowDefinitionPayload, error) {
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
-		return workflowusecase.Definition{}, err
+		return workflowDefinitionPayload{}, err
 	}
 	content := strings.TrimSpace(string(body))
+	payload := workflowDefinitionPayload{Content: content}
 	if strings.HasPrefix(content, "{") {
 		var input workflowDefinitionRequest
 		if err := json.Unmarshal(body, &input); err != nil {
-			return workflowusecase.Definition{}, err
+			return workflowDefinitionPayload{}, err
 		}
 		content = strings.TrimSpace(input.Content)
+		payload = workflowDefinitionPayload{
+			Content:      content,
+			RepositoryID: strings.TrimSpace(input.RepositoryID),
+			Path:         strings.TrimSpace(input.Path),
+			Ref:          strings.TrimSpace(input.Ref),
+		}
 	}
 	if content == "" {
-		return workflowusecase.Definition{}, errors.New("workflow content is required")
+		return workflowDefinitionPayload{}, errors.New("workflow content is required")
 	}
-	return workflowusecase.ParseDefinition([]byte(content))
+	def, err := workflowusecase.ParseDefinition([]byte(content))
+	if err != nil {
+		return workflowDefinitionPayload{}, err
+	}
+	payload.Definition = def
+	return payload, nil
 }
 
 func toRepositoryUsecase(repository domainapp.Repository) repositoryusecase.Repository {
@@ -184,6 +242,19 @@ func respondRepositoryError(w http.ResponseWriter, r *http.Request, err error) {
 	}
 	if errors.Is(err, repositoryusecase.ErrInvalid) {
 		code = "invalid_repository_request"
+	}
+	RespondError(w, r, status, dto.ErrorResponse{Code: code, Message: err.Error(), Path: r.URL.Path})
+}
+
+func respondWorkflowError(w http.ResponseWriter, r *http.Request, err error) {
+	status := http.StatusBadRequest
+	code := "invalid_workflow_definition"
+	if errors.Is(err, workflowusecase.ErrNotFound) {
+		status = http.StatusNotFound
+		code = "workflow_plan_not_found"
+	}
+	if errors.Is(err, workflowusecase.ErrInvalid) {
+		code = "invalid_workflow_definition"
 	}
 	RespondError(w, r, status, dto.ErrorResponse{Code: code, Message: err.Error(), Path: r.URL.Path})
 }

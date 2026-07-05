@@ -15,6 +15,7 @@ Covered paths:
 - Event outbox pending, published, failed, retry, and idempotent state recovery.
 - Runtime bootstrap wiring that selects PostgreSQL runtime stores when `database.runtime_store: postgres` is configured.
 - Repository records, RepositorySnapshot, and RepositoryIntelligence persistence when the server or MCP runtime uses PostgreSQL mode.
+- WorkflowPlan record persistence when the server or MCP runtime uses PostgreSQL mode.
 
 These tests do not require Kubernetes, Argo CD, Harbor, Nexus, Git providers, cloud providers, external registries, or scanners.
 

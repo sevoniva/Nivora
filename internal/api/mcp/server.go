@@ -88,6 +88,9 @@ func NewServer(services Services, logger *slog.Logger) *Server {
 	if services.Repositories == nil {
 		services.Repositories = repositoryusecase.NewService(repositoryusecase.NewMemoryStore(), scmgeneric.New())
 	}
+	if services.Workflows == nil {
+		services.Workflows = workflowusecase.NewService(workflowusecase.NewMemoryStore())
+	}
 	return &Server{services: services, logger: logger, rateLimit: &rateLimitState{}}
 }
 
@@ -120,7 +123,7 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://repositories/{id}", "Repository", "Repository catalog record by id"),
 		resource("nivora://repositories/{id}/snapshot/latest", "Repository latest snapshot", "Latest repository snapshot metadata by id"),
 		resource("nivora://repositories/{id}/intelligence", "Repository intelligence", "Latest repository intelligence by id"),
-		resource("nivora://workflows/{id}/plan", "Workflow plan", "Stored workflow plan resource placeholder by id"),
+		resource("nivora://workflows/{id}/plan", "Workflow plan", "Stored workflow plan record by id"),
 		resource("nivora://pipelines/definitions", "Pipeline definitions", "Pipeline definition catalog"),
 		resource("nivora://pipelines/definitions/{id}", "Pipeline definition", "Pipeline definition record by id"),
 		resource("nivora://pipelines/runs/{id}", "PipelineRun", "PipelineRun record by id"),
@@ -423,11 +426,7 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string, query url.
 	case strings.HasPrefix(uri, "nivora://repositories/"):
 		return s.repositoryResource(ctx, strings.TrimPrefix(uri, "nivora://repositories/"))
 	case strings.HasPrefix(uri, "nivora://workflows/"):
-		return nil, OperationError{
-			Code:               "not_implemented",
-			Message:            "stored workflow resources are not implemented yet; use nivora_workflow_validate or nivora_workflow_plan with explicit YAML content",
-			RequiredFutureGate: "workflow-definition-store",
-		}
+		return s.workflowPlanResource(ctx, strings.TrimPrefix(uri, "nivora://workflows/"))
 	case uri == "nivora://pipelines/definitions":
 		page, err := mcpPageFromQuery(query)
 		if err != nil {
@@ -1919,6 +1918,34 @@ func (s *Server) repositoryResource(ctx context.Context, rest string) (any, erro
 		}
 		return map[string]any{"repository": repository, "mutated": false}, nil
 	}
+}
+
+func (s *Server) workflowPlanResource(ctx context.Context, rest string) (any, error) {
+	if !strings.HasSuffix(rest, "/plan") {
+		return nil, OperationError{
+			Code:               "not_implemented",
+			Message:            "stored workflow resources currently expose plan records only",
+			RequiredFutureGate: "workflow-definition-store",
+		}
+	}
+	id := strings.TrimSpace(strings.TrimSuffix(rest, "/plan"))
+	if id == "" {
+		return nil, OperationError{Code: "invalid_request", Message: "workflow plan id is required"}
+	}
+	record, err := s.services.Workflows.GetPlan(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if record.RepositoryID != "" {
+		repository, err := s.services.Catalog.GetRepository(ctx, record.RepositoryID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("workflow plan "+id, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+	}
+	return map[string]any{"workflowPlan": record, "mutated": false}, nil
 }
 
 func repositoryUsecaseFromCatalog(repository domainapp.Repository) repositoryusecase.Repository {

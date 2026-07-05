@@ -18,7 +18,7 @@ The command prints a repository snapshot and static intelligence:
 
 Detected commands are suggestions only. They are not executed by repository intelligence.
 
-When the server or MCP process is configured with `database.runtime_store: postgres`, repository snapshots and repository intelligence are stored in PostgreSQL. The local `nivora repository inspect --path` command remains a local inspection command and does not require a database.
+When the server or MCP process is configured with `database.runtime_store: postgres`, repository snapshots, repository intelligence, and workflow plan records are stored in PostgreSQL. The local `nivora repository inspect --path` and `nivora workflow plan --file` commands remain local commands and do not require a database.
 
 ## Validate A Nivora Workflow
 
@@ -45,6 +45,8 @@ Workflow plan-only endpoints:
 ```text
 POST /api/v1/workflows/validate
 POST /api/v1/workflows/plan
+GET  /api/v1/workflows/plans
+GET  /api/v1/workflows/plans/{id}
 POST /api/v1/workflows/run
 ```
 
@@ -66,7 +68,7 @@ Each tool is read-only or plan-only and returns `mutated=false`. MCP does not ex
 
 - RepositorySnapshot and RepositoryIntelligence are durable only in configured PostgreSQL server/MCP mode; local commands and default development mode still use in-memory state or direct local output.
 - GitHub/GitLab/Gitea real network integrations are not implemented.
-- WorkflowDefinition and WorkflowPlan persistence are not implemented.
+- WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.
 - WorkflowRun persistence is not implemented.
 - Workflow execution must continue through explicit PipelineRun work; direct workflow run remains future work.
 - Shell execution is not a sandbox.

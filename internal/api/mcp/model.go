@@ -20,6 +20,7 @@ import (
 	releaseusecase "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
+	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 )
 
 const (
@@ -40,6 +41,7 @@ type Services struct {
 	Deployments  *deploymentusecase.Service
 	Catalog      *catalogusecase.Service
 	Repositories *repositoryusecase.Service
+	Workflows    *workflowusecase.Service
 	Artifacts    *artifactusecase.Service
 	Releases     *releaseusecase.Service
 	Security     *securityusecase.Service

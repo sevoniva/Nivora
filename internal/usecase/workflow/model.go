@@ -85,7 +85,12 @@ type PlanOptions struct {
 }
 
 type Plan struct {
+	PlanID              string              `json:"planId,omitempty"`
 	WorkflowID          string              `json:"workflowId"`
+	RepositoryID        string              `json:"repositoryId,omitempty"`
+	SourcePath          string              `json:"sourcePath,omitempty"`
+	Ref                 string              `json:"ref,omitempty"`
+	ContentHash         string              `json:"contentHash,omitempty"`
 	Name                string              `json:"name"`
 	Triggers            []string            `json:"triggers,omitempty"`
 	Jobs                []PlannedJob        `json:"jobs"`
@@ -145,4 +150,31 @@ type RunnerRequirement struct {
 type PipelineConversion struct {
 	Definition pipelineusecase.Definition `json:"definition"`
 	Warnings   []string                   `json:"warnings,omitempty"`
+}
+
+type PlanInput struct {
+	Content      string
+	RepositoryID string
+	Path         string
+	Ref          string
+	Options      PlanOptions
+}
+
+type PlanRecord struct {
+	ID           string    `json:"id"`
+	WorkflowID   string    `json:"workflowId"`
+	RepositoryID string    `json:"repositoryId,omitempty"`
+	Path         string    `json:"path,omitempty"`
+	Ref          string    `json:"ref,omitempty"`
+	Name         string    `json:"name"`
+	ContentHash  string    `json:"contentHash"`
+	Plan         Plan      `json:"plan"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+type PlanListFilter struct {
+	RepositoryID string
+	WorkflowID   string
+	Limit        int
+	Offset       int
 }

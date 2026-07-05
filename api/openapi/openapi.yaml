@@ -1315,7 +1315,7 @@ paths:
   /api/v1/workflows/plan:
     post:
       summary: Plan a Nivora Workflow definition
-      description: Requires `workflow.plan`. Produces a plan-only DAG from raw YAML or JSON `content`; it does not create a PipelineRun or execute shell commands.
+      description: Requires `workflow.plan`. Produces and stores a plan-only DAG from raw YAML or JSON `content`; it does not create a PipelineRun or execute shell commands.
       requestBody:
         required: true
         content:
@@ -1337,6 +1337,62 @@ paths:
                 $ref: "#/components/schemas/WorkflowPlan"
         "400":
           description: Workflow definition is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/workflows/plans:
+    get:
+      summary: List stored Nivora Workflow plans
+      description: Requires `workflow.plan`. Returns plan records created by the plan-only endpoint. Records contain redacted plan output and content hashes, not raw workflow YAML.
+      parameters:
+        - name: repositoryId
+          in: query
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Stored workflow plans
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WorkflowPlanRecord"
+  /api/v1/workflows/plans/{id}:
+    get:
+      summary: Get a stored Nivora Workflow plan
+      description: Requires `workflow.plan`. Returns a stored plan-only record by id.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow plan record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowPlanRecord"
+        "404":
+          description: Workflow plan was not found
           content:
             application/json:
               schema:
@@ -4839,6 +4895,15 @@ components:
         content:
           type: string
           description: Raw Nivora Workflow YAML content.
+        repositoryId:
+          type: string
+          description: Optional repository id used for plan traceability.
+        path:
+          type: string
+          description: Optional source path such as .nivora/workflows/build.yaml.
+        ref:
+          type: string
+          description: Optional repository ref label.
     WorkflowValidationResult:
       type: object
       properties:
@@ -4851,7 +4916,17 @@ components:
     WorkflowPlan:
       type: object
       properties:
+        planId:
+          type: string
         workflowId:
+          type: string
+        repositoryId:
+          type: string
+        sourcePath:
+          type: string
+        ref:
+          type: string
+        contentHash:
           type: string
         name:
           type: string
@@ -4893,6 +4968,28 @@ components:
           type: string
         conversionReady:
           type: boolean
+    WorkflowPlanRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        workflowId:
+          type: string
+        repositoryId:
+          type: string
+        path:
+          type: string
+        ref:
+          type: string
+        name:
+          type: string
+        contentHash:
+          type: string
+        plan:
+          $ref: "#/components/schemas/WorkflowPlan"
+        createdAt:
+          type: string
+          format: date-time
     CatalogUpdateRequest:
       type: object
       properties:

@@ -114,6 +114,12 @@ func BuildServer(ctx context.Context, cfg config.Config, logger *slog.Logger) (*
 		return nil, nil, err
 	}
 	add(closeRepositories)
+	workflows, closeWorkflows, err := runtime.NewWorkflowServiceWithConfig(ctx, cfg)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	add(closeWorkflows)
 	subject, err := ResolveSubject(ctx, cfg, authService)
 	if err != nil {
 		cleanup()
@@ -128,6 +134,7 @@ func BuildServer(ctx context.Context, cfg config.Config, logger *slog.Logger) (*
 		Deployments:  deployments,
 		Catalog:      catalog,
 		Repositories: repositories,
+		Workflows:    workflows,
 		Artifacts:    artifacts,
 		Releases:     releases,
 		Security:     security,

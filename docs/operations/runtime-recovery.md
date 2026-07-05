@@ -47,7 +47,7 @@ This test runs in CI as part of the `postgres-integration` job.
 
 - The default local runtime remains in-memory.
 - PostgreSQL-backed runtime recovery is available when `database.runtime_store: postgres` is configured.
-- Optional PostgreSQL integration tests now verify restart-style repository recovery for PipelineRun, DeploymentRun, ReleasePlan, ReleaseExecution, runner claim leases, event outbox records, RepositorySnapshot, and RepositoryIntelligence. See `docs/dev/runtime-recovery-tests.md`.
+- Optional PostgreSQL integration tests now verify restart-style repository recovery for PipelineRun, DeploymentRun, ReleasePlan, ReleaseExecution, runner claim leases, event outbox records, RepositorySnapshot, RepositoryIntelligence, and WorkflowPlan records. See `docs/dev/runtime-recovery-tests.md`.
 - The multi-process recovery smoke test proves cross-process restart durability.
 - Cancellation is reconciled for queued/running PipelineRuns; executor-level interruption remains limited by the current runner/executor implementation.
 - Timeout reconciliation is based on stale update time and lease state.

@@ -58,6 +58,8 @@ var criticalRoutes = []struct {
 	{"POST", "/api/v1/repositories/repo-1/analyze", domainauth.PermissionProjectRead, false},
 	{"POST", "/api/v1/workflows/validate", domainauth.PermissionWorkflowPlan, false},
 	{"POST", "/api/v1/workflows/plan", domainauth.PermissionWorkflowPlan, false},
+	{"GET", "/api/v1/workflows/plans", domainauth.PermissionWorkflowPlan, false},
+	{"GET", "/api/v1/workflows/plans/wplan-rbac", domainauth.PermissionWorkflowPlan, false},
 	{"POST", "/api/v1/workflows/run", domainauth.PermissionWorkflowRun, true},
 	{"GET", "/api/v1/pipelines", domainauth.PermissionProjectRead, false},
 	{"POST", "/api/v1/pipelines", domainauth.PermissionProjectWrite, true},

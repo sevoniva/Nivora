@@ -77,6 +77,7 @@ Persisted by the catalog hardening pass:
 - release target metadata, safety flags, and CredentialRef linkage in `catalog_release_targets`
 - repository snapshot records in `repository_snapshots`
 - repository static intelligence records in `repository_intelligence`
+- workflow plan records in `workflow_plan_records`
 - Pipeline definitions and version/hash metadata in `pipeline_definitions`
 - artifact registry metadata and CredentialRef linkage in `catalog_artifact_registries`
 - policy definitions in `catalog_policies`

@@ -23,7 +23,7 @@ The current implementation covers the first part of this flow:
 - `SCMProvider` models read-only repository operations
 - the generic/local adapter can inspect local repository trees without network access
 - repository snapshots and intelligence exist in `internal/usecase/repository`
-- repository snapshots and intelligence can be persisted through the PostgreSQL runtime store when `database.runtime_store: postgres` is configured
+- repository snapshots, intelligence, and workflow plan records can be persisted through the PostgreSQL runtime store when `database.runtime_store: postgres` is configured
 - Nivora Workflow parser and planner exist in `internal/usecase/workflow`
 - API, CLI, and MCP expose validate/plan/read-only surfaces
 
@@ -68,7 +68,7 @@ The workflow planner can convert compatible definitions into the existing Pipeli
 
 `/api/v1/workflows/run` is intentionally a structured `not_implemented` placeholder until the execution path is explicitly modeled through PipelineRun and runner policy.
 
-WorkflowDefinition and WorkflowPlan persistence are still future hardening. The current durable storage in this layer is limited to repository records, repository snapshots, and repository intelligence.
+WorkflowPlan records are durable in configured PostgreSQL mode. Raw WorkflowDefinition YAML and WorkflowRun lifecycle metadata are still future hardening because they need stronger redaction, tenant scope, and PipelineRun execution mapping.
 
 ## MCP Surface
 

@@ -17,6 +17,7 @@ import (
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
+	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 )
 
 func TestPostgresIntegrationRuntimeBootstrapUsesPostgresStores(t *testing.T) {
@@ -223,6 +224,45 @@ func TestPostgresIntegrationRuntimeBootstrapUsesPostgresStores(t *testing.T) {
 	}
 	if reloadedSnapshot.ID != snapshot.ID || len(reloadedSnapshot.Files) == 0 || len(reloadedIntelligence.BuildCommandCandidates) == 0 {
 		t.Fatalf("runtime bootstrap did not persist repository snapshot/intelligence: snapshot=%#v intelligence=%#v", reloadedSnapshot, reloadedIntelligence)
+	}
+
+	workflowService, closeWorkflow, err := NewWorkflowServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("bootstrap workflow service with postgres config: %v", err)
+	}
+	workflowPlan, err := workflowService.Plan(ctx, workflowusecase.PlanInput{
+		Content: `apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: runtime-workflow
+on: manual
+jobs:
+  build:
+    runsOn: [linux]
+    steps:
+      - run: go test ./...
+`,
+		RepositoryID: repository.ID,
+		Path:         ".nivora/workflows/build.yaml",
+		Ref:          "main",
+	})
+	if err != nil {
+		closeWorkflow()
+		t.Fatalf("create workflow plan in postgres runtime: %v", err)
+	}
+	closeWorkflow()
+
+	workflowService, closeWorkflow, err = NewWorkflowServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("restart workflow service with postgres config: %v", err)
+	}
+	reloadedWorkflowPlan, err := workflowService.GetPlan(ctx, workflowPlan.ID)
+	closeWorkflow()
+	if err != nil {
+		t.Fatalf("reload workflow plan from restarted postgres runtime: %v", err)
+	}
+	if reloadedWorkflowPlan.ID != workflowPlan.ID || reloadedWorkflowPlan.Plan.PlanID != workflowPlan.ID || reloadedWorkflowPlan.RepositoryID != repository.ID {
+		t.Fatalf("runtime bootstrap did not persist workflow plan: %#v", reloadedWorkflowPlan)
 	}
 
 	prod := config.Default()

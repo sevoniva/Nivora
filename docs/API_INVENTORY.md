@@ -10,6 +10,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | System diagnostics | `GET /api/v1/system/info`, `/runtime`, `/diagnostics`, `/runtime/recovery`, `POST /runtime/reconcile` | diagnostics and recovery summaries |
 | Metrics | `GET /metrics` | process-local Prometheus text format |
 | PipelineRun / Pipeline definitions | `POST /api/v1/pipeline-runs`, `GET /api/v1/pipeline-runs`, `GET /api/v1/pipeline-runs/{id}`, logs/events/timeline/cancel, `GET/POST/PATCH/DELETE /api/v1/pipelines`, `/api/v1/pipelines/{id}/versions`, `/api/v1/pipelines/{id}/runs` | shell runtime foundation, optional pagination on list/log/event/timeline reads; Pipeline definitions can be cataloged, versioned, and run from the current or a saved historical version |
+| Nivora Workflow planning | `POST /api/v1/workflows/validate`, `POST /api/v1/workflows/plan`, `GET /api/v1/workflows/plans`, `GET /api/v1/workflows/plans/{id}` | parser/validator/DAG planner foundation; plan records include content hashes and redacted plan output and can be persisted in configured PostgreSQL runtime mode. Raw workflow YAML and WorkflowRun lifecycle execution are not persisted by this foundation |
 | Runner protocol | runner groups, register, heartbeat, claim, append logs, update status, offline detect, token rotate/revoke | runner mutation uses runner tokens or RBAC where applicable; runner groups provide project/environment/executor/concurrency claim guardrails |
 | DeploymentRun | `POST /api/v1/deployments`, plan/apply, get, resources, health, diff, snapshot, rollback plan, logs/events/timeline/cancel/resume | apply and rollback remain guarded; GitOps plans can resolve `target.repositoryId` from the repository catalog without contacting SCM providers |
 | Release orchestration | releases, release artifacts, release inventory filters, release cancel, plan/deploy, executions, targets, timeline, cancel/resume, release evidence | sequential local orchestration foundation plus server-backed Release ID plan/deploy for safe noop/webhook targets; Release inventory can be filtered by project, environment, application, and status; Release status now follows plan/deploy/approval/cancel outcomes and emits `devops.release.status.updated`; release cancel marks the Release, cancels non-terminal ReleaseExecutions, and asks linked non-terminal DeploymentRuns to cancel; it does not run rollback or delete resources |
@@ -32,7 +33,7 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 
 | Surface | Entry Point | Notes |
 |---|---|---|
-| MCP stdio foundation | `cmd/nivora-mcp`, `nivora mcp serve --stdio` | Local read-only and plan-only MCP resources/tools/prompts over stdio JSON-RPC, including runtime recovery, aggregate event/log search, catalog summary, pipeline definition, deployment, release, release-bound artifact inventory, security finding, policy result, audit/evidence, and capability resources. It records compliance-backed audit, rejects runner tokens, and does not expose action tools. |
+| MCP stdio foundation | `cmd/nivora-mcp`, `nivora mcp serve --stdio` | Local read-only and plan-only MCP resources/tools/prompts over stdio JSON-RPC, including runtime recovery, aggregate event/log search, catalog summary, repository catalog/snapshot/intelligence, stored workflow plan records, pipeline definition, deployment, release, release-bound artifact inventory, security finding, policy result, audit/evidence, and capability resources. It records compliance-backed audit, rejects runner tokens, and does not expose action tools. |
 
 ## Partial Or Guarded
 
@@ -41,12 +42,13 @@ Phase 9.0 beta freeze inventory. This document summarizes the public HTTP API su
 | Kubernetes apply / rollback | `POST /api/v1/deployments/apply`, `POST /api/v1/deployments/{id}/rollback` | explicit confirmation required; no default destructive behavior |
 | Argo CD sync | integration and deployment sync routes | sync requires explicit allow and confirmation; production automation is future work |
 | GitOps commit / rollback | `POST /api/v1/deployments/gitops/commit`, `/rollback` | local working tree foundation; push is guarded |
+| Workflow execution | `POST /api/v1/workflows/run` | structured `not_implemented`; WorkflowRun execution must be modeled through the existing PipelineRun runtime before it becomes an executable route |
 | External providers | cloud, registry, secret, notification, scanner routes | adapters are skeletal or fake unless explicitly configured |
 | Pagination and filters | selected list/log/event/timeline/audit routes | optional `limit`/`offset`; aggregate events/logs/timeline/audit support lightweight run, subject, scope, and content filters |
 
 ## Placeholder / Not Implemented
 
-There are currently no root-level HTTP route groups registered solely to return structured `not_implemented`. Several capabilities remain foundation-only, skeleton, noop, fake, or experimental even when their read/write metadata APIs are implemented. If a placeholder route group is reintroduced, it must return structured `not_implemented` and be labeled in OpenAPI.
+`POST /api/v1/workflows/run` is a deliberate structured `not_implemented` placeholder until WorkflowRun execution is safely mapped onto the existing PipelineRun runtime. Several other capabilities remain foundation-only, skeleton, noop, fake, or experimental even when their read/write metadata APIs are implemented. Any new placeholder route must return structured `not_implemented` and be labeled in OpenAPI.
 
 ## API Freeze Notes
 

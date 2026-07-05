@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -120,8 +121,27 @@ jobs:
 	req.Header.Set("Content-Type", "application/json")
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"edges"`) || !strings.Contains(rec.Body.String(), `"workflowId"`) {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"edges"`) || !strings.Contains(rec.Body.String(), `"workflowId"`) || !strings.Contains(rec.Body.String(), `"planId"`) {
 		t.Fatalf("plan status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var plan map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &plan); err != nil {
+		t.Fatalf("decode workflow plan: %v", err)
+	}
+	planID := stringField(t, plan, "planId")
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/plans/"+planID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"contentHash"`) || strings.Contains(rec.Body.String(), "raw-secret-value") {
+		t.Fatalf("get plan status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/plans?workflowId=workflow-go-ci", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), planID) {
+		t.Fatalf("list plans status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/validate", strings.NewReader(`{"content":"jobs:\n  test:\n    steps:\n      - env:\n          TOKEN: raw-secret-value\n        run: echo test\n"}`))

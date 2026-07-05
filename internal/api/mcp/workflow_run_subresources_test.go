@@ -77,6 +77,15 @@ jobs:
 			wantSubstrs: []string{`"pipelineRunId": "` + pipelineID + `"`},
 		},
 		{
+			name: "run metadata alias workflow-runs",
+			uri:  "nivora://workflow-runs/" + workflowID,
+			wantSubstrs: []string{
+				`"workflowRun"`,
+				workflowID,
+				`"mutated": false`,
+			},
+		},
+		{
 			name: "artifacts alias workflow-runs",
 			uri:  "nivora://workflow-runs/" + workflowID + "/artifacts",
 			wantSubstrs: []string{

@@ -115,11 +115,56 @@ func New(opts ...Option) *Provider {
 	return p
 }
 
-// projectPath builds the API path segment for a project. GitLab accepts either
-// a numeric id or a URL-encoded "namespace/project" path. We pass the value
-// through url.PathEscape so namespace/project works transparently.
+// projectPathSegment builds the API path segment for a project. GitLab accepts
+// either a numeric id or a URL-encoded "namespace/project" path. We pass the
+// value through url.PathEscape so namespace/project works transparently.
 func projectPathSegment(repositoryID string) string {
 	return url.PathEscape(strings.TrimSpace(repositoryID))
+}
+
+// resolveProjectPath returns the GitLab project path segment for a ref. It
+// prefers ref.RepositoryID when it looks like a GitLab project identifier
+// (numeric id or namespace/project); otherwise it parses the namespace/project
+// out of ref.URL. This lets the adapter work when the catalog passes its own
+// repository id (which is not a GitLab project id) as RepositoryID, as long as
+// the repository URL points at the GitLab project.
+func resolveProjectPath(ref scm.RepositoryRef) string {
+	id := strings.TrimSpace(ref.RepositoryID)
+	if isGitLabProjectID(id) {
+		return url.PathEscape(id)
+	}
+	if u, err := url.Parse(ref.URL); err == nil && u.Path != "" {
+		path := strings.TrimSuffix(u.Path, ".git")
+		path = strings.TrimPrefix(path, "/")
+		if parts := strings.Split(path, "/"); len(parts) >= 2 {
+			// namespace/project (drop any deeper subpaths beyond the first two segments)
+			nsProj := strings.Join(parts[:2], "/")
+			if isGitLabProjectID(nsProj) {
+				return url.PathEscape(nsProj)
+			}
+		}
+	}
+	// Fall back to whatever was provided; the API will return 404 if invalid.
+	return url.PathEscape(id)
+}
+
+// isGitLabProjectID reports whether s looks like a GitLab project identifier:
+// a positive integer or a "namespace/project" path. Catalog-generated ids like
+// "repo-6bdf0d8ffe4f" are intentionally rejected so the adapter falls back to
+// URL parsing.
+func isGitLabProjectID(s string) bool {
+	s = strings.TrimSpace(s)
+	if s == "" {
+		return false
+	}
+	if _, err := strconv.Atoi(s); err == nil {
+		return true
+	}
+	parts := strings.Split(s, "/")
+	if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+		return true
+	}
+	return false
 }
 
 func (p *Provider) ValidateCredential(ctx context.Context, credential scm.CredentialRef) error {
@@ -218,7 +263,7 @@ func (p *Provider) ResolveRef(ctx context.Context, ref scm.RepositoryRef) (scm.C
 		Message string `json:"message"`
 		Author  string `json:"author_name"`
 	}
-	endpoint := fmt.Sprintf("/projects/%s/repository/commits?ref_name=%s", projectPathSegment(ref.RepositoryID), url.QueryEscape(branch))
+	endpoint := fmt.Sprintf("/projects/%s/repository/commits?ref_name=%s", resolveProjectPath(ref), url.QueryEscape(branch))
 	if err := p.get(ctx, ref.Credential, endpoint, &commits); err != nil {
 		return scm.Commit{}, err
 	}
@@ -301,7 +346,7 @@ func (p *Provider) ReadFile(ctx context.Context, ref scm.RepositoryRef, filePath
 		Content  string `json:"content"`
 		Encoding string `json:"encoding"`
 	}
-	endpoint := fmt.Sprintf("/projects/%s/repository/files/%s?ref=%s", projectPathSegment(ref.RepositoryID), url.PathEscape(filePath), url.QueryEscape(branch))
+	endpoint := fmt.Sprintf("/projects/%s/repository/files/%s?ref=%s", resolveProjectPath(ref), url.PathEscape(filePath), url.QueryEscape(branch))
 	if err := p.get(ctx, ref.Credential, endpoint, &file); err != nil {
 		return nil, err
 	}
@@ -331,7 +376,7 @@ func (p *Provider) ListTree(ctx context.Context, ref scm.RepositoryRef) (scm.Tre
 		Type string `json:"type"`
 		Mode string `json:"mode"`
 	}
-	endpoint := fmt.Sprintf("/projects/%s/repository/tree?ref=%s&recursive=true&per_page=100", projectPathSegment(ref.RepositoryID), url.QueryEscape(branch))
+	endpoint := fmt.Sprintf("/projects/%s/repository/tree?ref=%s&recursive=true&per_page=100", resolveProjectPath(ref), url.QueryEscape(branch))
 	if err := p.get(ctx, ref.Credential, endpoint, &entries); err != nil {
 		return scm.Tree{}, err
 	}
@@ -366,7 +411,7 @@ func (p *Provider) DiffRefs(ctx context.Context, base scm.RepositoryRef, head sc
 			Deleted bool   `json:"deleted_file"`
 		} `json:"diffs"`
 	}
-	endpoint := fmt.Sprintf("/projects/%s/repository/compare?from=%s&to=%s", projectPathSegment(base.RepositoryID), url.QueryEscape(base.Ref), url.QueryEscape(head.Ref))
+	endpoint := fmt.Sprintf("/projects/%s/repository/compare?from=%s&to=%s", resolveProjectPath(base), url.QueryEscape(base.Ref), url.QueryEscape(head.Ref))
 	if err := p.get(ctx, base.Credential, endpoint, &compare); err != nil {
 		return scm.DiffSummary{}, err
 	}

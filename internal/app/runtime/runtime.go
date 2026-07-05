@@ -2,6 +2,8 @@ package runtime
 
 import (
 	"context"
+	"errors"
+	"os"
 
 	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
 	"github.com/sevoniva/nivora/internal/adapters/cloud/aliyun"
@@ -17,6 +19,8 @@ import (
 	noopnotification "github.com/sevoniva/nivora/internal/adapters/notification/noop"
 	postgresrepo "github.com/sevoniva/nivora/internal/adapters/repository/postgres"
 	scmgeneric "github.com/sevoniva/nivora/internal/adapters/scm/generic"
+	scmgitlab "github.com/sevoniva/nivora/internal/adapters/scm/gitlab"
+	scmrouter "github.com/sevoniva/nivora/internal/adapters/scm/router"
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
 	securitynoop "github.com/sevoniva/nivora/internal/adapters/security/noop"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
@@ -26,6 +30,7 @@ import (
 	portartifact "github.com/sevoniva/nivora/internal/ports/artifact"
 	portcloud "github.com/sevoniva/nivora/internal/ports/cloud"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	"github.com/sevoniva/nivora/internal/ports/scm"
 	portsecret "github.com/sevoniva/nivora/internal/ports/secret"
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
@@ -95,8 +100,44 @@ func NewPipelineDefinitionCatalogWithConfig(ctx context.Context, cfg config.Conf
 	return pipelineusecase.NewDefinitionCatalog(postgresrepo.NewPipelineDefinitionStore(pool)), pool.Close, nil
 }
 
+// NewSCMRouter builds a routing SCMProvider that dispatches by repository
+// provider. generic_git is always registered for local/path-based snapshots.
+// gitlab is registered with a TokenResolver that reads the bearer token from
+// the NIVORA_GITLAB_TOKEN environment variable and the base URL from
+// NIVORA_GITLAB_BASE_URL (default https://gitlab.com); without the env var the
+// gitlab adapter degrades to metadata-only. This keeps dev/test safe while
+// allowing live GitLab integration when the operator sets the env var.
+func NewSCMRouter() *scmrouter.Provider {
+	router := scmrouter.New()
+	router.Register("generic_git", scmgeneric.New())
+	router.Register("generic", scmgeneric.New())
+	router.Register("local", scmgeneric.New())
+	router.Register("archive", scmgeneric.New())
+
+	gitlabToken := os.Getenv("NIVORA_GITLAB_TOKEN")
+	gitlabBaseURL := os.Getenv("NIVORA_GITLAB_BASE_URL")
+	gitlabOpts := []scmgitlab.Option{scmgitlab.WithTokenResolver(envTokenResolver(gitlabToken))}
+	if gitlabBaseURL != "" {
+		gitlabOpts = append(gitlabOpts, scmgitlab.WithBaseURL(gitlabBaseURL))
+	}
+	router.Register("gitlab", scmgitlab.New(gitlabOpts...))
+	return router
+}
+
+// envTokenResolver returns a TokenResolver that yields the given token. When
+// the token is empty the resolver errors, which makes the gitlab adapter return
+// ErrNotConfigured-style failures for live calls rather than sending no auth.
+func envTokenResolver(token string) scmgitlab.TokenResolver {
+	return func(ctx context.Context, credential scm.CredentialRef) (string, error) {
+		if token == "" {
+			return "", errors.New("NIVORA_GITLAB_TOKEN is not set; gitlab live API calls are disabled")
+		}
+		return token, nil
+	}
+}
+
 func NewRepositoryService() *repositoryusecase.Service {
-	return repositoryusecase.NewService(repositoryusecase.NewMemoryStore(), scmgeneric.New())
+	return repositoryusecase.NewService(repositoryusecase.NewMemoryStore(), NewSCMRouter())
 }
 
 func NewRepositoryServiceWithConfig(ctx context.Context, cfg config.Config) (*repositoryusecase.Service, func(), error) {
@@ -107,7 +148,7 @@ func NewRepositoryServiceWithConfig(ctx context.Context, cfg config.Config) (*re
 	if err != nil {
 		return nil, nil, err
 	}
-	return repositoryusecase.NewService(postgresrepo.NewRepositoryStore(pool), scmgeneric.New()), pool.Close, nil
+	return repositoryusecase.NewService(postgresrepo.NewRepositoryStore(pool), NewSCMRouter()), pool.Close, nil
 }
 
 func NewWorkflowService() *workflowusecase.Service {

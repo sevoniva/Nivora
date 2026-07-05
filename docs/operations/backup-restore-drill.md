@@ -1,6 +1,6 @@
 # Backup, Restore, and Migration Drill
 
-Comprehensive backup/restore and migration drill for PostgreSQL-backed Nivora runtime state. The drill script (`scripts/drill-backup-restore-postgres.sh`) exercises the full lifecycle: migration, record creation, backup, and restore verification.
+Comprehensive backup/restore and migration drill for PostgreSQL-backed Nivora runtime state. The drill script (`scripts/drill-backup-restore-postgres.sh`) exercises migration, representative record creation, backup, and restart verification. The narrower CI smoke script (`scripts/smoke-backup-restore-postgres.sh`) performs the actual pg_dump restore into a temporary database when PostgreSQL permissions allow it.
 
 ## Quick Start
 
@@ -51,10 +51,16 @@ Creates records across all governance and runtime stores:
 - Verifies dump size > 500 bytes
 - Verifies key tables appear in the dump
 
-### Phase 4: Restore Simulation
+### Phase 4: Restart Verification
 - Restarts the server
 - Verifies PipelineRun, DeploymentRun, and Credential survived stop/restart
 - Checks audit chain verification availability
+
+For actual restore proof into a fresh temporary database, run:
+
+```bash
+DATABASE_URL="postgres://..." NIVORA_REQUIRE_ACTUAL_RESTORE=1 make smoke-backup-restore
+```
 
 ## Tested vs Manual
 
@@ -68,7 +74,7 @@ Creates records across all governance and runtime stores:
 - Audit chain verification
 
 **Not tested in this drill:**
-- Actual `pg_restore` into a fresh database (requires second PostgreSQL instance)
+- Actual restore into a fresh temporary database by this comprehensive drill script. Use `make smoke-backup-restore` for the CI-covered temporary database restore path.
 - Large-scale backup (>1GB)
 - Point-in-time recovery (PITR)
 - Object store backup (filesystem/S3)

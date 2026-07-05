@@ -84,14 +84,18 @@ DATABASE_URL="postgres://..." make smoke-backup-restore
 The script (`scripts/smoke-backup-restore-postgres.sh`):
 1. Validates migration pairs are reversible
 2. Applies migrations to the target test database
-3. Starts a server, inserts test PipelineRun
+3. Starts a server, inserts a test PipelineRun, credential metadata, and a persisted evidence bundle
 4. Stops the server
 5. Runs pg_dump (if available)
-6. Restarts the server
-7. Verifies PipelineRun and audit records survived
-8. Redacts `DATABASE_URL` when printing skip or target information
+6. Creates a temporary restore database when the PostgreSQL user has permission
+7. Restores the dump into the temporary database
+8. Starts the server against the restored database
+9. Verifies PipelineRun, evidence bundle, credential metadata, and hash-chained audit records can be read from the restored database
+10. Redacts `DATABASE_URL` when printing skip or target information
 
-Skip with `SKIP_BACKUP_RESTORE=1` or if PostgreSQL is unavailable. The GitHub `postgres-integration` job runs this smoke path after migration, store, audit, MCP audit, live deploy, and multi-process recovery checks.
+Skip with `SKIP_BACKUP_RESTORE=1` or if PostgreSQL is unavailable. In CI, or when `NIVORA_REQUIRE_ACTUAL_RESTORE=1`, the script fails if it cannot perform the temporary-database restore. For local developer machines without `pg_dump` or create-database privileges, it clearly reports a fallback or skip instead of claiming restore proof.
+
+The GitHub `postgres-integration` job runs this smoke path after migration, store, audit, MCP audit, live deploy, and multi-process recovery checks.
 
 ## Migration Drill
 
@@ -133,7 +137,7 @@ Tested only when optional PostgreSQL integration is enabled:
 
 - migration up/down against a real PostgreSQL schema
 - PipelineRun, DeploymentRun, ReleaseExecution, runner claim, outbox, and compliance evidence recovery after reconnect
-- backup/restore smoke that starts a Postgres-backed server, creates a PipelineRun, runs `pg_dump` when available, restarts the server, and verifies persisted records
+- backup/restore smoke that starts a Postgres-backed server, creates a PipelineRun, credential metadata, and evidence bundle, runs `pg_dump`, restores into a temporary database when available, starts the server against the restored database, and verifies persisted records plus the audit hash chain
 
 Not yet production-proven:
 

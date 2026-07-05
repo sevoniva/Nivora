@@ -28,7 +28,7 @@ Runner tokens are valid only for:
 
 Administrative runner APIs require control-plane authentication and `runner.manage` permission.
 
-Runner groups are first-class runtime metadata for project/environment ownership, executor allow-lists, and aggregate concurrency limits. Project-scoped and environment-scoped runner group creation and runner registration are forced to the caller's scope. Job claim checks compare both the runner's scoped labels and its runner group's project/environment constraints against queued PipelineRun ownership in memory and PostgreSQL stores. This prevents a valid runner token from claiming another project's or environment's queued job through the runner protocol. This is still a metadata guardrail, not an OS sandbox or a complete fleet-scale scheduler.
+Runner groups are first-class runtime metadata for project/environment ownership, executor allow-lists, and aggregate concurrency limits. Project-scoped and environment-scoped runner group creation and runner registration are forced to the caller's scope. Job claim checks compare both the runner's scoped labels and its runner group's project/environment constraints against queued PipelineRun ownership in memory and PostgreSQL stores. PostgreSQL integration tests now cover project/environment mismatch, executor mismatch, capability-based claim, runner concurrency, and RunnerGroup concurrency. This prevents a valid runner token from claiming another project's or environment's queued job through the runner protocol. This is still a metadata guardrail, not an OS sandbox or a complete fleet-scale scheduler.
 
 ## Incident Response
 

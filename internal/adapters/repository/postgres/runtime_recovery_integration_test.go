@@ -331,6 +331,148 @@ func TestPostgresIntegrationRunnerClaimRecovery(t *testing.T) {
 	}
 }
 
+func TestPostgresIntegrationRunnerClaimSafetyPolicy(t *testing.T) {
+	db := newPostgresIntegration(t, true)
+	defer db.cleanup()
+	ctx := context.Background()
+	now := fixedIntegrationTime()
+	store := NewPipelineStore(db.pool)
+	store.now = func() time.Time { return now }
+
+	group := domainrunner.RunnerGroup{
+		ID:             "rgrp-prod",
+		ProjectID:      "project-a",
+		EnvironmentIDs: []string{"env-prod"},
+		Name:           "prod shell",
+		Executors:      []string{"shell"},
+		MaxConcurrency: 1,
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := store.SaveRunnerGroup(ctx, group); err != nil {
+		t.Fatalf("save runner group: %v", err)
+	}
+	if err := store.RegisterRunner(ctx, domainrunner.Runner{
+		ID:              "runner-prod-a",
+		Name:            "runner-prod-a",
+		GroupID:         group.ID,
+		Status:          "online",
+		Executors:       []string{"shell"},
+		MaxConcurrency:  2,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		LastHeartbeatAt: &now,
+		LastSeenAt:      &now,
+	}); err != nil {
+		t.Fatalf("register runner-prod-a: %v", err)
+	}
+
+	for _, record := range []pipelineusecase.RunRecord{
+		scopedPipelineRecord("prun-env-dev", "project-a", "env-dev", "shell", now),
+		scopedPipelineRecord("prun-project-b", "project-b", "env-prod", "shell", now),
+		scopedPipelineRecord("prun-container", "project-a", "env-prod", "container", now),
+	} {
+		if err := store.Save(ctx, record); err != nil {
+			t.Fatalf("save unclaimable record %s: %v", record.Run.ID, err)
+		}
+	}
+	if _, err := store.ClaimJob(ctx, "runner-prod-a", now.Add(time.Minute)); !errors.Is(err, pipelineusecase.ErrNoClaimableJob) {
+		t.Fatalf("scoped shell runner claim against env/project/executor mismatches err = %v, want no claimable job", err)
+	}
+	for _, id := range []string{"prun-env-dev", "prun-project-b", "prun-container"} {
+		loaded, err := store.Get(ctx, id)
+		if err != nil {
+			t.Fatalf("reload unclaimable record %s: %v", id, err)
+		}
+		if loaded.Run.Status != domainpipeline.PipelineRunQueued || loaded.Stages[0].Jobs[0].Job.RunnerID != "" {
+			t.Fatalf("unclaimable record %s was mutated: run=%#v job=%#v", id, loaded.Run, loaded.Stages[0].Jobs[0].Job)
+		}
+	}
+
+	if err := store.RegisterRunner(ctx, domainrunner.Runner{
+		ID:              "runner-container",
+		Name:            "runner-container",
+		Status:          "online",
+		Capabilities:    []string{"container"},
+		MaxConcurrency:  1,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		LastHeartbeatAt: &now,
+		LastSeenAt:      &now,
+	}); err != nil {
+		t.Fatalf("register container-capable runner: %v", err)
+	}
+	containerClaim, err := store.ClaimJob(ctx, "runner-container", now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("container-capable runner should claim container job: %v", err)
+	}
+	if containerClaim.PipelineRunID != "prun-container" || containerClaim.Executor != "container" {
+		t.Fatalf("container claim = %#v", containerClaim)
+	}
+
+	if err := store.Save(ctx, scopedPipelineRecord("prun-prod-a", "project-a", "env-prod", "shell", now.Add(time.Second))); err != nil {
+		t.Fatalf("save prod-a: %v", err)
+	}
+	if err := store.Save(ctx, scopedPipelineRecord("prun-prod-b", "project-a", "env-prod", "shell", now.Add(2*time.Second))); err != nil {
+		t.Fatalf("save prod-b: %v", err)
+	}
+	prodClaim, err := store.ClaimJob(ctx, "runner-prod-a", now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("runner-prod-a should claim first prod job: %v", err)
+	}
+	if prodClaim.PipelineRunID != "prun-prod-a" {
+		t.Fatalf("prod claim = %#v", prodClaim)
+	}
+	if err := store.RegisterRunner(ctx, domainrunner.Runner{
+		ID:              "runner-prod-b",
+		Name:            "runner-prod-b",
+		GroupID:         group.ID,
+		Status:          "online",
+		Executors:       []string{"shell"},
+		MaxConcurrency:  2,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		LastHeartbeatAt: &now,
+		LastSeenAt:      &now,
+	}); err != nil {
+		t.Fatalf("register runner-prod-b: %v", err)
+	}
+	if _, err := store.ClaimJob(ctx, "runner-prod-b", now.Add(time.Minute)); !errors.Is(err, pipelineusecase.ErrRunnerConcurrencyLimit) {
+		t.Fatalf("runner group max concurrency err = %v, want runner concurrency limit", err)
+	}
+
+	if err := store.RegisterRunner(ctx, domainrunner.Runner{
+		ID:              "runner-solo",
+		Name:            "runner-solo",
+		Status:          "online",
+		Labels:          map[string]string{"projectId": "project-solo", "environmentId": "env-solo"},
+		Executors:       []string{"shell"},
+		MaxConcurrency:  1,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		LastHeartbeatAt: &now,
+		LastSeenAt:      &now,
+	}); err != nil {
+		t.Fatalf("register runner-solo: %v", err)
+	}
+	if err := store.Save(ctx, scopedPipelineRecord("prun-solo-a", "project-solo", "env-solo", "shell", now.Add(3*time.Second))); err != nil {
+		t.Fatalf("save solo-a: %v", err)
+	}
+	if err := store.Save(ctx, scopedPipelineRecord("prun-solo-b", "project-solo", "env-solo", "shell", now.Add(4*time.Second))); err != nil {
+		t.Fatalf("save solo-b: %v", err)
+	}
+	soloClaim, err := store.ClaimJob(ctx, "runner-solo", now.Add(time.Minute))
+	if err != nil {
+		t.Fatalf("runner-solo should claim first solo job: %v", err)
+	}
+	if soloClaim.PipelineRunID != "prun-solo-a" {
+		t.Fatalf("solo claim = %#v", soloClaim)
+	}
+	if _, err := store.ClaimJob(ctx, "runner-solo", now.Add(time.Minute)); !errors.Is(err, pipelineusecase.ErrRunnerConcurrencyLimit) {
+		t.Fatalf("runner max concurrency err = %v, want runner concurrency limit", err)
+	}
+}
+
 func TestPostgresIntegrationEventOutboxRecovery(t *testing.T) {
 	db := newPostgresIntegration(t, true)
 	defer db.cleanup()
@@ -528,6 +670,17 @@ func pipelineRecord(id string, status domainpipeline.PipelineRunStatus, now time
 			}},
 		}},
 	}
+}
+
+func scopedPipelineRecord(id, projectID, environmentID, executor string, now time.Time) pipelineusecase.RunRecord {
+	record := pipelineRecord(id, domainpipeline.PipelineRunQueued, now)
+	record.Pipeline.ProjectID = projectID
+	record.Pipeline.Labels = map[string]string{"environmentId": environmentID}
+	record.Pipeline.Metadata = map[string]string{"environmentId": environmentID}
+	if executor != "" {
+		record.Definition.Spec.Stages[0].Jobs[0].Executor = executor
+	}
+	return record
 }
 
 func pipelineusecasePipeline(id string, now time.Time) domainpipeline.Pipeline {

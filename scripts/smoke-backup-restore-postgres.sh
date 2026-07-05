@@ -52,6 +52,13 @@ else
   fail "migration count mismatch: $up_count up, $down_count down"
 fi
 
+echo "Applying migrations for backup/restore smoke..."
+if DATABASE_URL="$DATABASE_URL" go run ./scripts/apply-postgres-migrations.go >/dev/null 2>&1; then
+  pass "migrations applied before backup/restore smoke"
+else
+  fail "could not apply migrations before backup/restore smoke"
+fi
+
 # --- Phase 2: Insert test records ---
 echo ""
 echo "--- Phase 2: Insert test records ---"

@@ -83,12 +83,13 @@ DATABASE_URL="postgres://..." make smoke-backup-restore
 
 The script (`scripts/smoke-backup-restore-postgres.sh`):
 1. Validates migration pairs are reversible
-2. Starts a server, inserts test PipelineRun
-3. Stops the server
-4. Runs pg_dump (if available)
-5. Restarts the server
-6. Verifies PipelineRun and audit records survived
-7. Redacts `DATABASE_URL` when printing skip or target information
+2. Applies migrations to the target test database
+3. Starts a server, inserts test PipelineRun
+4. Stops the server
+5. Runs pg_dump (if available)
+6. Restarts the server
+7. Verifies PipelineRun and audit records survived
+8. Redacts `DATABASE_URL` when printing skip or target information
 
 Skip with `SKIP_BACKUP_RESTORE=1` or if PostgreSQL is unavailable. The GitHub `postgres-integration` job runs this smoke path after migration, store, audit, MCP audit, live deploy, and multi-process recovery checks.
 

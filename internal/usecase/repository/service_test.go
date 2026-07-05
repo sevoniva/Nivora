@@ -114,6 +114,20 @@ func TestRepositorySnapshotAndIntelligenceForLocalRepo(t *testing.T) {
 	if !strings.Contains(strings.Join(plan.Warnings, "\n"), "not executed") {
 		t.Fatalf("expected plan-only warning, got %#v", plan.Warnings)
 	}
+
+	review, err := service.DevOpsReadinessReview(context.Background(), repository.ID)
+	if err != nil {
+		t.Fatalf("readiness review: %v", err)
+	}
+	if review.Status != "plan_ready" || !review.PlanOnly || !review.ReleaseReady {
+		t.Fatalf("unexpected readiness review status: %#v", review)
+	}
+	if len(review.Strengths) == 0 || len(review.Blockers) != 0 {
+		t.Fatalf("unexpected readiness review findings: strengths=%#v blockers=%#v", review.Strengths, review.Blockers)
+	}
+	if !strings.Contains(strings.Join(review.Warnings, "\n"), "does not execute") {
+		t.Fatalf("readiness review should be plan-only: %#v", review.Warnings)
+	}
 }
 
 func assertContains(t *testing.T, values []string, expected string) {

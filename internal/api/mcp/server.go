@@ -230,6 +230,9 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 		tool("nivora_repository_devops_plan", "Read a plan-only DevOps plan for a repository latest snapshot", objectSchema(map[string]any{
 			"repositoryId": stringProperty("repository id"),
 		}, []string{"repositoryId"})),
+		tool("nivora_devops_readiness_review", "Review repository DevOps readiness from the latest snapshot without executing commands", objectSchema(map[string]any{
+			"repositoryId": stringProperty("repository id"),
+		}, []string{"repositoryId"})),
 		tool("nivora_workflow_validate", "Validate a Nivora Workflow YAML document", objectSchema(map[string]any{
 			"content": stringProperty("workflow YAML content"),
 		}, []string{"content"})),
@@ -1052,6 +1055,23 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return map[string]any{"plan": plan, "mutated": false}, nil
+	case "nivora_devops_readiness_review":
+		repositoryID, err := requiredString(arguments, "repositoryId")
+		if err != nil {
+			return nil, err
+		}
+		repository, err := s.services.Catalog.GetRepository(ctx, repositoryID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("repository "+repositoryID, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+		review, err := s.services.Repositories.DevOpsReadinessReview(ctx, repositoryID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"review": review, "mutated": false}, nil
 	case "nivora_workflow_validate":
 		content, err := requiredString(arguments, "content")
 		if err != nil {
@@ -2641,6 +2661,7 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_get_catalog_summary",
 		"nivora_repository_inspect",
 		"nivora_repository_devops_plan",
+		"nivora_devops_readiness_review",
 		"nivora_list_pipeline_definitions",
 		"nivora_get_pipeline_definition",
 		"nivora_get_pipeline_run",

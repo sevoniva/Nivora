@@ -1813,6 +1813,7 @@ func newRepositoryCommand() *cobra.Command {
 	cmd.AddCommand(newRepositoryValidateCommand())
 	cmd.AddCommand(newRepositoryInspectCommand())
 	cmd.AddCommand(newRepositoryDevOpsPlanCommand())
+	cmd.AddCommand(newRepositoryReadinessReviewCommand())
 	return cmd
 }
 
@@ -2316,6 +2317,31 @@ func newRepositoryDevOpsPlanCommand() *cobra.Command {
 				return err
 			}
 			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/devops/plan", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newRepositoryReadinessReviewCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "readiness-review <repository-id>",
+		Short: "Create a plan-only DevOps readiness review from the latest repository snapshot",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			body, err := json.Marshal(map[string]string{"repositoryId": args[0]})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/devops/readiness-review", body, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}

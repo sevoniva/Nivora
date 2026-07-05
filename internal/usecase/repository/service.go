@@ -168,6 +168,72 @@ func (s *Service) DevOpsPlan(ctx context.Context, repositoryID string) (DevOpsPl
 	return plan, nil
 }
 
+func (s *Service) DevOpsReadinessReview(ctx context.Context, repositoryID string) (DevOpsReadinessReview, error) {
+	plan, err := s.DevOpsPlan(ctx, repositoryID)
+	if err != nil {
+		return DevOpsReadinessReview{}, err
+	}
+	now := s.now().UTC()
+	review := DevOpsReadinessReview{
+		RepositoryID:           plan.RepositoryID,
+		SnapshotID:             plan.SnapshotID,
+		PlanOnly:               true,
+		ReleaseReady:           plan.ReleaseReady,
+		BuildPlanAvailable:     len(plan.Build.Commands) > 0,
+		TestPlanAvailable:      len(plan.Test.Commands) > 0,
+		PackagePlanAvailable:   len(plan.Package.Commands) > 0,
+		SecurityPlanAvailable:  len(plan.Security.Candidates) > 0,
+		DeploymentTargets:      append([]string(nil), plan.DeploymentTargets...),
+		Warnings:               append([]string{"readiness review is plan-only and does not execute repository commands, create releases, trigger scanners, or deploy"}, plan.Warnings...),
+		Metadata:               map[string]string{"source": "repository-intelligence", "devopsPlanSnapshotId": plan.SnapshotID},
+		CreatedAt:              now,
+		RecommendedNextActions: []string{"Review generated Nivora Workflow draft before enabling guarded execution"},
+	}
+	if review.BuildPlanAvailable {
+		review.Strengths = append(review.Strengths, "build command candidates detected")
+	} else {
+		review.Blockers = append(review.Blockers, "no build command candidates detected")
+		review.RecommendedNextActions = append(review.RecommendedNextActions, "Add an explicit Nivora Workflow build job or repository build metadata")
+	}
+	if review.TestPlanAvailable {
+		review.Strengths = append(review.Strengths, "test command candidates detected")
+	} else {
+		review.Blockers = append(review.Blockers, "no test command candidates detected")
+		review.RecommendedNextActions = append(review.RecommendedNextActions, "Add an explicit Nivora Workflow test job before release automation")
+	}
+	if review.PackagePlanAvailable || len(plan.ReleaseCandidate.ArtifactCandidates) > 0 {
+		review.Strengths = append(review.Strengths, "artifact or package candidates detected")
+	} else {
+		review.Blockers = append(review.Blockers, "no artifact or package candidates detected")
+		review.RecommendedNextActions = append(review.RecommendedNextActions, "Define package output metadata before binding ReleaseArtifacts")
+	}
+	if review.SecurityPlanAvailable {
+		review.Strengths = append(review.Strengths, "security scan candidates detected")
+	} else {
+		review.Warnings = append(review.Warnings, "no security scan candidates detected")
+		review.RecommendedNextActions = append(review.RecommendedNextActions, "Add a security scan intent before promotion gates")
+	}
+	if len(review.DeploymentTargets) > 0 {
+		review.Strengths = append(review.Strengths, "deployment target candidates detected")
+	} else {
+		review.Warnings = append(review.Warnings, "no deployment target candidates detected")
+		review.RecommendedNextActions = append(review.RecommendedNextActions, "Add deployment intent only after artifact identity and policy gates are clear")
+	}
+	review.Strengths = dedupeSorted(review.Strengths)
+	review.Blockers = dedupeSorted(review.Blockers)
+	review.Warnings = dedupeSorted(review.Warnings)
+	review.RecommendedNextActions = dedupeSorted(review.RecommendedNextActions)
+	switch {
+	case len(review.Blockers) == 0 && review.ReleaseReady:
+		review.Status = "plan_ready"
+	case len(review.Blockers) == 0:
+		review.Status = "needs_review"
+	default:
+		review.Status = "blocked"
+	}
+	return review, nil
+}
+
 func commandPlanWarnings(kind string) []string {
 	return []string{kind + " commands are detection candidates and are not executed by repository planning"}
 }

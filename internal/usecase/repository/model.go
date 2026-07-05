@@ -138,6 +138,25 @@ type DevOpsPlan struct {
 	CreatedAt         time.Time            `json:"createdAt"`
 }
 
+type DevOpsReadinessReview struct {
+	RepositoryID           string            `json:"repositoryId"`
+	SnapshotID             string            `json:"snapshotId,omitempty"`
+	Status                 string            `json:"status"`
+	PlanOnly               bool              `json:"planOnly"`
+	ReleaseReady           bool              `json:"releaseReady"`
+	BuildPlanAvailable     bool              `json:"buildPlanAvailable"`
+	TestPlanAvailable      bool              `json:"testPlanAvailable"`
+	PackagePlanAvailable   bool              `json:"packagePlanAvailable"`
+	SecurityPlanAvailable  bool              `json:"securityPlanAvailable"`
+	DeploymentTargets      []string          `json:"deploymentTargets,omitempty"`
+	Strengths              []string          `json:"strengths,omitempty"`
+	Blockers               []string          `json:"blockers,omitempty"`
+	Warnings               []string          `json:"warnings,omitempty"`
+	RecommendedNextActions []string          `json:"recommendedNextActions,omitempty"`
+	Metadata               map[string]string `json:"metadata,omitempty"`
+	CreatedAt              time.Time         `json:"createdAt"`
+}
+
 type SnapshotInput struct {
 	Repository Repository
 	Ref        string

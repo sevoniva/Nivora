@@ -113,6 +113,23 @@ func TestMCPRepositoryDevOpsPlanResourceAndToolArePlanOnly(t *testing.T) {
 	if strings.Contains(body, "should-not-leak") {
 		t.Fatalf("devops plan tool leaked .env content: %s", body)
 	}
+
+	result, err = server.CallTool(context.Background(), "nivora_devops_readiness_review", map[string]any{"repositoryId": repositoryID})
+	if err != nil {
+		t.Fatalf("devops readiness review transport error: %v", err)
+	}
+	if result.IsError || len(result.Content) == 0 {
+		t.Fatalf("devops readiness review result = %#v", result)
+	}
+	body = result.Content[0].Text
+	for _, want := range []string{`"mutated": false`, `"planOnly": true`, `"recommendedNextActions"`, "does not execute"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("devops readiness review body missing %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "should-not-leak") {
+		t.Fatalf("devops readiness review leaked .env content: %s", body)
+	}
 }
 
 func TestMCPWorkflowToolsPlanOnly(t *testing.T) {

@@ -95,6 +95,17 @@ func TestRepositorySnapshotAndIntelligenceRoutesUseLocalStaticInspection(t *test
 	if strings.Contains(rec.Body.String(), "TOKEN=placeholder") {
 		t.Fatalf("devops plan leaked .env content: %s", rec.Body.String())
 	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/devops/readiness-review", strings.NewReader(`{"repositoryId":"`+repositoryID+`"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"mutated":false`) || !strings.Contains(rec.Body.String(), `"planOnly":true`) || !strings.Contains(rec.Body.String(), `"recommendedNextActions"`) {
+		t.Fatalf("devops readiness review status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "TOKEN=placeholder") {
+		t.Fatalf("devops readiness review leaked .env content: %s", rec.Body.String())
+	}
 }
 
 func TestWorkflowValidatePlanAndGuardedRunRoutes(t *testing.T) {

@@ -1325,6 +1325,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/devops/readiness-review:
+    post:
+      summary: Review repository DevOps readiness
+      description: Requires `project.read`. Returns a plan-only readiness review derived from the latest repository snapshot, repository intelligence, and DevOps plan. It does not execute repository commands, create releases, trigger scanners, deploy, or mutate runtime state.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DevOpsPlanRequest"
+      parameters:
+        - name: repositoryId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Repository id fallback when no JSON body is provided.
+      responses:
+        "200":
+          description: Plan-only repository DevOps readiness review
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  review:
+                    $ref: "#/components/schemas/DevOpsReadinessReview"
+                  mutated:
+                    type: boolean
+                    const: false
+        "400":
+          description: Request is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Repository snapshot was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/workflows:
     get:
       summary: List Nivora Workflow summaries
@@ -5405,6 +5447,56 @@ components:
         releaseReady:
           type: boolean
         warnings:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+    DevOpsReadinessReview:
+      type: object
+      properties:
+        repositoryId:
+          type: string
+        snapshotId:
+          type: string
+        status:
+          type: string
+          description: Plan-only readiness status such as plan_ready, needs_review, or blocked.
+        planOnly:
+          type: boolean
+          description: Always true for this foundation review; no repository command is executed.
+        releaseReady:
+          type: boolean
+        buildPlanAvailable:
+          type: boolean
+        testPlanAvailable:
+          type: boolean
+        packagePlanAvailable:
+          type: boolean
+        securityPlanAvailable:
+          type: boolean
+        deploymentTargets:
+          type: array
+          items:
+            type: string
+        strengths:
+          type: array
+          items:
+            type: string
+        blockers:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        recommendedNextActions:
           type: array
           items:
             type: string

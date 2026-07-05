@@ -158,6 +158,30 @@ func PlanRepositoryDevOps(repositories *repositoryusecase.Service) http.HandlerF
 	}
 }
 
+func ReviewRepositoryDevOpsReadiness(repositories *repositoryusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input devOpsPlanRequest
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil && !errors.Is(err, io.EOF) {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_devops_readiness_review_request", Message: err.Error(), Path: r.URL.Path})
+			return
+		}
+		repositoryID := strings.TrimSpace(input.RepositoryID)
+		if repositoryID == "" {
+			repositoryID = strings.TrimSpace(r.URL.Query().Get("repositoryId"))
+		}
+		if repositoryID == "" {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_devops_readiness_review_request", Message: "repositoryId is required", Path: r.URL.Path})
+			return
+		}
+		review, err := repositories.DevOpsReadinessReview(r.Context(), repositoryID)
+		if err != nil {
+			respondRepositoryError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{"review": review, "mutated": false})
+	}
+}
+
 func ListWorkflows(service *workflowusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		workflows, err := service.ListWorkflows(r.Context(), workflowusecase.PlanListFilter{

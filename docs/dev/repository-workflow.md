@@ -62,12 +62,14 @@ POST /api/v1/workflows/run
 
 ## MCP Surface
 
-Local MCP tools:
+Local MCP tools and resources:
 
 ```text
 nivora_repository_inspect
 nivora_workflow_validate
 nivora_workflow_plan
+nivora://workflows
+nivora://workflows/{id}/plan
 ```
 
 Each tool is read-only or plan-only and returns `mutated=false`. MCP does not execute workflow steps.

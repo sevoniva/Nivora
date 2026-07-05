@@ -44,7 +44,7 @@ func TestMCPResourceToolAndPromptCatalogs(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ListResources: %v", err)
 	}
-	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://events", "nivora://logs", "nivora://catalog/summary", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://releases", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
+	for _, want := range []string{"nivora://capabilities/current", "nivora://system/runtime", "nivora://runtime/recovery", "nivora://events", "nivora://logs", "nivora://catalog/summary", "nivora://workflows", "nivora://pipelines/definitions/{id}", "nivora://deployments/{id}/health", "nivora://releases", "nivora://artifacts/{id}/releases", "nivora://security/findings", "nivora://policy/results", "nivora://policy/results/summary", "nivora://evidence/bundles", "nivora://evidence/bundles/{id}", "nivora://plugins/capabilities"} {
 		if !hasResource(resources, want) {
 			t.Fatalf("resource %s missing from %#v", want, resources)
 		}

@@ -89,6 +89,13 @@ jobs:
 	if err != nil {
 		t.Fatalf("store workflow plan: %v", err)
 	}
+	list, err := server.ReadResource(context.Background(), "nivora://workflows")
+	if err != nil {
+		t.Fatalf("ReadResource workflows: %v", err)
+	}
+	if !strings.Contains(list.Text, `"workflows"`) || !strings.Contains(list.Text, record.WorkflowID) || !strings.Contains(list.Text, `"mutated": false`) {
+		t.Fatalf("workflow list resource = %#v", list)
+	}
 	resource, err := server.ReadResource(context.Background(), "nivora://workflows/"+record.ID+"/plan")
 	if err != nil {
 		t.Fatalf("ReadResource: %v", err)

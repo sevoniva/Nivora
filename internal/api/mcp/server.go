@@ -123,6 +123,7 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://repositories/{id}", "Repository", "Repository catalog record by id"),
 		resource("nivora://repositories/{id}/snapshot/latest", "Repository latest snapshot", "Latest repository snapshot metadata by id"),
 		resource("nivora://repositories/{id}/intelligence", "Repository intelligence", "Latest repository intelligence by id"),
+		resource("nivora://workflows", "Workflows", "Stored workflow summaries visible to the MCP subject"),
 		resource("nivora://workflows/{id}/plan", "Workflow plan", "Stored workflow plan record by id"),
 		resource("nivora://pipelines/definitions", "Pipeline definitions", "Pipeline definition catalog"),
 		resource("nivora://pipelines/definitions/{id}", "Pipeline definition", "Pipeline definition record by id"),
@@ -425,6 +426,12 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string, query url.
 		return s.repositoryList(ctx, "")
 	case strings.HasPrefix(uri, "nivora://repositories/"):
 		return s.repositoryResource(ctx, strings.TrimPrefix(uri, "nivora://repositories/"))
+	case uri == "nivora://workflows":
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.workflowListResource(ctx, page)
 	case strings.HasPrefix(uri, "nivora://workflows/"):
 		return s.workflowPlanResource(ctx, strings.TrimPrefix(uri, "nivora://workflows/"))
 	case uri == "nivora://pipelines/definitions":
@@ -1948,6 +1955,42 @@ func (s *Server) workflowPlanResource(ctx context.Context, rest string) (any, er
 	return map[string]any{"workflowPlan": record, "mutated": false}, nil
 }
 
+func (s *Server) workflowListResource(ctx context.Context, page mcpPage) (any, error) {
+	summaries, err := s.services.Workflows.ListWorkflows(ctx, workflowusecase.PlanListFilter{Limit: 100})
+	if err != nil {
+		return nil, err
+	}
+	visible := make([]workflowusecase.WorkflowSummary, 0, len(summaries))
+	warnings := []string{}
+	for _, summary := range summaries {
+		if summary.RepositoryID == "" {
+			if isGlobalSubject(s.services.Subject) {
+				visible = append(visible, summary)
+			}
+			continue
+		}
+		repository, err := s.services.Catalog.GetRepository(ctx, summary.RepositoryID)
+		if err != nil {
+			warnings = append(warnings, "repository metadata unavailable for workflow "+summary.WorkflowID)
+			continue
+		}
+		if s.ensureSubjectScope("workflow "+summary.WorkflowID, repository.ProjectID, "") == nil {
+			visible = append(visible, summary)
+		}
+	}
+	limited, pagination, truncated := paginateMCPItems(visible, page)
+	if truncated {
+		warnings = append(warnings, "workflow list truncated by MCP pagination")
+	}
+	return map[string]any{
+		"workflows":  limited,
+		"count":      len(limited),
+		"pagination": pagination,
+		"warnings":   warnings,
+		"mutated":    false,
+	}, nil
+}
+
 func repositoryUsecaseFromCatalog(repository domainapp.Repository) repositoryusecase.Repository {
 	status := repositoryusecase.RepositoryStatusActive
 	if !repository.Enabled {
@@ -2156,6 +2199,12 @@ func (s *Server) subjectScopeSummary() map[string]string {
 		return map[string]string{"type": domaintenant.ScopeGlobal}
 	}
 	return map[string]string{"type": scopeType, "id": scopeID}
+}
+
+func isGlobalSubject(subject domainauth.Subject) bool {
+	scopeType := strings.TrimSpace(subject.ScopeType)
+	scopeID := strings.TrimSpace(subject.ScopeID)
+	return scopeType == "" || scopeType == domaintenant.ScopeGlobal || scopeID == ""
 }
 
 func (s *Server) capabilityStatusWarnings() []string {

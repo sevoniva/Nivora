@@ -15,7 +15,9 @@ The domain layer remains pure. Domain packages do not import MCP, JSON-RPC, HTTP
 
 ## Transport
 
-The foundation transport is stdio with line-delimited JSON-RPC messages. Supported methods:
+The foundation transport is stdio with line-delimited JSON-RPC messages. An experimental opt-in remote HTTP JSON-RPC route also exists at `POST /api/v1/mcp/rpc`; it is disabled by default, requires token-backed identity, rejects runner tokens, keeps action tools blocked, and uses the same JSON-RPC method set.
+
+Supported methods:
 
 - `initialize`
 - `resources/list`
@@ -25,7 +27,7 @@ The foundation transport is stdio with line-delimited JSON-RPC messages. Support
 - `prompts/list`
 - `prompts/get`
 
-Remote HTTP/SSE MCP and OAuth are future work.
+Remote SSE, full OAuth/OIDC login flows, distributed rate limiting, and production exposure guidance remain future work.
 
 ## Service Wiring
 
@@ -61,6 +63,8 @@ Guarded action tools require a future design with confirmation, policy gates, sc
 - Secret-like values are redacted before JSON output.
 - Logs are truncated.
 - Missing records return structured errors instead of fake data.
+- List-like resources support `limit` and `offset` query parameters while audit and returned resource content use the base resource URI, not the raw query string.
+- Remote HTTP JSON-RPC applies configured request body caps, response caps, request timeouts, and in-process per-subject rate limits.
 
 ## Audit
 

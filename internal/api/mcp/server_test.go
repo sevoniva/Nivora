@@ -642,6 +642,114 @@ func TestMCPAggregateEventsAndLogsReadOnly(t *testing.T) {
 	}
 }
 
+func TestMCPListResourceURIsSupportPaginationQuery(t *testing.T) {
+	ctx := context.Background()
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	createMCPObservabilityFixture(t, server)
+	createMCPCatalogAndPipelineFixture(t, server)
+	createMCPArtifactFixture(t, server)
+	if _, err := server.services.Security.Scan(ctx, securityusecase.ScanInput{
+		SubjectType: domainsecurity.SubjectManifest,
+		SubjectID:   "mcp-resource-query-manifest",
+		Content:     "securityContext:\n  privileged: true\n",
+		ActorID:     "mcp-fixture",
+	}); err != nil {
+		t.Fatalf("create security scan fixture: %v", err)
+	}
+	if _, err := server.services.Security.EvaluateAndStore(ctx, securityusecase.EvaluateInput{
+		SubjectType: domainsecurity.SubjectArtifact,
+		SubjectID:   "registry.example.invalid/team/api:latest",
+		Reference:   "registry.example.invalid/team/api:latest",
+		PolicyID:    "policy-latest-warning",
+		ActorID:     "mcp-fixture",
+	}); err != nil {
+		t.Fatalf("create policy result fixture: %v", err)
+	}
+
+	for _, uri := range []string{
+		"nivora://events?limit=1&offset=0&token=should-not-leak",
+		"nivora://logs?limit=1&offset=0&token=should-not-leak",
+		"nivora://pipelines/definitions?limit=1&offset=0&token=should-not-leak",
+		"nivora://releases?limit=1&offset=0&token=should-not-leak",
+		"nivora://artifacts?limit=1&offset=0&token=should-not-leak",
+		"nivora://security/findings?limit=1&offset=0&token=should-not-leak",
+		"nivora://policy/results?limit=1&offset=0&token=should-not-leak",
+	} {
+		t.Run(uri, func(t *testing.T) {
+			resource, err := server.ReadResource(ctx, uri)
+			if err != nil {
+				t.Fatalf("ReadResource(%s): %v", uri, err)
+			}
+			body := resource.URI + "\n" + resource.Text
+			if strings.Contains(resource.URI, "?") || strings.Contains(body, "should-not-leak") {
+				t.Fatalf("resource URI/query leaked sensitive data: uri=%s body=%s", resource.URI, body)
+			}
+			if !strings.Contains(resource.Text, `"pagination"`) || !strings.Contains(resource.Text, `"limit": 1`) || !strings.Contains(resource.Text, `"offset": 0`) || !strings.Contains(resource.Text, `"mutated": false`) {
+				t.Fatalf("resource query pagination missing from %s body=%s", uri, resource.Text)
+			}
+		})
+	}
+}
+
+func TestMCPAuditEvidenceResourceURIsSupportPaginationQuery(t *testing.T) {
+	ctx := context.Background()
+	server := newTestMCPServer(t, domainauth.RoleAuditor, "token")
+	for i, id := range []string{"resource-audit-page-0", "resource-audit-page-1"} {
+		if err := server.services.Compliance.RecordAudit(ctx, audit.AuditLog{
+			ID:        id,
+			ActorID:   "mcp-auditor",
+			Action:    "Paged resource audit",
+			Subject:   "mcp-resource-page",
+			CreatedAt: time.Unix(int64(i), 0).UTC(),
+		}); err != nil {
+			t.Fatalf("record audit fixture: %v", err)
+		}
+	}
+	if _, err := server.services.Compliance.EvidenceBundle(ctx, complianceusecase.EvidenceInput{SubjectType: "generic", SubjectID: "mcp-resource-evidence-a"}); err != nil {
+		t.Fatalf("create evidence bundle A: %v", err)
+	}
+	if _, err := server.services.Compliance.EvidenceBundle(ctx, complianceusecase.EvidenceInput{SubjectType: "generic", SubjectID: "mcp-resource-evidence-b"}); err != nil {
+		t.Fatalf("create evidence bundle B: %v", err)
+	}
+
+	for _, uri := range []string{
+		"nivora://audit/search?limit=1&offset=1&authorization=Bearer%20should-not-leak",
+		"nivora://evidence/bundles?limit=1&offset=1&authorization=Bearer%20should-not-leak",
+	} {
+		t.Run(uri, func(t *testing.T) {
+			resource, err := server.ReadResource(ctx, uri)
+			if err != nil {
+				t.Fatalf("ReadResource(%s): %v", uri, err)
+			}
+			body := resource.URI + "\n" + resource.Text
+			if strings.Contains(resource.URI, "?") || strings.Contains(body, "should-not-leak") {
+				t.Fatalf("resource URI/query leaked sensitive data: uri=%s body=%s", resource.URI, body)
+			}
+			if !strings.Contains(resource.Text, `"pagination"`) || !strings.Contains(resource.Text, `"limit": 1`) || !strings.Contains(resource.Text, `"offset": 1`) || !strings.Contains(resource.Text, `"mutated": false`) {
+				t.Fatalf("resource query pagination missing from %s body=%s", uri, resource.Text)
+			}
+		})
+	}
+}
+
+func TestMCPResourcePaginationQueryRejectsInvalidValues(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	for _, uri := range []string{
+		"nivora://events?limit=bad",
+		"nivora://events?limit=1&limit=2",
+		"nivora://logs?offset=-1",
+		"nivora://artifacts?limit=101",
+	} {
+		t.Run(uri, func(t *testing.T) {
+			_, err := server.ReadResource(context.Background(), uri)
+			var op OperationError
+			if !errors.As(err, &op) || op.Code != "mcp_invalid_arguments" {
+				t.Fatalf("expected invalid pagination arguments, got %T %v", err, err)
+			}
+		})
+	}
+}
+
 func TestMCPAuditSearchPagination(t *testing.T) {
 	ctx := context.Background()
 	server := newTestMCPServer(t, domainauth.RoleAuditor, "token")

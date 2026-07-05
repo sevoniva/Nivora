@@ -28,7 +28,7 @@ This review covers the local stdio MCP surface added for AI-assisted inspection,
 | Secret values or token material | Normal APIs and MCP intentionally never expose them. | AI must ask for SecretRef/CredentialRef metadata only. |
 | Full production install readiness | Helm/Compose smoke checks exist, but live production-scale validation is not complete. | AI must keep not-production-ready language. |
 | OS-level runner sandbox guarantees | Runner isolation profile docs exist, but shell executor is not a sandbox. | AI must recommend operator isolation checks instead of assuming safety. |
-| Remote MCP security | Experimental HTTP JSON-RPC exists, but broader OAuth/OIDC, pagination, per-client limits, and operator guidance remain future work. | Remote MCP should stay disabled by default and not be broadly opened yet. |
+| Remote MCP security | Experimental HTTP JSON-RPC exists, but broader OAuth/OIDC, distributed per-client limits, future-resource tenant proof, and operator guidance remain future work. | Remote MCP should stay disabled by default and not be broadly opened yet. |
 
 ## Most Useful MCP Resources For Operators
 

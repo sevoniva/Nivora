@@ -228,6 +228,83 @@ func TestRemoteMCPActionAndBodyLimit(t *testing.T) {
 	}
 }
 
+func TestRemoteMCPStructuredJSONRPCErrors(t *testing.T) {
+	cfg := remoteMCPTestConfig(t)
+	router := newTestRouter(cfg)
+
+	cases := []struct {
+		name string
+		body string
+		want string
+	}{
+		{
+			name: "unknown method",
+			body: `{"jsonrpc":"2.0","id":1,"method":"unknown/method"}`,
+			want: "mcp_method_not_found",
+		},
+		{
+			name: "unknown resource",
+			body: `{"jsonrpc":"2.0","id":2,"method":"resources/read","params":{"uri":"nivora://missing"}}`,
+			want: "mcp_resource_not_found",
+		},
+		{
+			name: "unknown tool",
+			body: `{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"nivora_missing_tool","arguments":{"token":"should-not-leak"}}}`,
+			want: "mcp_tool_not_found",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodPost, "/api/v1/mcp/rpc", strings.NewReader(tc.body))
+			req.Header.Set("Authorization", "Bearer remote-mcp-token")
+			rec := httptest.NewRecorder()
+			router.ServeHTTP(rec, req)
+			if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), tc.want) {
+				t.Fatalf("%s status = %d body = %s", tc.name, rec.Code, rec.Body.String())
+			}
+			if strings.Contains(rec.Body.String(), "should-not-leak") {
+				t.Fatalf("%s leaked sensitive argument: %s", tc.name, rec.Body.String())
+			}
+		})
+	}
+}
+
+func TestRemoteMCPRateLimitAndResponseCap(t *testing.T) {
+	cfg := remoteMCPTestConfig(t)
+	cfg.MCP.MaxRequestsPerMinute = 1
+	router := newTestRouter(cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/mcp/rpc", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"initialize"}`))
+	req.Header.Set("Authorization", "Bearer remote-mcp-token")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || strings.Contains(rec.Body.String(), "mcp_rate_limited") {
+		t.Fatalf("first rate-limited MCP request status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/mcp/rpc", strings.NewReader(`{"jsonrpc":"2.0","id":2,"method":"initialize"}`))
+	req.Header.Set("Authorization", "Bearer remote-mcp-token")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "mcp_rate_limited") {
+		t.Fatalf("second rate-limited MCP request status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	cfg = remoteMCPTestConfig(t)
+	cfg.MCP.MaxResponseBytes = 320
+	router = newTestRouter(cfg)
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/mcp/rpc", strings.NewReader(`{"jsonrpc":"2.0","id":3,"method":"resources/list"}`))
+	req.Header.Set("Authorization", "Bearer remote-mcp-token")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), "mcp_response_too_large") {
+		t.Fatalf("capped remote MCP response status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "nivora://capabilities/current") {
+		t.Fatalf("capped remote MCP response leaked full catalog: %s", rec.Body.String())
+	}
+}
+
 func remoteMCPTestConfig(t *testing.T) config.Config {
 	t.Helper()
 	t.Setenv("NIVORA_TEST_REMOTE_MCP_TOKEN", "remote-mcp-token")

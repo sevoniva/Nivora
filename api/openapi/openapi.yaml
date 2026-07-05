@@ -93,7 +93,7 @@ paths:
   /api/v1/mcp/rpc:
     post:
       summary: Remote read-only MCP JSON-RPC endpoint
-      description: Experimental remote MCP foundation. Disabled unless `mcp.enabled=true` and `mcp.mode=http`; requires bearer, service-account, or OIDC authentication; runner tokens and action tools are rejected.
+      description: Experimental remote MCP foundation. Disabled unless `mcp.enabled=true` and `mcp.mode=http`; requires bearer, service-account, or OIDC authentication; runner tokens and action tools are rejected. The JSON-RPC transport enforces configured request/response caps and in-process per-subject rate limits, returns structured errors for unknown methods/resources/tools, and supports limit/offset pagination on list tools and list-like resource URIs.
       security:
         - BearerAuth: []
       requestBody:

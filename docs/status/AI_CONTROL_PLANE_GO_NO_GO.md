@@ -85,9 +85,9 @@ Production configuration now also fails closed when MCP is enabled with `mcp.rea
 | 1 | Expand remote MCP OIDC/service-account auth contract tests | security | current bearer route tests |
 | 2 | Add tenant fixture model for MCP resources | test | auth scopes |
 | 3 | Add richer remote MCP client/request audit attribution tests | test | current basic remote actor attribution |
-| 4 | Add pagination to remaining list-like MCP resources | code | current search/artifact/security/evidence pagination |
-| 5 | Add large-result MCP pagination scenarios | test | current event/log/audit/artifact/security/evidence pagination |
-| 6 | Add remote-scale pagination contract tests across resources | test | current response cap |
+| 4 | Add large-result MCP pagination scenarios | test | current list tool and resource URI pagination |
+| 5 | Add future-resource MCP pagination contract tests as new resources are added | test | current event/log/audit/artifact/security/evidence pagination |
+| 6 | Add remote-scale response cap and distributed rate-limit contract tests | test | current response cap and in-process rate limit |
 | 7 | Add deeper remote MCP request timeout contract tests | test | current JSON-RPC timeout |
 | 8 | Add rate-limit design doc | docs | remote RFC |
 | 9 | Add service-account examples without secrets | docs | auth docs |

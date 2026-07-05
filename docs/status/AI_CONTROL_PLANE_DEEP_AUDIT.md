@@ -36,7 +36,7 @@ This audit covers the local MCP control-plane surface. It records what an AI cli
 | `nivora://releases/executions/{id}/timeline` | implemented | `project.read` | `Releases.Timeline` | fixture-backed scenario tests | future remote read-only candidate |
 | `nivora://runners/summary` | implemented | `project.read` | `runnerSummary` | scenario tests | future remote read-only candidate with scope filters |
 | `nivora://security/summary` | implemented | `project.read` | `securitySummary` | scenario tests | future remote read-only candidate |
-| `nivora://audit/search` | implemented | `audit.read` | `Compliance.SearchAudit` | viewer denied, auditor allowed | future remote read-only candidate only with scope filters and pagination |
+| `nivora://audit/search` | implemented | `audit.read` | `Compliance.SearchAudit` | viewer denied, auditor allowed, resource URI pagination | future remote read-only candidate only with tenant-safe scope filters |
 | `nivora://plugins/capabilities` | implemented | `project.read` | `Plugins.List` | catalog tests | future remote read-only candidate |
 
 ## Tool Catalog
@@ -102,7 +102,7 @@ All prompt templates now state that logs, events, manifests, audit messages, and
 | DeploymentRun | run record, timeline, resources, health, diff, plan-only local planning | MCP cannot apply, rollback, prune, delete, or prove live cluster state. |
 | ReleaseExecution | execution record, target summary, timeline, readiness explanation | MCP cannot approve, reject, or execute release targets. |
 | Runners | fleet summary and runtime counters | MCP cannot register runners, rotate tokens, or inspect host OS state. |
-| Audit | audit search with `audit.read` and limit/offset pagination | Tenant filters and remote attribution are future work. |
+| Audit | audit search with `audit.read`, limit/offset pagination, and remote attribution tests | Tenant-safe historical audit scope is still future work. |
 | Security | summary and local policy evaluation | No external scanner integration is required or proven through MCP. |
 | Artifacts | local reference parsing/inspection | Network digest resolution is outside MCP local inspect. |
 | Plugins | capability registry | No dynamic external plugin execution through MCP. |

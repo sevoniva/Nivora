@@ -31,6 +31,8 @@ Current status: **partially proven for local MCP RBAC and scoped read models, no
 - Service-account-like developer subject can use explicit plan permissions.
 - Service-account-like viewer subject cannot use plan permissions.
 - Audit resource requires `audit.read`.
+- List-like MCP resource URIs support `limit` and `offset` query parameters for events, logs, pipeline definitions, releases, artifacts, security findings, policy results, audit search, and evidence bundles; response content returns the base resource URI so query strings cannot leak token-like values into resource content.
+- Invalid MCP resource pagination query values return structured `mcp_invalid_arguments` errors.
 - Project-scoped service account can read its own scoped PipelineRun record, logs, and timeline.
 - Project-scoped service account is denied when reading another project's scoped PipelineRun.
 - Aggregate MCP event and log searches filter out scoped PipelineRun records outside the subject project.
@@ -64,6 +66,8 @@ Current status: **partially proven for local MCP RBAC and scoped read models, no
 - Project-scoped HTTP subject is forbidden from reading, rotating, revoking, or globally marking offline another project's runner.
 - Project-scoped MCP capability status includes an explicit scope object and warning that capability status is global maturity metadata, not tenant inventory.
 - Remote HTTP MCP audit attribution records request id, correlation id, MCP client id, transport, and remote address when available, while redacting secret-like values.
+- Remote HTTP MCP returns structured JSON-RPC errors for unknown methods, resources, and tools.
+- Remote HTTP MCP enforces configured per-subject request rate limits and transport response caps in route-level tests.
 
 Evidence:
 
@@ -85,8 +89,8 @@ Evidence:
 | Audit and observability scope is not complete for every historical or unscoped record family | Older unscoped records can only be hidden or treated as global, which limits confidence for remote multi-tenant exposure | Add first-class scope metadata to every persisted evidence/audit/resource family and keep negative tests for historical unscoped records. |
 | Runner ownership is still metadata-based | RunnerGroup records now constrain runtime registration and claim, but MCP runner summaries still expose only scoped metadata and are not a remote fleet-management contract | Add remote-safe runner metadata profile before exposing remote MCP runner fleet views. |
 | Capability/runtime documents are broad | Metadata can reveal unsupported or experimental areas | Define a remote-safe capability summary profile before exposing remote MCP. |
-| Plan-only tool input scope is local | Remote plan-only tools need body limits and policy checks | Add input size and subject-scope validation. |
+| Plan-only tool input scope is local | Remote plan-only tools have transport body limits, but still need stronger subject-scope validation for input documents | Add plan-input ownership hints and policy checks before broader remote exposure. |
 
 ## Recommendation
 
-Keep local stdio MCP available for maintainer workflows. Do not expose remote MCP until every resource and tool has explicit tenant-scope tests, historical unscoped records are handled consistently, and operator guidance covers the remote audit and rate-limit model.
+Keep local stdio MCP available for maintainer workflows. Do not broadly expose remote MCP until every future resource/tool keeps explicit tenant-scope tests, historical unscoped records are handled consistently, distributed rate limiting is designed for multi-replica deployments, and operator guidance covers the remote audit, rate-limit, and deployment model.

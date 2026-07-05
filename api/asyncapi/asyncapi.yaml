@@ -723,7 +723,7 @@ channels:
         $ref: "#/components/messages/Event"
   mcp.resource.read:
     address: mcp.resource.read
-    description: Emitted when the local stdio MCP control plane reads a resource; persisted through compliance audit when configured with durable stores.
+    description: Emitted when local stdio or explicitly enabled remote read-only MCP reads a resource; persisted through compliance audit when configured with durable stores.
     messages:
       event:
         $ref: "#/components/messages/Event"

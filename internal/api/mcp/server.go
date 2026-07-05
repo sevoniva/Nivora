@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"path/filepath"
 	"sort"
@@ -138,17 +139,22 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 }
 
 func (s *Server) ReadResource(ctx context.Context, uri string) (ResourceContent, error) {
-	if err := s.checkResourcePermission(ctx, uri); err != nil {
-		s.record(ctx, EventResourceRead, uri, "system", "denied", err.Error())
-		return ResourceContent{}, err
-	}
-	payload, err := s.readResourcePayload(ctx, uri)
+	baseURI, query, err := parseMCPResourceURI(uri)
 	if err != nil {
-		s.record(ctx, EventResourceRead, uri, "system", "failed", err.Error())
+		s.record(ctx, EventResourceRead, "nivora://invalid", "system", "denied", err.Error())
 		return ResourceContent{}, err
 	}
-	s.record(ctx, EventResourceRead, uri, "system", "allowed", "resource read")
-	return ResourceContent{URI: uri, MimeType: jsonMime, Text: s.capResponseText(mustJSON(payload))}, nil
+	if err := s.checkResourcePermission(ctx, baseURI); err != nil {
+		s.record(ctx, EventResourceRead, baseURI, "system", "denied", err.Error())
+		return ResourceContent{}, err
+	}
+	payload, err := s.readResourcePayload(ctx, baseURI, query)
+	if err != nil {
+		s.record(ctx, EventResourceRead, baseURI, "system", "failed", err.Error())
+		return ResourceContent{}, err
+	}
+	s.record(ctx, EventResourceRead, baseURI, "system", "allowed", "resource read")
+	return ResourceContent{URI: baseURI, MimeType: jsonMime, Text: s.capResponseText(mustJSON(payload))}, nil
 }
 
 func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
@@ -351,7 +357,7 @@ func (s *Server) GetPrompt(ctx context.Context, name string, args map[string]str
 	}, nil
 }
 
-func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, error) {
+func (s *Server) readResourcePayload(ctx context.Context, uri string, query url.Values) (any, error) {
 	switch {
 	case uri == "nivora://capabilities/current":
 		body, err := readProjectFile("docs/status/CAPABILITY_STATUS.md")
@@ -376,13 +382,25 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 		}
 		return map[string]any{"content": string(body)}, nil
 	case uri == "nivora://events":
-		return s.eventSearch(ctx, mcpEventFilter{})
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.eventSearch(ctx, mcpEventFilter{Limit: page.Limit, Offset: page.Offset})
 	case uri == "nivora://logs":
-		return s.logSearch(ctx, mcpLogFilter{})
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.logSearch(ctx, mcpLogFilter{Limit: page.Limit, Offset: page.Offset})
 	case uri == "nivora://catalog/summary":
 		return s.catalogSummary(ctx, "", "")
 	case uri == "nivora://pipelines/definitions":
-		return s.pipelineDefinitionList(ctx, "", mcpPage{})
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.pipelineDefinitionList(ctx, "", page)
 	case strings.HasPrefix(uri, "nivora://pipelines/definitions/"):
 		id := strings.TrimPrefix(uri, "nivora://pipelines/definitions/")
 		definition, err := s.services.PipelineDefs.Get(ctx, id)
@@ -398,9 +416,17 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 	case strings.HasPrefix(uri, "nivora://deployments/"):
 		return s.deploymentResource(ctx, strings.TrimPrefix(uri, "nivora://deployments/"))
 	case uri == "nivora://releases":
-		return s.releaseList(ctx, artifactusecase.ListReleasesInput{}, mcpPage{})
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.releaseList(ctx, artifactusecase.ListReleasesInput{}, page)
 	case uri == "nivora://artifacts":
-		return s.artifactList(ctx, artifactusecase.ListArtifactsInput{}, mcpPage{})
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.artifactList(ctx, artifactusecase.ListArtifactsInput{}, page)
 	case strings.HasPrefix(uri, "nivora://artifacts/"):
 		return s.artifactResource(ctx, strings.TrimPrefix(uri, "nivora://artifacts/"))
 	case strings.HasPrefix(uri, "nivora://releases/executions/"):
@@ -413,15 +439,31 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string) (any, erro
 	case uri == "nivora://security/summary":
 		return s.securitySummary(ctx)
 	case uri == "nivora://security/findings":
-		return s.securityFindings(ctx, securityusecase.ListFindingsInput{}, mcpPage{})
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.securityFindings(ctx, securityusecase.ListFindingsInput{}, page)
 	case uri == "nivora://policy/results":
-		return s.policyResultList(ctx, securityusecase.ListPolicyResultsInput{}, mcpPage{})
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.policyResultList(ctx, securityusecase.ListPolicyResultsInput{}, page)
 	case uri == "nivora://policy/results/summary":
 		return s.policyResultSummary(ctx, "", "")
 	case uri == "nivora://audit/search":
-		return s.auditSearch(ctx, complianceusecase.AuditSearchInput{}, mcpPage{})
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.auditSearch(ctx, complianceusecase.AuditSearchInput{}, page)
 	case uri == "nivora://evidence/bundles":
-		return s.evidenceBundleList(ctx, "", "", mcpPage{})
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.evidenceBundleList(ctx, "", "", page)
 	case strings.HasPrefix(uri, "nivora://evidence/bundles/"):
 		id := strings.TrimPrefix(uri, "nivora://evidence/bundles/")
 		return s.services.Compliance.GetEvidenceBundle(ctx, id)
@@ -901,7 +943,7 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			CorrelationID: stringArg(arguments, "correlationId"),
 		}, page)
 	case "nivora_get_capability_status":
-		return s.readResourcePayload(ctx, "nivora://capabilities/current")
+		return s.readResourcePayload(ctx, "nivora://capabilities/current", nil)
 	case "nivora_explain_pipeline_failure":
 		id, err := requiredString(arguments, "id")
 		if err != nil {
@@ -1635,6 +1677,51 @@ func normalizeMCPPage(limit int, offset int) (mcpPage, error) {
 		return mcpPage{}, OperationError{Code: "mcp_invalid_arguments", Message: "offset must be a non-negative integer"}
 	}
 	return mcpPage{Limit: limit, Offset: offset}, nil
+}
+
+func parseMCPResourceURI(uri string) (string, url.Values, error) {
+	trimmed := strings.TrimSpace(uri)
+	parsed, err := url.Parse(trimmed)
+	if err != nil || parsed.Scheme != "nivora" || parsed.Host == "" || parsed.User != nil {
+		return "", nil, OperationError{Code: "mcp_invalid_arguments", Message: "uri must be a valid nivora:// resource URI"}
+	}
+	query, err := url.ParseQuery(parsed.RawQuery)
+	if err != nil {
+		return "", nil, OperationError{Code: "mcp_invalid_arguments", Message: "resource query parameters are invalid"}
+	}
+	baseURI := "nivora://" + parsed.Host + parsed.EscapedPath()
+	return baseURI, query, nil
+}
+
+func mcpPageFromQuery(query url.Values) (mcpPage, error) {
+	limit, err := intQuery(query, "limit")
+	if err != nil {
+		return mcpPage{}, err
+	}
+	offset, err := intQuery(query, "offset")
+	if err != nil {
+		return mcpPage{}, err
+	}
+	return normalizeMCPPage(limit, offset)
+}
+
+func intQuery(query url.Values, key string) (int, error) {
+	values, ok := query[key]
+	if !ok || len(values) == 0 {
+		return 0, nil
+	}
+	if len(values) > 1 {
+		return 0, OperationError{Code: "mcp_invalid_arguments", Message: key + " must be provided at most once"}
+	}
+	value := strings.TrimSpace(values[0])
+	if value == "" {
+		return 0, nil
+	}
+	parsed, err := strconv.Atoi(value)
+	if err != nil {
+		return 0, OperationError{Code: "mcp_invalid_arguments", Message: key + " must be an integer"}
+	}
+	return parsed, nil
 }
 
 func (s *Server) catalogSummary(ctx context.Context, orgID string, projectID string) (any, error) {

@@ -76,7 +76,7 @@ make validate-mcp-scenarios
 make verify-ai-control-plane
 ```
 
-The current corpus has 29 scenarios and 29 golden answers. Scenario tests create deterministic PipelineRun, DeploymentRun, ReleaseExecution, and security scan fixtures; they do not skip fixture-backed tools just because live external systems are absent.
+The current corpus has 31 scenarios and 31 golden answers. Scenario tests create deterministic PipelineRun, DeploymentRun, ReleaseExecution, and security scan fixtures; they do not skip fixture-backed tools just because live external systems are absent.
 
 ## Configuration
 
@@ -114,7 +114,8 @@ Local tests can use the in-memory recorder. Runtime wiring uses the compliance s
 
 - The primary transport is a minimal stdio JSON-RPC foundation.
 - A minimal remote HTTP JSON-RPC foundation exists behind `mcp.enabled=true` and `mcp.mode=http`; it is experimental and disabled by default.
-- Remote MCP-specific OAuth depth, distributed rate limiting, per-client scoping, pagination, and broader transport cap/timeout proof are future hardening.
+- Remote MCP requires bearer/service-account/OIDC-placeholder identity, rejects anonymous/dev/runner-token access, keeps action tools blocked, supports `limit`/`offset` pagination on list-like resource URIs and list tools, returns structured errors for unknown methods/resources/tools, and has route-level tests for request caps, response caps, and in-process per-subject rate limits.
+- Remote MCP-specific OAuth depth, distributed rate limiting for multi-replica deployments, per-client scoping, operator exposure guidance, and broader future-resource tenant proof remain future hardening.
 - Full tenant filtering for every future remote MCP resource is not proven yet.
 - Action MCP is not implemented and remains blocked for apply, sync, rollback, approval, token, secret, runner, host, Git, prune, and delete operations.
 - MCP does not make Nivora production-ready.

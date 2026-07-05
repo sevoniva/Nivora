@@ -86,6 +86,53 @@ func (s *Service) ListPlans(ctx context.Context, filter PlanListFilter) ([]PlanR
 	return s.store.ListPlans(ctx, filter)
 }
 
+func (s *Service) ListWorkflows(ctx context.Context, filter PlanListFilter) ([]WorkflowSummary, error) {
+	filter.WorkflowID = strings.TrimSpace(filter.WorkflowID)
+	filter.RepositoryID = strings.TrimSpace(filter.RepositoryID)
+	filter.Limit = 100
+	filter.Offset = 0
+	plans, err := s.store.ListPlans(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	summaries := map[string]WorkflowSummary{}
+	order := []string{}
+	for _, plan := range plans {
+		key := plan.WorkflowID
+		if key == "" {
+			continue
+		}
+		summary, ok := summaries[key]
+		if !ok {
+			order = append(order, key)
+			summary = WorkflowSummary{
+				WorkflowID:   key,
+				Name:         plan.Name,
+				RepositoryID: plan.RepositoryID,
+				LatestPlanID: plan.ID,
+				ContentHash:  plan.ContentHash,
+				Ref:          plan.Ref,
+				UpdatedAt:    plan.CreatedAt,
+			}
+		}
+		summary.PlanCount++
+		if plan.CreatedAt.After(summary.UpdatedAt) {
+			summary.Name = plan.Name
+			summary.RepositoryID = plan.RepositoryID
+			summary.LatestPlanID = plan.ID
+			summary.ContentHash = plan.ContentHash
+			summary.Ref = plan.Ref
+			summary.UpdatedAt = plan.CreatedAt
+		}
+		summaries[key] = summary
+	}
+	out := make([]WorkflowSummary, 0, len(order))
+	for _, key := range order {
+		out = append(out, summaries[key])
+	}
+	return out, nil
+}
+
 func (s *Service) Run(ctx context.Context, input RunInput, pipelines PipelineRunCreator) (RunResult, error) {
 	if pipelines == nil {
 		return RunResult{}, fmt.Errorf("%w: pipeline runtime is required", ErrInvalid)

@@ -1283,6 +1283,31 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/workflows:
+    get:
+      summary: List Nivora Workflow summaries
+      description: Requires `workflow.plan`. Returns workflow summaries derived from stored WorkflowPlan records. It does not return raw workflow YAML.
+      parameters:
+        - name: repositoryId
+          in: query
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow summaries
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workflows:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WorkflowSummary"
   /api/v1/workflows/validate:
     post:
       summary: Validate a Nivora Workflow definition
@@ -1387,6 +1412,29 @@ paths:
       responses:
         "200":
           description: Workflow plan record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowPlanRecord"
+        "404":
+          description: Workflow plan was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/workflows/{id}/plan:
+    get:
+      summary: Get the latest stored plan for a Nivora Workflow
+      description: Requires `workflow.plan`. Returns the latest stored WorkflowPlan record for a workflow id.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Latest workflow plan record
           content:
             application/json:
               schema:
@@ -4983,6 +5031,26 @@ components:
           type: string
         plan:
           $ref: "#/components/schemas/WorkflowPlan"
+    WorkflowSummary:
+      type: object
+      properties:
+        workflowId:
+          type: string
+        name:
+          type: string
+        repositoryId:
+          type: string
+        latestPlanId:
+          type: string
+        contentHash:
+          type: string
+        ref:
+          type: string
+        planCount:
+          type: integer
+        updatedAt:
+          type: string
+          format: date-time
     WorkflowPlan:
       type: object
       properties:

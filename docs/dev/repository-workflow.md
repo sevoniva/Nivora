@@ -45,8 +45,10 @@ POST /api/v1/repositories/{id}/analyze
 Workflow plan-only endpoints:
 
 ```text
+GET  /api/v1/workflows
 POST /api/v1/workflows/validate
 POST /api/v1/workflows/plan
+GET  /api/v1/workflows/{id}/plan
 GET  /api/v1/workflows/plans
 GET  /api/v1/workflows/plans/{id}
 GET  /api/v1/workflows/runs

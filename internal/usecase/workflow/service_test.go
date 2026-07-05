@@ -84,6 +84,35 @@ jobs:
 	}
 }
 
+func TestServiceListWorkflowsSummarizesLatestPlan(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	first, err := service.Plan(context.Background(), PlanInput{
+		Content:      executableWorkflow(t),
+		RepositoryID: "repo-a",
+		Ref:          "main",
+	})
+	if err != nil {
+		t.Fatalf("first plan: %v", err)
+	}
+	second, err := service.Plan(context.Background(), PlanInput{
+		Content: strings.Replace(executableWorkflow(t), "echo ok", "echo later", 1),
+		Ref:     "feature",
+	})
+	if err != nil {
+		t.Fatalf("second plan: %v", err)
+	}
+	summaries, err := service.ListWorkflows(context.Background(), PlanListFilter{WorkflowID: first.WorkflowID})
+	if err != nil {
+		t.Fatalf("ListWorkflows: %v", err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("summaries = %#v", summaries)
+	}
+	if summaries[0].LatestPlanID != second.ID || summaries[0].PlanCount != 2 || summaries[0].Ref != "feature" {
+		t.Fatalf("summary = %#v first=%s second=%s", summaries[0], first.ID, second.ID)
+	}
+}
+
 func TestServiceRunRequiresExplicitPipelineRunAllow(t *testing.T) {
 	service := NewService(NewMemoryStore())
 	_, err := service.Run(context.Background(), RunInput{Content: executableWorkflow(t)}, newWorkflowPipelineService())

@@ -144,6 +144,20 @@ jobs:
 		t.Fatalf("list plans status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows?workflowId=workflow-go-ci", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"latestPlanId":"`+planID+`"`) {
+		t.Fatalf("list workflows status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/workflow-go-ci/plan", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), planID) {
+		t.Fatalf("latest workflow plan status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/validate", strings.NewReader(`{"content":"jobs:\n  test:\n    steps:\n      - env:\n          TOKEN: raw-secret-value\n        run: echo test\n"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec = httptest.NewRecorder()

@@ -179,6 +179,17 @@ type PlanListFilter struct {
 	Offset       int
 }
 
+type WorkflowSummary struct {
+	WorkflowID   string    `json:"workflowId"`
+	Name         string    `json:"name"`
+	RepositoryID string    `json:"repositoryId,omitempty"`
+	LatestPlanID string    `json:"latestPlanId"`
+	ContentHash  string    `json:"contentHash"`
+	Ref          string    `json:"ref,omitempty"`
+	PlanCount    int       `json:"planCount"`
+	UpdatedAt    time.Time `json:"updatedAt"`
+}
+
 type RunStatus string
 
 const (

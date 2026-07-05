@@ -115,6 +115,31 @@ func AnalyzeRepository(repositories *repositoryusecase.Service) http.HandlerFunc
 	}
 }
 
+func ListWorkflows(service *workflowusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		workflows, err := service.ListWorkflows(r.Context(), workflowusecase.PlanListFilter{
+			RepositoryID: r.URL.Query().Get("repositoryId"),
+			WorkflowID:   r.URL.Query().Get("workflowId"),
+		})
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{"workflows": workflows})
+	}
+}
+
+func GetWorkflowLatestPlan(service *workflowusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, err := service.GetLatestPlan(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record)
+	}
+}
+
 func ValidateWorkflowDefinition() http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		payload, err := workflowDefinitionFromRequest(r)

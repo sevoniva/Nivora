@@ -1,0 +1,206 @@
+package workflow
+
+import (
+	"strings"
+	"testing"
+)
+
+func TestWorkflowPlanValidMatrixDAG(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: go-ci
+  labels:
+    team: platform
+on:
+  - manual
+  - push
+env:
+  GOFLAGS: -mod=mod
+jobs:
+  test:
+    runsOn: [self-hosted, shell]
+    strategy:
+      matrix:
+        go: ["1.22", "1.23"]
+        os: [linux]
+    steps:
+      - name: test
+        run: go test ./...
+  build:
+    needs: [test]
+    runsOn: [self-hosted, shell]
+    steps:
+      - name: build
+        run: go build ./...
+artifacts:
+  - name: binaries
+    path: dist/
+cache:
+  - key: gomod
+    path: [go.sum]
+`))
+	if err != nil {
+		t.Fatalf("parse workflow: %v", err)
+	}
+	plan, err := PlanDefinition(def, PlanOptions{})
+	if err != nil {
+		t.Fatalf("plan workflow: %v", err)
+	}
+	if !plan.ConversionReady {
+		t.Fatalf("expected conversion ready: %#v", plan)
+	}
+	if len(plan.MatrixExpansions) != 2 {
+		t.Fatalf("matrix expansions = %#v", plan.MatrixExpansions)
+	}
+	if len(plan.Edges) != 1 || plan.Edges[0].From != "test" || plan.Edges[0].To != "build" {
+		t.Fatalf("edges = %#v", plan.Edges)
+	}
+	if len(plan.ArtifactOutputs) != 1 || plan.ArtifactOutputs[0].Name != "binaries" {
+		t.Fatalf("artifacts = %#v", plan.ArtifactOutputs)
+	}
+	conversion, err := ToPipelineDefinition(def, PlanOptions{})
+	if err != nil {
+		t.Fatalf("convert workflow: %v", err)
+	}
+	if conversion.Definition.Kind != "Pipeline" {
+		t.Fatalf("converted kind = %q", conversion.Definition.Kind)
+	}
+	if len(conversion.Definition.Spec.Stages) != 2 {
+		t.Fatalf("converted stages = %#v", conversion.Definition.Spec.Stages)
+	}
+}
+
+func TestWorkflowPlanRejectsDependencyCycle(t *testing.T) {
+	def := Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Workflow",
+		Metadata:   Metadata{Name: "cycle"},
+		Jobs: map[string]Job{
+			"a": {Needs: []string{"b"}, Steps: []Step{{Run: "echo a"}}},
+			"b": {Needs: []string{"a"}, Steps: []Step{{Run: "echo b"}}},
+		},
+	}
+	_, err := PlanDefinition(def, PlanOptions{})
+	if err == nil || !strings.Contains(err.Error(), "cycle") {
+		t.Fatalf("expected cycle error, got %v", err)
+	}
+}
+
+func TestWorkflowPlanRejectsMissingNeedsTarget(t *testing.T) {
+	def := Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Workflow",
+		Metadata:   Metadata{Name: "missing"},
+		Jobs: map[string]Job{
+			"a": {Needs: []string{"b"}, Steps: []Step{{Run: "echo a"}}},
+		},
+	}
+	_, err := PlanDefinition(def, PlanOptions{})
+	if err == nil || !strings.Contains(err.Error(), "unknown job") {
+		t.Fatalf("expected missing needs error, got %v", err)
+	}
+}
+
+func TestWorkflowPlanRejectsMatrixLimit(t *testing.T) {
+	def := Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Workflow",
+		Metadata:   Metadata{Name: "matrix-limit"},
+		Jobs: map[string]Job{
+			"test": {
+				Strategy: Strategy{Matrix: Matrix{Values: map[string][]string{
+					"go": {"1.21", "1.22", "1.23"},
+					"os": {"linux", "darwin"},
+				}}},
+				Steps: []Step{{Run: "go test ./..."}},
+			},
+		},
+	}
+	_, err := PlanDefinition(def, PlanOptions{MaxMatrixSize: 4})
+	if err == nil || !strings.Contains(err.Error(), "matrix expands") {
+		t.Fatalf("expected matrix limit error, got %v", err)
+	}
+}
+
+func TestWorkflowPlanWarnsUnsupportedUsesAndBlocksConversion(t *testing.T) {
+	def := Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Workflow",
+		Metadata:   Metadata{Name: "uses"},
+		Jobs: map[string]Job{
+			"test": {Steps: []Step{{Name: "external", Uses: "actions/checkout@v4"}}},
+		},
+	}
+	plan, err := PlanDefinition(def, PlanOptions{})
+	if err != nil {
+		t.Fatalf("plan uses workflow: %v", err)
+	}
+	if plan.ConversionReady {
+		t.Fatal("expected conversion not ready for uses step")
+	}
+	if len(plan.UnsupportedFeatures) == 0 {
+		t.Fatalf("expected unsupported features warning: %#v", plan)
+	}
+	if _, err := ToPipelineDefinition(def, PlanOptions{}); err == nil {
+		t.Fatal("expected conversion to fail for uses step")
+	}
+}
+
+func TestWorkflowPlanRejectsSecretLikeEnvAndRedactsSafeRefs(t *testing.T) {
+	unsafe := Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Workflow",
+		Metadata:   Metadata{Name: "unsafe-env"},
+		Jobs: map[string]Job{
+			"test": {Env: map[string]string{"NIVORA_TOKEN": "plain-value"}, Steps: []Step{{Run: "echo test"}}},
+		},
+	}
+	if _, err := PlanDefinition(unsafe, PlanOptions{}); err == nil {
+		t.Fatal("expected secret-like env to be rejected")
+	}
+
+	safe := Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Workflow",
+		Metadata:   Metadata{Name: "safe-env"},
+		Jobs: map[string]Job{
+			"test": {Env: map[string]string{"NIVORA_TOKEN": "secretRef:nivora-token"}, Steps: []Step{{Run: "echo test"}}},
+		},
+	}
+	plan, err := PlanDefinition(safe, PlanOptions{})
+	if err != nil {
+		t.Fatalf("plan safe env: %v", err)
+	}
+	if got := plan.Steps[0].Env["NIVORA_TOKEN"]; got != "[REDACTED]" {
+		t.Fatalf("secret-like env not redacted: %q", got)
+	}
+}
+
+func TestWorkflowParseOnMap(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: triggers
+on:
+  manual: {}
+  pull_request:
+    branches: [main]
+jobs:
+  test:
+    steps:
+      - run: echo ok
+`))
+	if err != nil {
+		t.Fatalf("parse workflow: %v", err)
+	}
+	plan, err := PlanDefinition(def, PlanOptions{})
+	if err != nil {
+		t.Fatalf("plan workflow: %v", err)
+	}
+	if strings.Join(plan.Triggers, ",") != "manual,pull_request" {
+		t.Fatalf("triggers = %#v", plan.Triggers)
+	}
+}

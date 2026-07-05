@@ -14,8 +14,6 @@ import (
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
-	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
-	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
 func RunStdio(ctx context.Context, configPath string, in io.Reader, out io.Writer, logger *slog.Logger) error {
@@ -98,6 +96,24 @@ func BuildServer(ctx context.Context, cfg config.Config, logger *slog.Logger) (*
 		return nil, nil, err
 	}
 	add(closeAuth)
+	catalog, closeCatalog, err := runtime.NewCatalogServiceWithConfig(ctx, cfg)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	add(closeCatalog)
+	pipelineDefs, closePipelineDefs, err := runtime.NewPipelineDefinitionCatalogWithConfig(ctx, cfg)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	add(closePipelineDefs)
+	repositories, closeRepositories, err := runtime.NewRepositoryServiceWithConfig(ctx, cfg)
+	if err != nil {
+		cleanup()
+		return nil, nil, err
+	}
+	add(closeRepositories)
 	subject, err := ResolveSubject(ctx, cfg, authService)
 	if err != nil {
 		cleanup()
@@ -108,9 +124,10 @@ func BuildServer(ctx context.Context, cfg config.Config, logger *slog.Logger) (*
 		Subject:      subject,
 		Auth:         authService,
 		Pipelines:    pipelines,
-		PipelineDefs: pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore()),
+		PipelineDefs: pipelineDefs,
 		Deployments:  deployments,
-		Catalog:      catalogusecase.NewService(catalogusecase.NewMemoryStore()),
+		Catalog:      catalog,
+		Repositories: repositories,
 		Artifacts:    artifacts,
 		Releases:     releases,
 		Security:     security,

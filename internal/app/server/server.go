@@ -103,6 +103,11 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer closePolicyCatalog()
+	repositoryService, closeRepository, err := appruntime.NewRepositoryServiceWithConfig(ctx, cfg)
+	if err != nil {
+		return err
+	}
+	defer closeRepository()
 	deploymentService.WithPolicyCatalog(policyCatalog)
 	releaseService, closeRelease, err := appruntime.NewReleaseOrchestrationServiceWithConfigDependencies(ctx, cfg, artifactService, deploymentService, securityService, approvalService)
 	if err != nil {
@@ -135,6 +140,7 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		routes.WithPipelineDefinitionCatalog(pipelineCatalog),
 		routes.WithArtifactRegistryCatalog(artifactRegistryCatalog),
 		routes.WithPolicyCatalog(policyCatalog),
+		routes.WithRepositoryService(repositoryService),
 	)
 	srv := &http.Server{
 		Addr:              cfg.HTTP.BindAddress,

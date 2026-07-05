@@ -16,6 +16,7 @@ import (
 	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
+	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 )
 
 func TestPostgresIntegrationRuntimeBootstrapUsesPostgresStores(t *testing.T) {
@@ -164,6 +165,64 @@ func TestPostgresIntegrationRuntimeBootstrapUsesPostgresStores(t *testing.T) {
 	}
 	if !reloadedPolicy.RequireDigest || reloadedPolicy.ProjectID != project.ID {
 		t.Fatalf("runtime bootstrap did not persist policy: %#v", reloadedPolicy)
+	}
+
+	repositoryService, closeRepository, err := NewRepositoryServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("bootstrap repository service with postgres config: %v", err)
+	}
+	repoRoot := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(repoRoot, ".nivora", "workflows"), 0o755); err != nil {
+		closeRepository()
+		t.Fatalf("create workflow dir: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, "go.mod"), []byte("module example.com/runtime-bootstrap\n"), 0o644); err != nil {
+		closeRepository()
+		t.Fatalf("write go.mod: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, ".env"), []byte("NIVORA_TOKEN=should-not-be-read\n"), 0o600); err != nil {
+		closeRepository()
+		t.Fatalf("write .env: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(repoRoot, ".nivora", "workflows", "build.yaml"), []byte("apiVersion: nivora.io/v1alpha1\nkind: Workflow\nmetadata:\n  name: build\n"), 0o644); err != nil {
+		closeRepository()
+		t.Fatalf("write workflow: %v", err)
+	}
+	repository, err := repositoryService.SaveRepository(ctx, repositoryusecase.Repository{
+		ID:            "repo-runtime-bootstrap",
+		Name:          "runtime-bootstrap-repository",
+		Provider:      repositoryusecase.ProviderLocal,
+		URL:           "file://" + repoRoot,
+		DefaultBranch: "main",
+		ProjectID:     project.ID,
+	})
+	if err != nil {
+		closeRepository()
+		t.Fatalf("create repository record in postgres runtime: %v", err)
+	}
+	snapshot, err := repositoryService.CreateSnapshot(ctx, repositoryusecase.SnapshotInput{Repository: repository, Ref: "main", LocalPath: repoRoot})
+	if err != nil {
+		closeRepository()
+		t.Fatalf("create repository snapshot in postgres runtime: %v", err)
+	}
+	closeRepository()
+
+	repositoryService, closeRepository, err = NewRepositoryServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("restart repository service with postgres config: %v", err)
+	}
+	reloadedSnapshot, err := repositoryService.GetLatestSnapshot(ctx, repository.ID)
+	if err != nil {
+		closeRepository()
+		t.Fatalf("reload repository snapshot from restarted postgres runtime: %v", err)
+	}
+	reloadedIntelligence, err := repositoryService.GetIntelligence(ctx, repository.ID, snapshot.ID)
+	closeRepository()
+	if err != nil {
+		t.Fatalf("reload repository intelligence from restarted postgres runtime: %v", err)
+	}
+	if reloadedSnapshot.ID != snapshot.ID || len(reloadedSnapshot.Files) == 0 || len(reloadedIntelligence.BuildCommandCandidates) == 0 {
+		t.Fatalf("runtime bootstrap did not persist repository snapshot/intelligence: snapshot=%#v intelligence=%#v", reloadedSnapshot, reloadedIntelligence)
 	}
 
 	prod := config.Default()

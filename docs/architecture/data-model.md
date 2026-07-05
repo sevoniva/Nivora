@@ -75,6 +75,8 @@ Persisted by the catalog hardening pass:
 - environment metadata in `catalog_environments`
 - repository metadata and CredentialRef linkage in `catalog_repositories`
 - release target metadata, safety flags, and CredentialRef linkage in `catalog_release_targets`
+- repository snapshot records in `repository_snapshots`
+- repository static intelligence records in `repository_intelligence`
 - Pipeline definitions and version/hash metadata in `pipeline_definitions`
 - artifact registry metadata and CredentialRef linkage in `catalog_artifact_registries`
 - policy definitions in `catalog_policies`

@@ -16,6 +16,7 @@ import (
 	localgitops "github.com/sevoniva/nivora/internal/adapters/gitops/local"
 	noopnotification "github.com/sevoniva/nivora/internal/adapters/notification/noop"
 	postgresrepo "github.com/sevoniva/nivora/internal/adapters/repository/postgres"
+	scmgeneric "github.com/sevoniva/nivora/internal/adapters/scm/generic"
 	builtinsecret "github.com/sevoniva/nivora/internal/adapters/secret/builtin"
 	securitynoop "github.com/sevoniva/nivora/internal/adapters/security/noop"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
@@ -38,6 +39,7 @@ import (
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	tenancyusecase "github.com/sevoniva/nivora/internal/usecase/tenancy"
 )
@@ -90,6 +92,21 @@ func NewPipelineDefinitionCatalogWithConfig(ctx context.Context, cfg config.Conf
 		return nil, nil, err
 	}
 	return pipelineusecase.NewDefinitionCatalog(postgresrepo.NewPipelineDefinitionStore(pool)), pool.Close, nil
+}
+
+func NewRepositoryService() *repositoryusecase.Service {
+	return repositoryusecase.NewService(repositoryusecase.NewMemoryStore(), scmgeneric.New())
+}
+
+func NewRepositoryServiceWithConfig(ctx context.Context, cfg config.Config) (*repositoryusecase.Service, func(), error) {
+	if cfg.Database.RuntimeStore != "postgres" {
+		return NewRepositoryService(), func() {}, nil
+	}
+	pool, err := db.Open(ctx, cfg.Database.URL)
+	if err != nil {
+		return nil, nil, err
+	}
+	return repositoryusecase.NewService(postgresrepo.NewRepositoryStore(pool), scmgeneric.New()), pool.Close, nil
 }
 
 func NewDeploymentService() *deploymentusecase.Service {

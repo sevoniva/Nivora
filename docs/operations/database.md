@@ -78,6 +78,9 @@ The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to ma
 - `catalog_environments`
 - `catalog_repositories`
 - `catalog_release_targets`
+- `repository_records`
+- `repository_snapshots`
+- `repository_intelligence`
 - `pipeline_definitions`
 - `catalog_artifact_registries`
 - `catalog_policies`

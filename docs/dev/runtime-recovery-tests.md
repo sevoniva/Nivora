@@ -14,6 +14,7 @@ Covered paths:
 - Runner registration, runner job claim lease persistence, expired lease detection, and reclaim behavior after lease expiry.
 - Event outbox pending, published, failed, retry, and idempotent state recovery.
 - Runtime bootstrap wiring that selects PostgreSQL runtime stores when `database.runtime_store: postgres` is configured.
+- Repository records, RepositorySnapshot, and RepositoryIntelligence persistence when the server or MCP runtime uses PostgreSQL mode.
 
 These tests do not require Kubernetes, Argo CD, Harbor, Nexus, Git providers, cloud providers, external registries, or scanners.
 
@@ -60,7 +61,7 @@ This complements the repository-level integration tests by proving cross-process
 
 ## Current Limitations
 
-- The integration suite proves durable repository recovery and bootstrap, not multi-process orchestration (covered by the multi-process smoke).
+- The integration suite proves durable repository recovery and bootstrap, not complete multi-process orchestration for every service path (covered partially by the multi-process smoke).
 - Runner claim/lease recovery across server restart is tested at the repository level; cross-process claim behavior is not yet smoke-tested.
 - Cancellation recovery verifies persisted state and recovery queries; executor interruption remains best-effort.
 - Timeout and lease tests use deterministic timestamps and repository queries; they do not run long sleep-based workers.

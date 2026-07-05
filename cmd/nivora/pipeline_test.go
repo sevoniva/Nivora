@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -161,5 +162,64 @@ func TestPipelineDefinitionRollbackRejectsInvalidVersion(t *testing.T) {
 	cmd.SetArgs([]string{"pipe-1", "--version", "0"})
 	if err := cmd.Execute(); err == nil || !strings.Contains(err.Error(), "--version must be greater than zero") {
 		t.Fatalf("expected invalid rollback version error, got err=%v output=%s", err, out.String())
+	}
+}
+
+func TestPipelineExplainFailureCommandAggregatesReadModels(t *testing.T) {
+	t.Setenv("NIVORA_TEST_TOKEN", "explain-token")
+	responses := map[string]string{
+		"/api/v1/pipeline-runs/prun-1":             `{"run":{"id":"prun-1","status":"Failed","failureReason":"step exited 1"}}`,
+		"/api/v1/pipeline-runs/prun-1/jobs":        `[{"id":"job-1","status":"Failed","name":"build"}]`,
+		"/api/v1/pipeline-runs/prun-1/steps":       `[{"id":"step-1","jobRunId":"job-1","status":"Failed","name":"test"}]`,
+		"/api/v1/pipeline-runs/prun-1/timeline":    `{"timeline":[{"id":"evt-1","message":"created"},{"id":"evt-2","message":"failed"}]}`,
+		"/api/v1/pipeline-runs/prun-1/logs":        `{"logs":[{"sequence":1,"stream":"stdout","content":"ok"},{"sequence":2,"stream":"stderr","content":"authorization Bearer raw-token-value"}]}`,
+		"/api/v1/pipeline-runs/prun-1/annotations": `[{"level":"error","title":"test failed","message":"assertion failed"}]`,
+		"/api/v1/pipeline-runs/prun-1/summary":     `{"pipelineRunId":"prun-1","annotations":1}`,
+	}
+	called := map[string]bool{}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if got := r.Header.Get("Authorization"); got != "Bearer explain-token" {
+			t.Fatalf("Authorization header = %q", got)
+		}
+		body, ok := responses[r.URL.Path]
+		if !ok {
+			t.Fatalf("unexpected request path %s", r.URL.Path)
+		}
+		called[r.URL.Path] = true
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(body))
+	}))
+	defer server.Close()
+
+	cmd := newPipelineExplainFailureCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"prun-1", "--server", server.URL, "--token-env", "NIVORA_TEST_TOKEN", "--log-limit", "1", "--timeline-limit", "1"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("explain-failure failed: %v output=%s", err, out.String())
+	}
+	for path := range responses {
+		if !called[path] {
+			t.Fatalf("expected request to %s", path)
+		}
+	}
+	body := out.String()
+	for _, want := range []string{`"mutated": false`, `"failedJobs"`, `"failedSteps"`, `"recentTimeline"`, `"logPreview"`, "[REDACTED]"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("explanation missing %q: %s", want, body)
+		}
+	}
+	for _, forbidden := range []string{"raw-token-value", "authorization Bearer"} {
+		if strings.Contains(body, forbidden) {
+			t.Fatalf("explanation leaked %q: %s", forbidden, body)
+		}
+	}
+	var decoded map[string]any
+	if err := json.Unmarshal(out.Bytes(), &decoded); err != nil {
+		t.Fatalf("explanation is not JSON: %v body=%s", err, body)
+	}
+	if decoded["pipelineRunId"] != "prun-1" {
+		t.Fatalf("pipelineRunId = %#v", decoded["pipelineRunId"])
 	}
 }

@@ -136,6 +136,14 @@ GET /api/v1/pipeline-runs/{id}/summary
 
 These endpoints return control-plane metadata only. Artifact and cache blobs are not returned by the API. Large step summaries should use a storage reference instead of inline content.
 
+The CLI also has a read-only failure explanation helper:
+
+```sh
+nivora pipeline explain-failure <pipeline-run-id> --server http://localhost:8080 --token-env NIVORA_AUTH_TOKEN
+```
+
+It calls the existing PipelineRun read endpoints for run, job, step, timeline, log, annotation, and summary metadata, then emits a capped and redacted JSON explanation with `mutated=false`. It does not retry the run, claim jobs, execute steps, approve gates, or change server state.
+
 ## MCP Surface
 
 Local MCP tools and resources:

@@ -24,6 +24,7 @@ import (
 	domainplugin "github.com/sevoniva/nivora/internal/domain/plugin"
 	domainsecurity "github.com/sevoniva/nivora/internal/domain/security"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	"github.com/sevoniva/nivora/internal/infra/crypto"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
@@ -4891,6 +4892,7 @@ func newPipelineCommand() *cobra.Command {
 	cmd.AddCommand(newPipelineInspectCommand("summary", "Get PipelineRun artifact, annotation, cache, and summary metadata", "/summary"))
 	cmd.AddCommand(newPipelineInspectCommand("events", "Get PipelineRun events", "/events"))
 	cmd.AddCommand(newPipelineInspectCommand("timeline", "Get PipelineRun timeline", "/timeline"))
+	cmd.AddCommand(newPipelineExplainFailureCommand())
 	cmd.AddCommand(newPipelineCancelCommand())
 	return cmd
 }
@@ -5266,6 +5268,62 @@ func newPipelineInspectCommand(name string, short string, suffix string) *cobra.
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newPipelineExplainFailureCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var logLimit int
+	var timelineLimit int
+	cmd := &cobra.Command{
+		Use:   "explain-failure <pipeline-run-id>",
+		Short: "Explain PipelineRun failure facts from server-side read models",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			token := os.Getenv(tokenEnv)
+			id := args[0]
+			encodedID := url.PathEscape(id)
+			base := "/api/v1/pipeline-runs/" + encodedID
+
+			run, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, base, nil, token)
+			if err != nil {
+				return err
+			}
+			jobs, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, base+"/jobs", nil, token)
+			if err != nil {
+				return err
+			}
+			steps, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, base+"/steps", nil, token)
+			if err != nil {
+				return err
+			}
+			timeline, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, base+"/timeline", nil, token)
+			if err != nil {
+				return err
+			}
+			logs, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, base+"/logs", nil, token)
+			if err != nil {
+				return err
+			}
+			annotations, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, base+"/annotations", nil, token)
+			if err != nil {
+				return err
+			}
+			summary, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, base+"/summary", nil, token)
+			if err != nil {
+				return err
+			}
+
+			explanation := buildPipelineFailureExplanation(id, run, jobs, steps, timeline, logs, annotations, summary, logLimit, timelineLimit)
+			printJSON(cmd.OutOrStdout(), explanation)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().IntVar(&logLimit, "log-limit", 5, "maximum recent log chunks to include")
+	cmd.Flags().IntVar(&timelineLimit, "timeline-limit", 8, "maximum recent timeline entries to include")
 	return cmd
 }
 
@@ -6881,6 +6939,192 @@ func printLogSummary(w io.Writer, payload any) {
 		}
 		fmt.Fprintf(w, "[%v] %v", log["stream"], log["content"])
 	}
+}
+
+func buildPipelineFailureExplanation(id string, runPayload any, jobsPayload any, stepsPayload any, timelinePayload any, logsPayload any, annotationsPayload any, summaryPayload any, logLimit int, timelineLimit int) map[string]any {
+	run := pipelineRunMap(runPayload)
+	jobs := listFromPayload(jobsPayload, "jobs")
+	steps := listFromPayload(stepsPayload, "steps")
+	timeline := listFromPayload(timelinePayload, "timeline", "events")
+	logs := listFromPayload(logsPayload, "logs")
+	annotations := listFromPayload(annotationsPayload, "annotations")
+
+	status := stringValue(run["status"])
+	failureReason := crypto.RedactString(stringValue(run["failureReason"]))
+	failedJobs := failedRuntimeItems(jobs)
+	failedSteps := failedRuntimeItems(steps)
+	logPreview := recentLogPreview(logs, logLimit)
+
+	return map[string]any{
+		"pipelineRunId":  id,
+		"status":         crypto.RedactString(status),
+		"failureReason":  failureReason,
+		"failedJobs":     failedJobs,
+		"failedSteps":    failedSteps,
+		"recentTimeline": limitedTail(redactAny(timeline), timelineLimit),
+		"logPreview":     logPreview,
+		"annotations":    limitedTail(redactAny(annotations), 20),
+		"summary":        redactAny(summaryPayload),
+		"inference":      inferPipelineFailure(status, failureReason, failedJobs, failedSteps, logPreview),
+		"nextChecks": []string{
+			"Inspect failed StepRun and JobRun status before rerunning.",
+			"Check recent stderr log chunks and annotations for deterministic errors.",
+			"Check runner assignment, timeout, cancellation, and dependency state if failure evidence is incomplete.",
+			"Use guarded retry or workflow retry paths only after policy, runner, and secret scope are confirmed.",
+		},
+		"mutated": false,
+	}
+}
+
+func pipelineRunMap(payload any) map[string]any {
+	record, _ := payload.(map[string]any)
+	if record == nil {
+		return map[string]any{}
+	}
+	if run, _ := record["run"].(map[string]any); run != nil {
+		return run
+	}
+	return record
+}
+
+func listFromPayload(payload any, keys ...string) []any {
+	if list, ok := payload.([]any); ok {
+		return list
+	}
+	record, _ := payload.(map[string]any)
+	for _, key := range keys {
+		if list, ok := record[key].([]any); ok {
+			return list
+		}
+	}
+	return nil
+}
+
+func failedRuntimeItems(items []any) []any {
+	var failed []any
+	for _, item := range items {
+		record, _ := item.(map[string]any)
+		if record == nil {
+			continue
+		}
+		if isFailureStatus(stringValue(record["status"])) {
+			failed = append(failed, redactAny(record))
+		}
+	}
+	return failed
+}
+
+func recentLogPreview(logs []any, limit int) []any {
+	if limit <= 0 {
+		return nil
+	}
+	tail := limitedTail(logs, limit)
+	preview := make([]any, 0, len(tail))
+	for _, item := range tail {
+		record, _ := item.(map[string]any)
+		if record == nil {
+			preview = append(preview, redactAny(item))
+			continue
+		}
+		out := map[string]any{}
+		for _, key := range []string{"sequence", "stream", "pipelineRunId", "stageRunId", "jobRunId", "stepRunId", "createdAt"} {
+			if value, ok := record[key]; ok {
+				out[key] = redactAny(value)
+			}
+		}
+		if content := crypto.RedactString(stringValue(record["content"])); content != "" {
+			out["content"] = truncateString(content, 500)
+		}
+		preview = append(preview, out)
+	}
+	return preview
+}
+
+func limitedTail(items any, limit int) []any {
+	list, _ := items.([]any)
+	if limit <= 0 || len(list) == 0 {
+		return nil
+	}
+	if len(list) <= limit {
+		return list
+	}
+	return list[len(list)-limit:]
+}
+
+func redactAny(value any) any {
+	switch typed := value.(type) {
+	case map[string]any:
+		out := make(map[string]any, len(typed))
+		for key, val := range typed {
+			if crypto.IsSensitiveKey(key) {
+				out[key] = "[REDACTED]"
+				continue
+			}
+			out[key] = redactAny(val)
+		}
+		return out
+	case []any:
+		out := make([]any, 0, len(typed))
+		for _, item := range typed {
+			out = append(out, redactAny(item))
+		}
+		return out
+	case string:
+		return crypto.RedactString(typed)
+	default:
+		return value
+	}
+}
+
+func inferPipelineFailure(status string, failureReason string, failedJobs []any, failedSteps []any, logPreview []any) string {
+	if failureReason != "" {
+		return "PipelineRun reports a failure reason; verify the failed job or step and recent redacted logs before retrying."
+	}
+	if len(failedSteps) > 0 {
+		return "One or more StepRuns are failed or timed out; inspect the first failed step and its stderr preview."
+	}
+	if len(failedJobs) > 0 {
+		return "One or more JobRuns are failed or timed out; inspect child steps, runner assignment, and timeout settings."
+	}
+	if isFailureStatus(status) && len(logPreview) > 0 {
+		return "PipelineRun is not successful and recent logs exist, but no failed job or step was returned by the read model."
+	}
+	if isFailureStatus(status) {
+		return "PipelineRun is not successful, but the available read models do not include enough failure evidence."
+	}
+	return "PipelineRun is not currently failed; this explanation is limited to the available read-only state."
+}
+
+func isFailureStatus(status string) bool {
+	switch strings.ToLower(strings.TrimSpace(status)) {
+	case "failed", "failure", "timeout", "timedout", "timed_out", "canceled", "cancelled":
+		return true
+	default:
+		return false
+	}
+}
+
+func stringValue(value any) string {
+	switch typed := value.(type) {
+	case string:
+		return typed
+	case fmt.Stringer:
+		return typed.String()
+	case nil:
+		return ""
+	default:
+		return fmt.Sprintf("%v", typed)
+	}
+}
+
+func truncateString(value string, max int) string {
+	if max <= 0 || len(value) <= max {
+		return value
+	}
+	if max <= 13 {
+		return value[:max]
+	}
+	return value[:max-13] + "...[truncated]"
 }
 
 func printDeploymentPlanSummary(w io.Writer, plan deploymentusecase.DeploymentPlan) {

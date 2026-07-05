@@ -840,6 +840,74 @@ func TestTenantIsolationRunnerGroupScopeAndClaim(t *testing.T) {
 	}
 }
 
+func TestTenantIsolationRunnerAdminJobMutationRespectsPipelineScope(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	authService := authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+	pipelineService := newTestPipelineService()
+	router := newTestRouterWithPipelineAndAuth(cfg, pipelineService, authService)
+
+	projectAAdmin := createScopedToken(t, authService, "runner-admin-a", domainauth.RoleAdmin, "project", "project-a")
+	projectARecord, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition: tenantClaimDefinition("admin-project-a"),
+		ProjectID:  "project-a",
+	})
+	if err != nil {
+		t.Fatalf("create project-a queued run: %v", err)
+	}
+	projectBRecord, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition: tenantClaimDefinition("admin-project-b"),
+		ProjectID:  "project-b",
+	})
+	if err != nil {
+		t.Fatalf("create project-b queued run: %v", err)
+	}
+	projectAJobID := projectARecord.Record.Stages[0].Jobs[0].Job.ID
+	projectBJobID := projectBRecord.Record.Stages[0].Jobs[0].Job.ID
+
+	logBody := `{"pipelineRunId":"` + projectBRecord.Record.Run.ID + `","stream":"stdout","content":"cross-project"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/jobs/"+projectBJobID+"/logs", strings.NewReader(logBody))
+	req.Header.Set("Authorization", "Bearer "+projectAAdmin)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-a runner admin should not append project-b job log, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/jobs/"+projectBJobID+"/status", strings.NewReader(`{"status":"Running"}`))
+	req.Header.Set("Authorization", "Bearer "+projectAAdmin)
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("project-a runner admin should not update project-b job status, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	logBody = `{"pipelineRunId":"` + projectARecord.Record.Run.ID + `","stream":"stdout","content":"own-project"}`
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/jobs/"+projectAJobID+"/logs", strings.NewReader(logBody))
+	req.Header.Set("Authorization", "Bearer "+projectAAdmin)
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-a runner admin should append own project job log, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/jobs/"+projectAJobID+"/status", strings.NewReader(`{"status":"Running"}`))
+	req.Header.Set("Authorization", "Bearer "+projectAAdmin)
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("project-a runner admin should update own project job status, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestTenantIsolationEvidenceBundles(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	developerA := createScopedToken(t, auth, "evidence-dev-a", domainauth.RoleDeveloper, "project", "project-a")

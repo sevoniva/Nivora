@@ -18,6 +18,8 @@ Nivora provides project/environment-level tenant isolation through scoped servic
 | Secrets | Admin (project-A) | Permission-gated (credential.manage) | ✅ |
 | Visualization | Viewer (project-A) | Read-only access | ✅ |
 | Runner Admin | Developer (project-A) | Permission-gated (runner.manage) | ✅ |
+| Runner job claim | Scoped runner token | Project/environment labels and RunnerGroup constraints | ✅ |
+| Runner admin job mutation | Admin (project-A) | `/api/v1/jobs/{id}/logs` and `/api/v1/jobs/{id}/status` check the owning PipelineRun scope | ✅ |
 | Policies | Admin (project-A) | Permission-gated (policy.manage) | ✅ |
 
 ### Not Yet Exhaustively Tested
@@ -26,7 +28,7 @@ Nivora provides project/environment-level tenant isolation through scoped servic
 |---|---|---|
 | Cross-tenant deployment data | List endpoints may return all tenants | Medium |
 | Cross-tenant credential list | List not scope-filtered | Medium |
-| Runner job claim cross-scope | Claim not scope-validated at store level | Medium |
+| Older records without scope metadata | Some historical/foundation records may not carry project/environment ownership | Medium |
 | Audit search scope filtering | Search may return cross-tenant records | Low |
 | Visualization data aggregation | Summary may include cross-tenant data | Low |
 
@@ -53,5 +55,6 @@ go test -v -run "TestRBAC|TestCrossTenant|TestTenantIsolation" ./internal/api/ht
 - List endpoints return all records across tenants.
 - Visualization summaries are not tenant-filtered.
 - Audit search is not scope-filtered by default.
-- Runner job claims are not scope-validated beyond token authentication.
+- Runner job claims are scope-checked through runner labels, RunnerGroup constraints, and queued PipelineRun ownership. This is still a control-plane metadata guardrail, not a runtime sandbox.
+- Admin compatibility job mutation endpoints are scope-checked against the owning PipelineRun before log append or status update.
 - These are documented gaps for future hardening.

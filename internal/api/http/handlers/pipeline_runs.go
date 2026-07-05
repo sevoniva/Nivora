@@ -372,6 +372,8 @@ func AppendJobLogs(service *pipelineusecase.Service) http.HandlerFunc {
 				respondPipelineResult(w, r, nil, err)
 				return
 			}
+		} else if _, ok := getAuthorizedJobRecord(w, r, service, jobID); !ok {
+			return
 		}
 		var input pipelineusecase.AppendJobLogInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -405,6 +407,8 @@ func UpdateJobStatus(service *pipelineusecase.Service) http.HandlerFunc {
 				respondPipelineResult(w, r, nil, err)
 				return
 			}
+		} else if _, ok := getAuthorizedJobRecord(w, r, service, jobID); !ok {
+			return
 		}
 		var input pipelineusecase.UpdateJobStatusInput
 		if err := json.NewDecoder(r.Body).Decode(&input); err != nil {
@@ -473,6 +477,41 @@ func getAuthorizedPipelineRecord(w http.ResponseWriter, r *http.Request, service
 		return pipelineusecase.RunRecord{}, false
 	}
 	return record, true
+}
+
+func getAuthorizedJobRecord(w http.ResponseWriter, r *http.Request, service *pipelineusecase.Service, jobRunID string) (pipelineusecase.RunRecord, bool) {
+	records, err := service.List(r.Context())
+	if err != nil {
+		respondPipelineResult(w, r, nil, err)
+		return pipelineusecase.RunRecord{}, false
+	}
+	for _, record := range records {
+		if !pipelineRecordHasJob(record, jobRunID) {
+			continue
+		}
+		if !pipelineRecordInRequestScope(r, record) {
+			RespondError(w, r, http.StatusForbidden, dto.ErrorResponse{
+				Code:    "forbidden",
+				Message: "job run is outside requester scope",
+				Path:    r.URL.Path,
+			})
+			return pipelineusecase.RunRecord{}, false
+		}
+		return record, true
+	}
+	respondPipelineResult(w, r, nil, pipelineusecase.ErrJobNotFound)
+	return pipelineusecase.RunRecord{}, false
+}
+
+func pipelineRecordHasJob(record pipelineusecase.RunRecord, jobRunID string) bool {
+	for _, stage := range record.Stages {
+		for _, job := range stage.Jobs {
+			if job.Job.ID == jobRunID {
+				return true
+			}
+		}
+	}
+	return false
 }
 
 func pipelineRecordInRequestScope(r *http.Request, record pipelineusecase.RunRecord) bool {

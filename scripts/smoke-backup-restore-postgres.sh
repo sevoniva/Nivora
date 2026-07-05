@@ -438,10 +438,10 @@ if [ "$ACTUAL_RESTORE_DONE" = "1" ]; then
       fail "credential metadata not found from restored database"
     fi
   fi
-  if curl -fsS "${BASE_URL}/api/v1/audit/verify?scopeType=pipeline" 2>/dev/null | grep -q '"valid":true'; then
-    pass "pipeline audit hash chain verifies from restored database"
+  if curl -fsS "${BASE_URL}/api/v1/audit/verify?scopeType=credential" 2>/dev/null | grep -q '"valid":true'; then
+    pass "credential audit hash chain verifies from restored database"
   else
-    fail "pipeline audit hash chain did not verify from restored database"
+    fail "credential audit hash chain did not verify from restored database"
   fi
   stop_server
 else

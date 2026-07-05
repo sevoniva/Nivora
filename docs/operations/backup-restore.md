@@ -91,7 +91,7 @@ The script (`scripts/smoke-backup-restore-postgres.sh`):
 7. Creates a separate temporary restore database when the PostgreSQL user has permission
 8. Restores the dump into the restore database
 9. Starts the server against the restored database
-10. Verifies PipelineRun, evidence bundle, credential metadata, and hash-chained audit records can be read from the restored database
+10. Verifies PipelineRun, evidence bundle, credential metadata, restored hash-chained audit records, and a credential audit hash chain can be read from the restored database
 11. Redacts `DATABASE_URL` when printing skip or target information
 
 Skip with `SKIP_BACKUP_RESTORE=1` or if PostgreSQL is unavailable. In CI, or when `NIVORA_REQUIRE_ACTUAL_RESTORE=1`, the script fails if it cannot create the isolated source database or perform the temporary-database restore. For local developer machines without `pg_dump` or create-database privileges, it clearly reports a fallback or skip instead of claiming restore proof. Set `NIVORA_BACKUP_ISOLATED_SOURCE=0` only for local debugging against an already-disposable database.
@@ -138,10 +138,11 @@ Tested only when optional PostgreSQL integration is enabled:
 
 - migration up/down against a real PostgreSQL schema
 - PipelineRun, DeploymentRun, ReleaseExecution, runner claim, outbox, and compliance evidence recovery after reconnect
-- backup/restore smoke that creates a clean source database in CI, starts a Postgres-backed server, creates a PipelineRun, credential metadata, and evidence bundle, runs `pg_dump`, restores into a separate temporary database, starts the server against the restored database, and verifies persisted records plus the audit hash chain
+- backup/restore smoke that creates a clean source database in CI, starts a Postgres-backed server, creates a PipelineRun, credential metadata, and evidence bundle, runs `pg_dump`, restores into a separate temporary database, starts the server against the restored database, and verifies persisted records plus a credential audit hash chain
 
 Not yet production-proven:
 
 - automated restore from a production backup in a live environment
 - object-store restore with large evidence payloads
 - production-scale backup/restore drills with encrypted off-host backup storage
+- full burst-write audit-chain verification for PipelineRun audit records that share the same timestamp; restored hash records are checked, while multi-record chain ordering needs a separate audit-chain hardening pass

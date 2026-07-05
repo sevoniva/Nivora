@@ -12,7 +12,8 @@ Nivora is still not GA production-ready. Kubernetes apply and rollback remain gu
 - Rollback requires explicit confirmation.
 - Prune/delete is not performed by default.
 - Manifest safety checks run before server-side dry-run or apply.
-- The default safety policy rejects missing target namespace, denied Kubernetes system namespaces, cluster-scoped resources, manifest namespace mismatches, privileged containers, hostPath volumes, host namespace modes, `:latest` images, manifests larger than 1 MiB, and more than 100 rendered resources.
+- The default safety policy rejects missing target namespace, denied Kubernetes system namespaces, cluster-scoped resources, manifest namespace mismatches, privileged containers, hostPath volumes, host namespace modes, `:latest` or untagged images, manifests larger than 1 MiB, and more than 100 rendered resources.
+- Container image and privileged checks cover `containers`, `initContainers`, and `ephemeralContainers`. Registry endpoints with ports, such as `localhost:30500/team/app`, are still treated as untagged unless the image reference has a real tag or digest.
 - Kubeconfig files and credentials must not be committed.
 - CI must not require a Kubernetes cluster.
 
@@ -53,7 +54,7 @@ spec:
     requireDigest: true
 ```
 
-These fields cannot disable the built-in denials for privileged containers, hostPath, host namespace modes, cluster-scoped resources, Kubernetes system namespaces, namespace mismatches, or `:latest` images. Size and resource-count values above the built-in defaults do not relax the defaults.
+These fields cannot disable the built-in denials for privileged containers, hostPath, host namespace modes, cluster-scoped resources, Kubernetes system namespaces, namespace mismatches, or `:latest`/untagged images. Size and resource-count values above the built-in defaults do not relax the defaults.
 
 Supported rollout checks:
 

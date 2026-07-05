@@ -2,6 +2,7 @@ package deployment
 
 import (
 	"context"
+	"strings"
 	"testing"
 )
 
@@ -110,6 +111,47 @@ spec:
 	}
 }
 
+func TestK8sSafetyDenyLatestInitContainer(t *testing.T) {
+	p := DefaultK8sSafetyPolicy()
+	docs := []ManifestDocument{doc(`
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: latest-init-dep
+spec:
+  template:
+    spec:
+      initContainers:
+      - name: setup
+        image: busybox:latest
+      containers:
+      - name: app
+        image: nginx:1.25
+`)}
+	result := p.ValidateManifests(context.Background(), docs, "default")
+	if result.Allowed {
+		t.Fatal("expected latest initContainer image to be denied")
+	}
+}
+
+func TestK8sSafetyDenyUntaggedImageWithRegistryPort(t *testing.T) {
+	p := DefaultK8sSafetyPolicy()
+	docs := []ManifestDocument{doc(`
+apiVersion: v1
+kind: Pod
+metadata:
+  name: registry-port-pod
+spec:
+  containers:
+  - name: app
+    image: localhost:30500/team/app
+`)}
+	result := p.ValidateManifests(context.Background(), docs, "default")
+	if result.Allowed {
+		t.Fatal("expected image without tag to be denied even when registry includes a port")
+	}
+}
+
 func TestK8sSafetyDigestWarning(t *testing.T) {
 	p := DefaultK8sSafetyPolicy()
 	p.RequireDigest = true
@@ -126,6 +168,37 @@ spec:
 	result := p.ValidateManifests(context.Background(), docs, "default")
 	if len(result.Warnings) == 0 {
 		t.Fatal("expected digest warning for image without digest")
+	}
+}
+
+func TestK8sSafetyDigestWarningForEphemeralContainer(t *testing.T) {
+	p := DefaultK8sSafetyPolicy()
+	p.RequireDigest = true
+	docs := []ManifestDocument{doc(`
+apiVersion: v1
+kind: Pod
+metadata:
+  name: ephemeral-pod
+spec:
+  containers:
+  - name: app
+    image: nginx@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  ephemeralContainers:
+  - name: debug
+    image: busybox:1.36
+`)}
+	result := p.ValidateManifests(context.Background(), docs, "default")
+	if !result.Allowed {
+		t.Fatalf("expected digest warning to remain non-blocking, checks: %#v", result.Checks)
+	}
+	found := false
+	for _, warning := range result.Warnings {
+		if strings.Contains(warning, "ephemeralContainers") && strings.Contains(warning, "does not use digest") {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected digest warning for ephemeralContainer, warnings: %#v", result.Warnings)
 	}
 }
 

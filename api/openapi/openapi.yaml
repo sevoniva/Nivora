@@ -7327,7 +7327,7 @@ components:
               minimum: 0
     KubernetesSafetyOptions:
       type: object
-      description: Optional Kubernetes YAML safety policy overlays. These options can only tighten Nivora's built-in safety defaults; they do not disable privileged, hostPath, cluster-scoped, namespace, or latest-tag protections.
+      description: Optional Kubernetes YAML safety policy overlays. These options can only tighten Nivora's built-in safety defaults; they do not disable privileged, hostPath, cluster-scoped, namespace, latest-tag, or untagged-image protections. Image and privileged checks cover containers, initContainers, and ephemeralContainers.
       properties:
         requireDigest:
           type: boolean

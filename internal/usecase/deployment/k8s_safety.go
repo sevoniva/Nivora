@@ -236,16 +236,15 @@ func (p K8sSafetyPolicy) ValidateManifests(ctx context.Context, documents []Mani
 
 			// Privileged containers.
 			if p.DenyPrivileged {
-				containers := k8sSlice(spec, "containers")
-				for _, c := range containers {
-					container, _ := c.(map[string]interface{})
+				for _, item := range k8sContainerSpecs(spec) {
+					container := item.container
 					sec, _ := container["securityContext"].(map[string]interface{})
 					if priv, _ := sec["privileged"].(bool); priv {
 						result.Allowed = false
 						cName, _ := container["name"].(string)
 						result.Checks = append(result.Checks, K8sSafetyCheck{
 							Passed: false, Rule: "deny-privileged", Kind: kind, Name: name,
-							Message: fmt.Sprintf("container %s in %s/%s is privileged", cName, kind, name),
+							Message: fmt.Sprintf("%s %s in %s/%s is privileged", item.field, cName, kind, name),
 						})
 					}
 				}
@@ -292,24 +291,23 @@ func (p K8sSafetyPolicy) ValidateManifests(ctx context.Context, documents []Mani
 
 			// Image tag checks.
 			if p.DenyLatestTag || p.RequireDigest {
-				containers := k8sSlice(spec, "containers")
-				for _, c := range containers {
-					container, _ := c.(map[string]interface{})
+				for _, item := range k8sContainerSpecs(spec) {
+					container := item.container
 					image, _ := container["image"].(string)
 					if image == "" {
 						continue
 					}
 					cName, _ := container["name"].(string)
-					if p.DenyLatestTag && (strings.HasSuffix(image, ":latest") || !strings.Contains(image, ":")) {
+					if p.DenyLatestTag && imageUsesLatestOrMissingTag(image) {
 						result.Allowed = false
 						result.Checks = append(result.Checks, K8sSafetyCheck{
 							Passed: false, Rule: "deny-latest-tag", Kind: kind, Name: name,
-							Message: fmt.Sprintf("container %s uses latest tag: %s", cName, image),
+							Message: fmt.Sprintf("%s %s uses latest or untagged image: %s", item.field, cName, image),
 						})
 					}
-					if p.RequireDigest && !strings.Contains(image, "@sha256:") {
+					if p.RequireDigest && !imageHasSHA256Digest(image) {
 						result.Warnings = append(result.Warnings,
-							fmt.Sprintf("%s/%s/%s: image %s does not use digest", kind, name, cName, image))
+							fmt.Sprintf("%s/%s/%s/%s: image %s does not use digest", kind, name, item.field, cName, image))
 					}
 				}
 			}
@@ -317,6 +315,48 @@ func (p K8sSafetyPolicy) ValidateManifests(ctx context.Context, documents []Mani
 	}
 
 	return result
+}
+
+type k8sContainerSpec struct {
+	field     string
+	container map[string]interface{}
+}
+
+func k8sContainerSpecs(spec map[string]interface{}) []k8sContainerSpec {
+	fields := []string{"containers", "initContainers", "ephemeralContainers"}
+	out := make([]k8sContainerSpec, 0)
+	for _, field := range fields {
+		for _, item := range k8sSlice(spec, field) {
+			container, _ := item.(map[string]interface{})
+			if len(container) == 0 {
+				continue
+			}
+			out = append(out, k8sContainerSpec{field: field, container: container})
+		}
+	}
+	return out
+}
+
+func imageUsesLatestOrMissingTag(image string) bool {
+	image = strings.TrimSpace(image)
+	if image == "" {
+		return false
+	}
+	namePart := image
+	if digestIndex := strings.Index(namePart, "@"); digestIndex >= 0 {
+		namePart = namePart[:digestIndex]
+	}
+	lastSlash := strings.LastIndex(namePart, "/")
+	lastColon := strings.LastIndex(namePart, ":")
+	if lastColon <= lastSlash {
+		return !imageHasSHA256Digest(image)
+	}
+	tag := strings.TrimSpace(namePart[lastColon+1:])
+	return strings.EqualFold(tag, "latest")
+}
+
+func imageHasSHA256Digest(image string) bool {
+	return strings.Contains(strings.ToLower(strings.TrimSpace(image)), "@sha256:")
 }
 
 func k8sSlice(obj map[string]interface{}, key string) []interface{} {

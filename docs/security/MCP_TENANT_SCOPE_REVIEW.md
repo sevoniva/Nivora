@@ -63,6 +63,7 @@ Current status: **partially proven for local MCP RBAC and scoped read models, no
 - Project-scoped HTTP subject sees only same-project runners in `/api/v1/runners` and `/api/v1/visualization/runners/summary`.
 - Project-scoped HTTP subject is forbidden from reading, rotating, revoking, or globally marking offline another project's runner.
 - Project-scoped MCP capability status includes an explicit scope object and warning that capability status is global maturity metadata, not tenant inventory.
+- Remote HTTP MCP audit attribution records request id, correlation id, MCP client id, transport, and remote address when available, while redacting secret-like values.
 
 Evidence:
 
@@ -88,4 +89,4 @@ Evidence:
 
 ## Recommendation
 
-Keep local stdio MCP available for maintainer workflows. Do not expose remote MCP until every resource and tool has explicit tenant-scope tests and the audit path includes remote request metadata.
+Keep local stdio MCP available for maintainer workflows. Do not expose remote MCP until every resource and tool has explicit tenant-scope tests, historical unscoped records are handled consistently, and operator guidance covers the remote audit and rate-limit model.

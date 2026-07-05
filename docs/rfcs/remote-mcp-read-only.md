@@ -96,7 +96,7 @@ Remote MCP should be disabled by default. Operators should enable it only with:
 1. Broader OAuth/OIDC contract tests beyond the current bearer/static-token route coverage.
 2. More tenant-scoped resource filtering tests for every future MCP resource family.
 3. Stronger per-client remote rate limits and pagination for large event/log/audit result sets.
-4. Remote MCP audit attribution tests for client identity, subject scope, request IDs, and tenant-safe audit search. The local/Postgres hash-chain path is already covered by `TestPostgresIntegrationMCPAuditHashChain`.
+4. Tenant-safe audit search depth across historical and unscoped records. Remote MCP audit attribution now covers client identity, request IDs, correlation IDs, transport metadata, and redaction; the local/Postgres hash-chain path is already covered by `TestPostgresIntegrationMCPAuditHashChain`.
 5. Golden scenario prompt-injection tests for remote-specific usage.
 6. Operator docs, ingress/TLS guidance, and threat-model update.
 

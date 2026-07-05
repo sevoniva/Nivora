@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	"github.com/sevoniva/nivora/internal/infra/config"
 	complianceusecase "github.com/sevoniva/nivora/internal/usecase/compliance"
 )
@@ -86,6 +87,9 @@ func TestRemoteMCPRecordsAuditAttribution(t *testing.T) {
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/mcp/rpc", strings.NewReader(`{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"nivora_status"}}`))
 	req.Header.Set("Authorization", "Bearer remote-mcp-token")
+	req.Header.Set(apimiddleware.HeaderRequestID, "req-mcp-123")
+	req.Header.Set(apimiddleware.HeaderCorrelationID, "corr-mcp-456")
+	req.Header.Set("X-Nivora-MCP-Client", "codex-test-client")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"result"`) {
@@ -106,7 +110,17 @@ func TestRemoteMCPRecordsAuditAttribution(t *testing.T) {
 	if entry.SubjectType != "mcp" || entry.SubjectID != "nivora_status" || entry.Metadata["decision"] != "allowed" || entry.Metadata["operation"] != "nivora_status" {
 		t.Fatalf("unexpected MCP audit entry = %#v", entry)
 	}
-	body := rec.Body.String() + entry.Reason + entry.Subject + entry.SubjectID
+	if entry.RequestID != "req-mcp-123" || entry.CorrelationID != "corr-mcp-456" {
+		t.Fatalf("remote MCP audit missing request metadata: %#v", entry)
+	}
+	if entry.Metadata["transport"] != "http" || entry.Metadata["client_id"] != "codex-test-client" || entry.Metadata["remote_addr"] == "" {
+		t.Fatalf("remote MCP audit missing client metadata: %#v", entry.Metadata)
+	}
+	entryBody, err := json.Marshal(entry)
+	if err != nil {
+		t.Fatalf("marshal MCP audit entry: %v", err)
+	}
+	body := rec.Body.String() + string(entryBody)
 	if strings.Contains(body, "remote-mcp-token") {
 		t.Fatalf("remote MCP audit or response leaked bearer token: %s", body)
 	}

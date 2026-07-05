@@ -1974,7 +1974,7 @@ func (s *Server) require(_ context.Context, permission string, resourceType stri
 
 func (s *Server) record(ctx context.Context, event string, subject string, scope string, decision string, reason string) {
 	if s.services.Audit != nil {
-		if err := s.services.Audit.RecordMCPAudit(ctx, newMCPAudit(s.services.Subject, auditDecision{Event: event, Subject: subject, Scope: scope, Decision: decision, Reason: reason})); err != nil {
+		if err := s.services.Audit.RecordMCPAudit(ctx, newMCPAudit(ctx, s.services.Subject, auditDecision{Event: event, Subject: subject, Scope: scope, Decision: decision, Reason: reason})); err != nil {
 			s.logger.Warn("mcp audit record failed", "event", event, "subject", subject, "error", err)
 		}
 	}

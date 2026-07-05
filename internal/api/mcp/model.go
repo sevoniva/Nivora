@@ -3,6 +3,7 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"strings"
 	"time"
 
 	"github.com/sevoniva/nivora/internal/domain/audit"
@@ -174,25 +175,70 @@ type auditDecision struct {
 	Reason   string
 }
 
-func newMCPAudit(subject domainauth.Subject, decision auditDecision) audit.AuditLog {
+type RequestMetadata struct {
+	RequestID     string
+	CorrelationID string
+	ClientID      string
+	RemoteAddr    string
+	Transport     string
+}
+
+type requestMetadataKey struct{}
+
+func ContextWithRequestMetadata(ctx context.Context, metadata RequestMetadata) context.Context {
+	return context.WithValue(ctx, requestMetadataKey{}, metadata)
+}
+
+func requestMetadataFromContext(ctx context.Context) RequestMetadata {
+	if ctx == nil {
+		return RequestMetadata{}
+	}
+	if metadata, ok := ctx.Value(requestMetadataKey{}).(RequestMetadata); ok {
+		return metadata
+	}
+	return RequestMetadata{}
+}
+
+func newMCPAudit(ctx context.Context, subject domainauth.Subject, decision auditDecision) audit.AuditLog {
 	now := time.Now().UTC()
 	safeSubject := crypto.RedactString(decision.Subject)
 	safeReason := crypto.RedactString(decision.Reason)
-	return audit.AuditLog{
-		ID:          "mcp-audit-" + now.Format("20060102150405.000000000"),
-		ActorID:     subject.ID,
-		Action:      decision.Event,
-		Subject:     safeSubject,
-		SubjectType: "mcp",
-		SubjectID:   safeSubject,
-		ScopeType:   decision.Scope,
-		ScopeID:     decision.Scope,
-		Reason:      safeReason,
-		Metadata: map[string]string{
-			"auth_mode": subject.AuthMode,
-			"decision":  decision.Decision,
-			"operation": safeSubject,
-		},
-		CreatedAt: now,
+	request := requestMetadataFromContext(ctx)
+	metadata := map[string]string{
+		"auth_mode": subject.AuthMode,
+		"decision":  decision.Decision,
+		"operation": safeSubject,
 	}
+	addAuditMetadata(metadata, "transport", request.Transport)
+	addAuditMetadata(metadata, "client_id", request.ClientID)
+	addAuditMetadata(metadata, "remote_addr", request.RemoteAddr)
+	return audit.AuditLog{
+		ID:            "mcp-audit-" + now.Format("20060102150405.000000000"),
+		ActorID:       subject.ID,
+		Action:        decision.Event,
+		Subject:       safeSubject,
+		SubjectType:   "mcp",
+		SubjectID:     safeSubject,
+		ScopeType:     decision.Scope,
+		ScopeID:       decision.Scope,
+		Reason:        safeReason,
+		RequestID:     sanitizeAuditMetadataValue(request.RequestID),
+		CorrelationID: sanitizeAuditMetadataValue(request.CorrelationID),
+		Metadata:      metadata,
+		CreatedAt:     now,
+	}
+}
+
+func addAuditMetadata(metadata map[string]string, key string, value string) {
+	if safe := sanitizeAuditMetadataValue(value); safe != "" {
+		metadata[key] = safe
+	}
+}
+
+func sanitizeAuditMetadataValue(value string) string {
+	value = strings.TrimSpace(crypto.RedactString(value))
+	if len(value) > 128 {
+		value = value[:128]
+	}
+	return value
 }

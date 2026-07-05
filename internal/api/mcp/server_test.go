@@ -1578,7 +1578,14 @@ func TestMCPRecordsAuditForOperations(t *testing.T) {
 }
 
 func TestMCPAuditSanitizesReasonAndSubject(t *testing.T) {
-	entry := newMCPAudit(domainauth.Subject{ID: "actor", AuthMode: "token"}, auditDecision{
+	ctx := ContextWithRequestMetadata(context.Background(), RequestMetadata{
+		RequestID:     "request-token-should-redact",
+		CorrelationID: "corr-1",
+		ClientID:      "client-token-should-redact",
+		RemoteAddr:    "127.0.0.1:12345",
+		Transport:     "http",
+	})
+	entry := newMCPAudit(ctx, domainauth.Subject{ID: "actor", AuthMode: "token"}, auditDecision{
 		Event:    EventToolDenied,
 		Subject:  "nivora_get_secret?token=raw-token-value",
 		Scope:    "tool",
@@ -1586,11 +1593,14 @@ func TestMCPAuditSanitizesReasonAndSubject(t *testing.T) {
 		Reason:   "Authorization: Bearer raw-token-value",
 	})
 	body := mustMarshal(t, entry)
-	if strings.Contains(body, "raw-token-value") || strings.Contains(body, "Authorization: Bearer") {
+	if strings.Contains(body, "raw-token-value") || strings.Contains(body, "Authorization: Bearer") || strings.Contains(body, "client-token-should-redact") {
 		t.Fatalf("audit entry leaked sensitive data: %s", body)
 	}
 	if entry.Metadata["auth_mode"] != "token" || entry.Metadata["decision"] != "denied" {
 		t.Fatalf("audit metadata missing: %#v", entry.Metadata)
+	}
+	if entry.RequestID != "[REDACTED]" || entry.CorrelationID != "corr-1" || entry.Metadata["client_id"] != "[REDACTED]" || entry.Metadata["transport"] != "http" {
+		t.Fatalf("audit request metadata not sanitized or recorded: %#v", entry)
 	}
 }
 
@@ -1602,7 +1612,7 @@ func TestMCPRedactionAcrossOutputs(t *testing.T) {
 		Subject:   "subject",
 		Reason:    "password=secret-password-value",
 		Metadata:  map[string]string{"token_hash": "hash-should-not-leak", "private_key": "-----BEGIN PRIVATE KEY-----"},
-		CreatedAt: newMCPAudit(domainauth.Subject{ID: "actor"}, auditDecision{Event: EventToolDenied}).CreatedAt,
+		CreatedAt: newMCPAudit(context.Background(), domainauth.Subject{ID: "actor"}, auditDecision{Event: EventToolDenied}).CreatedAt,
 	}
 	body := mustJSON(map[string]any{
 		"resource": sensitive,

@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"strings"
 
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
 	apimcp "github.com/sevoniva/nivora/internal/api/mcp"
@@ -45,7 +46,14 @@ func RemoteMCPJSONRPC(cfg config.Config, server *apimcp.Server) http.HandlerFunc
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_request", Message: "read MCP request body"})
 			return
 		}
-		response := server.WithSubject(subject).HandleJSONRPC(r.Context(), body)
+		ctx := apimcp.ContextWithRequestMetadata(r.Context(), apimcp.RequestMetadata{
+			RequestID:     chimiddleware.GetReqID(r.Context()),
+			CorrelationID: apimiddleware.CorrelationID(r.Context()),
+			ClientID:      r.Header.Get("X-Nivora-MCP-Client"),
+			RemoteAddr:    r.RemoteAddr,
+			Transport:     "http",
+		})
+		response := server.WithSubject(subject).HandleJSONRPC(ctx, body)
 		RespondJSON(w, http.StatusOK, response)
 	}
 }

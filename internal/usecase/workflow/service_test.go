@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"errors"
 	"io"
 	"strings"
 	"testing"
@@ -234,6 +235,40 @@ func TestServiceRefreshRunStatusTracksPipelineRunTerminalState(t *testing.T) {
 	}
 	if len(runs) != 1 || runs[0].ID != result.WorkflowRun.ID {
 		t.Fatalf("RefreshRuns = %#v", runs)
+	}
+}
+
+func TestServiceCancelRunCancelsLinkedPipelineRun(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	pipelines := newWorkflowPipelineService()
+	result, err := service.Run(context.Background(), RunInput{
+		Content:          executableWorkflow(t),
+		RepositoryID:     "repo-a",
+		ProjectID:        "project-a",
+		ActorID:          "user-a",
+		Confirm:          true,
+		AllowPipelineRun: true,
+	}, pipelines)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	canceled, err := service.CancelRun(context.Background(), result.WorkflowRun.ID, "user-a", pipelines)
+	if err != nil {
+		t.Fatalf("CancelRun: %v", err)
+	}
+	if canceled.Status != RunCanceled {
+		t.Fatalf("workflow status = %s", canceled.Status)
+	}
+	pipelineRecord, err := pipelines.Get(context.Background(), result.PipelineRun.Run.ID)
+	if err != nil {
+		t.Fatalf("pipeline Get: %v", err)
+	}
+	if pipelineRecord.Run.Status != domainpipeline.PipelineRunCanceled {
+		t.Fatalf("pipeline status = %s", pipelineRecord.Run.Status)
+	}
+	_, err = service.CancelRun(context.Background(), result.WorkflowRun.ID, "user-a", pipelines)
+	if !errors.Is(err, ErrRunTerminal) {
+		t.Fatalf("expected terminal cancel error, got %v", err)
 	}
 }
 

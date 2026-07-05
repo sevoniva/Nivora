@@ -265,6 +265,17 @@ func GetWorkflowRun(service *workflowusecase.Service, pipelines *pipelineusecase
 	}
 }
 
+func CancelWorkflowRun(service *workflowusecase.Service, pipelines *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, err := service.CancelRun(r.Context(), chi.URLParam(r, "id"), actorIDFromRequest(r), pipelines)
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record)
+	}
+}
+
 func RunWorkflowDefinition(service *workflowusecase.Service, pipelines *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var input workflowRunRequest
@@ -375,6 +386,10 @@ func respondWorkflowError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, workflowusecase.ErrNotFound) {
 		status = http.StatusNotFound
 		code = "workflow_plan_not_found"
+	}
+	if errors.Is(err, workflowusecase.ErrRunTerminal) {
+		status = http.StatusConflict
+		code = "workflow_run_terminal"
 	}
 	if errors.Is(err, workflowusecase.ErrInvalid) {
 		code = "invalid_workflow_definition"

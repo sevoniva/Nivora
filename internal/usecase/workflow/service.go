@@ -14,7 +14,10 @@ import (
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
-var ErrNotFound = errors.New("workflow record not found")
+var (
+	ErrNotFound    = errors.New("workflow record not found")
+	ErrRunTerminal = errors.New("workflow run is already terminal")
+)
 
 type PipelineRunCreator interface {
 	CreateQueued(ctx context.Context, input pipelineusecase.CreateRunInput) (pipelineusecase.CreateRunResult, error)
@@ -27,6 +30,10 @@ type PipelineMetadataRecorder interface {
 
 type PipelineRunReader interface {
 	Get(ctx context.Context, id string) (pipelineusecase.RunRecord, error)
+}
+
+type PipelineRunCanceler interface {
+	Cancel(ctx context.Context, id string, actorID string) (pipelineusecase.RunRecord, error)
 }
 
 type Service struct {
@@ -313,6 +320,45 @@ func (s *Service) RefreshRuns(ctx context.Context, filter RunListFilter, pipelin
 	return out, nil
 }
 
+func (s *Service) CancelRun(ctx context.Context, id string, actorID string, pipelines PipelineRunCanceler) (RunRecord, error) {
+	record, err := s.GetRun(ctx, id)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if isTerminalRunStatus(record.Status) {
+		return record, ErrRunTerminal
+	}
+	if pipelines != nil && strings.TrimSpace(record.PipelineRunID) != "" {
+		pipelineRecord, err := pipelines.Cancel(ctx, record.PipelineRunID, strings.TrimSpace(actorID))
+		if err != nil {
+			if errors.Is(err, pipelineusecase.ErrRunTerminal) {
+				if status := runStatusFromPipeline(pipelineRecord.Run.Status); status != "" && status != record.Status {
+					record.Status = status
+					record.UpdatedAt = s.now().UTC()
+					if saveErr := s.store.SaveRun(ctx, record); saveErr != nil {
+						return RunRecord{}, saveErr
+					}
+				}
+				return record, ErrRunTerminal
+			}
+			return RunRecord{}, err
+		}
+		if status := runStatusFromPipeline(pipelineRecord.Run.Status); status != "" {
+			record.Status = status
+		} else {
+			record.Status = RunCanceled
+		}
+	} else {
+		record.Status = RunCanceled
+		record.Warnings = append(record.Warnings, "workflow run was marked canceled without a linked PipelineRun cancellation")
+	}
+	record.UpdatedAt = s.now().UTC()
+	if err := s.store.SaveRun(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.GetRun(ctx, record.ID)
+}
+
 func (s *Service) refreshRunRecordStatus(ctx context.Context, record RunRecord, pipelines PipelineRunReader) (RunRecord, error) {
 	if pipelines == nil || strings.TrimSpace(record.PipelineRunID) == "" {
 		return record, nil
@@ -334,6 +380,15 @@ func (s *Service) refreshRunRecordStatus(ctx context.Context, record RunRecord, 
 		return RunRecord{}, err
 	}
 	return s.store.GetRun(ctx, record.ID)
+}
+
+func isTerminalRunStatus(status RunStatus) bool {
+	switch status {
+	case RunSucceeded, RunFailed, RunCanceled, RunTimeout:
+		return true
+	default:
+		return false
+	}
 }
 
 func runStatusFromPipeline(status domainpipeline.PipelineRunStatus) RunStatus {

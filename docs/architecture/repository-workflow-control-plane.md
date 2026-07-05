@@ -81,7 +81,7 @@ It supports parser/planner foundation behavior:
 
 The workflow planner can convert compatible definitions into the existing Pipeline definition model. PipelineRun remains the CI runtime object; this layer must not create a second workflow engine.
 
-`/api/v1/workflows/run` is guarded by RBAC plus explicit `confirm=true` and `allowPipelineRun=true`. It records WorkflowRun metadata and creates a queued PipelineRun through the existing runtime. It does not execute shell steps directly and is not exposed through MCP action tools.
+`/api/v1/workflows/run` is guarded by RBAC plus explicit `confirm=true` and `allowPipelineRun=true`. It records WorkflowRun metadata and creates a queued PipelineRun through the existing runtime. `POST /api/v1/workflows/runs/{id}/cancel` cancels the linked PipelineRun and updates WorkflowRun metadata. These routes do not execute shell steps directly and are not exposed through MCP action tools.
 
 WorkflowPlan and WorkflowRun records are durable in configured PostgreSQL mode. Raw WorkflowDefinition YAML is still not stored by this plan/run foundation because source document retention needs stronger redaction and tenant-scope review.
 

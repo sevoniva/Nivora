@@ -36,6 +36,7 @@ The summary includes build, test, package, security scan, deployment target, and
 nivora workflow validate --file examples/workflows/go-ci.yaml
 nivora workflow plan --file examples/workflows/go-ci.yaml
 nivora workflow run --file examples/workflows/go-ci.yaml --confirm --allow-pipeline-run --server http://localhost:8080
+nivora workflow cancel <workflow-run-id> --server http://localhost:8080
 ```
 
 The planner builds a DAG and checks dependency cycles, missing `needs` targets, matrix size limits, unsupported `uses`, artifact/cache declarations, plan-only security/release/deployment intent, and secret-like environment or intent values.
@@ -68,12 +69,15 @@ GET  /api/v1/workflows/plans
 GET  /api/v1/workflows/plans/{id}
 GET  /api/v1/workflows/runs
 GET  /api/v1/workflows/runs/{id}
+POST /api/v1/workflows/runs/{id}/cancel
 POST /api/v1/workflows/run
 ```
 
 `/api/v1/workflows/run` requires `confirm=true` and `allowPipelineRun=true`. It creates a WorkflowRun metadata record and queues a PipelineRun through the existing runtime; it does not execute shell steps in the HTTP handler.
 
 `GET /api/v1/workflows/runs` and `GET /api/v1/workflows/runs/{id}` refresh WorkflowRun status from the linked PipelineRun when that PipelineRun is still available in the configured runtime store.
+
+`POST /api/v1/workflows/runs/{id}/cancel` cancels the linked PipelineRun through the existing PipelineRun runtime and updates WorkflowRun metadata. It does not retry the workflow, roll back deployments, delete resources, or execute workflow steps directly.
 
 PipelineRun metadata read endpoints:
 
@@ -112,7 +116,7 @@ Each tool is read-only or plan-only and returns `mutated=false`. MCP does not ex
 - GitHub/GitLab/Gitea real network integrations are not implemented.
 - WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.
 - Repository DevOps plans depend on the latest saved snapshot. They are not generated from live remote SCM state and do not create Release, DeploymentRun, SecurityScan, or PipelineRun records.
-- WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Read APIs refresh the metadata status from the linked PipelineRun, but workflow-level retry/cancel semantics are still owned by the PipelineRun runtime.
+- WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Read and cancel APIs synchronize through the linked PipelineRun. Workflow-level retry semantics remain future work.
 - Workflow security/release/deployment intent is stored in redacted plan records and remains plan-only. It is not release orchestration, deployment execution, or scanner execution.
 - Pipeline artifact/cache/annotation/summary metadata persistence exists in memory and configured PostgreSQL runtime stores. Blob storage is not implemented by this metadata foundation; use storage references for content outside the control plane.
 - Workflow execution still belongs to PipelineRun, Runner, and Worker paths; MCP does not expose workflow action execution.

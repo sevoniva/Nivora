@@ -220,6 +220,52 @@ jobs:
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), runID) {
 		t.Fatalf("list workflow runs status = %d body = %s", rec.Code, rec.Body.String())
 	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{"content":`+quoteJSON(workflow)+`,"repositoryId":"repo-api","projectId":"project-api","environmentId":"env-dev","confirm":true,"allowPipelineRun":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted {
+		t.Fatalf("workflow cancel setup run status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &runResult); err != nil {
+		t.Fatalf("decode workflow cancel setup run: %v", err)
+	}
+	workflowRun, ok = runResult["workflowRun"].(map[string]any)
+	if !ok {
+		t.Fatalf("workflowRun missing from cancel setup: %#v", runResult)
+	}
+	cancelRunID := stringField(t, workflowRun, "id")
+	pipelineRun, ok := runResult["pipelineRun"].(map[string]any)
+	if !ok {
+		t.Fatalf("pipelineRun missing from cancel setup: %#v", runResult)
+	}
+	pipelineRunMeta, ok := pipelineRun["run"].(map[string]any)
+	if !ok {
+		t.Fatalf("pipelineRun.run missing from cancel setup: %#v", pipelineRun)
+	}
+	cancelPipelineRunID := stringField(t, pipelineRunMeta, "id")
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/runs/"+cancelRunID+"/cancel", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"status":"Canceled"`) {
+		t.Fatalf("workflow cancel status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	canceledPipeline, err := pipelineService.Get(req.Context(), cancelPipelineRunID)
+	if err != nil {
+		t.Fatalf("get canceled pipeline: %v", err)
+	}
+	if string(canceledPipeline.Run.Status) != "Canceled" {
+		t.Fatalf("linked PipelineRun status = %s", canceledPipeline.Run.Status)
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/runs/"+cancelRunID+"/cancel", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusConflict || !strings.Contains(rec.Body.String(), `"code":"workflow_run_terminal"`) {
+		t.Fatalf("workflow cancel terminal status = %d body = %s", rec.Code, rec.Body.String())
+	}
 }
 
 func quoteJSON(value string) string {

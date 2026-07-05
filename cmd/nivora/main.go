@@ -1821,6 +1821,7 @@ func newWorkflowCommand() *cobra.Command {
 	cmd.AddCommand(newWorkflowValidateCommand())
 	cmd.AddCommand(newWorkflowPlanCommand())
 	cmd.AddCommand(newWorkflowRunCommand())
+	cmd.AddCommand(newWorkflowCancelCommand())
 	return cmd
 }
 
@@ -2378,6 +2379,27 @@ func newWorkflowRunCommand() *cobra.Command {
 	cmd.Flags().StringVar(&correlationID, "correlation-id", "", "correlation id for runtime tracing")
 	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm guarded WorkflowRun creation")
 	cmd.Flags().BoolVar(&allowPipelineRun, "allow-pipeline-run", false, "explicitly allow queuing a PipelineRun")
+	return cmd
+}
+
+func newWorkflowCancelCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "cancel <workflow-run-id>",
+		Short: "Cancel a guarded WorkflowRun through its linked PipelineRun",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/workflows/runs/"+url.PathEscape(args[0])+"/cancel", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 

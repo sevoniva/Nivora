@@ -1551,6 +1551,35 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/workflows/runs/{id}/cancel:
+    post:
+      summary: Cancel a guarded Nivora Workflow run
+      description: Requires `workflow.run`. Cancels the linked PipelineRun through the existing runtime and updates WorkflowRun metadata. It does not retry the workflow, roll back deployments, delete resources, or execute workflow steps directly.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow run canceled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowRunRecord"
+        "404":
+          description: Workflow run was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Workflow run is already terminal
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/workflows/run:
     post:
       summary: Request a guarded Workflow run

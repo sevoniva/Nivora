@@ -18,27 +18,37 @@ import (
 func AppendHashChainedAudit(ctx context.Context, pool *pgxpool.Pool, source string, entry audit.AuditLog) error {
 	entry.CreatedAt = normalizeAuditCreatedAt(entry.CreatedAt)
 
-	// 1. Write plain audit log for queryability
-	payload, _ := json.Marshal(entry)
-	_, err := pool.Exec(ctx, `INSERT INTO governance_audit_logs (id, source, actor_id, action, subject, payload, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
-		entry.ID, source, entry.ActorID, entry.Action, entry.Subject, payload, entry.CreatedAt)
-	if err != nil {
-		return err
-	}
-
-	// 2. Write hash-chained record for tamper evidence
 	prevHash, err := latestComplianceAuditHash(ctx, pool, source, "")
 	if err != nil {
 		return err
 	}
 	recordHash := computeAuditHash(prevHash, entry.ActorID, entry.Action, source, entry.Subject, source, "", entry.CreatedAt)
+	entry.PreviousHash = prevHash
+	entry.RecordHash = recordHash
 
-	_, err = pool.Exec(ctx, `INSERT INTO compliance_audit_records
+	tx, err := pool.Begin(ctx)
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback(ctx)
+
+	payload, _ := json.Marshal(entry)
+	if _, err := tx.Exec(ctx, `INSERT INTO governance_audit_logs (id, source, actor_id, action, subject, payload, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+		entry.ID, source, entry.ActorID, entry.Action, entry.Subject, payload, entry.CreatedAt,
+	); err != nil {
+		return err
+	}
+
+	if _, err := tx.Exec(ctx, `INSERT INTO compliance_audit_records
 		(id, actor_id, action, subject_type, subject_id, subject, scope_type, scope_id, correlation_id, request_id, previous_hash, record_hash, payload, created_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14)`,
 		entry.ID, entry.ActorID, entry.Action, source, entry.Subject, entry.Subject, source, "",
-		entry.ID, "", prevHash, recordHash, payload, entry.CreatedAt)
-	return err
+		entry.ID, "", prevHash, recordHash, payload, entry.CreatedAt,
+	); err != nil {
+		return err
+	}
+
+	return tx.Commit(ctx)
 }
 
 func latestComplianceAuditHash(ctx context.Context, pool *pgxpool.Pool, scopeType, scopeID string) (string, error) {

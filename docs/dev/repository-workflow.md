@@ -58,7 +58,7 @@ The summary includes build, test, package, security scan, deployment target, and
 ```bash
 nivora workflow validate --file examples/workflows/go-ci.yaml
 nivora workflow plan --file examples/workflows/go-ci.yaml
-nivora workflow run --file examples/workflows/go-ci.yaml --confirm --allow-pipeline-run --server http://localhost:8080
+nivora workflow run --file examples/workflows/go-ci.yaml --repository-snapshot-id snap-dev --confirm --allow-pipeline-run --server http://localhost:8080
 nivora workflow cancel <workflow-run-id> --server http://localhost:8080
 nivora workflow reconcile --repository-id repo-dev --server http://localhost:8080
 nivora workflow retry <workflow-run-id> --confirm --allow-pipeline-run --server http://localhost:8080
@@ -71,6 +71,8 @@ The cancel command asks the server to cancel the linked PipelineRun. The reconci
 Workflow-level `permissions` entries are recorded as plan-only permission requests. They make workflow intent visible to API, CLI, and MCP callers, but they do not grant runtime access by themselves. Write, run, admin, and `id-token` style requests produce security warnings and remain subject to Nivora RBAC, runner policy, explicit confirmation, and configured unsafe-operation gates.
 
 Workflow job `labels` are preserved in WorkflowPlan records and in the generated PipelineRun definition. Runner claim paths in both memory and PostgreSQL stores require a runner to carry matching job labels before it can claim the job. These labels are scheduling metadata only; they do not sandbox shell execution, and secret-like label keys or values are rejected.
+
+Workflow source metadata is also preserved for traceability. When a guarded WorkflowRun queues a PipelineRun, the PipelineRun stores `workflowId`, `workflowPlanId`, `workflowRunId`, `repositoryId`, and `repositorySnapshotId`. Generated JobRun and StepRun records store `workflowJobId` and `workflowStepId`. These fields help audit a runtime record back to a repository snapshot and workflow plan; they do not grant permissions, execute code, or replace runner policy checks.
 
 Workflow-level `artifacts` and `cache` entries are recorded as PipelineRun metadata when a guarded WorkflowRun queues a PipelineRun. The control plane records names, paths, cache keys, restore keys, retention hints, and metadata. It does not read artifact files, upload cache blobs, or store large content in the database.
 
@@ -153,7 +155,7 @@ Each tool is read-only or plan-only and returns `mutated=false`. MCP does not ex
 - GitHub/GitLab/Gitea real network integrations are not implemented.
 - WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.
 - Repository DevOps plans depend on the latest saved snapshot. They are not generated from live remote SCM state and do not create Release, DeploymentRun, SecurityScan, or PipelineRun records.
-- WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Read and cancel APIs synchronize through the linked PipelineRun. Workflow-level retry semantics remain future work.
+- WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Workflow and repository source IDs are copied into the linked PipelineRun/JobRun/StepRun records, including `repositorySnapshotId` when supplied. Read and cancel APIs synchronize through the linked PipelineRun. Workflow-level retry semantics remain future work.
 - Workflow security/release/deployment intent is stored in redacted plan records and remains plan-only. It is not release orchestration, deployment execution, or scanner execution.
 - Pipeline artifact/cache/annotation/summary metadata persistence exists in memory and configured PostgreSQL runtime stores. Blob storage is not implemented by this metadata foundation; use storage references for content outside the control plane.
 - Workflow execution still belongs to PipelineRun, Runner, and Worker paths; MCP does not expose workflow action execution.

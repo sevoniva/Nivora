@@ -197,6 +197,7 @@ func copyPlan(in Plan) Plan {
 	for i := range out.Jobs {
 		out.Jobs[i].Needs = append([]string(nil), in.Jobs[i].Needs...)
 		out.Jobs[i].RunsOn = append([]string(nil), in.Jobs[i].RunsOn...)
+		out.Jobs[i].Labels = copyStringMap(in.Jobs[i].Labels)
 		out.Jobs[i].Matrix = copyStringMap(in.Jobs[i].Matrix)
 	}
 	out.Steps = append([]PlannedStep(nil), in.Steps...)

@@ -32,9 +32,10 @@ jobs:
       - name: build
         run: go test ./...
 `,
-		RepositoryID: "repo-a",
-		Path:         ".nivora/workflows/build.yaml",
-		Ref:          "main",
+		RepositoryID:         "repo-a",
+		RepositorySnapshotID: "snap-a",
+		Path:                 ".nivora/workflows/build.yaml",
+		Ref:                  "main",
 	})
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
@@ -42,7 +43,7 @@ jobs:
 	if record.ID == "" || record.WorkflowID != "workflow-stored-workflow" || record.ContentHash == "" {
 		t.Fatalf("record metadata not populated: %#v", record)
 	}
-	if record.Plan.PlanID != record.ID || record.Plan.RepositoryID != "repo-a" || record.Plan.SourcePath != ".nivora/workflows/build.yaml" {
+	if record.RepositorySnapshotID != "snap-a" || record.Plan.PlanID != record.ID || record.Plan.RepositoryID != "repo-a" || record.Plan.RepositorySnapshotID != "snap-a" || record.Plan.SourcePath != ".nivora/workflows/build.yaml" {
 		t.Fatalf("plan metadata not populated: %#v", record.Plan)
 	}
 	if strings.Contains(record.Plan.Steps[0].Env["API_TOKEN"], "workflow-token") {
@@ -52,7 +53,7 @@ jobs:
 	if err != nil {
 		t.Fatalf("GetPlan: %v", err)
 	}
-	if loaded.ID != record.ID || loaded.Plan.ContentHash != record.ContentHash {
+	if loaded.ID != record.ID || loaded.RepositorySnapshotID != "snap-a" || loaded.Plan.ContentHash != record.ContentHash {
 		t.Fatalf("loaded record = %#v", loaded)
 	}
 	latest, err := service.GetLatestPlan(context.Background(), record.WorkflowID)
@@ -128,15 +129,16 @@ func TestServiceRunCreatesQueuedPipelineRunAndWorkflowRun(t *testing.T) {
 	service := NewService(NewMemoryStore())
 	pipelines := newWorkflowPipelineService()
 	result, err := service.Run(context.Background(), RunInput{
-		Content:          executableWorkflow(t),
-		RepositoryID:     "repo-a",
-		Ref:              "main",
-		ProjectID:        "project-a",
-		EnvironmentID:    "env-dev",
-		ActorID:          "user-a",
-		CorrelationID:    "corr-workflow",
-		Confirm:          true,
-		AllowPipelineRun: true,
+		Content:              executableWorkflow(t),
+		RepositoryID:         "repo-a",
+		RepositorySnapshotID: "snap-a",
+		Ref:                  "main",
+		ProjectID:            "project-a",
+		EnvironmentID:        "env-dev",
+		ActorID:              "user-a",
+		CorrelationID:        "corr-workflow",
+		Confirm:              true,
+		AllowPipelineRun:     true,
 	}, pipelines)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -153,11 +155,29 @@ func TestServiceRunCreatesQueuedPipelineRunAndWorkflowRun(t *testing.T) {
 	if result.PipelineRun.Pipeline.ProjectID != "project-a" || result.PipelineRun.Pipeline.Metadata["environmentId"] != "env-dev" {
 		t.Fatalf("pipeline ownership metadata missing: %#v", result.PipelineRun.Pipeline)
 	}
+	if result.WorkflowRun.RepositorySnapshotID != "snap-a" {
+		t.Fatalf("workflow run snapshot metadata missing: %#v", result.WorkflowRun)
+	}
+	if result.PipelineRun.Run.WorkflowID != result.WorkflowRun.WorkflowID ||
+		result.PipelineRun.Run.WorkflowPlanID != result.WorkflowRun.WorkflowPlanID ||
+		result.PipelineRun.Run.WorkflowRunID != result.WorkflowRun.ID ||
+		result.PipelineRun.Run.RepositoryID != "repo-a" ||
+		result.PipelineRun.Run.RepositorySnapshotID != "snap-a" {
+		t.Fatalf("pipeline run source metadata not aligned: workflow=%#v pipeline=%#v", result.WorkflowRun, result.PipelineRun.Run)
+	}
+	job := result.PipelineRun.Stages[0].Jobs[0].Job
+	if job.WorkflowJobID == "" || job.WorkflowJobID != result.PipelineRun.Definition.Spec.Stages[0].Jobs[0].Metadata[pipelineusecase.MetadataWorkflowJobID] {
+		t.Fatalf("job source metadata not aligned: job=%#v definition=%#v", job, result.PipelineRun.Definition.Spec.Stages[0].Jobs[0])
+	}
+	step := result.PipelineRun.Stages[0].Jobs[0].Steps[0]
+	if step.WorkflowStepID == "" || step.WorkflowStepID != result.PipelineRun.Definition.Spec.Stages[0].Jobs[0].Steps[0].Metadata[pipelineusecase.MetadataWorkflowStepID] {
+		t.Fatalf("step source metadata not aligned: step=%#v definition=%#v", step, result.PipelineRun.Definition.Spec.Stages[0].Jobs[0].Steps[0])
+	}
 	loaded, err := service.GetRun(context.Background(), result.WorkflowRun.ID)
 	if err != nil {
 		t.Fatalf("GetRun: %v", err)
 	}
-	if loaded.PipelineRunID != result.PipelineRun.Run.ID {
+	if loaded.PipelineRunID != result.PipelineRun.Run.ID || loaded.RepositorySnapshotID != "snap-a" {
 		t.Fatalf("loaded workflow run = %#v", loaded)
 	}
 	runs, err := service.ListRuns(context.Background(), RunListFilter{RepositoryID: "repo-a", Status: RunQueued})
@@ -371,13 +391,14 @@ func TestServiceRetryRunCreatesNewQueuedPipelineRunFromStoredPlan(t *testing.T) 
 	service := NewService(NewMemoryStore())
 	pipelines := newWorkflowPipelineService()
 	result, err := service.Run(context.Background(), RunInput{
-		Content:          executableWorkflow(t),
-		RepositoryID:     "repo-a",
-		ProjectID:        "project-a",
-		EnvironmentID:    "env-dev",
-		ActorID:          "user-a",
-		Confirm:          true,
-		AllowPipelineRun: true,
+		Content:              executableWorkflow(t),
+		RepositoryID:         "repo-a",
+		RepositorySnapshotID: "snap-a",
+		ProjectID:            "project-a",
+		EnvironmentID:        "env-dev",
+		ActorID:              "user-a",
+		Confirm:              true,
+		AllowPipelineRun:     true,
 	}, pipelines)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
@@ -401,8 +422,11 @@ func TestServiceRetryRunCreatesNewQueuedPipelineRunFromStoredPlan(t *testing.T) 
 	if retried.WorkflowRun.ID == result.WorkflowRun.ID || retried.WorkflowRun.PipelineRunID == result.WorkflowRun.PipelineRunID {
 		t.Fatalf("retry reused original ids: original=%#v retried=%#v", result.WorkflowRun, retried.WorkflowRun)
 	}
-	if retried.WorkflowRun.WorkflowPlanID != result.WorkflowRun.WorkflowPlanID || retried.WorkflowRun.ProjectID != "project-a" || retried.WorkflowRun.EnvironmentID != "env-dev" {
+	if retried.WorkflowRun.WorkflowPlanID != result.WorkflowRun.WorkflowPlanID || retried.WorkflowRun.ProjectID != "project-a" || retried.WorkflowRun.EnvironmentID != "env-dev" || retried.WorkflowRun.RepositorySnapshotID != "snap-a" {
 		t.Fatalf("retry did not preserve workflow ownership metadata: %#v", retried.WorkflowRun)
+	}
+	if retried.PipelineRun.Run.WorkflowRunID != retried.WorkflowRun.ID || retried.PipelineRun.Run.RepositorySnapshotID != "snap-a" {
+		t.Fatalf("retry pipeline source metadata = %#v workflow=%#v", retried.PipelineRun.Run, retried.WorkflowRun)
 	}
 	if retried.WorkflowRun.Status != RunQueued || retried.PipelineRun.Run.Status != domainpipeline.PipelineRunQueued {
 		t.Fatalf("retry statuses workflow=%s pipeline=%s", retried.WorkflowRun.Status, retried.PipelineRun.Run.Status)

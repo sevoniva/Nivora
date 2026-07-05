@@ -2616,6 +2616,7 @@ func newWorkflowRunCommand() *cobra.Command {
 	var serverURL string
 	var tokenEnv string
 	var repositoryID string
+	var repositorySnapshotID string
 	var projectID string
 	var environmentID string
 	var ref string
@@ -2630,14 +2631,15 @@ func newWorkflowRunCommand() *cobra.Command {
 				return fmt.Errorf("--file or --plan-id is required")
 			}
 			payload := map[string]any{
-				"planId":           planID,
-				"repositoryId":     repositoryID,
-				"projectId":        projectID,
-				"environmentId":    environmentID,
-				"ref":              ref,
-				"correlationId":    correlationID,
-				"confirm":          confirm,
-				"allowPipelineRun": allowPipelineRun,
+				"planId":               planID,
+				"repositoryId":         repositoryID,
+				"repositorySnapshotId": repositorySnapshotID,
+				"projectId":            projectID,
+				"environmentId":        environmentID,
+				"ref":                  ref,
+				"correlationId":        correlationID,
+				"confirm":              confirm,
+				"allowPipelineRun":     allowPipelineRun,
 			}
 			if file != "" {
 				body, err := os.ReadFile(file)
@@ -2664,6 +2666,7 @@ func newWorkflowRunCommand() *cobra.Command {
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	cmd.Flags().StringVar(&repositoryID, "repository-id", "", "repository id for traceability")
+	cmd.Flags().StringVar(&repositorySnapshotID, "repository-snapshot-id", "", "repository snapshot id for traceability")
 	cmd.Flags().StringVar(&projectID, "project-id", "", "project id for PipelineRun ownership")
 	cmd.Flags().StringVar(&environmentID, "environment-id", "", "environment id for PipelineRun ownership")
 	cmd.Flags().StringVar(&ref, "ref", "", "repository ref label")

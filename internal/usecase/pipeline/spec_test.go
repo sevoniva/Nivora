@@ -48,14 +48,24 @@ spec:
           labels:
             runtime: workflow
             tier: secure
+          metadata:
+            workflowJobId: workflow-job-build
           steps:
             - run: echo ok
+              metadata:
+                workflowStepId: workflow-job-build/step-1
 `))
 	if err != nil {
 		t.Fatalf("parse definition: %v", err)
 	}
 	if got := def.Spec.Stages[0].Jobs[0].Labels["tier"]; got != "secure" {
 		t.Fatalf("job labels = %#v", def.Spec.Stages[0].Jobs[0].Labels)
+	}
+	if got := def.Spec.Stages[0].Jobs[0].Metadata["workflowJobId"]; got != "workflow-job-build" {
+		t.Fatalf("job metadata = %#v", def.Spec.Stages[0].Jobs[0].Metadata)
+	}
+	if got := def.Spec.Stages[0].Jobs[0].Steps[0].Metadata["workflowStepId"]; got != "workflow-job-build/step-1" {
+		t.Fatalf("step metadata = %#v", def.Spec.Stages[0].Jobs[0].Steps[0].Metadata)
 	}
 }
 
@@ -193,6 +203,44 @@ spec:
             token: runner-a
           steps:
             - run: echo nope
+`,
+		},
+		{
+			name: "secret-like job metadata",
+			body: `
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: bad
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: job
+          executor: shell
+          metadata:
+            token: runner-a
+          steps:
+            - run: echo nope
+`,
+		},
+		{
+			name: "secret-like step metadata",
+			body: `
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: bad
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: job
+          executor: shell
+          steps:
+            - run: echo nope
+              metadata:
+                password: plain
 `,
 		},
 	}

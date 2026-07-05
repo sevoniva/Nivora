@@ -142,7 +142,7 @@ jobs:
 		t.Fatalf("validate status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/plan", strings.NewReader(`{"content":`+quoteJSON(workflow)+`}`))
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/plan", strings.NewReader(`{"content":`+quoteJSON(workflow)+`,"repositoryId":"repo-api","repositorySnapshotId":"snap-api"}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -154,6 +154,9 @@ jobs:
 		t.Fatalf("decode workflow plan: %v", err)
 	}
 	planID := stringField(t, plan, "planId")
+	if stringField(t, plan, "repositorySnapshotId") != "snap-api" {
+		t.Fatalf("plan snapshot metadata missing: %#v", plan)
+	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/plans/"+planID, nil)
 	rec = httptest.NewRecorder()
@@ -205,7 +208,7 @@ jobs:
 		t.Fatalf("workflow run without confirmation status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{"content":`+quoteJSON(workflow)+`,"repositoryId":"repo-api","projectId":"project-api","environmentId":"env-dev","confirm":true,"allowPipelineRun":true}`))
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{"content":`+quoteJSON(workflow)+`,"repositoryId":"repo-api","repositorySnapshotId":"snap-api","projectId":"project-api","environmentId":"env-dev","confirm":true,"allowPipelineRun":true}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -221,6 +224,20 @@ jobs:
 		t.Fatalf("workflowRun missing: %#v", runResult)
 	}
 	runID := stringField(t, workflowRun, "id")
+	if stringField(t, workflowRun, "repositorySnapshotId") != "snap-api" {
+		t.Fatalf("workflow run snapshot metadata missing: %#v", workflowRun)
+	}
+	pipelineRun, ok := runResult["pipelineRun"].(map[string]any)
+	if !ok {
+		t.Fatalf("pipelineRun missing: %#v", runResult)
+	}
+	pipelineRunMeta, ok := pipelineRun["run"].(map[string]any)
+	if !ok {
+		t.Fatalf("pipelineRun.run missing: %#v", pipelineRun)
+	}
+	if stringField(t, pipelineRunMeta, "workflowRunId") != runID || stringField(t, pipelineRunMeta, "repositorySnapshotId") != "snap-api" {
+		t.Fatalf("pipeline run source metadata missing: workflowRun=%#v pipelineRun=%#v", workflowRun, pipelineRunMeta)
+	}
 	if _, err := pipelineService.ProcessQueued(req.Context(), 1); err != nil {
 		t.Fatalf("process workflow-created PipelineRun: %v", err)
 	}
@@ -247,7 +264,7 @@ jobs:
 		t.Fatalf("list workflow runs status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{"content":`+quoteJSON(workflow)+`,"repositoryId":"repo-api","projectId":"project-api","environmentId":"env-dev","confirm":true,"allowPipelineRun":true}`))
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{"content":`+quoteJSON(workflow)+`,"repositoryId":"repo-api","repositorySnapshotId":"snap-api-cancel","projectId":"project-api","environmentId":"env-dev","confirm":true,"allowPipelineRun":true}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
@@ -262,11 +279,11 @@ jobs:
 		t.Fatalf("workflowRun missing from cancel setup: %#v", runResult)
 	}
 	cancelRunID := stringField(t, workflowRun, "id")
-	pipelineRun, ok := runResult["pipelineRun"].(map[string]any)
+	pipelineRun, ok = runResult["pipelineRun"].(map[string]any)
 	if !ok {
 		t.Fatalf("pipelineRun missing from cancel setup: %#v", runResult)
 	}
-	pipelineRunMeta, ok := pipelineRun["run"].(map[string]any)
+	pipelineRunMeta, ok = pipelineRun["run"].(map[string]any)
 	if !ok {
 		t.Fatalf("pipelineRun.run missing from cancel setup: %#v", pipelineRun)
 	}
@@ -284,6 +301,9 @@ jobs:
 	}
 	if string(canceledPipeline.Run.Status) != "Canceled" {
 		t.Fatalf("linked PipelineRun status = %s", canceledPipeline.Run.Status)
+	}
+	if canceledPipeline.Run.WorkflowRunID != cancelRunID || canceledPipeline.Run.RepositorySnapshotID != "snap-api-cancel" {
+		t.Fatalf("canceled linked PipelineRun source metadata = %#v", canceledPipeline.Run)
 	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/runs/"+cancelRunID+"/cancel", nil)

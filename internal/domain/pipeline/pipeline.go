@@ -70,21 +70,26 @@ type PipelineVersion struct {
 }
 
 type PipelineRun struct {
-	ID                string            `json:"id"`
-	PipelineID        string            `json:"pipelineId"`
-	PipelineVersionID string            `json:"pipelineVersionId,omitempty"`
-	CorrelationID     string            `json:"correlationId,omitempty"`
-	Status            PipelineRunStatus `json:"status"`
-	CancelRequested   bool              `json:"cancelRequested,omitempty"`
-	OwnerID           string            `json:"ownerId,omitempty"`
-	LeaseExpiresAt    *time.Time        `json:"leaseExpiresAt,omitempty"`
-	Attempt           int               `json:"attempt,omitempty"`
-	HeartbeatAt       *time.Time        `json:"heartbeatAt,omitempty"`
-	StartedAt         *time.Time        `json:"startedAt,omitempty"`
-	FinishedAt        *time.Time        `json:"finishedAt,omitempty"`
-	FailureReason     string            `json:"failureReason,omitempty"`
-	CreatedAt         time.Time         `json:"createdAt"`
-	UpdatedAt         time.Time         `json:"updatedAt"`
+	ID                   string            `json:"id"`
+	PipelineID           string            `json:"pipelineId"`
+	PipelineVersionID    string            `json:"pipelineVersionId,omitempty"`
+	WorkflowID           string            `json:"workflowId,omitempty"`
+	WorkflowPlanID       string            `json:"workflowPlanId,omitempty"`
+	WorkflowRunID        string            `json:"workflowRunId,omitempty"`
+	RepositoryID         string            `json:"repositoryId,omitempty"`
+	RepositorySnapshotID string            `json:"repositorySnapshotId,omitempty"`
+	CorrelationID        string            `json:"correlationId,omitempty"`
+	Status               PipelineRunStatus `json:"status"`
+	CancelRequested      bool              `json:"cancelRequested,omitempty"`
+	OwnerID              string            `json:"ownerId,omitempty"`
+	LeaseExpiresAt       *time.Time        `json:"leaseExpiresAt,omitempty"`
+	Attempt              int               `json:"attempt,omitempty"`
+	HeartbeatAt          *time.Time        `json:"heartbeatAt,omitempty"`
+	StartedAt            *time.Time        `json:"startedAt,omitempty"`
+	FinishedAt           *time.Time        `json:"finishedAt,omitempty"`
+	FailureReason        string            `json:"failureReason,omitempty"`
+	CreatedAt            time.Time         `json:"createdAt"`
+	UpdatedAt            time.Time         `json:"updatedAt"`
 }
 
 type StageRun struct {
@@ -102,6 +107,7 @@ type StageRun struct {
 type JobRun struct {
 	ID             string       `json:"id"`
 	StageRunID     string       `json:"stageRunId"`
+	WorkflowJobID  string       `json:"workflowJobId,omitempty"`
 	Name           string       `json:"name"`
 	Status         JobRunStatus `json:"status"`
 	RunnerID       string       `json:"runnerId,omitempty"`
@@ -116,14 +122,15 @@ type JobRun struct {
 }
 
 type StepRun struct {
-	ID            string       `json:"id"`
-	JobRunID      string       `json:"jobRunId"`
-	Name          string       `json:"name"`
-	Status        JobRunStatus `json:"status"`
-	Attempt       int          `json:"attempt"`
-	StartedAt     *time.Time   `json:"startedAt,omitempty"`
-	FinishedAt    *time.Time   `json:"finishedAt,omitempty"`
-	FailureReason string       `json:"failureReason,omitempty"`
-	CreatedAt     time.Time    `json:"createdAt"`
-	UpdatedAt     time.Time    `json:"updatedAt"`
+	ID             string       `json:"id"`
+	JobRunID       string       `json:"jobRunId"`
+	WorkflowStepID string       `json:"workflowStepId,omitempty"`
+	Name           string       `json:"name"`
+	Status         JobRunStatus `json:"status"`
+	Attempt        int          `json:"attempt"`
+	StartedAt      *time.Time   `json:"startedAt,omitempty"`
+	FinishedAt     *time.Time   `json:"finishedAt,omitempty"`
+	FailureReason  string       `json:"failureReason,omitempty"`
+	CreatedAt      time.Time    `json:"createdAt"`
+	UpdatedAt      time.Time    `json:"updatedAt"`
 }

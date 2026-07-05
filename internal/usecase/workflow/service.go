@@ -68,18 +68,20 @@ func (s *Service) Plan(ctx context.Context, input PlanInput) (PlanRecord, error)
 	now := s.now().UTC()
 	hash := contentHash(content)
 	record := PlanRecord{
-		ID:           defaultID("wplan"),
-		WorkflowID:   plan.WorkflowID,
-		RepositoryID: strings.TrimSpace(input.RepositoryID),
-		Path:         strings.TrimSpace(input.Path),
-		Ref:          strings.TrimSpace(input.Ref),
-		Name:         plan.Name,
-		ContentHash:  hash,
-		Plan:         plan,
-		CreatedAt:    now,
+		ID:                   defaultID("wplan"),
+		WorkflowID:           plan.WorkflowID,
+		RepositoryID:         strings.TrimSpace(input.RepositoryID),
+		RepositorySnapshotID: strings.TrimSpace(input.RepositorySnapshotID),
+		Path:                 strings.TrimSpace(input.Path),
+		Ref:                  strings.TrimSpace(input.Ref),
+		Name:                 plan.Name,
+		ContentHash:          hash,
+		Plan:                 plan,
+		CreatedAt:            now,
 	}
 	record.Plan.PlanID = record.ID
 	record.Plan.RepositoryID = record.RepositoryID
+	record.Plan.RepositorySnapshotID = record.RepositorySnapshotID
 	record.Plan.SourcePath = record.Path
 	record.Plan.Ref = record.Ref
 	record.Plan.ContentHash = record.ContentHash
@@ -179,12 +181,22 @@ func (s *Service) Run(ctx context.Context, input RunInput, pipelines PipelineRun
 	if err != nil {
 		return RunResult{}, err
 	}
+	workflowRunID := defaultID("wrun")
 	pipelineResult, err := pipelines.CreateQueued(ctx, pipelineusecase.CreateRunInput{
 		Definition:    conversion.Definition,
 		ProjectID:     strings.TrimSpace(input.ProjectID),
 		EnvironmentID: strings.TrimSpace(input.EnvironmentID),
 		ActorID:       strings.TrimSpace(input.ActorID),
 		CorrelationID: strings.TrimSpace(input.CorrelationID),
+		Workflow: pipelineusecase.WorkflowRunMetadata{
+			WorkflowID:           planRecord.WorkflowID,
+			WorkflowPlanID:       planRecord.ID,
+			WorkflowRunID:        workflowRunID,
+			RepositoryID:         firstNonEmpty(strings.TrimSpace(input.RepositoryID), planRecord.RepositoryID),
+			RepositorySnapshotID: firstNonEmpty(strings.TrimSpace(input.RepositorySnapshotID), planRecord.RepositorySnapshotID, planRecord.Plan.RepositorySnapshotID),
+			SourcePath:           planRecord.Path,
+			Ref:                  firstNonEmpty(strings.TrimSpace(input.Ref), planRecord.Ref),
+		},
 	})
 	if err != nil {
 		return RunResult{}, err
@@ -198,19 +210,20 @@ func (s *Service) Run(ctx context.Context, input RunInput, pipelines PipelineRun
 	}
 	now := s.now().UTC()
 	record := RunRecord{
-		ID:             defaultID("wrun"),
-		WorkflowID:     planRecord.WorkflowID,
-		WorkflowPlanID: planRecord.ID,
-		RepositoryID:   firstNonEmpty(strings.TrimSpace(input.RepositoryID), planRecord.RepositoryID),
-		PipelineRunID:  pipelineResult.Record.Run.ID,
-		PipelineID:     pipelineResult.Record.Pipeline.ID,
-		ProjectID:      strings.TrimSpace(input.ProjectID),
-		EnvironmentID:  strings.TrimSpace(input.EnvironmentID),
-		Ref:            firstNonEmpty(strings.TrimSpace(input.Ref), planRecord.Ref),
-		Status:         RunQueued,
-		Warnings:       append([]string(nil), conversion.Warnings...),
-		CreatedAt:      now,
-		UpdatedAt:      now,
+		ID:                   workflowRunID,
+		WorkflowID:           planRecord.WorkflowID,
+		WorkflowPlanID:       planRecord.ID,
+		RepositoryID:         firstNonEmpty(strings.TrimSpace(input.RepositoryID), planRecord.RepositoryID),
+		RepositorySnapshotID: firstNonEmpty(strings.TrimSpace(input.RepositorySnapshotID), planRecord.RepositorySnapshotID, planRecord.Plan.RepositorySnapshotID),
+		PipelineRunID:        pipelineResult.Record.Run.ID,
+		PipelineID:           pipelineResult.Record.Pipeline.ID,
+		ProjectID:            strings.TrimSpace(input.ProjectID),
+		EnvironmentID:        strings.TrimSpace(input.EnvironmentID),
+		Ref:                  firstNonEmpty(strings.TrimSpace(input.Ref), planRecord.Ref),
+		Status:               RunQueued,
+		Warnings:             append([]string(nil), conversion.Warnings...),
+		CreatedAt:            now,
+		UpdatedAt:            now,
 	}
 	if err := s.store.SaveRun(ctx, record); err != nil {
 		return RunResult{}, err
@@ -392,15 +405,16 @@ func (s *Service) RetryRun(ctx context.Context, id string, input RetryInput, pip
 		return RunResult{}, fmt.Errorf("%w: workflow run %s is %s", ErrRunNotRetryable, record.ID, record.Status)
 	}
 	result, err := s.Run(ctx, RunInput{
-		PlanID:           record.WorkflowPlanID,
-		RepositoryID:     record.RepositoryID,
-		ProjectID:        record.ProjectID,
-		EnvironmentID:    record.EnvironmentID,
-		Ref:              record.Ref,
-		ActorID:          strings.TrimSpace(input.ActorID),
-		CorrelationID:    strings.TrimSpace(input.CorrelationID),
-		Confirm:          input.Confirm,
-		AllowPipelineRun: input.AllowPipelineRun,
+		PlanID:               record.WorkflowPlanID,
+		RepositoryID:         record.RepositoryID,
+		RepositorySnapshotID: record.RepositorySnapshotID,
+		ProjectID:            record.ProjectID,
+		EnvironmentID:        record.EnvironmentID,
+		Ref:                  record.Ref,
+		ActorID:              strings.TrimSpace(input.ActorID),
+		CorrelationID:        strings.TrimSpace(input.CorrelationID),
+		Confirm:              input.Confirm,
+		AllowPipelineRun:     input.AllowPipelineRun,
 	}, pipelines)
 	if err != nil {
 		return RunResult{}, err
@@ -527,11 +541,12 @@ func (s *Service) planRecordForRun(ctx context.Context, input RunInput) (PlanRec
 		return s.GetPlan(ctx, planID)
 	}
 	return s.Plan(ctx, PlanInput{
-		Content:      input.Content,
-		RepositoryID: input.RepositoryID,
-		Path:         input.Path,
-		Ref:          input.Ref,
-		Options:      input.Options,
+		Content:              input.Content,
+		RepositoryID:         input.RepositoryID,
+		RepositorySnapshotID: input.RepositorySnapshotID,
+		Path:                 input.Path,
+		Ref:                  input.Ref,
+		Options:              input.Options,
 	})
 }
 

@@ -284,6 +284,8 @@ func TestPersistenceMigrationIsReversibleAndIndexed(t *testing.T) {
 	runnerGroupDown := readMigration(t, "000015_runtime_runner_groups.down.sql")
 	metadataUp := readMigration(t, "000020_pipeline_metadata.up.sql")
 	metadataDown := readMigration(t, "000020_pipeline_metadata.down.sql")
+	sourceMetadataUp := readMigration(t, "000021_workflow_pipeline_source_metadata.up.sql")
+	sourceMetadataDown := readMigration(t, "000021_workflow_pipeline_source_metadata.down.sql")
 
 	requiredTables := []string{
 		"runtime_pipeline_runs",
@@ -349,6 +351,34 @@ func TestPersistenceMigrationIsReversibleAndIndexed(t *testing.T) {
 		}
 		if !strings.Contains(metadataDown, index) {
 			t.Fatalf("pipeline metadata down migration missing index %s", index)
+		}
+	}
+	for _, column := range []string{
+		"workflow_id",
+		"workflow_plan_id",
+		"workflow_run_id",
+		"repository_id",
+		"repository_snapshot_id",
+		"workflow_job_id",
+	} {
+		if !strings.Contains(sourceMetadataUp, column) {
+			t.Fatalf("source metadata up migration missing column %s", column)
+		}
+		if !strings.Contains(sourceMetadataDown, column) {
+			t.Fatalf("source metadata down migration missing column %s", column)
+		}
+	}
+	for _, index := range []string{
+		"idx_runtime_pipeline_runs_workflow_created",
+		"idx_runtime_pipeline_runs_workflow_run",
+		"idx_runtime_pipeline_runs_repository_snapshot",
+		"idx_runtime_job_runs_workflow_job",
+	} {
+		if !strings.Contains(sourceMetadataUp, index) {
+			t.Fatalf("source metadata up migration missing index %s", index)
+		}
+		if !strings.Contains(sourceMetadataDown, index) {
+			t.Fatalf("source metadata down migration missing index %s", index)
 		}
 	}
 }

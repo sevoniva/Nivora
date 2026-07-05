@@ -99,6 +99,15 @@ func TestPostgresIntegrationPipelineRunRecovery(t *testing.T) {
 	running.Run.LeaseExpiresAt = &lease
 	running.Run.HeartbeatAt = &lease
 	running.Run.CancelRequested = true
+	running.Run.WorkflowID = "workflow-recover"
+	running.Run.WorkflowPlanID = "wplan-recover"
+	running.Run.WorkflowRunID = "wrun-recover"
+	running.Run.RepositoryID = "repo-recover"
+	running.Run.RepositorySnapshotID = "snap-recover"
+	running.Definition.Spec.Stages[0].Jobs[0].Metadata = map[string]string{pipelineusecase.MetadataWorkflowJobID: "workflow-job-recover"}
+	running.Definition.Spec.Stages[0].Jobs[0].Steps[0].Metadata = map[string]string{pipelineusecase.MetadataWorkflowStepID: "workflow-job-recover/step-1"}
+	running.Stages[0].Jobs[0].Job.WorkflowJobID = "workflow-job-recover"
+	running.Stages[0].Jobs[0].Steps[0].WorkflowStepID = "workflow-job-recover/step-1"
 	if err := store.Save(ctx, running); err != nil {
 		t.Fatalf("save running pipeline: %v", err)
 	}
@@ -123,6 +132,22 @@ func TestPostgresIntegrationPipelineRunRecovery(t *testing.T) {
 	}
 	if !loaded.Run.CancelRequested || loaded.Run.OwnerID != "worker-before-restart" {
 		t.Fatalf("pipeline recovery lost lease/cancel state: %#v", loaded.Run)
+	}
+	if loaded.Run.WorkflowID != "workflow-recover" || loaded.Run.WorkflowRunID != "wrun-recover" || loaded.Run.RepositorySnapshotID != "snap-recover" {
+		t.Fatalf("pipeline recovery lost workflow source metadata: %#v", loaded.Run)
+	}
+	if loaded.Stages[0].Jobs[0].Job.WorkflowJobID != "workflow-job-recover" || loaded.Stages[0].Jobs[0].Steps[0].WorkflowStepID != "workflow-job-recover/step-1" {
+		t.Fatalf("pipeline recovery lost job/step source metadata: job=%#v step=%#v", loaded.Stages[0].Jobs[0].Job, loaded.Stages[0].Jobs[0].Steps[0])
+	}
+	var flatWorkflowID, flatWorkflowRunID, flatSnapshotID, flatWorkflowJobID string
+	if err := store.pool.QueryRow(ctx, `SELECT workflow_id, workflow_run_id, repository_snapshot_id FROM runtime_pipeline_runs WHERE id=$1`, running.Run.ID).Scan(&flatWorkflowID, &flatWorkflowRunID, &flatSnapshotID); err != nil {
+		t.Fatalf("query flat pipeline source metadata: %v", err)
+	}
+	if err := store.pool.QueryRow(ctx, `SELECT workflow_job_id FROM runtime_job_runs WHERE id=$1`, running.Stages[0].Jobs[0].Job.ID).Scan(&flatWorkflowJobID); err != nil {
+		t.Fatalf("query flat job source metadata: %v", err)
+	}
+	if flatWorkflowID != "workflow-recover" || flatWorkflowRunID != "wrun-recover" || flatSnapshotID != "snap-recover" || flatWorkflowJobID != "workflow-job-recover" {
+		t.Fatalf("flat source metadata = workflowID=%q workflowRunID=%q snapshotID=%q workflowJobID=%q", flatWorkflowID, flatWorkflowRunID, flatSnapshotID, flatWorkflowJobID)
 	}
 	logs, err := store.LogsByPipelineRun(ctx, running.Run.ID)
 	if err != nil || len(logs) != 1 || logs[0].Content != "persisted log" {

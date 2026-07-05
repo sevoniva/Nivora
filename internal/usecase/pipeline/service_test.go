@@ -80,6 +80,43 @@ func TestCreateQueuedPersistsProjectScope(t *testing.T) {
 	}
 }
 
+func TestCreateQueuedPersistsWorkflowSourceMetadata(t *testing.T) {
+	service := newTestService()
+	def := testDefinition(`printf "hello"`)
+	def.Spec.Stages[0].Jobs[0].Metadata = map[string]string{MetadataWorkflowJobID: "workflow-job-build"}
+	def.Spec.Stages[0].Jobs[0].Steps[0].Metadata = map[string]string{MetadataWorkflowStepID: "workflow-job-build/step-1"}
+	result, err := service.CreateQueued(context.Background(), CreateRunInput{
+		Definition: def,
+		Workflow: WorkflowRunMetadata{
+			WorkflowID:           " workflow-ci ",
+			WorkflowPlanID:       " wplan-1 ",
+			WorkflowRunID:        " wrun-1 ",
+			RepositoryID:         " repo-1 ",
+			RepositorySnapshotID: " snap-1 ",
+			SourcePath:           " .nivora/workflows/ci.yaml ",
+			Ref:                  " main ",
+		},
+	})
+	if err != nil {
+		t.Fatalf("create queued: %v", err)
+	}
+	run := result.Record.Run
+	if run.WorkflowID != "workflow-ci" || run.WorkflowPlanID != "wplan-1" || run.WorkflowRunID != "wrun-1" || run.RepositoryID != "repo-1" || run.RepositorySnapshotID != "snap-1" {
+		t.Fatalf("run source metadata = %#v", run)
+	}
+	if result.Record.Pipeline.Metadata[MetadataSourcePath] != ".nivora/workflows/ci.yaml" || result.Record.Pipeline.Metadata[MetadataRef] != "main" {
+		t.Fatalf("pipeline source metadata = %#v", result.Record.Pipeline.Metadata)
+	}
+	job := result.Record.Stages[0].Jobs[0].Job
+	if job.WorkflowJobID != "workflow-job-build" {
+		t.Fatalf("job source metadata = %#v", job)
+	}
+	step := result.Record.Stages[0].Jobs[0].Steps[0]
+	if step.WorkflowStepID != "workflow-job-build/step-1" {
+		t.Fatalf("step source metadata = %#v", step)
+	}
+}
+
 func TestPipelineMetadataRecordsArtifactsCachesAnnotationsAndSummaries(t *testing.T) {
 	service := newTestService()
 	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: testDefinition(`printf "hello"`)})

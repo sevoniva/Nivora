@@ -5521,6 +5521,9 @@ components:
         repositoryId:
           type: string
           description: Optional repository id used for plan traceability.
+        repositorySnapshotId:
+          type: string
+          description: Optional repository snapshot id used to trace the WorkflowPlan back to static repository intelligence.
         path:
           type: string
           description: Optional source path such as .nivora/workflows/build.yaml.
@@ -5564,6 +5567,8 @@ components:
         workflowId:
           type: string
         repositoryId:
+          type: string
+        repositorySnapshotId:
           type: string
         sourcePath:
           type: string
@@ -5776,6 +5781,8 @@ components:
           type: string
         repositoryId:
           type: string
+        repositorySnapshotId:
+          type: string
         path:
           type: string
         ref:
@@ -5800,6 +5807,9 @@ components:
           description: Optional stored WorkflowPlan id. When used, the stored redacted plan is converted without reading raw YAML.
         repositoryId:
           type: string
+        repositorySnapshotId:
+          type: string
+          description: Optional repository snapshot id copied into WorkflowRun and linked PipelineRun source metadata.
         path:
           type: string
         ref:
@@ -5837,6 +5847,8 @@ components:
         workflowPlanId:
           type: string
         repositoryId:
+          type: string
+        repositorySnapshotId:
           type: string
         pipelineRunId:
           type: string
@@ -8194,6 +8206,16 @@ components:
           format: uuid
         pipelineVersionId:
           type: string
+        workflowId:
+          type: string
+        workflowPlanId:
+          type: string
+        workflowRunId:
+          type: string
+        repositoryId:
+          type: string
+        repositorySnapshotId:
+          type: string
         correlationId:
           type: string
         status:
@@ -8335,6 +8357,10 @@ components:
                     executor:
                       type: string
                       enum: [shell]
+                    labels:
+                      $ref: "#/components/schemas/CatalogMetadata"
+                    metadata:
+                      $ref: "#/components/schemas/CatalogMetadata"
                     retries:
                       type: integer
                       minimum: 0
@@ -8351,6 +8377,8 @@ components:
                             type: string
                           run:
                             type: string
+                          metadata:
+                            $ref: "#/components/schemas/CatalogMetadata"
                           timeoutSeconds:
                             type: integer
                             minimum: 0
@@ -8586,6 +8614,8 @@ components:
         id:
           type: string
         jobRunId:
+          type: string
+        workflowStepId:
           type: string
         name:
           type: string
@@ -10211,6 +10241,8 @@ components:
     JobRun:
       type: object
       properties:
+        workflowJobId:
+          type: string
         name:
           type: string
         status:
@@ -10226,6 +10258,8 @@ components:
     StepRun:
       type: object
       properties:
+        workflowStepId:
+          type: string
         name:
           type: string
         status:

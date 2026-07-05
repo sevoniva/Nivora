@@ -34,15 +34,17 @@ type Job struct {
 	Name           string            `json:"name" yaml:"name"`
 	Executor       string            `json:"executor" yaml:"executor"`
 	Labels         map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Metadata       map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 	Retries        int               `json:"retries,omitempty" yaml:"retries,omitempty"`
 	TimeoutSeconds int               `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
 	Steps          []Step            `json:"steps" yaml:"steps"`
 }
 
 type Step struct {
-	Name           string `json:"name" yaml:"name"`
-	Run            string `json:"run" yaml:"run"`
-	TimeoutSeconds int    `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
+	Name           string            `json:"name" yaml:"name"`
+	Run            string            `json:"run" yaml:"run"`
+	Metadata       map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+	TimeoutSeconds int               `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
 }
 
 func LoadDefinitionFile(path string) (Definition, error) {
@@ -107,6 +109,9 @@ func (d Definition) Validate() error {
 			if err := validateJobLabels(job.Name, job.Labels); err != nil {
 				return err
 			}
+			if err := validateStringMetadata("job "+job.Name, job.Metadata); err != nil {
+				return err
+			}
 			if job.TimeoutSeconds < 0 {
 				return fmt.Errorf("job %q timeoutSeconds must be zero or greater", job.Name)
 			}
@@ -123,6 +128,9 @@ func (d Definition) Validate() error {
 				}
 				if step.Run == "" {
 					return fmt.Errorf("job %q step %d run command is required", job.Name, k)
+				}
+				if err := validateStringMetadata(fmt.Sprintf("job %q step %d", job.Name, k), step.Metadata); err != nil {
+					return err
 				}
 				if step.TimeoutSeconds < 0 {
 					return fmt.Errorf("job %q step %d timeoutSeconds must be zero or greater", job.Name, k)
@@ -155,4 +163,18 @@ func secretLikeLabel(value string) bool {
 		}
 	}
 	return false
+}
+
+func validateStringMetadata(scope string, values map[string]string) error {
+	for key, value := range values {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || value == "" {
+			return fmt.Errorf("%s metadata must not contain empty keys or values", scope)
+		}
+		if secretLikeLabel(key) || secretLikeLabel(value) {
+			return fmt.Errorf("%s metadata key %q looks secret-like and is not allowed", scope, key)
+		}
+	}
+	return nil
 }

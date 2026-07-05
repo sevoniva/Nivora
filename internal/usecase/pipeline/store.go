@@ -1116,7 +1116,11 @@ func cloneSpecStages(stages []Stage) []Stage {
 		out[i].Jobs = append([]Job(nil), out[i].Jobs...)
 		for j := range out[i].Jobs {
 			out[i].Jobs[j].Labels = cloneMap(out[i].Jobs[j].Labels)
+			out[i].Jobs[j].Metadata = cloneMap(out[i].Jobs[j].Metadata)
 			out[i].Jobs[j].Steps = append([]Step(nil), out[i].Jobs[j].Steps...)
+			for k := range out[i].Jobs[j].Steps {
+				out[i].Jobs[j].Steps[k].Metadata = cloneMap(out[i].Jobs[j].Steps[k].Metadata)
+			}
 		}
 	}
 	return out

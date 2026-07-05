@@ -54,6 +54,16 @@ const (
 	defaultStaleAfter     = 2 * time.Minute
 	defaultTimeoutAfter   = 30 * time.Minute
 	maxInlineSummaryBytes = 16 * 1024
+
+	MetadataWorkflowID           = "workflowId"
+	MetadataWorkflowPlanID       = "workflowPlanId"
+	MetadataWorkflowRunID        = "workflowRunId"
+	MetadataWorkflowJobID        = "workflowJobId"
+	MetadataWorkflowStepID       = "workflowStepId"
+	MetadataRepositoryID         = "repositoryId"
+	MetadataRepositorySnapshotID = "repositorySnapshotId"
+	MetadataSourcePath           = "sourcePath"
+	MetadataRef                  = "ref"
 )
 
 var ErrRunTerminal = errors.New("pipeline run is already terminal")
@@ -106,6 +116,7 @@ func (s *Service) CreateQueued(ctx context.Context, input CreateRunInput) (Creat
 	if versionID := strings.TrimSpace(input.PipelineVersionID); versionID != "" {
 		record.Run.PipelineVersionID = versionID
 	}
+	s.applyWorkflowMetadata(&record, input.Workflow)
 	record.Run.CorrelationID = input.CorrelationID
 	if err := s.store.Save(ctx, record); err != nil {
 		return CreateRunResult{}, err
@@ -1067,14 +1078,15 @@ func (s *Service) newRecord(def Definition) RunRecord {
 		for _, job := range stage.Jobs {
 			jobRunID := newID("job")
 			jobRecord := JobRecord{Job: domainpipeline.JobRun{
-				ID:         jobRunID,
-				StageRunID: stageRunID,
-				Name:       job.Name,
-				Status:     domainpipeline.JobRunPending,
-				MaxRetries: job.Retries,
-				Attempt:    1,
-				CreatedAt:  now,
-				UpdatedAt:  now,
+				ID:            jobRunID,
+				StageRunID:    stageRunID,
+				WorkflowJobID: strings.TrimSpace(job.Metadata[MetadataWorkflowJobID]),
+				Name:          job.Name,
+				Status:        domainpipeline.JobRunPending,
+				MaxRetries:    job.Retries,
+				Attempt:       1,
+				CreatedAt:     now,
+				UpdatedAt:     now,
 			}}
 			for i, step := range job.Steps {
 				name := step.Name
@@ -1082,13 +1094,14 @@ func (s *Service) newRecord(def Definition) RunRecord {
 					name = fmt.Sprintf("step-%d", i+1)
 				}
 				jobRecord.Steps = append(jobRecord.Steps, domainpipeline.StepRun{
-					ID:        newID("step"),
-					JobRunID:  jobRunID,
-					Name:      name,
-					Status:    domainpipeline.JobRunPending,
-					Attempt:   1,
-					CreatedAt: now,
-					UpdatedAt: now,
+					ID:             newID("step"),
+					JobRunID:       jobRunID,
+					WorkflowStepID: strings.TrimSpace(step.Metadata[MetadataWorkflowStepID]),
+					Name:           name,
+					Status:         domainpipeline.JobRunPending,
+					Attempt:        1,
+					CreatedAt:      now,
+					UpdatedAt:      now,
 				})
 			}
 			stageRecord.Jobs = append(stageRecord.Jobs, jobRecord)
@@ -1096,6 +1109,46 @@ func (s *Service) newRecord(def Definition) RunRecord {
 		record.Stages = append(record.Stages, stageRecord)
 	}
 	return record
+}
+
+func (s *Service) applyWorkflowMetadata(record *RunRecord, metadata WorkflowRunMetadata) {
+	metadata = normalizeWorkflowMetadata(metadata)
+	if metadata.WorkflowID == "" && metadata.WorkflowPlanID == "" && metadata.WorkflowRunID == "" && metadata.RepositoryID == "" && metadata.RepositorySnapshotID == "" && metadata.SourcePath == "" && metadata.Ref == "" {
+		return
+	}
+	record.Run.WorkflowID = metadata.WorkflowID
+	record.Run.WorkflowPlanID = metadata.WorkflowPlanID
+	record.Run.WorkflowRunID = metadata.WorkflowRunID
+	record.Run.RepositoryID = metadata.RepositoryID
+	record.Run.RepositorySnapshotID = metadata.RepositorySnapshotID
+	if record.Pipeline.Metadata == nil {
+		record.Pipeline.Metadata = map[string]string{}
+	}
+	putMetadata(record.Pipeline.Metadata, MetadataWorkflowID, metadata.WorkflowID)
+	putMetadata(record.Pipeline.Metadata, MetadataWorkflowPlanID, metadata.WorkflowPlanID)
+	putMetadata(record.Pipeline.Metadata, MetadataWorkflowRunID, metadata.WorkflowRunID)
+	putMetadata(record.Pipeline.Metadata, MetadataRepositoryID, metadata.RepositoryID)
+	putMetadata(record.Pipeline.Metadata, MetadataRepositorySnapshotID, metadata.RepositorySnapshotID)
+	putMetadata(record.Pipeline.Metadata, MetadataSourcePath, metadata.SourcePath)
+	putMetadata(record.Pipeline.Metadata, MetadataRef, metadata.Ref)
+}
+
+func normalizeWorkflowMetadata(metadata WorkflowRunMetadata) WorkflowRunMetadata {
+	metadata.WorkflowID = strings.TrimSpace(metadata.WorkflowID)
+	metadata.WorkflowPlanID = strings.TrimSpace(metadata.WorkflowPlanID)
+	metadata.WorkflowRunID = strings.TrimSpace(metadata.WorkflowRunID)
+	metadata.RepositoryID = strings.TrimSpace(metadata.RepositoryID)
+	metadata.RepositorySnapshotID = strings.TrimSpace(metadata.RepositorySnapshotID)
+	metadata.SourcePath = strings.TrimSpace(metadata.SourcePath)
+	metadata.Ref = strings.TrimSpace(metadata.Ref)
+	return metadata
+}
+
+func putMetadata(values map[string]string, key string, value string) {
+	value = strings.TrimSpace(value)
+	if value != "" {
+		values[key] = value
+	}
 }
 
 func (s *Service) runStages(ctx context.Context, def Definition, record RunRecord) RunRecord {

@@ -56,6 +56,38 @@ func TestWorkflowRunMigrationIsReversibleAndIndexed(t *testing.T) {
 	}
 }
 
+func TestWorkflowSourceMetadataMigrationIsReversibleAndIndexed(t *testing.T) {
+	up := readMigration(t, "000021_workflow_pipeline_source_metadata.up.sql")
+	down := readMigration(t, "000021_workflow_pipeline_source_metadata.down.sql")
+
+	for _, value := range []string{
+		"workflow_plan_records",
+		"workflow_run_records",
+		"runtime_pipeline_runs",
+		"runtime_job_runs",
+		"repository_snapshot_id",
+		"workflow_job_id",
+	} {
+		if !strings.Contains(up, value) {
+			t.Fatalf("source metadata up migration missing %s", value)
+		}
+		if !strings.Contains(down, value) {
+			t.Fatalf("source metadata down migration missing %s", value)
+		}
+	}
+	for _, index := range []string{
+		"idx_workflow_plan_records_snapshot_created",
+		"idx_workflow_run_records_snapshot_created",
+	} {
+		if !strings.Contains(up, index) {
+			t.Fatalf("source metadata up migration missing index %s", index)
+		}
+		if !strings.Contains(down, index) {
+			t.Fatalf("source metadata down migration missing index %s", index)
+		}
+	}
+}
+
 func TestPostgresIntegrationWorkflowPlanRecovery(t *testing.T) {
 	db := newPostgresIntegration(t, true)
 	defer db.cleanup()
@@ -77,9 +109,10 @@ jobs:
       - name: test
         run: go test ./...
 `,
-		RepositoryID: "repo-durable",
-		Path:         ".nivora/workflows/build.yaml",
-		Ref:          "main",
+		RepositoryID:         "repo-durable",
+		RepositorySnapshotID: "snap-durable",
+		Path:                 ".nivora/workflows/build.yaml",
+		Ref:                  "main",
 	})
 	if err != nil {
 		t.Fatalf("create workflow plan: %v", err)
@@ -93,7 +126,7 @@ jobs:
 	if err != nil {
 		t.Fatalf("reload workflow plan: %v", err)
 	}
-	if loaded.ID != record.ID || loaded.WorkflowID != record.WorkflowID || loaded.Plan.PlanID != record.ID {
+	if loaded.ID != record.ID || loaded.WorkflowID != record.WorkflowID || loaded.RepositorySnapshotID != "snap-durable" || loaded.Plan.PlanID != record.ID || loaded.Plan.RepositorySnapshotID != "snap-durable" {
 		t.Fatalf("loaded workflow plan = %#v", loaded)
 	}
 	if strings.Contains(loaded.Plan.Steps[0].Env["API_TOKEN"], "workflow-token") {
@@ -112,19 +145,20 @@ jobs:
 	}
 
 	run := workflowusecase.RunRecord{
-		ID:             "wrun-durable",
-		WorkflowID:     record.WorkflowID,
-		WorkflowPlanID: record.ID,
-		RepositoryID:   "repo-durable",
-		PipelineRunID:  "prun-durable",
-		PipelineID:     "pipe-durable",
-		ProjectID:      "project-durable",
-		EnvironmentID:  "env-dev",
-		Ref:            "main",
-		Status:         workflowusecase.RunQueued,
-		Warnings:       []string{"queued only"},
-		CreatedAt:      record.CreatedAt,
-		UpdatedAt:      record.CreatedAt,
+		ID:                   "wrun-durable",
+		WorkflowID:           record.WorkflowID,
+		WorkflowPlanID:       record.ID,
+		RepositoryID:         "repo-durable",
+		RepositorySnapshotID: "snap-durable",
+		PipelineRunID:        "prun-durable",
+		PipelineID:           "pipe-durable",
+		ProjectID:            "project-durable",
+		EnvironmentID:        "env-dev",
+		Ref:                  "main",
+		Status:               workflowusecase.RunQueued,
+		Warnings:             []string{"queued only"},
+		CreatedAt:            record.CreatedAt,
+		UpdatedAt:            record.CreatedAt,
 	}
 	if err := store.SaveRun(ctx, run); err != nil {
 		t.Fatalf("save workflow run: %v", err)
@@ -135,7 +169,7 @@ jobs:
 	if err != nil {
 		t.Fatalf("reload workflow run: %v", err)
 	}
-	if loadedRun.PipelineRunID != run.PipelineRunID || loadedRun.Status != workflowusecase.RunQueued {
+	if loadedRun.PipelineRunID != run.PipelineRunID || loadedRun.RepositorySnapshotID != "snap-durable" || loadedRun.Status != workflowusecase.RunQueued {
 		t.Fatalf("loaded workflow run = %#v", loadedRun)
 	}
 	runs, err := store.ListRuns(ctx, workflowusecase.RunListFilter{RepositoryID: "repo-durable", Status: workflowusecase.RunQueued})

@@ -208,6 +208,17 @@ type CreateRunInput struct {
 	PipelineVersionID string
 	ActorID           string
 	CorrelationID     string
+	Workflow          WorkflowRunMetadata
+}
+
+type WorkflowRunMetadata struct {
+	WorkflowID           string `json:"workflowId,omitempty"`
+	WorkflowPlanID       string `json:"workflowPlanId,omitempty"`
+	WorkflowRunID        string `json:"workflowRunId,omitempty"`
+	RepositoryID         string `json:"repositoryId,omitempty"`
+	RepositorySnapshotID string `json:"repositorySnapshotId,omitempty"`
+	SourcePath           string `json:"sourcePath,omitempty"`
+	Ref                  string `json:"ref,omitempty"`
 }
 
 type CreateRunResult struct {

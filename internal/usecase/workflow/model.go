@@ -126,31 +126,32 @@ type PlanOptions struct {
 }
 
 type Plan struct {
-	PlanID              string                `json:"planId,omitempty"`
-	WorkflowID          string                `json:"workflowId"`
-	RepositoryID        string                `json:"repositoryId,omitempty"`
-	SourcePath          string                `json:"sourcePath,omitempty"`
-	Ref                 string                `json:"ref,omitempty"`
-	ContentHash         string                `json:"contentHash,omitempty"`
-	Name                string                `json:"name"`
-	Triggers            []string              `json:"triggers,omitempty"`
-	PermissionRequests  []PermissionRequest   `json:"permissionRequests,omitempty"`
-	Jobs                []PlannedJob          `json:"jobs"`
-	Steps               []PlannedStep         `json:"steps"`
-	Edges               []Edge                `json:"edges,omitempty"`
-	MatrixExpansions    []MatrixExpansion     `json:"matrixExpansions,omitempty"`
-	RunnerRequirements  []RunnerRequirement   `json:"runnerRequirements,omitempty"`
-	ArtifactOutputs     []ArtifactSpec        `json:"artifactOutputs,omitempty"`
-	CacheHints          []CacheSpec           `json:"cacheHints,omitempty"`
-	SecurityIntent      *SecurityIntentPlan   `json:"securityIntent,omitempty"`
-	ReleaseIntent       *ReleaseIntentPlan    `json:"releaseIntent,omitempty"`
-	DeploymentIntent    *DeploymentIntentPlan `json:"deploymentIntent,omitempty"`
-	SecurityWarnings    []string              `json:"securityWarnings,omitempty"`
-	UnsupportedFeatures []string              `json:"unsupportedFeatures,omitempty"`
-	EstimatedMode       string                `json:"estimatedExecutionMode"`
-	ConversionReady     bool                  `json:"conversionReady"`
-	Warnings            []string              `json:"warnings,omitempty"`
-	CreatedAt           time.Time             `json:"createdAt"`
+	PlanID               string                `json:"planId,omitempty"`
+	WorkflowID           string                `json:"workflowId"`
+	RepositoryID         string                `json:"repositoryId,omitempty"`
+	RepositorySnapshotID string                `json:"repositorySnapshotId,omitempty"`
+	SourcePath           string                `json:"sourcePath,omitempty"`
+	Ref                  string                `json:"ref,omitempty"`
+	ContentHash          string                `json:"contentHash,omitempty"`
+	Name                 string                `json:"name"`
+	Triggers             []string              `json:"triggers,omitempty"`
+	PermissionRequests   []PermissionRequest   `json:"permissionRequests,omitempty"`
+	Jobs                 []PlannedJob          `json:"jobs"`
+	Steps                []PlannedStep         `json:"steps"`
+	Edges                []Edge                `json:"edges,omitempty"`
+	MatrixExpansions     []MatrixExpansion     `json:"matrixExpansions,omitempty"`
+	RunnerRequirements   []RunnerRequirement   `json:"runnerRequirements,omitempty"`
+	ArtifactOutputs      []ArtifactSpec        `json:"artifactOutputs,omitempty"`
+	CacheHints           []CacheSpec           `json:"cacheHints,omitempty"`
+	SecurityIntent       *SecurityIntentPlan   `json:"securityIntent,omitempty"`
+	ReleaseIntent        *ReleaseIntentPlan    `json:"releaseIntent,omitempty"`
+	DeploymentIntent     *DeploymentIntentPlan `json:"deploymentIntent,omitempty"`
+	SecurityWarnings     []string              `json:"securityWarnings,omitempty"`
+	UnsupportedFeatures  []string              `json:"unsupportedFeatures,omitempty"`
+	EstimatedMode        string                `json:"estimatedExecutionMode"`
+	ConversionReady      bool                  `json:"conversionReady"`
+	Warnings             []string              `json:"warnings,omitempty"`
+	CreatedAt            time.Time             `json:"createdAt"`
 }
 
 type PermissionRequest struct {
@@ -206,23 +207,25 @@ type PipelineConversion struct {
 }
 
 type PlanInput struct {
-	Content      string
-	RepositoryID string
-	Path         string
-	Ref          string
-	Options      PlanOptions
+	Content              string
+	RepositoryID         string
+	RepositorySnapshotID string
+	Path                 string
+	Ref                  string
+	Options              PlanOptions
 }
 
 type PlanRecord struct {
-	ID           string    `json:"id"`
-	WorkflowID   string    `json:"workflowId"`
-	RepositoryID string    `json:"repositoryId,omitempty"`
-	Path         string    `json:"path,omitempty"`
-	Ref          string    `json:"ref,omitempty"`
-	Name         string    `json:"name"`
-	ContentHash  string    `json:"contentHash"`
-	Plan         Plan      `json:"plan"`
-	CreatedAt    time.Time `json:"createdAt"`
+	ID                   string    `json:"id"`
+	WorkflowID           string    `json:"workflowId"`
+	RepositoryID         string    `json:"repositoryId,omitempty"`
+	RepositorySnapshotID string    `json:"repositorySnapshotId,omitempty"`
+	Path                 string    `json:"path,omitempty"`
+	Ref                  string    `json:"ref,omitempty"`
+	Name                 string    `json:"name"`
+	ContentHash          string    `json:"contentHash"`
+	Plan                 Plan      `json:"plan"`
+	CreatedAt            time.Time `json:"createdAt"`
 }
 
 type PlanListFilter struct {
@@ -257,18 +260,19 @@ const (
 )
 
 type RunInput struct {
-	Content          string
-	PlanID           string
-	RepositoryID     string
-	Path             string
-	Ref              string
-	ProjectID        string
-	EnvironmentID    string
-	ActorID          string
-	CorrelationID    string
-	Confirm          bool
-	AllowPipelineRun bool
-	Options          PlanOptions
+	Content              string
+	PlanID               string
+	RepositoryID         string
+	RepositorySnapshotID string
+	Path                 string
+	Ref                  string
+	ProjectID            string
+	EnvironmentID        string
+	ActorID              string
+	CorrelationID        string
+	Confirm              bool
+	AllowPipelineRun     bool
+	Options              PlanOptions
 }
 
 type RetryInput struct {
@@ -279,19 +283,20 @@ type RetryInput struct {
 }
 
 type RunRecord struct {
-	ID             string    `json:"id"`
-	WorkflowID     string    `json:"workflowId"`
-	WorkflowPlanID string    `json:"workflowPlanId"`
-	RepositoryID   string    `json:"repositoryId,omitempty"`
-	PipelineRunID  string    `json:"pipelineRunId"`
-	PipelineID     string    `json:"pipelineId"`
-	ProjectID      string    `json:"projectId,omitempty"`
-	EnvironmentID  string    `json:"environmentId,omitempty"`
-	Ref            string    `json:"ref,omitempty"`
-	Status         RunStatus `json:"status"`
-	Warnings       []string  `json:"warnings,omitempty"`
-	CreatedAt      time.Time `json:"createdAt"`
-	UpdatedAt      time.Time `json:"updatedAt"`
+	ID                   string    `json:"id"`
+	WorkflowID           string    `json:"workflowId"`
+	WorkflowPlanID       string    `json:"workflowPlanId"`
+	RepositoryID         string    `json:"repositoryId,omitempty"`
+	RepositorySnapshotID string    `json:"repositorySnapshotId,omitempty"`
+	PipelineRunID        string    `json:"pipelineRunId"`
+	PipelineID           string    `json:"pipelineId"`
+	ProjectID            string    `json:"projectId,omitempty"`
+	EnvironmentID        string    `json:"environmentId,omitempty"`
+	Ref                  string    `json:"ref,omitempty"`
+	Status               RunStatus `json:"status"`
+	Warnings             []string  `json:"warnings,omitempty"`
+	CreatedAt            time.Time `json:"createdAt"`
+	UpdatedAt            time.Time `json:"updatedAt"`
 }
 
 type RunResult struct {

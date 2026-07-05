@@ -23,31 +23,34 @@ type repositorySnapshotRequest struct {
 }
 
 type workflowDefinitionRequest struct {
-	Content      string `json:"content"`
-	RepositoryID string `json:"repositoryId,omitempty"`
-	Path         string `json:"path,omitempty"`
-	Ref          string `json:"ref,omitempty"`
+	Content              string `json:"content"`
+	RepositoryID         string `json:"repositoryId,omitempty"`
+	RepositorySnapshotID string `json:"repositorySnapshotId,omitempty"`
+	Path                 string `json:"path,omitempty"`
+	Ref                  string `json:"ref,omitempty"`
 }
 
 type workflowDefinitionPayload struct {
-	Content      string
-	Definition   workflowusecase.Definition
-	RepositoryID string
-	Path         string
-	Ref          string
+	Content              string
+	Definition           workflowusecase.Definition
+	RepositoryID         string
+	RepositorySnapshotID string
+	Path                 string
+	Ref                  string
 }
 
 type workflowRunRequest struct {
-	Content          string `json:"content,omitempty"`
-	PlanID           string `json:"planId,omitempty"`
-	RepositoryID     string `json:"repositoryId,omitempty"`
-	Path             string `json:"path,omitempty"`
-	Ref              string `json:"ref,omitempty"`
-	ProjectID        string `json:"projectId,omitempty"`
-	EnvironmentID    string `json:"environmentId,omitempty"`
-	CorrelationID    string `json:"correlationId,omitempty"`
-	Confirm          bool   `json:"confirm"`
-	AllowPipelineRun bool   `json:"allowPipelineRun"`
+	Content              string `json:"content,omitempty"`
+	PlanID               string `json:"planId,omitempty"`
+	RepositoryID         string `json:"repositoryId,omitempty"`
+	RepositorySnapshotID string `json:"repositorySnapshotId,omitempty"`
+	Path                 string `json:"path,omitempty"`
+	Ref                  string `json:"ref,omitempty"`
+	ProjectID            string `json:"projectId,omitempty"`
+	EnvironmentID        string `json:"environmentId,omitempty"`
+	CorrelationID        string `json:"correlationId,omitempty"`
+	Confirm              bool   `json:"confirm"`
+	AllowPipelineRun     bool   `json:"allowPipelineRun"`
 }
 
 type workflowReconcileRequest struct {
@@ -242,10 +245,11 @@ func PlanWorkflowDefinition(service *workflowusecase.Service) http.HandlerFunc {
 			return
 		}
 		record, err := service.Plan(r.Context(), workflowusecase.PlanInput{
-			Content:      payload.Content,
-			RepositoryID: payload.RepositoryID,
-			Path:         payload.Path,
-			Ref:          payload.Ref,
+			Content:              payload.Content,
+			RepositoryID:         payload.RepositoryID,
+			RepositorySnapshotID: payload.RepositorySnapshotID,
+			Path:                 payload.Path,
+			Ref:                  payload.Ref,
 		})
 		if err != nil {
 			respondWorkflowError(w, r, err)
@@ -398,17 +402,18 @@ func RunWorkflowDefinition(service *workflowusecase.Service, pipelines *pipeline
 			return
 		}
 		result, err := service.Run(r.Context(), workflowusecase.RunInput{
-			Content:          input.Content,
-			PlanID:           input.PlanID,
-			RepositoryID:     input.RepositoryID,
-			Path:             input.Path,
-			Ref:              input.Ref,
-			ProjectID:        input.ProjectID,
-			EnvironmentID:    input.EnvironmentID,
-			ActorID:          actorIDFromRequest(r),
-			CorrelationID:    input.CorrelationID,
-			Confirm:          input.Confirm,
-			AllowPipelineRun: input.AllowPipelineRun,
+			Content:              input.Content,
+			PlanID:               input.PlanID,
+			RepositoryID:         input.RepositoryID,
+			RepositorySnapshotID: input.RepositorySnapshotID,
+			Path:                 input.Path,
+			Ref:                  input.Ref,
+			ProjectID:            input.ProjectID,
+			EnvironmentID:        input.EnvironmentID,
+			ActorID:              actorIDFromRequest(r),
+			CorrelationID:        input.CorrelationID,
+			Confirm:              input.Confirm,
+			AllowPipelineRun:     input.AllowPipelineRun,
 		}, pipelines)
 		if err != nil {
 			respondWorkflowError(w, r, err)
@@ -439,10 +444,11 @@ func workflowDefinitionFromRequest(r *http.Request) (workflowDefinitionPayload, 
 		}
 		content = strings.TrimSpace(input.Content)
 		payload = workflowDefinitionPayload{
-			Content:      content,
-			RepositoryID: strings.TrimSpace(input.RepositoryID),
-			Path:         strings.TrimSpace(input.Path),
-			Ref:          strings.TrimSpace(input.Ref),
+			Content:              content,
+			RepositoryID:         strings.TrimSpace(input.RepositoryID),
+			RepositorySnapshotID: strings.TrimSpace(input.RepositorySnapshotID),
+			Path:                 strings.TrimSpace(input.Path),
+			Ref:                  strings.TrimSpace(input.Ref),
 		}
 	}
 	if content == "" {

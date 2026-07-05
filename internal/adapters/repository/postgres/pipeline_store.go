@@ -827,10 +827,10 @@ func (s *PipelineStore) saveRecord(ctx context.Context, tx pgx.Tx, record pipeli
 	if err != nil {
 		return err
 	}
-	_, err = tx.Exec(ctx, `INSERT INTO runtime_pipeline_runs (id, pipeline_id, status, correlation_id, cancel_requested, owner_id, lease_expires_at, attempt, heartbeat_at, record, created_at, updated_at, started_at, finished_at, failure_reason)
-		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
-		ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, correlation_id = EXCLUDED.correlation_id, cancel_requested = EXCLUDED.cancel_requested, owner_id = EXCLUDED.owner_id, lease_expires_at = EXCLUDED.lease_expires_at, attempt = EXCLUDED.attempt, heartbeat_at = EXCLUDED.heartbeat_at, record = EXCLUDED.record, updated_at = EXCLUDED.updated_at, started_at = EXCLUDED.started_at, finished_at = EXCLUDED.finished_at, failure_reason = EXCLUDED.failure_reason, version = runtime_pipeline_runs.version + 1`,
-		record.Run.ID, record.Run.PipelineID, string(record.Run.Status), record.Run.CorrelationID, record.Run.CancelRequested, record.Run.OwnerID, record.Run.LeaseExpiresAt, record.Run.Attempt, record.Run.HeartbeatAt, raw, record.Run.CreatedAt, record.Run.UpdatedAt, record.Run.StartedAt, record.Run.FinishedAt, record.Run.FailureReason)
+	_, err = tx.Exec(ctx, `INSERT INTO runtime_pipeline_runs (id, pipeline_id, status, correlation_id, cancel_requested, owner_id, lease_expires_at, attempt, heartbeat_at, workflow_id, workflow_plan_id, workflow_run_id, repository_id, repository_snapshot_id, record, created_at, updated_at, started_at, finished_at, failure_reason)
+		VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20)
+		ON CONFLICT (id) DO UPDATE SET status = EXCLUDED.status, correlation_id = EXCLUDED.correlation_id, cancel_requested = EXCLUDED.cancel_requested, owner_id = EXCLUDED.owner_id, lease_expires_at = EXCLUDED.lease_expires_at, attempt = EXCLUDED.attempt, heartbeat_at = EXCLUDED.heartbeat_at, workflow_id = EXCLUDED.workflow_id, workflow_plan_id = EXCLUDED.workflow_plan_id, workflow_run_id = EXCLUDED.workflow_run_id, repository_id = EXCLUDED.repository_id, repository_snapshot_id = EXCLUDED.repository_snapshot_id, record = EXCLUDED.record, updated_at = EXCLUDED.updated_at, started_at = EXCLUDED.started_at, finished_at = EXCLUDED.finished_at, failure_reason = EXCLUDED.failure_reason, version = runtime_pipeline_runs.version + 1`,
+		record.Run.ID, record.Run.PipelineID, string(record.Run.Status), record.Run.CorrelationID, record.Run.CancelRequested, record.Run.OwnerID, record.Run.LeaseExpiresAt, record.Run.Attempt, record.Run.HeartbeatAt, record.Run.WorkflowID, record.Run.WorkflowPlanID, record.Run.WorkflowRunID, record.Run.RepositoryID, record.Run.RepositorySnapshotID, raw, record.Run.CreatedAt, record.Run.UpdatedAt, record.Run.StartedAt, record.Run.FinishedAt, record.Run.FailureReason)
 	if err != nil {
 		return err
 	}
@@ -862,9 +862,9 @@ func (s *PipelineStore) replaceJobs(ctx context.Context, tx pgx.Tx, record pipel
 	}
 	for _, stage := range record.Stages {
 		for _, job := range stage.Jobs {
-			_, err := tx.Exec(ctx, `INSERT INTO runtime_job_runs (id, pipeline_run_id, stage_run_id, runner_id, name, status, attempt, max_retries, lease_expires_at, created_at, updated_at, started_at, finished_at, failure_reason)
-				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)`,
-				job.Job.ID, record.Run.ID, stage.Stage.ID, job.Job.RunnerID, job.Job.Name, string(job.Job.Status), job.Job.Attempt, job.Job.MaxRetries, job.Job.LeaseExpiresAt, job.Job.CreatedAt, job.Job.UpdatedAt, job.Job.StartedAt, job.Job.FinishedAt, job.Job.FailureReason)
+			_, err := tx.Exec(ctx, `INSERT INTO runtime_job_runs (id, pipeline_run_id, stage_run_id, workflow_job_id, runner_id, name, status, attempt, max_retries, lease_expires_at, created_at, updated_at, started_at, finished_at, failure_reason)
+				VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)`,
+				job.Job.ID, record.Run.ID, stage.Stage.ID, job.Job.WorkflowJobID, job.Job.RunnerID, job.Job.Name, string(job.Job.Status), job.Job.Attempt, job.Job.MaxRetries, job.Job.LeaseExpiresAt, job.Job.CreatedAt, job.Job.UpdatedAt, job.Job.StartedAt, job.Job.FinishedAt, job.Job.FailureReason)
 			if err != nil {
 				return err
 			}

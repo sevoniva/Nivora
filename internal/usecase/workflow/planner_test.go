@@ -3,6 +3,8 @@ package workflow
 import (
 	"strings"
 	"testing"
+
+	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
 func TestWorkflowPlanValidMatrixDAG(t *testing.T) {
@@ -344,12 +346,26 @@ jobs:
 	if got := direct.Definition.Spec.Stages[0].Jobs[0].Labels["tier"]; got != "secure" {
 		t.Fatalf("direct converted labels = %#v", direct.Definition.Spec.Stages[0].Jobs[0].Labels)
 	}
+	directJob := direct.Definition.Spec.Stages[0].Jobs[0]
+	if directJob.Metadata[pipelineusecase.MetadataWorkflowJobID] == "" {
+		t.Fatalf("direct converted job metadata = %#v", directJob.Metadata)
+	}
+	if directJob.Steps[0].Metadata[pipelineusecase.MetadataWorkflowStepID] == "" {
+		t.Fatalf("direct converted step metadata = %#v", directJob.Steps[0].Metadata)
+	}
 	fromPlan, err := ToPipelineDefinitionFromPlan(plan)
 	if err != nil {
 		t.Fatalf("plan conversion: %v", err)
 	}
 	if got := fromPlan.Definition.Spec.Stages[0].Jobs[0].Labels["runtime"]; got != "workflow" {
 		t.Fatalf("plan converted labels = %#v", fromPlan.Definition.Spec.Stages[0].Jobs[0].Labels)
+	}
+	planJob := fromPlan.Definition.Spec.Stages[0].Jobs[0]
+	if planJob.Metadata[pipelineusecase.MetadataWorkflowJobID] != plan.Jobs[0].ID {
+		t.Fatalf("plan converted job metadata = %#v plan job=%#v", planJob.Metadata, plan.Jobs[0])
+	}
+	if planJob.Steps[0].Metadata[pipelineusecase.MetadataWorkflowStepID] != plan.Steps[0].ID {
+		t.Fatalf("plan converted step metadata = %#v plan step=%#v", planJob.Steps[0].Metadata, plan.Steps[0])
 	}
 }
 

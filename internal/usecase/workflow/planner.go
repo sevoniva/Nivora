@@ -164,10 +164,12 @@ func ToPipelineDefinition(def Definition, options PlanOptions) (PipelineConversi
 				expansions = []map[string]string{{}}
 			}
 			for index, matrix := range expansions {
+				workflowJobID := plannedJobID(jobID, matrix, index, len(expansions))
 				pipelineJob := pipelineusecase.Job{
-					Name:           plannedJobID(jobID, matrix, index, len(expansions)),
+					Name:           workflowJobID,
 					Executor:       "shell",
 					Labels:         copyStringMap(job.Labels),
+					Metadata:       workflowJobMetadata(workflowJobID),
 					TimeoutSeconds: job.TimeoutMinutes * 60,
 				}
 				for stepIndex, step := range job.Steps {
@@ -177,6 +179,7 @@ func ToPipelineDefinition(def Definition, options PlanOptions) (PipelineConversi
 					pipelineJob.Steps = append(pipelineJob.Steps, pipelineusecase.Step{
 						Name:           firstNonEmpty(step.Name, fmt.Sprintf("step-%d", stepIndex+1)),
 						Run:            step.Run,
+						Metadata:       workflowStepMetadata(workflowJobID, fmt.Sprintf("%s/step-%d", workflowJobID, stepIndex+1)),
 						TimeoutSeconds: step.TimeoutMinutes * 60,
 					})
 				}
@@ -219,6 +222,7 @@ func ToPipelineDefinitionFromPlan(plan Plan) (PipelineConversion, error) {
 			Name:           firstNonEmpty(job.ID, job.Name),
 			Executor:       "shell",
 			Labels:         copyStringMap(job.Labels),
+			Metadata:       workflowJobMetadata(job.ID),
 			TimeoutSeconds: job.TimeoutMinutes * 60,
 		}
 		for stepIndex, step := range stepsByJob[job.ID] {
@@ -228,6 +232,7 @@ func ToPipelineDefinitionFromPlan(plan Plan) (PipelineConversion, error) {
 			pipelineJob.Steps = append(pipelineJob.Steps, pipelineusecase.Step{
 				Name:           firstNonEmpty(step.Name, fmt.Sprintf("step-%d", stepIndex+1)),
 				Run:            step.Run,
+				Metadata:       workflowStepMetadata(job.ID, step.ID),
 				TimeoutSeconds: step.TimeoutMinutes * 60,
 			})
 		}
@@ -908,6 +913,30 @@ func copyStringMap(in map[string]string) map[string]string {
 		out[key] = value
 	}
 	return out
+}
+
+func workflowJobMetadata(workflowJobID string) map[string]string {
+	workflowJobID = strings.TrimSpace(workflowJobID)
+	if workflowJobID == "" {
+		return nil
+	}
+	return map[string]string{pipelineusecase.MetadataWorkflowJobID: workflowJobID}
+}
+
+func workflowStepMetadata(workflowJobID string, workflowStepID string) map[string]string {
+	workflowJobID = strings.TrimSpace(workflowJobID)
+	workflowStepID = strings.TrimSpace(workflowStepID)
+	metadata := map[string]string{}
+	if workflowJobID != "" {
+		metadata[pipelineusecase.MetadataWorkflowJobID] = workflowJobID
+	}
+	if workflowStepID != "" {
+		metadata[pipelineusecase.MetadataWorkflowStepID] = workflowStepID
+	}
+	if len(metadata) == 0 {
+		return nil
+	}
+	return metadata
 }
 
 func compactStringMap(in map[string]string) map[string]string {

@@ -50,6 +50,15 @@ type workflowRunRequest struct {
 	AllowPipelineRun bool   `json:"allowPipelineRun"`
 }
 
+type workflowReconcileRequest struct {
+	RepositoryID string `json:"repositoryId,omitempty"`
+	WorkflowID   string `json:"workflowId,omitempty"`
+	ProjectID    string `json:"projectId,omitempty"`
+	Status       string `json:"status,omitempty"`
+	Limit        int    `json:"limit,omitempty"`
+	Offset       int    `json:"offset,omitempty"`
+}
+
 type devOpsPlanRequest struct {
 	RepositoryID string `json:"repositoryId"`
 }
@@ -273,6 +282,49 @@ func CancelWorkflowRun(service *workflowusecase.Service, pipelines *pipelineusec
 			return
 		}
 		RespondJSON(w, http.StatusOK, record)
+	}
+}
+
+func ReconcileWorkflowRuns(service *workflowusecase.Service, pipelines *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input workflowReconcileRequest
+		if r.Body != nil {
+			if err := json.NewDecoder(r.Body).Decode(&input); err != nil && !errors.Is(err, io.EOF) {
+				RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_workflow_reconcile_request", Message: err.Error(), Path: r.URL.Path})
+				return
+			}
+		}
+		if input.RepositoryID == "" {
+			input.RepositoryID = r.URL.Query().Get("repositoryId")
+		}
+		if input.WorkflowID == "" {
+			input.WorkflowID = r.URL.Query().Get("workflowId")
+		}
+		if input.ProjectID == "" {
+			input.ProjectID = r.URL.Query().Get("projectId")
+		}
+		if input.Status == "" {
+			input.Status = r.URL.Query().Get("status")
+		}
+		if input.Limit == 0 {
+			input.Limit, _ = strconv.Atoi(r.URL.Query().Get("limit"))
+		}
+		if input.Offset == 0 {
+			input.Offset, _ = strconv.Atoi(r.URL.Query().Get("offset"))
+		}
+		result, err := service.ReconcileRuns(r.Context(), workflowusecase.RunListFilter{
+			RepositoryID: input.RepositoryID,
+			WorkflowID:   input.WorkflowID,
+			ProjectID:    input.ProjectID,
+			Status:       workflowusecase.RunStatus(input.Status),
+			Limit:        input.Limit,
+			Offset:       input.Offset,
+		}, pipelines)
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, result)
 	}
 }
 

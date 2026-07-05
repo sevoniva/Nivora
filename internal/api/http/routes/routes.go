@@ -228,6 +228,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/workflows/plans/{id}", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.GetWorkflowPlan(workflowService)))
 		api.Get("/workflows/runs", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.ListWorkflowRuns(workflowService, pipelineService)))
 		api.Get("/workflows/runs/{id}", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.GetWorkflowRun(workflowService, pipelineService)))
+		api.Post("/workflows/runs/reconcile", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.ReconcileWorkflowRuns(workflowService, pipelineService)))
 		api.Post("/workflows/runs/{id}/cancel", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.CancelWorkflowRun(workflowService, pipelineService)))
 		api.Get("/workflows/{id}/plan", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.GetWorkflowLatestPlan(workflowService)))
 		api.Post("/workflows/validate", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.ValidateWorkflowDefinition()))

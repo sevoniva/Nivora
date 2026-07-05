@@ -320,6 +320,43 @@ func (s *Service) RefreshRuns(ctx context.Context, filter RunListFilter, pipelin
 	return out, nil
 }
 
+func (s *Service) ReconcileRuns(ctx context.Context, filter RunListFilter, pipelines PipelineRunReader) (ReconcileResult, error) {
+	filter.RepositoryID = strings.TrimSpace(filter.RepositoryID)
+	filter.WorkflowID = strings.TrimSpace(filter.WorkflowID)
+	filter.ProjectID = strings.TrimSpace(filter.ProjectID)
+	requestedStatus := filter.Status
+	filter.Status = ""
+	records, err := s.store.ListRuns(ctx, filter)
+	if err != nil {
+		return ReconcileResult{}, err
+	}
+	result := ReconcileResult{WorkflowRuns: []RunRecord{}}
+	if pipelines == nil {
+		result.Warnings = append(result.Warnings, "workflow reconciliation could not read linked PipelineRun state")
+	}
+	for _, record := range records {
+		if requestedStatus != "" && record.Status != requestedStatus {
+			continue
+		}
+		if isTerminalRunStatus(record.Status) {
+			continue
+		}
+		result.Scanned++
+		refreshed := record
+		if pipelines != nil {
+			refreshed, err = s.refreshRunRecordStatus(ctx, record, pipelines)
+			if err != nil {
+				return ReconcileResult{}, err
+			}
+		}
+		if refreshed.Status != record.Status {
+			result.Updated++
+		}
+		result.WorkflowRuns = append(result.WorkflowRuns, refreshed)
+	}
+	return result, nil
+}
+
 func (s *Service) CancelRun(ctx context.Context, id string, actorID string, pipelines PipelineRunCanceler) (RunRecord, error) {
 	record, err := s.GetRun(ctx, id)
 	if err != nil {

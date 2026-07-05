@@ -238,6 +238,41 @@ func TestServiceRefreshRunStatusTracksPipelineRunTerminalState(t *testing.T) {
 	}
 }
 
+func TestServiceReconcileRunsRefreshesNonTerminalWorkflowRuns(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	pipelines := newWorkflowPipelineService()
+	result, err := service.Run(context.Background(), RunInput{
+		Content:          executableWorkflow(t),
+		RepositoryID:     "repo-a",
+		ProjectID:        "project-a",
+		Confirm:          true,
+		AllowPipelineRun: true,
+	}, pipelines)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if _, err := pipelines.ProcessQueued(context.Background(), 1); err != nil {
+		t.Fatalf("ProcessQueued: %v", err)
+	}
+	reconciled, err := service.ReconcileRuns(context.Background(), RunListFilter{RepositoryID: "repo-a"}, pipelines)
+	if err != nil {
+		t.Fatalf("ReconcileRuns: %v", err)
+	}
+	if reconciled.Scanned != 1 || reconciled.Updated != 1 || len(reconciled.WorkflowRuns) != 1 {
+		t.Fatalf("reconciled = %#v", reconciled)
+	}
+	if reconciled.WorkflowRuns[0].ID != result.WorkflowRun.ID || reconciled.WorkflowRuns[0].Status != RunSucceeded {
+		t.Fatalf("workflow run after reconcile = %#v", reconciled.WorkflowRuns[0])
+	}
+	reconciled, err = service.ReconcileRuns(context.Background(), RunListFilter{RepositoryID: "repo-a"}, pipelines)
+	if err != nil {
+		t.Fatalf("ReconcileRuns second pass: %v", err)
+	}
+	if reconciled.Scanned != 0 || reconciled.Updated != 0 || len(reconciled.WorkflowRuns) != 0 {
+		t.Fatalf("terminal workflow run should not be reconciled again: %#v", reconciled)
+	}
+}
+
 func TestServiceCancelRunCancelsLinkedPipelineRun(t *testing.T) {
 	service := NewService(NewMemoryStore())
 	pipelines := newWorkflowPipelineService()

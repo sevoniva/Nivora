@@ -207,6 +207,14 @@ jobs:
 		t.Fatalf("process workflow-created PipelineRun: %v", err)
 	}
 
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/runs/reconcile", strings.NewReader(`{"repositoryId":"repo-api"}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"scanned":1`) || !strings.Contains(rec.Body.String(), `"updated":1`) || !strings.Contains(rec.Body.String(), `"status":"Succeeded"`) {
+		t.Fatalf("workflow reconcile status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/runs/"+runID, nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

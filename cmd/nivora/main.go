@@ -1822,6 +1822,7 @@ func newWorkflowCommand() *cobra.Command {
 	cmd.AddCommand(newWorkflowPlanCommand())
 	cmd.AddCommand(newWorkflowRunCommand())
 	cmd.AddCommand(newWorkflowCancelCommand())
+	cmd.AddCommand(newWorkflowReconcileCommand())
 	return cmd
 }
 
@@ -2400,6 +2401,49 @@ func newWorkflowCancelCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newWorkflowReconcileCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var repositoryID string
+	var workflowID string
+	var projectID string
+	var status string
+	var limit int
+	var offset int
+	cmd := &cobra.Command{
+		Use:   "reconcile",
+		Short: "Reconcile WorkflowRun metadata from linked PipelineRun state",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			body, err := json.Marshal(map[string]any{
+				"repositoryId": repositoryID,
+				"workflowId":   workflowID,
+				"projectId":    projectID,
+				"status":       status,
+				"limit":        limit,
+				"offset":       offset,
+			})
+			if err != nil {
+				return err
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/workflows/runs/reconcile", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&repositoryID, "repository-id", "", "repository id filter")
+	cmd.Flags().StringVar(&workflowID, "workflow-id", "", "workflow id filter")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "project id filter")
+	cmd.Flags().StringVar(&status, "status", "", "initial WorkflowRun status filter")
+	cmd.Flags().IntVar(&limit, "limit", 100, "maximum WorkflowRun records to scan")
+	cmd.Flags().IntVar(&offset, "offset", 0, "WorkflowRun list offset")
 	return cmd
 }
 

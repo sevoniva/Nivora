@@ -286,6 +286,13 @@ type RunResult struct {
 	Warnings    []string                  `json:"warnings,omitempty"`
 }
 
+type ReconcileResult struct {
+	Scanned      int         `json:"scanned"`
+	Updated      int         `json:"updated"`
+	WorkflowRuns []RunRecord `json:"workflowRuns"`
+	Warnings     []string    `json:"warnings,omitempty"`
+}
+
 type RunListFilter struct {
 	RepositoryID string
 	WorkflowID   string

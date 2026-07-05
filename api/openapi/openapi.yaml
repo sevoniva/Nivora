@@ -1580,6 +1580,42 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/workflows/runs/reconcile:
+    post:
+      summary: Reconcile guarded Nivora Workflow run metadata
+      description: Requires `workflow.run`. Scans non-terminal WorkflowRun metadata records, reads linked PipelineRun state, and updates WorkflowRun status where it drifted. It does not create PipelineRuns, retry workflows, execute steps, roll back deployments, or delete resources.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                repositoryId:
+                  type: string
+                workflowId:
+                  type: string
+                projectId:
+                  type: string
+                status:
+                  type: string
+                limit:
+                  type: integer
+                offset:
+                  type: integer
+      responses:
+        "200":
+          description: Workflow run reconciliation result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowReconcileResult"
+        "400":
+          description: Reconcile request is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/workflows/run:
     post:
       summary: Request a guarded Workflow run
@@ -5578,6 +5614,21 @@ components:
           additionalProperties: true
         plan:
           $ref: "#/components/schemas/WorkflowPlan"
+        warnings:
+          type: array
+          items:
+            type: string
+    WorkflowReconcileResult:
+      type: object
+      properties:
+        scanned:
+          type: integer
+        updated:
+          type: integer
+        workflowRuns:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowRunRecord"
         warnings:
           type: array
           items:

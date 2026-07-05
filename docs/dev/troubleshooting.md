@@ -28,7 +28,7 @@ Shell commands return a non-zero exit code as a failed JobRun. Timeout failures 
 
 ## PipelineRun Is Not Found
 
-Runtime state is in memory. If the server or CLI process restarts, previous PipelineRuns are gone. Durable runtime repositories are future work.
+Local development often still uses the in-memory runtime store. If the server or CLI process restarts in memory mode, previous PipelineRuns are gone. Production-like recovery work should use `database.runtime_store: postgres`; the PostgreSQL-backed runtime stores and recovery checks are covered by the optional Postgres integration profile and CI jobs, but this still does not make Nivora production-ready.
 
 ## Runner Is Not Found
 

@@ -63,7 +63,7 @@ The server currently reports database configuration posture. For production-dire
 - back up before schema changes
 - restore DB before object-store-dependent reconciliation
 
-Live DB ping checks are future work.
+For a running server, use `nivora doctor live --server <url> --token-env NIVORA_AUTH_TOKEN` to read the current diagnostics, runtime recovery summary, event outbox counts, and audit hash-chain verification result. This is a read-only live check; it does not run migrations, repair the database, or prove production readiness.
 
 ## Object Store Unavailable
 

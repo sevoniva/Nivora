@@ -14,16 +14,17 @@ import (
 )
 
 var (
-	ErrRunNotFound            = errors.New("pipeline run not found")
-	ErrRunnerNotFound         = errors.New("runner not found")
-	ErrRunnerUnauthorized     = errors.New("runner token is invalid")
-	ErrRunnerTokenRevoked     = errors.New("runner token is revoked")
-	ErrRunnerGroupNotFound    = errors.New("runner group not found")
-	ErrRunnerGroupScopeDenied = errors.New("runner group scope does not allow runner")
-	ErrRunnerConcurrencyLimit = errors.New("runner concurrency limit reached")
-	ErrJobNotFound            = errors.New("job run not found")
-	ErrNoClaimableJob         = errors.New("no claimable job found")
-	ErrOutboxNotFound         = errors.New("event outbox record not found")
+	ErrRunNotFound               = errors.New("pipeline run not found")
+	ErrRunnerNotFound            = errors.New("runner not found")
+	ErrRunnerUnauthorized        = errors.New("runner token is invalid")
+	ErrRunnerTokenRevoked        = errors.New("runner token is revoked")
+	ErrRunnerGroupNotFound       = errors.New("runner group not found")
+	ErrRunnerGroupScopeDenied    = errors.New("runner group scope does not allow runner")
+	ErrUnsupportedRunnerExecutor = errors.New("runner executor capability is not supported")
+	ErrRunnerConcurrencyLimit    = errors.New("runner concurrency limit reached")
+	ErrJobNotFound               = errors.New("job run not found")
+	ErrNoClaimableJob            = errors.New("no claimable job found")
+	ErrOutboxNotFound            = errors.New("event outbox record not found")
 )
 
 type PipelineRepository interface {
@@ -266,37 +267,37 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 		if record.Run.Status != domainpipeline.PipelineRunQueued && record.Run.Status != domainpipeline.PipelineRunRunning {
 			continue
 		}
-		if record.Run.Status == domainpipeline.PipelineRunQueued {
-			record.Run.Status = domainpipeline.PipelineRunRunning
-			record.Run.StartedAt = &now
-			record.Run.UpdatedAt = now
-		}
 		for stageIndex := range record.Stages {
-			stage := &record.Stages[stageIndex].Stage
-			if stage.Status == domainpipeline.JobRunPending {
-				stage.Status = domainpipeline.JobRunRunning
-				stage.StartedAt = &now
-				stage.UpdatedAt = now
-			}
 			for jobIndex := range record.Stages[stageIndex].Jobs {
 				job := &record.Stages[stageIndex].Jobs[jobIndex].Job
-				executor := "shell"
+				executor := domainrunner.ExecutorShell
 				if stageIndex < len(record.Definition.Spec.Stages) && jobIndex < len(record.Definition.Spec.Stages[stageIndex].Jobs) {
-					executor = record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex].Executor
-					if executor == "" {
-						executor = "shell"
-					}
+					executor = normalizeRecordExecutor(record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex].Executor)
 				}
-				if group.ID != "" && len(group.Executors) > 0 && !contains(group.Executors, executor) {
+				if !domainrunner.IsSupportedExecutorCapability(executor) {
 					continue
 				}
-				if !contains(runner.Executors, executor) && !contains(runner.Capabilities, executor) {
+				if group.ID != "" && len(group.Executors) > 0 && !executorListContains(group.Executors, executor) {
+					continue
+				}
+				if !runnerSupportsExecutor(runner, executor) {
 					continue
 				}
 				claimable := job.Status == domainpipeline.JobRunPending || job.Status == domainpipeline.JobRunRetrying
 				leaseExpired := job.Status == domainpipeline.JobRunAssigned && job.LeaseExpiresAt != nil && job.LeaseExpiresAt.Before(now)
 				if !claimable && !leaseExpired {
 					continue
+				}
+				stage := &record.Stages[stageIndex].Stage
+				if record.Run.Status == domainpipeline.PipelineRunQueued {
+					record.Run.Status = domainpipeline.PipelineRunRunning
+					record.Run.StartedAt = &now
+					record.Run.UpdatedAt = now
+				}
+				if stage.Status == domainpipeline.JobRunPending {
+					stage.Status = domainpipeline.JobRunRunning
+					stage.StartedAt = &now
+					stage.UpdatedAt = now
 				}
 				job.Status = domainpipeline.JobRunAssigned
 				job.RunnerID = runnerID
@@ -760,6 +761,10 @@ func (s *MemoryStore) ListRunners(ctx context.Context) ([]domainrunner.Runner, e
 }
 
 func (s *MemoryStore) SelectRunner(ctx context.Context, executor string, labels map[string]string) (domainrunner.Runner, error) {
+	executor = normalizeRecordExecutor(executor)
+	if !domainrunner.IsSupportedExecutorCapability(executor) {
+		return domainrunner.Runner{}, ErrRunnerNotFound
+	}
 	runners, err := s.ListRunners(ctx)
 	if err != nil {
 		return domainrunner.Runner{}, err
@@ -768,7 +773,7 @@ func (s *MemoryStore) SelectRunner(ctx context.Context, executor string, labels 
 		if runner.Status != "online" {
 			continue
 		}
-		if !contains(runner.Executors, executor) && !contains(runner.Capabilities, executor) {
+		if !runnerSupportsExecutor(runner, executor) {
 			continue
 		}
 		if !labelsMatch(runner.Labels, labels) {
@@ -1031,6 +1036,31 @@ func contains(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func normalizeRecordExecutor(executor string) string {
+	normalized := domainrunner.NormalizeExecutorCapability(executor)
+	if normalized == "" {
+		return domainrunner.ExecutorShell
+	}
+	return normalized
+}
+
+func executorListContains(values []string, executor string) bool {
+	executor = domainrunner.NormalizeExecutorCapability(executor)
+	if !domainrunner.IsSupportedExecutorCapability(executor) {
+		return false
+	}
+	for _, value := range values {
+		if domainrunner.NormalizeExecutorCapability(value) == executor && domainrunner.IsSupportedExecutorCapability(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func runnerSupportsExecutor(runner domainrunner.Runner, executor string) bool {
+	return executorListContains(runner.Executors, executor) || executorListContains(runner.Capabilities, executor)
 }
 
 func labelsMatch(have map[string]string, want map[string]string) bool {

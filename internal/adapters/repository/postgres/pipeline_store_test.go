@@ -211,6 +211,45 @@ func TestClaimRecordJobRespectsRunnerGroupScopeAndExecutors(t *testing.T) {
 	}
 }
 
+func TestClaimRecordJobRejectsUnsupportedExecutorStringMatch(t *testing.T) {
+	now := time.Date(2026, 5, 19, 1, 2, 3, 0, time.UTC)
+	leaseUntil := now.Add(30 * time.Second)
+	record := pipelineusecase.RunRecord{
+		Pipeline: domainpipeline.Pipeline{ID: "pipe-unsafe", Name: "unsafe"},
+		Definition: pipelineusecase.Definition{
+			Spec: pipelineusecase.Spec{Stages: []pipelineusecase.Stage{{
+				Name: "build",
+				Jobs: []pipelineusecase.Job{{
+					Name:     "unsafe",
+					Executor: "privileged-shell",
+					Steps:    []pipelineusecase.Step{{Name: "run", Run: "echo unsafe"}},
+				}},
+			}}},
+		},
+		Run: domainpipeline.PipelineRun{ID: "prun-unsafe", Status: domainpipeline.PipelineRunQueued, CreatedAt: now, UpdatedAt: now},
+		Stages: []pipelineusecase.StageRecord{{
+			Stage: domainpipeline.StageRun{ID: "stage-unsafe", PipelineRunID: "prun-unsafe", Status: domainpipeline.JobRunPending},
+			Jobs: []pipelineusecase.JobRecord{{
+				Job:   domainpipeline.JobRun{ID: "job-unsafe", StageRunID: "stage-unsafe", Status: domainpipeline.JobRunPending, Attempt: 1},
+				Steps: []domainpipeline.StepRun{{ID: "step-unsafe", JobRunID: "job-unsafe", Status: domainpipeline.JobRunPending}},
+			}},
+		}},
+	}
+	runner := domainrunner.Runner{
+		ID:           "runner-unsafe",
+		Status:       "online",
+		Executors:    []string{"privileged-shell"},
+		Capabilities: []string{"privileged-shell"},
+	}
+	claim, ok := claimRecordJob(&record, runner, domainrunner.RunnerGroup{}, leaseUntil, now)
+	if ok || claim.JobRunID != "" {
+		t.Fatalf("unsupported executor should fail closed: ok=%v claim=%#v", ok, claim)
+	}
+	if record.Run.Status != domainpipeline.PipelineRunQueued || record.Stages[0].Jobs[0].Job.RunnerID != "" {
+		t.Fatalf("unsupported executor record mutated: run=%#v job=%#v", record.Run, record.Stages[0].Jobs[0].Job)
+	}
+}
+
 func TestUpdateRecordJobStatusMarksFailure(t *testing.T) {
 	now := time.Date(2026, 5, 19, 1, 2, 3, 0, time.UTC)
 	record := pipelineusecase.RunRecord{

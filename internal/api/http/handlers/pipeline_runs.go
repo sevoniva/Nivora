@@ -572,6 +572,10 @@ func respondPipelineResult(w http.ResponseWriter, r *http.Request, payload any, 
 		status = http.StatusForbidden
 		code = "runner_group_scope_denied"
 	}
+	if errors.Is(err, pipelineusecase.ErrUnsupportedRunnerExecutor) {
+		status = http.StatusBadRequest
+		code = "unsupported_runner_executor"
+	}
 	if errors.Is(err, pipelineusecase.ErrJobNotFound) {
 		status = http.StatusNotFound
 		code = "job_run_not_found"

@@ -386,7 +386,11 @@ func (s *Service) CreateRunnerGroup(ctx context.Context, group domainrunner.Runn
 	}
 	group.ProjectID = strings.TrimSpace(group.ProjectID)
 	group.EnvironmentIDs = compactStrings(group.EnvironmentIDs)
-	group.Executors = compactStrings(group.Executors)
+	executors, err := compactExecutorCapabilities(group.Executors)
+	if err != nil {
+		return domainrunner.RunnerGroup{}, err
+	}
+	group.Executors = executors
 	if group.MaxConcurrency < 0 {
 		return domainrunner.RunnerGroup{}, fmt.Errorf("runner group maxConcurrency cannot be negative")
 	}
@@ -420,8 +424,16 @@ func (s *Service) RegisterRunnerWithToken(ctx context.Context, runner domainrunn
 	if runner.Status == "" {
 		runner.Status = "online"
 	}
-	runner.Executors = compactStrings(runner.Executors)
-	runner.Capabilities = compactStrings(runner.Capabilities)
+	executors, err := compactExecutorCapabilities(runner.Executors)
+	if err != nil {
+		return RegisterRunnerResult{}, err
+	}
+	capabilities, err := compactExecutorCapabilities(runner.Capabilities)
+	if err != nil {
+		return RegisterRunnerResult{}, err
+	}
+	runner.Executors = executors
+	runner.Capabilities = capabilities
 	group := domainrunner.RunnerGroup{}
 	if runner.GroupID != "" {
 		var err error
@@ -1287,6 +1299,26 @@ func compactStrings(values []string) []string {
 		out = append(out, value)
 	}
 	return out
+}
+
+func compactExecutorCapabilities(values []string) ([]string, error) {
+	out := make([]string, 0, len(values))
+	seen := map[string]struct{}{}
+	for _, value := range values {
+		normalized := domainrunner.NormalizeExecutorCapability(value)
+		if normalized == "" {
+			continue
+		}
+		if !domainrunner.IsSupportedExecutorCapability(normalized) {
+			return nil, fmt.Errorf("%w: %s", ErrUnsupportedRunnerExecutor, normalized)
+		}
+		if _, ok := seen[normalized]; ok {
+			continue
+		}
+		seen[normalized] = struct{}{}
+		out = append(out, normalized)
+	}
+	return out, nil
 }
 
 func allStringsAllowed(values []string, allowed []string) bool {

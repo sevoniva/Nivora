@@ -423,12 +423,16 @@ func (s *PipelineStore) ListRunners(ctx context.Context) ([]domainrunner.Runner,
 }
 
 func (s *PipelineStore) SelectRunner(ctx context.Context, executor string, labels map[string]string) (domainrunner.Runner, error) {
+	executor = normalizeRecordExecutor(executor)
+	if !domainrunner.IsSupportedExecutorCapability(executor) {
+		return domainrunner.Runner{}, pipelineusecase.ErrRunnerNotFound
+	}
 	runners, err := s.ListRunners(ctx)
 	if err != nil {
 		return domainrunner.Runner{}, err
 	}
 	for _, runner := range runners {
-		if runner.Status != "online" || (!contains(runner.Executors, executor) && !contains(runner.Capabilities, executor)) || !labelsMatch(runner.Labels, labels) {
+		if runner.Status != "online" || !runnerSupportsExecutor(runner, executor) || !labelsMatch(runner.Labels, labels) {
 			continue
 		}
 		active, err := s.CountActiveJobs(ctx, runner.ID)
@@ -924,31 +928,31 @@ func claimRecordJob(record *pipelineusecase.RunRecord, runner domainrunner.Runne
 	if !runnerCanClaimPipelineRecord(runner, group, *record) {
 		return pipelineusecase.JobClaim{}, false
 	}
-	if record.Run.Status == domainpipeline.PipelineRunQueued {
-		record.Run.Status = domainpipeline.PipelineRunRunning
-		record.Run.StartedAt = &now
-		record.Run.UpdatedAt = now
-	}
 	for stageIndex := range record.Stages {
 		for jobIndex := range record.Stages[stageIndex].Jobs {
 			job := &record.Stages[stageIndex].Jobs[jobIndex].Job
-			executor := "shell"
+			executor := domainrunner.ExecutorShell
 			if stageIndex < len(record.Definition.Spec.Stages) && jobIndex < len(record.Definition.Spec.Stages[stageIndex].Jobs) {
-				executor = record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex].Executor
-				if executor == "" {
-					executor = "shell"
-				}
+				executor = normalizeRecordExecutor(record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex].Executor)
 			}
-			if group.ID != "" && len(group.Executors) > 0 && !contains(group.Executors, executor) {
+			if !domainrunner.IsSupportedExecutorCapability(executor) {
 				continue
 			}
-			if !contains(runner.Executors, executor) && !contains(runner.Capabilities, executor) {
+			if group.ID != "" && len(group.Executors) > 0 && !executorListContains(group.Executors, executor) {
+				continue
+			}
+			if !runnerSupportsExecutor(runner, executor) {
 				continue
 			}
 			claimable := job.Status == domainpipeline.JobRunPending || job.Status == domainpipeline.JobRunRetrying
 			leaseExpired := job.Status == domainpipeline.JobRunAssigned && job.LeaseExpiresAt != nil && job.LeaseExpiresAt.Before(now)
 			if !claimable && !leaseExpired {
 				continue
+			}
+			if record.Run.Status == domainpipeline.PipelineRunQueued {
+				record.Run.Status = domainpipeline.PipelineRunRunning
+				record.Run.StartedAt = &now
+				record.Run.UpdatedAt = now
 			}
 			job.Status = domainpipeline.JobRunAssigned
 			job.RunnerID = runner.ID
@@ -1066,6 +1070,31 @@ func contains(values []string, want string) bool {
 		}
 	}
 	return false
+}
+
+func normalizeRecordExecutor(executor string) string {
+	normalized := domainrunner.NormalizeExecutorCapability(executor)
+	if normalized == "" {
+		return domainrunner.ExecutorShell
+	}
+	return normalized
+}
+
+func executorListContains(values []string, executor string) bool {
+	executor = domainrunner.NormalizeExecutorCapability(executor)
+	if !domainrunner.IsSupportedExecutorCapability(executor) {
+		return false
+	}
+	for _, value := range values {
+		if domainrunner.NormalizeExecutorCapability(value) == executor && domainrunner.IsSupportedExecutorCapability(value) {
+			return true
+		}
+	}
+	return false
+}
+
+func runnerSupportsExecutor(runner domainrunner.Runner, executor string) bool {
+	return executorListContains(runner.Executors, executor) || executorListContains(runner.Capabilities, executor)
 }
 
 func labelsMatch(have map[string]string, want map[string]string) bool {

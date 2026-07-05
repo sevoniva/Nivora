@@ -1,6 +1,18 @@
 package runner
 
-import "time"
+import (
+	"strings"
+	"time"
+)
+
+const (
+	ExecutorShell         = "shell"
+	ExecutorContainer     = "container"
+	ExecutorKubernetesJob = "kubernetes-job"
+	ExecutorWebhook       = "webhook"
+	ExecutorNoop          = "noop"
+	ExecutorExternal      = "external"
+)
 
 type Runner struct {
 	ID              string            `json:"id"`
@@ -33,4 +45,23 @@ type RunnerGroup struct {
 	Executors      []string          `json:"executors,omitempty"`
 	CreatedAt      time.Time         `json:"createdAt"`
 	UpdatedAt      time.Time         `json:"updatedAt"`
+}
+
+func NormalizeExecutorCapability(value string) string {
+	normalized := strings.ToLower(strings.TrimSpace(value))
+	switch normalized {
+	case "kubernetes_job":
+		return ExecutorKubernetesJob
+	default:
+		return normalized
+	}
+}
+
+func IsSupportedExecutorCapability(value string) bool {
+	switch NormalizeExecutorCapability(value) {
+	case ExecutorShell, ExecutorContainer, ExecutorKubernetesJob, ExecutorWebhook, ExecutorNoop, ExecutorExternal:
+		return true
+	default:
+		return false
+	}
 }

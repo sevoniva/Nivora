@@ -2964,6 +2964,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RunnerGroup"
+        "400":
+          description: Unsupported runner executor/capability declaration
         "403":
           description: Runner group scope denied
   /api/v1/runner-groups/{id}:
@@ -2998,6 +3000,8 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/RegisterRunnerResponse"
+        "400":
+          description: Unsupported runner executor/capability declaration
   /api/v1/runners/{id}:
     get:
       summary: Get a runner
@@ -8415,9 +8419,11 @@ components:
           type: integer
           description: Aggregate concurrency limit for this runner group. Zero means unbounded.
         executors:
+          description: Supported executor capabilities for this runner group. Unknown values are rejected.
           type: array
           items:
             type: string
+            enum: [shell, container, kubernetes-job, webhook, noop, external]
         createdAt:
           type: string
           format: date-time
@@ -8440,13 +8446,17 @@ components:
           additionalProperties:
             type: string
         executors:
+          description: Supported executor declarations for this runner. Unknown values are rejected.
           type: array
           items:
             type: string
+            enum: [shell, container, kubernetes-job, webhook, noop, external]
         capabilities:
+          description: Supported executor capabilities for this runner. Unknown values are rejected.
           type: array
           items:
             type: string
+            enum: [shell, container, kubernetes-job, webhook, noop, external]
         maxConcurrency:
           type: integer
         activeJobs:
@@ -8580,8 +8590,9 @@ components:
         name:
           type: string
         executor:
+          description: Pipeline DSL execution currently supports only the shell executor. Runner capability metadata may advertise future executor profiles separately.
           type: string
-          enum: [shell, container]
+          enum: [shell]
         steps:
           type: array
           items:

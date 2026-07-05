@@ -757,6 +757,34 @@ func TestRunnerTokenScopeInTokenAuthMode(t *testing.T) {
 	}
 }
 
+func TestRunnerRegisterRejectsUnsupportedExecutorCapability(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	t.Setenv("NIVORA_TEST_AUTH_TOKEN", "admin-token")
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	cfg.Auth.StaticTokenEnv = "NIVORA_TEST_AUTH_TOKEN"
+	router := newTestRouter(cfg)
+
+	for _, body := range []string{
+		`{"id":"runner-unsupported-executor","name":"runner-unsupported-executor","status":"online","executors":["privileged-shell"]}`,
+		`{"id":"runner-unsupported-capability","name":"runner-unsupported-capability","status":"online","executors":["shell"],"capabilities":["docker-socket"]}`,
+	} {
+		req := httptest.NewRequest(http.MethodPost, "/api/v1/runners/register", strings.NewReader(body))
+		req.Header.Set("Authorization", "Bearer admin-token")
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusBadRequest {
+			t.Fatalf("runner register status = %d body = %s", rec.Code, rec.Body.String())
+		}
+		if !strings.Contains(rec.Body.String(), "unsupported_runner_executor") {
+			t.Fatalf("runner register error body = %s", rec.Body.String())
+		}
+	}
+}
+
 func TestRunnerTokenCannotMutateUnrelatedJob(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {

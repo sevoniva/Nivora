@@ -85,6 +85,54 @@ func TestMemoryStoreClaimJobAndLeaseExpiration(t *testing.T) {
 	}
 }
 
+func TestMemoryStoreDoesNotClaimUnsupportedExecutorByStringMatch(t *testing.T) {
+	store := NewMemoryStore()
+	now := time.Now()
+	record := RunRecord{
+		Definition: Definition{
+			Spec: Spec{Stages: []Stage{{
+				Name: "build",
+				Jobs: []Job{{
+					Name:     "unsafe",
+					Executor: "privileged-shell",
+					Steps:    []Step{{Name: "run", Run: "echo unsafe"}},
+				}},
+			}}},
+		},
+		Run: domainpipeline.PipelineRun{ID: "run-unsafe-executor", Status: domainpipeline.PipelineRunQueued, CreatedAt: now, UpdatedAt: now},
+		Stages: []StageRecord{{
+			Stage: domainpipeline.StageRun{ID: "stage-unsafe", PipelineRunID: "run-unsafe-executor", Status: domainpipeline.JobRunPending},
+			Jobs: []JobRecord{{
+				Job:   domainpipeline.JobRun{ID: "job-unsafe", StageRunID: "stage-unsafe", Status: domainpipeline.JobRunPending, Attempt: 1},
+				Steps: []domainpipeline.StepRun{{ID: "step-unsafe", JobRunID: "job-unsafe", Status: domainpipeline.JobRunPending}},
+			}},
+		}},
+	}
+	if err := store.Save(context.Background(), record); err != nil {
+		t.Fatalf("save unsafe executor record: %v", err)
+	}
+	if err := store.RegisterRunner(context.Background(), domainrunner.Runner{
+		ID:             "runner-unsafe",
+		Name:           "runner-unsafe",
+		Status:         "online",
+		Executors:      []string{"privileged-shell"},
+		Capabilities:   []string{"privileged-shell"},
+		MaxConcurrency: 1,
+	}); err != nil {
+		t.Fatalf("register unsafe runner directly: %v", err)
+	}
+	if _, err := store.ClaimJob(context.Background(), "runner-unsafe", now.Add(time.Minute)); !errors.Is(err, ErrNoClaimableJob) {
+		t.Fatalf("expected unsupported executor to fail closed, got %v", err)
+	}
+	loaded, err := store.Get(context.Background(), "run-unsafe-executor")
+	if err != nil {
+		t.Fatalf("reload unsafe executor record: %v", err)
+	}
+	if loaded.Run.Status != domainpipeline.PipelineRunQueued || loaded.Stages[0].Jobs[0].Job.RunnerID != "" {
+		t.Fatalf("unsupported executor record mutated: run=%#v job=%#v", loaded.Run, loaded.Stages[0].Jobs[0].Job)
+	}
+}
+
 func TestMemoryStorePipelineRunLeaseAndRecoveryQueries(t *testing.T) {
 	store := NewMemoryStore()
 	now := time.Now()

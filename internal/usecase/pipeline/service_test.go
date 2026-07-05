@@ -514,6 +514,44 @@ func TestRunnerRegistrationNormalizesExecutorCapabilities(t *testing.T) {
 	}
 }
 
+func TestRunnerRegistrationRejectsUnsupportedExecutorCapabilities(t *testing.T) {
+	service := newTestService()
+	if _, err := service.CreateRunnerGroup(context.Background(), domainrunner.RunnerGroup{
+		ID:        "rgrp-unsafe",
+		Name:      "unsafe",
+		Executors: []string{"shell", "privileged-shell"},
+	}); !errors.Is(err, ErrUnsupportedRunnerExecutor) {
+		t.Fatalf("expected unsupported group executor to be denied, got %v", err)
+	}
+	if _, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:        "runner-unsafe-executor",
+		Executors: []string{"privileged-shell"},
+	}); !errors.Is(err, ErrUnsupportedRunnerExecutor) {
+		t.Fatalf("expected unsupported runner executor to be denied, got %v", err)
+	}
+	if _, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:           "runner-unsafe-capability",
+		Executors:    []string{"shell"},
+		Capabilities: []string{"docker-socket"},
+	}); !errors.Is(err, ErrUnsupportedRunnerExecutor) {
+		t.Fatalf("expected unsupported runner capability to be denied, got %v", err)
+	}
+	result, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:           "runner-kubernetes-alias",
+		Executors:    []string{" kubernetes_job "},
+		Capabilities: []string{"KUBERNETES_JOB"},
+	})
+	if err != nil {
+		t.Fatalf("register supported alias: %v", err)
+	}
+	if len(result.Runner.Executors) != 1 || result.Runner.Executors[0] != domainrunner.ExecutorKubernetesJob {
+		t.Fatalf("runner executors = %#v", result.Runner.Executors)
+	}
+	if len(result.Runner.Capabilities) != 1 || result.Runner.Capabilities[0] != domainrunner.ExecutorKubernetesJob {
+		t.Fatalf("runner capabilities = %#v", result.Runner.Capabilities)
+	}
+}
+
 func TestRunnerGroupConcurrencyLimit(t *testing.T) {
 	service := newTestService()
 	group, err := service.CreateRunnerGroup(context.Background(), domainrunner.RunnerGroup{

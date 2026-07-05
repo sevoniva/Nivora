@@ -41,7 +41,7 @@ Runner protocol endpoints accept `X-Nivora-Runner-Token` only for heartbeat, cla
 
 Rotation invalidates the old token, and revocation disables the current token. PostgreSQL integration tests verify that these token boundary decisions survive a process restart and continue to block heartbeat, job claim, log append, and status update attempts before any job mutation occurs.
 
-When a runner carries a scoped `projectId` or `environmentId` label, job claim checks require the queued PipelineRun to belong to the same project or environment. When the runner belongs to a RunnerGroup, Nivora also applies the group's project/environment constraints, executor allow-list, and aggregate concurrency limit during job claim. These checks run in both memory and PostgreSQL claim paths and are covered by usecase, HTTP tenant isolation, and PostgreSQL integration tests.
+When a runner carries a scoped `projectId` or `environmentId` label, job claim checks require the queued PipelineRun to belong to the same project or environment. When the runner belongs to a RunnerGroup, Nivora also applies the group's project/environment constraints, executor allow-list, and aggregate concurrency limit during job claim. Runner executor declarations and capabilities are limited to the explicit control-plane vocabulary `shell`, `container`, `kubernetes-job`, `webhook`, `noop`, and `external`. Unknown values such as ad hoc privileged shell profiles or Docker socket capabilities are rejected during runner/group registration, and memory/PostgreSQL claim paths fail closed if legacy data contains an unsupported job executor string. These checks are covered by usecase, HTTP tenant isolation, memory-store, and PostgreSQL claim tests.
 
 ## Cancellation
 

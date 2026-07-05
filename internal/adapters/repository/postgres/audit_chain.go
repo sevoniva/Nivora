@@ -43,7 +43,18 @@ func AppendHashChainedAudit(ctx context.Context, pool *pgxpool.Pool, source stri
 
 func latestComplianceAuditHash(ctx context.Context, pool *pgxpool.Pool, scopeType, scopeID string) (string, error) {
 	var hash string
-	err := pool.QueryRow(ctx, `SELECT record_hash FROM compliance_audit_records WHERE scope_type=$1 AND ($2='' OR scope_id=$2) ORDER BY created_at DESC, id DESC LIMIT 1`, scopeType, scopeID).Scan(&hash)
+	err := pool.QueryRow(ctx, `SELECT r.record_hash
+		FROM compliance_audit_records r
+		WHERE r.scope_type=$1
+		  AND ($2='' OR r.scope_id=$2)
+		  AND NOT EXISTS (
+			SELECT 1 FROM compliance_audit_records n
+			WHERE n.scope_type = r.scope_type
+			  AND n.scope_id = r.scope_id
+			  AND n.previous_hash = r.record_hash
+		  )
+		ORDER BY r.created_at DESC, r.id DESC
+		LIMIT 1`, scopeType, scopeID).Scan(&hash)
 	if err != nil {
 		return "", nil
 	}

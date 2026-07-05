@@ -294,37 +294,59 @@ func (s *ComplianceStore) VerifyAuditChain(ctx context.Context, scopeType, scope
 		return false, "", rows.Err()
 	}
 
+	if len(records) == 0 {
+		return true, "", nil
+	}
+
+	sortAuditRecords(records)
+	recordsByPrevious := make(map[string][]AuditRecord, len(records))
+	for _, r := range records {
+		recordsByPrevious[r.PreviousHash] = append(recordsByPrevious[r.PreviousHash], r)
+	}
+
+	heads := recordsByPrevious[""]
+	if len(heads) != 1 {
+		if len(heads) > 0 {
+			return false, heads[0].ID, nil
+		}
+		return false, records[0].ID, nil
+	}
+
+	visited := 0
+	current := heads[0]
+	for {
+		expectedHash := computeAuditHash(current.PreviousHash, current.ActorID, current.Action, current.SubjectType, current.SubjectID, current.ScopeType, current.ScopeID, current.CreatedAt)
+		if current.RecordHash != expectedHash {
+			return false, current.ID, nil
+		}
+		visited++
+
+		next := recordsByPrevious[current.RecordHash]
+		if len(next) == 0 {
+			break
+		}
+		if len(next) > 1 {
+			return false, next[1].ID, nil
+		}
+		current = next[0]
+	}
+	if visited != len(records) {
+		return false, records[0].ID, nil
+	}
+	return true, "", nil
+}
+
+func (s *ComplianceStore) latestAuditHash(ctx context.Context, scopeType, scopeID string) (string, error) {
+	return latestComplianceAuditHash(ctx, s.pool, scopeType, scopeID)
+}
+
+func sortAuditRecords(records []AuditRecord) {
 	sort.Slice(records, func(i, j int) bool {
 		if records[i].CreatedAt.Equal(records[j].CreatedAt) {
 			return records[i].ID < records[j].ID
 		}
 		return records[i].CreatedAt.Before(records[j].CreatedAt)
 	})
-
-	var expectedPrev string
-	for i, r := range records {
-		if i == 0 {
-			expectedPrev = ""
-		}
-		if r.PreviousHash != expectedPrev {
-			return false, r.ID, nil
-		}
-		expectedHash := computeAuditHash(r.PreviousHash, r.ActorID, r.Action, r.SubjectType, r.SubjectID, r.ScopeType, r.ScopeID, r.CreatedAt)
-		if r.RecordHash != expectedHash {
-			return false, r.ID, nil
-		}
-		expectedPrev = r.RecordHash
-	}
-	return true, "", nil
-}
-
-func (s *ComplianceStore) latestAuditHash(ctx context.Context, scopeType, scopeID string) (string, error) {
-	var hash string
-	err := s.pool.QueryRow(ctx, `SELECT record_hash FROM compliance_audit_records WHERE scope_type=$1 AND ($2='' OR scope_id=$2) ORDER BY created_at DESC, id DESC LIMIT 1`, scopeType, scopeID).Scan(&hash)
-	if errors.Is(err, pgx.ErrNoRows) {
-		return "", nil
-	}
-	return hash, err
 }
 
 func decodeEvidenceBundle(raw []byte) (domaincompliance.EvidenceBundle, error) {

@@ -28,6 +28,36 @@ func TestComputeAuditHashNormalizesSubMicrosecondTimestamps(t *testing.T) {
 	}
 }
 
+func TestPostgresIntegrationAuditHashChainHandlesSameMicrosecondBurst(t *testing.T) {
+	if os.Getenv("NIVORA_RUN_POSTGRES_INTEGRATION") != "true" {
+		t.Skip("set NIVORA_RUN_POSTGRES_INTEGRATION=true to run")
+	}
+	db := newPostgresIntegration(t, true)
+	defer db.cleanup()
+	ctx := context.Background()
+	compliance := NewComplianceStore(db.pool)
+	createdAt := time.Date(2026, 7, 5, 4, 14, 17, 498123789, time.UTC)
+
+	entries := []audit.AuditLog{
+		{ID: "burst-z-first", ActorID: "user-1", Action: "burst.first", Subject: "same-microsecond", CreatedAt: createdAt},
+		{ID: "burst-a-second", ActorID: "user-1", Action: "burst.second", Subject: "same-microsecond", CreatedAt: createdAt},
+		{ID: "burst-m-third", ActorID: "user-1", Action: "burst.third", Subject: "same-microsecond", CreatedAt: createdAt},
+	}
+	for _, entry := range entries {
+		if err := AppendHashChainedAudit(ctx, db.pool, "burst", entry); err != nil {
+			t.Fatalf("append burst audit %s: %v", entry.ID, err)
+		}
+	}
+
+	valid, broken, err := compliance.VerifyAuditChain(ctx, "burst", "")
+	if err != nil {
+		t.Fatalf("verify burst audit chain: %v", err)
+	}
+	if !valid {
+		t.Fatalf("same-microsecond audit chain should verify, broken at %s", broken)
+	}
+}
+
 func TestPostgresIntegrationAuditHashChainPipeline(t *testing.T) {
 	if os.Getenv("NIVORA_RUN_POSTGRES_INTEGRATION") != "true" {
 		t.Skip("set NIVORA_RUN_POSTGRES_INTEGRATION=true to run")

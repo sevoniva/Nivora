@@ -59,10 +59,16 @@ func TestRepositorySnapshotAndIntelligenceForLocalRepo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("save repository: %v", err)
 	}
+	assertRepositoryEvent(t, service, saved.ID, EventRepositoryCreated)
+	assertRepositoryAudit(t, service, saved.ID, "repository created")
 	snapshot, err := service.CreateSnapshot(context.Background(), SnapshotInput{Repository: saved})
 	if err != nil {
 		t.Fatalf("create snapshot: %v", err)
 	}
+	assertRepositoryEvent(t, service, snapshot.ID, EventRepositorySnapshotCreated)
+	assertRepositoryEvent(t, service, snapshot.ID, EventRepositoryIntelligenceCompleted)
+	assertRepositoryAudit(t, service, snapshot.ID, "repository snapshot created")
+	assertRepositoryAudit(t, service, snapshot.ID, "repository intelligence completed")
 	if snapshot.TreeHash == "" {
 		t.Fatal("expected tree hash")
 	}
@@ -114,6 +120,8 @@ func TestRepositorySnapshotAndIntelligenceForLocalRepo(t *testing.T) {
 	if !strings.Contains(strings.Join(plan.Warnings, "\n"), "not executed") {
 		t.Fatalf("expected plan-only warning, got %#v", plan.Warnings)
 	}
+	assertRepositoryEvent(t, service, snapshot.ID, EventDevOpsPlanCreated)
+	assertRepositoryAudit(t, service, snapshot.ID, "repository DevOps plan created")
 
 	review, err := service.DevOpsReadinessReview(context.Background(), repository.ID)
 	if err != nil {
@@ -128,6 +136,47 @@ func TestRepositorySnapshotAndIntelligenceForLocalRepo(t *testing.T) {
 	if !strings.Contains(strings.Join(review.Warnings, "\n"), "does not execute") {
 		t.Fatalf("readiness review should be plan-only: %#v", review.Warnings)
 	}
+	assertRepositoryEvent(t, service, snapshot.ID, EventDevOpsReadinessReviewCreated)
+	assertRepositoryAudit(t, service, snapshot.ID, "repository readiness review created")
+}
+
+func assertRepositoryEvent(t *testing.T, service *Service, subject string, eventType string) {
+	t.Helper()
+	events, err := service.Events(context.Background(), subject)
+	if err != nil {
+		t.Fatalf("Events(%s): %v", subject, err)
+	}
+	for _, evt := range events {
+		if evt.Type == eventType {
+			return
+		}
+	}
+	t.Fatalf("event %q not found for %s: %#v", eventType, subject, events)
+}
+
+func assertRepositoryAudit(t *testing.T, service *Service, subject string, action string) {
+	t.Helper()
+	audits, err := service.Audits(context.Background(), subject)
+	if err != nil {
+		t.Fatalf("Audits(%s): %v", subject, err)
+	}
+	for _, entry := range audits {
+		if entry.Action == action {
+			if strings.Contains(strings.Join(mapValues(entry.Metadata), "\n"), "credential-ref-placeholder") {
+				t.Fatalf("audit metadata leaked credential ref: %#v", entry.Metadata)
+			}
+			return
+		}
+	}
+	t.Fatalf("audit %q not found for %s: %#v", action, subject, audits)
+}
+
+func mapValues(values map[string]string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		out = append(out, value)
+	}
+	return out
 }
 
 func assertContains(t *testing.T, values []string, expected string) {

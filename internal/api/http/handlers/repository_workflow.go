@@ -221,14 +221,20 @@ func GetWorkflowLatestPlan(service *workflowusecase.Service) http.HandlerFunc {
 	}
 }
 
-func ValidateWorkflowDefinition() http.HandlerFunc {
+func ValidateWorkflowDefinition(service *workflowusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		payload, err := workflowDefinitionFromRequest(r)
 		if err != nil {
 			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_workflow_request", Message: err.Error(), Path: r.URL.Path})
 			return
 		}
-		plan, err := workflowusecase.PlanDefinition(payload.Definition, workflowusecase.PlanOptions{})
+		plan, err := service.Validate(r.Context(), workflowusecase.PlanInput{
+			Content:              payload.Content,
+			RepositoryID:         payload.RepositoryID,
+			RepositorySnapshotID: payload.RepositorySnapshotID,
+			Path:                 payload.Path,
+			Ref:                  payload.Ref,
+		})
 		if err != nil {
 			RespondJSON(w, http.StatusBadRequest, map[string]any{"valid": false, "error": err.Error()})
 			return

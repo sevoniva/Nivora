@@ -5,6 +5,9 @@ import (
 	"errors"
 	"sort"
 	"sync"
+
+	"github.com/sevoniva/nivora/internal/domain/audit"
+	"github.com/sevoniva/nivora/internal/domain/event"
 )
 
 var (
@@ -22,6 +25,10 @@ type Store interface {
 	ListSnapshots(ctx context.Context, repositoryID string) ([]RepositorySnapshot, error)
 	SaveIntelligence(ctx context.Context, intelligence RepositoryIntelligence) error
 	GetIntelligence(ctx context.Context, repositoryID string, snapshotID string) (RepositoryIntelligence, error)
+	AppendEvent(ctx context.Context, subject string, evt event.Event) error
+	EventsBySubject(ctx context.Context, subject string) ([]event.Event, error)
+	AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error
+	AuditsBySubject(ctx context.Context, subject string) ([]audit.AuditLog, error)
 }
 
 type MemoryStore struct {
@@ -29,6 +36,8 @@ type MemoryStore struct {
 	repositories map[string]Repository
 	snapshots    map[string]RepositorySnapshot
 	intelligence map[string]RepositoryIntelligence
+	events       map[string][]event.Event
+	audits       map[string][]audit.AuditLog
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -36,6 +45,8 @@ func NewMemoryStore() *MemoryStore {
 		repositories: map[string]Repository{},
 		snapshots:    map[string]RepositorySnapshot{},
 		intelligence: map[string]RepositoryIntelligence{},
+		events:       map[string][]event.Event{},
+		audits:       map[string][]audit.AuditLog{},
 	}
 }
 
@@ -154,6 +165,58 @@ func (s *MemoryStore) GetIntelligence(ctx context.Context, repositoryID string, 
 		return RepositoryIntelligence{}, ErrNotFound
 	}
 	return copyIntelligence(intelligence), nil
+}
+
+func (s *MemoryStore) AppendEvent(ctx context.Context, subject string, evt event.Event) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events[subject] = append(s.events[subject], evt)
+	return nil
+}
+
+func (s *MemoryStore) EventsBySubject(ctx context.Context, subject string) ([]event.Event, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	events := append([]event.Event(nil), s.events[subject]...)
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].Time.Equal(events[j].Time) {
+			return events[i].ID < events[j].ID
+		}
+		return events[i].Time.Before(events[j].Time)
+	})
+	return events, nil
+}
+
+func (s *MemoryStore) AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.audits[subject] = append(s.audits[subject], entry)
+	return nil
+}
+
+func (s *MemoryStore) AuditsBySubject(ctx context.Context, subject string) ([]audit.AuditLog, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	audits := append([]audit.AuditLog(nil), s.audits[subject]...)
+	sort.Slice(audits, func(i, j int) bool {
+		if audits[i].CreatedAt.Equal(audits[j].CreatedAt) {
+			return audits[i].ID < audits[j].ID
+		}
+		return audits[i].CreatedAt.Before(audits[j].CreatedAt)
+	})
+	return audits, nil
 }
 
 func intelligenceKey(repositoryID string, snapshotID string) string {

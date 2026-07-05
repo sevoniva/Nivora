@@ -67,6 +67,33 @@ jobs:
 	if err != nil || len(list) != 1 || list[0].ID != record.ID {
 		t.Fatalf("ListPlans = %#v err=%v", list, err)
 	}
+	assertWorkflowEvent(t, service, record.ID, EventWorkflowPlanCreated)
+	assertWorkflowAudit(t, service, record.ID, "workflow plan created")
+}
+
+func TestServiceValidateRecordsWorkflowAuditWithoutPersistingPlan(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	plan, err := service.Validate(context.Background(), PlanInput{
+		Content:      executableWorkflow(t),
+		RepositoryID: "repo-a",
+		Path:         ".nivora/workflows/ci.yaml",
+		Ref:          "main",
+	})
+	if err != nil {
+		t.Fatalf("Validate: %v", err)
+	}
+	if plan.WorkflowID == "" || plan.PlanID == "" {
+		t.Fatalf("plan metadata not populated: %#v", plan)
+	}
+	plans, err := service.ListPlans(context.Background(), PlanListFilter{WorkflowID: plan.WorkflowID})
+	if err != nil {
+		t.Fatalf("ListPlans: %v", err)
+	}
+	if len(plans) != 0 {
+		t.Fatalf("validate should not persist plan records: %#v", plans)
+	}
+	assertWorkflowEvent(t, service, plan.WorkflowID, EventWorkflowValidated)
+	assertWorkflowAudit(t, service, plan.WorkflowID, "workflow validated")
 }
 
 func TestServicePlanRejectsInlineSecretLikeEnv(t *testing.T) {
@@ -184,6 +211,8 @@ func TestServiceRunCreatesQueuedPipelineRunAndWorkflowRun(t *testing.T) {
 	if err != nil || len(runs) != 1 || runs[0].ID != result.WorkflowRun.ID {
 		t.Fatalf("ListRuns = %#v err=%v", runs, err)
 	}
+	assertWorkflowEvent(t, service, result.WorkflowRun.ID, EventWorkflowRunRequested)
+	assertWorkflowAudit(t, service, result.WorkflowRun.ID, "workflow run requested")
 }
 
 func TestServiceRunRecordsWorkflowArtifactsAndCachesAsPipelineMetadata(t *testing.T) {
@@ -344,6 +373,8 @@ func TestServiceReconcileRunsRefreshesNonTerminalWorkflowRuns(t *testing.T) {
 	if reconciled.WorkflowRuns[0].ID != result.WorkflowRun.ID || reconciled.WorkflowRuns[0].Status != RunSucceeded {
 		t.Fatalf("workflow run after reconcile = %#v", reconciled.WorkflowRuns[0])
 	}
+	assertWorkflowEvent(t, service, result.WorkflowRun.ID, EventWorkflowRunReconciled)
+	assertWorkflowAudit(t, service, result.WorkflowRun.ID, "workflow run reconciled")
 	reconciled, err = service.ReconcileRuns(context.Background(), RunListFilter{RepositoryID: "repo-a"}, pipelines)
 	if err != nil {
 		t.Fatalf("ReconcileRuns second pass: %v", err)
@@ -381,6 +412,8 @@ func TestServiceCancelRunCancelsLinkedPipelineRun(t *testing.T) {
 	if pipelineRecord.Run.Status != domainpipeline.PipelineRunCanceled {
 		t.Fatalf("pipeline status = %s", pipelineRecord.Run.Status)
 	}
+	assertWorkflowEvent(t, service, result.WorkflowRun.ID, EventWorkflowRunCanceled)
+	assertWorkflowAudit(t, service, result.WorkflowRun.ID, "workflow run canceled")
 	_, err = service.CancelRun(context.Background(), result.WorkflowRun.ID, "user-a", pipelines)
 	if !errors.Is(err, ErrRunTerminal) {
 		t.Fatalf("expected terminal cancel error, got %v", err)
@@ -434,10 +467,41 @@ func TestServiceRetryRunCreatesNewQueuedPipelineRunFromStoredPlan(t *testing.T) 
 	if !strings.Contains(strings.Join(retried.WorkflowRun.Warnings, "\n"), result.WorkflowRun.ID) {
 		t.Fatalf("retry warning missing original run id: %#v", retried.WorkflowRun.Warnings)
 	}
+	assertWorkflowEvent(t, service, retried.WorkflowRun.ID, EventWorkflowRunRequested)
+	assertWorkflowEvent(t, service, retried.WorkflowRun.ID, EventWorkflowRunRetried)
+	assertWorkflowAudit(t, service, retried.WorkflowRun.ID, "workflow run retried")
 	_, err = service.RetryRun(context.Background(), retried.WorkflowRun.ID, RetryInput{Confirm: true, AllowPipelineRun: true}, pipelines)
 	if !errors.Is(err, ErrRunNotRetryable) {
 		t.Fatalf("expected non-retryable queued run error, got %v", err)
 	}
+}
+
+func assertWorkflowEvent(t *testing.T, service *Service, subject string, eventType string) {
+	t.Helper()
+	events, err := service.Events(context.Background(), subject)
+	if err != nil {
+		t.Fatalf("Events(%s): %v", subject, err)
+	}
+	for _, evt := range events {
+		if evt.Type == eventType {
+			return
+		}
+	}
+	t.Fatalf("event %q not found for %s: %#v", eventType, subject, events)
+}
+
+func assertWorkflowAudit(t *testing.T, service *Service, subject string, action string) {
+	t.Helper()
+	audits, err := service.Audits(context.Background(), subject)
+	if err != nil {
+		t.Fatalf("Audits(%s): %v", subject, err)
+	}
+	for _, entry := range audits {
+		if entry.Action == action {
+			return
+		}
+	}
+	t.Fatalf("audit %q not found for %s: %#v", action, subject, audits)
 }
 
 func executableWorkflow(t *testing.T) string {

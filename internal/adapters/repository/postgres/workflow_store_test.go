@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sevoniva/nivora/internal/domain/audit"
+	"github.com/sevoniva/nivora/internal/domain/event"
 	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 )
 
@@ -143,6 +145,14 @@ jobs:
 	if err != nil || len(plans) != 1 || plans[0].ID != record.ID {
 		t.Fatalf("list workflow plans = %#v err=%v", plans, err)
 	}
+	events, err := store.EventsBySubject(ctx, record.ID)
+	if err != nil || len(events) == 0 || events[0].Type != workflowusecase.EventWorkflowPlanCreated {
+		t.Fatalf("workflow plan events = %#v err=%v", events, err)
+	}
+	audits, err := store.AuditsBySubject(ctx, record.ID)
+	if err != nil || len(audits) == 0 || audits[0].Action != "workflow plan created" {
+		t.Fatalf("workflow plan audits = %#v err=%v", audits, err)
+	}
 
 	run := workflowusecase.RunRecord{
 		ID:                   "wrun-durable",
@@ -163,6 +173,27 @@ jobs:
 	if err := store.SaveRun(ctx, run); err != nil {
 		t.Fatalf("save workflow run: %v", err)
 	}
+	if err := store.AppendEvent(ctx, run.ID, event.Event{
+		SpecVersion:     "1.0",
+		ID:              "workflow-run-event-durable",
+		Type:            workflowusecase.EventWorkflowRunRequested,
+		Source:          "nivora/workflow",
+		Subject:         run.ID,
+		Time:            record.CreatedAt,
+		DataContentType: "application/json",
+		Data:            map[string]any{"workflowRunId": run.ID, "pipelineRunId": run.PipelineRunID},
+	}); err != nil {
+		t.Fatalf("append workflow run event: %v", err)
+	}
+	if err := store.AppendAudit(ctx, run.ID, audit.AuditLog{
+		ID:        "workflow-run-audit-durable",
+		ActorID:   "user-a",
+		Action:    "workflow run requested",
+		Subject:   run.ID,
+		CreatedAt: record.CreatedAt,
+	}); err != nil {
+		t.Fatalf("append workflow run audit: %v", err)
+	}
 
 	store = NewWorkflowStore(db.restart(t))
 	loadedRun, err := store.GetRun(ctx, run.ID)
@@ -175,5 +206,20 @@ jobs:
 	runs, err := store.ListRuns(ctx, workflowusecase.RunListFilter{RepositoryID: "repo-durable", Status: workflowusecase.RunQueued})
 	if err != nil || len(runs) != 1 || runs[0].ID != run.ID {
 		t.Fatalf("list workflow runs = %#v err=%v", runs, err)
+	}
+	events, err = store.EventsBySubject(ctx, run.ID)
+	if err != nil || len(events) != 1 || events[0].Type != workflowusecase.EventWorkflowRunRequested {
+		t.Fatalf("workflow run events = %#v err=%v", events, err)
+	}
+	audits, err = store.AuditsBySubject(ctx, run.ID)
+	if err != nil || len(audits) != 1 || audits[0].Action != "workflow run requested" {
+		t.Fatalf("workflow run audits = %#v err=%v", audits, err)
+	}
+	valid, broken, err := NewComplianceStore(db.pool).VerifyAuditChain(ctx, "workflow", "")
+	if err != nil {
+		t.Fatalf("verify workflow audit chain: %v", err)
+	}
+	if !valid {
+		t.Fatalf("workflow audit chain broken at %s", broken)
 	}
 }

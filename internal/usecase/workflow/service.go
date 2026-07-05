@@ -10,6 +10,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sevoniva/nivora/internal/domain/audit"
+	"github.com/sevoniva/nivora/internal/domain/event"
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
@@ -18,6 +20,16 @@ var (
 	ErrNotFound        = errors.New("workflow record not found")
 	ErrRunTerminal     = errors.New("workflow run is already terminal")
 	ErrRunNotRetryable = errors.New("workflow run is not retryable")
+)
+
+const (
+	EventWorkflowValidated      = "devops.workflow.validated"
+	EventWorkflowPlanCreated    = "devops.workflow.plan.created"
+	EventWorkflowRunRequested   = "devops.workflow.run.requested"
+	EventWorkflowMatrixExpanded = "devops.workflow.matrix.expanded"
+	EventWorkflowRunCanceled    = "devops.workflow.run.canceled"
+	EventWorkflowRunRetried     = "devops.workflow.run.retried"
+	EventWorkflowRunReconciled  = "devops.workflow.run.reconciled"
 )
 
 type PipelineRunCreator interface {
@@ -49,7 +61,71 @@ func NewService(store Store) *Service {
 	return &Service{store: store, now: time.Now}
 }
 
+func (s *Service) Validate(ctx context.Context, input PlanInput) (Plan, error) {
+	record, err := s.buildPlanRecord(ctx, input)
+	if err != nil {
+		return Plan{}, err
+	}
+	if err := s.recordWorkflowEventAndAudit(ctx, record.WorkflowID, EventWorkflowValidated, "workflow validated", "", map[string]any{
+		"workflowId":           record.WorkflowID,
+		"repositoryId":         record.RepositoryID,
+		"repositorySnapshotId": record.RepositorySnapshotID,
+		"path":                 record.Path,
+		"ref":                  record.Ref,
+		"jobCount":             len(record.Plan.Jobs),
+		"stepCount":            len(record.Plan.Steps),
+		"conversionReady":      record.Plan.ConversionReady,
+	}); err != nil {
+		return Plan{}, err
+	}
+	if len(record.Plan.MatrixExpansions) > 0 {
+		if err := s.recordWorkflowEventAndAudit(ctx, record.WorkflowID, EventWorkflowMatrixExpanded, "workflow matrix expanded", "", map[string]any{
+			"workflowId":     record.WorkflowID,
+			"repositoryId":   record.RepositoryID,
+			"expansionCount": len(record.Plan.MatrixExpansions),
+		}); err != nil {
+			return Plan{}, err
+		}
+	}
+	return record.Plan, nil
+}
+
 func (s *Service) Plan(ctx context.Context, input PlanInput) (PlanRecord, error) {
+	record, err := s.buildPlanRecord(ctx, input)
+	if err != nil {
+		return PlanRecord{}, err
+	}
+	if err := s.store.SavePlan(ctx, record); err != nil {
+		return PlanRecord{}, err
+	}
+	if err := s.recordWorkflowEventAndAudit(ctx, record.ID, EventWorkflowPlanCreated, "workflow plan created", "", map[string]any{
+		"workflowId":           record.WorkflowID,
+		"workflowPlanId":       record.ID,
+		"repositoryId":         record.RepositoryID,
+		"repositorySnapshotId": record.RepositorySnapshotID,
+		"path":                 record.Path,
+		"ref":                  record.Ref,
+		"jobCount":             len(record.Plan.Jobs),
+		"stepCount":            len(record.Plan.Steps),
+		"conversionReady":      record.Plan.ConversionReady,
+	}); err != nil {
+		return PlanRecord{}, err
+	}
+	if len(record.Plan.MatrixExpansions) > 0 {
+		if err := s.recordWorkflowEventAndAudit(ctx, record.ID, EventWorkflowMatrixExpanded, "workflow matrix expanded", "", map[string]any{
+			"workflowId":           record.WorkflowID,
+			"workflowPlanId":       record.ID,
+			"repositoryId":         record.RepositoryID,
+			"repositorySnapshotId": record.RepositorySnapshotID,
+			"expansionCount":       len(record.Plan.MatrixExpansions),
+		}); err != nil {
+			return PlanRecord{}, err
+		}
+	}
+	return record, nil
+}
+
+func (s *Service) buildPlanRecord(ctx context.Context, input PlanInput) (PlanRecord, error) {
 	if err := ctx.Err(); err != nil {
 		return PlanRecord{}, err
 	}
@@ -86,9 +162,6 @@ func (s *Service) Plan(ctx context.Context, input PlanInput) (PlanRecord, error)
 	record.Plan.Ref = record.Ref
 	record.Plan.ContentHash = record.ContentHash
 	record.Plan.CreatedAt = now
-	if err := s.store.SavePlan(ctx, record); err != nil {
-		return PlanRecord{}, err
-	}
 	return record, nil
 }
 
@@ -226,6 +299,19 @@ func (s *Service) Run(ctx context.Context, input RunInput, pipelines PipelineRun
 		UpdatedAt:            now,
 	}
 	if err := s.store.SaveRun(ctx, record); err != nil {
+		return RunResult{}, err
+	}
+	if err := s.recordWorkflowEventAndAudit(ctx, record.ID, EventWorkflowRunRequested, "workflow run requested", strings.TrimSpace(input.ActorID), map[string]any{
+		"workflowId":           record.WorkflowID,
+		"workflowPlanId":       record.WorkflowPlanID,
+		"workflowRunId":        record.ID,
+		"repositoryId":         record.RepositoryID,
+		"repositorySnapshotId": record.RepositorySnapshotID,
+		"pipelineRunId":        record.PipelineRunID,
+		"projectId":            record.ProjectID,
+		"environmentId":        record.EnvironmentID,
+		"status":               string(record.Status),
+	}); err != nil {
 		return RunResult{}, err
 	}
 	return RunResult{
@@ -378,6 +464,16 @@ func (s *Service) ReconcileRuns(ctx context.Context, filter RunListFilter, pipel
 		}
 		if refreshed.Status != record.Status {
 			result.Updated++
+			if err := s.recordWorkflowEventAndAudit(ctx, refreshed.ID, EventWorkflowRunReconciled, "workflow run reconciled", "", map[string]any{
+				"workflowId":     refreshed.WorkflowID,
+				"workflowPlanId": refreshed.WorkflowPlanID,
+				"workflowRunId":  refreshed.ID,
+				"pipelineRunId":  refreshed.PipelineRunID,
+				"previousStatus": string(record.Status),
+				"status":         string(refreshed.Status),
+			}); err != nil {
+				return ReconcileResult{}, err
+			}
 		}
 		result.WorkflowRuns = append(result.WorkflowRuns, refreshed)
 	}
@@ -425,6 +521,19 @@ func (s *Service) RetryRun(ctx context.Context, id string, input RetryInput, pip
 	if err := s.store.SaveRun(ctx, result.WorkflowRun); err != nil {
 		return RunResult{}, err
 	}
+	if err := s.recordWorkflowEventAndAudit(ctx, result.WorkflowRun.ID, EventWorkflowRunRetried, "workflow run retried", strings.TrimSpace(input.ActorID), map[string]any{
+		"workflowId":     result.WorkflowRun.WorkflowID,
+		"workflowPlanId": result.WorkflowRun.WorkflowPlanID,
+		"workflowRunId":  result.WorkflowRun.ID,
+		"originalRunId":  record.ID,
+		"pipelineRunId":  result.WorkflowRun.PipelineRunID,
+		"projectId":      result.WorkflowRun.ProjectID,
+		"environmentId":  result.WorkflowRun.EnvironmentID,
+		"correlationId":  strings.TrimSpace(input.CorrelationID),
+		"status":         string(result.WorkflowRun.Status),
+	}); err != nil {
+		return RunResult{}, err
+	}
 	result.WorkflowRun, err = s.store.GetRun(ctx, result.WorkflowRun.ID)
 	if err != nil {
 		return RunResult{}, err
@@ -469,7 +578,22 @@ func (s *Service) CancelRun(ctx context.Context, id string, actorID string, pipe
 	if err := s.store.SaveRun(ctx, record); err != nil {
 		return RunRecord{}, err
 	}
-	return s.store.GetRun(ctx, record.ID)
+	loaded, err := s.store.GetRun(ctx, record.ID)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	if err := s.recordWorkflowEventAndAudit(ctx, loaded.ID, EventWorkflowRunCanceled, "workflow run canceled", strings.TrimSpace(actorID), map[string]any{
+		"workflowId":     loaded.WorkflowID,
+		"workflowPlanId": loaded.WorkflowPlanID,
+		"workflowRunId":  loaded.ID,
+		"pipelineRunId":  loaded.PipelineRunID,
+		"projectId":      loaded.ProjectID,
+		"environmentId":  loaded.EnvironmentID,
+		"status":         string(loaded.Status),
+	}); err != nil {
+		return RunRecord{}, err
+	}
+	return loaded, nil
 }
 
 func (s *Service) refreshRunRecordStatus(ctx context.Context, record RunRecord, pipelines PipelineRunReader) (RunRecord, error) {
@@ -534,6 +658,114 @@ func runStatusFromPipeline(status domainpipeline.PipelineRunStatus) RunStatus {
 	default:
 		return ""
 	}
+}
+
+func (s *Service) Events(ctx context.Context, subject string) ([]event.Event, error) {
+	return s.store.EventsBySubject(ctx, strings.TrimSpace(subject))
+}
+
+func (s *Service) Audits(ctx context.Context, subject string) ([]audit.AuditLog, error) {
+	return s.store.AuditsBySubject(ctx, strings.TrimSpace(subject))
+}
+
+func (s *Service) recordWorkflowEventAndAudit(ctx context.Context, subject string, eventType string, action string, actorID string, data map[string]any) error {
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		subject = strings.TrimSpace(valueFromData(data, "workflowRunId"))
+	}
+	if subject == "" {
+		subject = strings.TrimSpace(valueFromData(data, "workflowPlanId"))
+	}
+	if subject == "" {
+		subject = strings.TrimSpace(valueFromData(data, "workflowId"))
+	}
+	if subject == "" {
+		return nil
+	}
+	now := s.now().UTC()
+	payload := cloneEventData(data)
+	payload["message"] = action
+	evt := event.Event{
+		SpecVersion:     "1.0",
+		ID:              defaultID("evt"),
+		Type:            eventType,
+		Source:          "nivora/workflow",
+		Subject:         subject,
+		Time:            now,
+		DataContentType: "application/json",
+		Data:            payload,
+	}
+	if err := s.store.AppendEvent(ctx, subject, evt); err != nil {
+		return err
+	}
+	scopeType := "workflow"
+	scopeID := subject
+	if projectID := strings.TrimSpace(valueFromData(payload, "projectId")); projectID != "" {
+		scopeType = "project"
+		scopeID = projectID
+	} else if repositoryID := strings.TrimSpace(valueFromData(payload, "repositoryId")); repositoryID != "" {
+		scopeType = "repository"
+		scopeID = repositoryID
+	}
+	return s.store.AppendAudit(ctx, subject, audit.AuditLog{
+		ID:          defaultID("audit"),
+		ActorID:     strings.TrimSpace(actorID),
+		Action:      action,
+		Subject:     subject,
+		SubjectType: "workflow",
+		SubjectID:   subject,
+		ScopeType:   scopeType,
+		ScopeID:     scopeID,
+		Metadata:    auditMetadata(payload),
+		CreatedAt:   now,
+	})
+}
+
+func cloneEventData(data map[string]any) map[string]any {
+	out := map[string]any{}
+	for key, value := range data {
+		if strings.TrimSpace(key) != "" {
+			out[key] = value
+		}
+	}
+	return out
+}
+
+func valueFromData(data map[string]any, key string) string {
+	if data == nil {
+		return ""
+	}
+	value, _ := data[key].(string)
+	return value
+}
+
+func auditMetadata(data map[string]any) map[string]string {
+	if len(data) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for key, value := range data {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		switch typed := value.(type) {
+		case string:
+			if typed != "" {
+				out[key] = typed
+			}
+		case fmt.Stringer:
+			out[key] = typed.String()
+		case bool:
+			out[key] = fmt.Sprintf("%t", typed)
+		case int:
+			out[key] = fmt.Sprintf("%d", typed)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func (s *Service) planRecordForRun(ctx context.Context, input RunInput) (PlanRecord, error) {

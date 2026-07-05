@@ -234,7 +234,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/workflows/runs/{id}/retry", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.RetryWorkflowRun(workflowService, pipelineService)))
 		api.Get("/workflows/{id}", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.GetWorkflow(workflowService)))
 		api.Get("/workflows/{id}/plan", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.GetWorkflowLatestPlan(workflowService)))
-		api.Post("/workflows/validate", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.ValidateWorkflowDefinition()))
+		api.Post("/workflows/validate", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.ValidateWorkflowDefinition(workflowService)))
 		api.Post("/workflows/plan", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.PlanWorkflowDefinition(workflowService)))
 		api.Post("/workflows/run", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.RunWorkflowDefinition(workflowService, pipelineService)))
 		api.Get("/release-targets", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.ListReleaseTargets(catalogService)))

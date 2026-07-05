@@ -5,9 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sevoniva/nivora/internal/domain/audit"
+	"github.com/sevoniva/nivora/internal/domain/event"
 	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 )
 
@@ -162,6 +165,73 @@ func (s *RepositoryStore) GetIntelligence(ctx context.Context, repositoryID stri
 		return repositoryusecase.RepositoryIntelligence{}, fmt.Errorf("%w: intelligence for repository %q snapshot %q", repositoryusecase.ErrNotFound, repositoryID, snapshotID)
 	}
 	return intelligence, err
+}
+
+func (s *RepositoryStore) AppendEvent(ctx context.Context, subject string, evt event.Event) error {
+	if evt.Time.IsZero() {
+		evt.Time = time.Now().UTC()
+	}
+	if evt.Subject == "" {
+		evt.Subject = subject
+	}
+	payload, err := json.Marshal(evt)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx, `INSERT INTO governance_event_logs (id, source, event_type, subject, payload, created_at)
+		VALUES ($1,$2,$3,$4,$5,$6)
+		ON CONFLICT (id) DO NOTHING`,
+		evt.ID, "repository", evt.Type, subject, payload, evt.Time)
+	return err
+}
+
+func (s *RepositoryStore) EventsBySubject(ctx context.Context, subject string) ([]event.Event, error) {
+	rows, err := s.pool.Query(ctx, `SELECT payload FROM governance_event_logs WHERE source='repository' AND subject=$1 ORDER BY created_at, id`, subject)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []event.Event
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			return nil, err
+		}
+		var evt event.Event
+		if err := json.Unmarshal(payload, &evt); err != nil {
+			return nil, err
+		}
+		out = append(out, evt)
+	}
+	return nonNil(out), rows.Err()
+}
+
+func (s *RepositoryStore) AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error {
+	if entry.Subject == "" {
+		entry.Subject = subject
+	}
+	return AppendHashChainedAudit(ctx, s.pool, "repository", entry)
+}
+
+func (s *RepositoryStore) AuditsBySubject(ctx context.Context, subject string) ([]audit.AuditLog, error) {
+	rows, err := s.pool.Query(ctx, `SELECT payload FROM governance_audit_logs WHERE source='repository' AND subject=$1 ORDER BY created_at, id`, subject)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []audit.AuditLog
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			return nil, err
+		}
+		var entry audit.AuditLog
+		if err := json.Unmarshal(payload, &entry); err != nil {
+			return nil, err
+		}
+		out = append(out, entry)
+	}
+	return nonNil(out), rows.Err()
 }
 
 func repositorySnapshotSelect() string {

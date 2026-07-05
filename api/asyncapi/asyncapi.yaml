@@ -4,6 +4,66 @@ info:
   version: 0.9.0-rc.1
   description: Hardened beta-candidate Nivora event surface for local EventBus and event outbox foundations using this CloudEvents-style envelope. External brokers, durable event delivery across every subsystem, and production event operations remain future work. Nivora is not production-ready; some events are emitted by local/noop/fake foundations while others are reserved for future hardening and are labeled as such.
 channels:
+  devops.repository.created:
+    address: devops.repository.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.repository.snapshot.created:
+    address: devops.repository.snapshot.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.repository.intelligence.completed:
+    address: devops.repository.intelligence.completed
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.devops.plan.created:
+    address: devops.devops.plan.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.devops.readiness_review.created:
+    address: devops.devops.readiness_review.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.workflow.validated:
+    address: devops.workflow.validated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.workflow.plan.created:
+    address: devops.workflow.plan.created
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.workflow.run.requested:
+    address: devops.workflow.run.requested
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.workflow.matrix.expanded:
+    address: devops.workflow.matrix.expanded
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.workflow.run.canceled:
+    address: devops.workflow.run.canceled
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.workflow.run.retried:
+    address: devops.workflow.run.retried
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.workflow.run.reconciled:
+    address: devops.workflow.run.reconciled
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.pipeline.run.created:
     address: devops.pipeline.run.created
     messages:

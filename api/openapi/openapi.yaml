@@ -1418,7 +1418,7 @@ paths:
   /api/v1/workflows/validate:
     post:
       summary: Validate a Nivora Workflow definition
-      description: Requires `workflow.plan`. Accepts raw Nivora Workflow YAML or a JSON body with `content`. Validation is parser/planner-only and does not execute steps, external actions, or repository code.
+      description: Requires `workflow.plan`. Accepts raw Nivora Workflow YAML or a JSON body with `content`. Validation is parser/planner-only, records metadata-only workflow validation event/audit evidence in server-backed mode, and does not store raw workflow YAML, execute steps, external actions, or repository code.
       requestBody:
         required: true
         content:

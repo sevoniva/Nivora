@@ -5,6 +5,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sevoniva/nivora/internal/domain/audit"
+	"github.com/sevoniva/nivora/internal/domain/event"
 	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 )
 
@@ -99,6 +101,27 @@ func TestPostgresIntegrationRepositorySnapshotIntelligenceRecovery(t *testing.T)
 	if err := store.SaveIntelligence(ctx, intelligence); err != nil {
 		t.Fatalf("save intelligence: %v", err)
 	}
+	if err := store.AppendEvent(ctx, snapshot.ID, event.Event{
+		SpecVersion:     "1.0",
+		ID:              "repo-event-durable",
+		Type:            repositoryusecase.EventRepositorySnapshotCreated,
+		Source:          "nivora/repository",
+		Subject:         snapshot.ID,
+		Time:            now,
+		DataContentType: "application/json",
+		Data:            map[string]any{"repositoryId": repository.ID, "snapshotId": snapshot.ID},
+	}); err != nil {
+		t.Fatalf("append repository event: %v", err)
+	}
+	if err := store.AppendAudit(ctx, snapshot.ID, audit.AuditLog{
+		ID:        "repo-audit-durable",
+		ActorID:   "user-a",
+		Action:    "repository snapshot created",
+		Subject:   snapshot.ID,
+		CreatedAt: now,
+	}); err != nil {
+		t.Fatalf("append repository audit: %v", err)
+	}
 
 	restartedPool := db.restart(t)
 	store = NewRepositoryStore(restartedPool)
@@ -143,5 +166,20 @@ func TestPostgresIntegrationRepositorySnapshotIntelligenceRecovery(t *testing.T)
 	}
 	if len(loadedIntelligence.BuildCommandCandidates) != 1 || loadedIntelligence.BuildCommandCandidates[0].Command != "go build ./..." {
 		t.Fatalf("loaded intelligence = %#v", loadedIntelligence)
+	}
+	events, err := store.EventsBySubject(ctx, snapshot.ID)
+	if err != nil || len(events) != 1 || events[0].Type != repositoryusecase.EventRepositorySnapshotCreated {
+		t.Fatalf("repository events = %#v err=%v", events, err)
+	}
+	audits, err := store.AuditsBySubject(ctx, snapshot.ID)
+	if err != nil || len(audits) != 1 || audits[0].Action != "repository snapshot created" {
+		t.Fatalf("repository audits = %#v err=%v", audits, err)
+	}
+	valid, broken, err := NewComplianceStore(restartedPool).VerifyAuditChain(ctx, "repository", "")
+	if err != nil {
+		t.Fatalf("verify repository audit chain: %v", err)
+	}
+	if !valid {
+		t.Fatalf("repository audit chain broken at %s", broken)
 	}
 }

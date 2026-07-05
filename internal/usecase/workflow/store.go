@@ -5,6 +5,9 @@ import (
 	"sort"
 	"strings"
 	"sync"
+
+	"github.com/sevoniva/nivora/internal/domain/audit"
+	"github.com/sevoniva/nivora/internal/domain/event"
 )
 
 type Store interface {
@@ -15,16 +18,27 @@ type Store interface {
 	SaveRun(ctx context.Context, record RunRecord) error
 	GetRun(ctx context.Context, id string) (RunRecord, error)
 	ListRuns(ctx context.Context, filter RunListFilter) ([]RunRecord, error)
+	AppendEvent(ctx context.Context, subject string, evt event.Event) error
+	EventsBySubject(ctx context.Context, subject string) ([]event.Event, error)
+	AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error
+	AuditsBySubject(ctx context.Context, subject string) ([]audit.AuditLog, error)
 }
 
 type MemoryStore struct {
-	mu    sync.RWMutex
-	plans map[string]PlanRecord
-	runs  map[string]RunRecord
+	mu     sync.RWMutex
+	plans  map[string]PlanRecord
+	runs   map[string]RunRecord
+	events map[string][]event.Event
+	audits map[string][]audit.AuditLog
 }
 
 func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{plans: map[string]PlanRecord{}, runs: map[string]RunRecord{}}
+	return &MemoryStore{
+		plans:  map[string]PlanRecord{},
+		runs:   map[string]RunRecord{},
+		events: map[string][]event.Event{},
+		audits: map[string][]audit.AuditLog{},
+	}
 }
 
 func (s *MemoryStore) SavePlan(ctx context.Context, record PlanRecord) error {
@@ -138,6 +152,58 @@ func (s *MemoryStore) ListRuns(ctx context.Context, filter RunListFilter) ([]Run
 		return out[i].CreatedAt.After(out[j].CreatedAt)
 	})
 	return applyRunPage(out, filter), nil
+}
+
+func (s *MemoryStore) AppendEvent(ctx context.Context, subject string, evt event.Event) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events[subject] = append(s.events[subject], evt)
+	return nil
+}
+
+func (s *MemoryStore) EventsBySubject(ctx context.Context, subject string) ([]event.Event, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	events := append([]event.Event(nil), s.events[subject]...)
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].Time.Equal(events[j].Time) {
+			return events[i].ID < events[j].ID
+		}
+		return events[i].Time.Before(events[j].Time)
+	})
+	return events, nil
+}
+
+func (s *MemoryStore) AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.audits[subject] = append(s.audits[subject], entry)
+	return nil
+}
+
+func (s *MemoryStore) AuditsBySubject(ctx context.Context, subject string) ([]audit.AuditLog, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	audits := append([]audit.AuditLog(nil), s.audits[subject]...)
+	sort.Slice(audits, func(i, j int) bool {
+		if audits[i].CreatedAt.Equal(audits[j].CreatedAt) {
+			return audits[i].ID < audits[j].ID
+		}
+		return audits[i].CreatedAt.Before(audits[j].CreatedAt)
+	})
+	return audits, nil
 }
 
 func applyPlanPage(records []PlanRecord, filter PlanListFilter) []PlanRecord {

@@ -12,10 +12,20 @@ import (
 	"strings"
 	"time"
 
+	"github.com/sevoniva/nivora/internal/domain/audit"
+	"github.com/sevoniva/nivora/internal/domain/event"
 	"github.com/sevoniva/nivora/internal/ports/scm"
 )
 
 var ErrInvalid = errors.New("repository input is invalid")
+
+const (
+	EventRepositoryCreated               = "devops.repository.created"
+	EventRepositorySnapshotCreated       = "devops.repository.snapshot.created"
+	EventRepositoryIntelligenceCompleted = "devops.repository.intelligence.completed"
+	EventDevOpsPlanCreated               = "devops.devops.plan.created"
+	EventDevOpsReadinessReviewCreated    = "devops.devops.readiness_review.created"
+)
 
 type Service struct {
 	store Store
@@ -43,6 +53,13 @@ func (s *Service) SaveRepository(ctx context.Context, repository Repository) (Re
 	}
 	repository.UpdatedAt = now
 	if err := s.store.SaveRepository(ctx, repository); err != nil {
+		return Repository{}, err
+	}
+	if err := s.recordRepositoryEventAndAudit(ctx, repository.ID, EventRepositoryCreated, "repository created", repository.ProjectID, map[string]any{
+		"repositoryId": repository.ID,
+		"provider":     repository.Provider,
+		"status":       repository.Status,
+	}); err != nil {
 		return Repository{}, err
 	}
 	return repository, nil
@@ -95,8 +112,25 @@ func (s *Service) CreateSnapshot(ctx context.Context, input SnapshotInput) (Repo
 	if err := s.store.SaveSnapshot(ctx, snapshot); err != nil {
 		return RepositorySnapshot{}, err
 	}
+	if err := s.recordRepositoryEventAndAudit(ctx, snapshot.ID, EventRepositorySnapshotCreated, "repository snapshot created", repository.ProjectID, map[string]any{
+		"repositoryId": snapshot.RepositoryID,
+		"snapshotId":   snapshot.ID,
+		"ref":          snapshot.Ref,
+		"fileCount":    len(snapshot.Files),
+	}); err != nil {
+		return RepositorySnapshot{}, err
+	}
 	intelligence := AnalyzeSnapshot(snapshot, now)
 	if err := s.store.SaveIntelligence(ctx, intelligence); err != nil {
+		return RepositorySnapshot{}, err
+	}
+	if err := s.recordRepositoryEventAndAudit(ctx, snapshot.ID, EventRepositoryIntelligenceCompleted, "repository intelligence completed", repository.ProjectID, map[string]any{
+		"repositoryId": snapshot.RepositoryID,
+		"snapshotId":   snapshot.ID,
+		"languages":    len(intelligence.LanguageSummary),
+		"buildPlans":   len(intelligence.BuildCommandCandidates),
+		"testPlans":    len(intelligence.TestCommandCandidates),
+	}); err != nil {
 		return RepositorySnapshot{}, err
 	}
 	return snapshot, nil
@@ -111,6 +145,19 @@ func (s *Service) AnalyzeLatest(ctx context.Context, repositoryID string) (Repos
 	if err := s.store.SaveIntelligence(ctx, intelligence); err != nil {
 		return RepositoryIntelligence{}, err
 	}
+	projectID := ""
+	if repository, err := s.store.GetRepository(ctx, snapshot.RepositoryID); err == nil {
+		projectID = repository.ProjectID
+	}
+	if err := s.recordRepositoryEventAndAudit(ctx, snapshot.ID, EventRepositoryIntelligenceCompleted, "repository intelligence completed", projectID, map[string]any{
+		"repositoryId": snapshot.RepositoryID,
+		"snapshotId":   snapshot.ID,
+		"languages":    len(intelligence.LanguageSummary),
+		"buildPlans":   len(intelligence.BuildCommandCandidates),
+		"testPlans":    len(intelligence.TestCommandCandidates),
+	}); err != nil {
+		return RepositoryIntelligence{}, err
+	}
 	return intelligence, nil
 }
 
@@ -121,6 +168,19 @@ func (s *Service) AnalyzeSnapshot(ctx context.Context, snapshotID string) (Repos
 	}
 	intelligence := AnalyzeSnapshot(snapshot, s.now().UTC())
 	if err := s.store.SaveIntelligence(ctx, intelligence); err != nil {
+		return RepositoryIntelligence{}, err
+	}
+	projectID := ""
+	if repository, err := s.store.GetRepository(ctx, snapshot.RepositoryID); err == nil {
+		projectID = repository.ProjectID
+	}
+	if err := s.recordRepositoryEventAndAudit(ctx, snapshot.ID, EventRepositoryIntelligenceCompleted, "repository intelligence completed", projectID, map[string]any{
+		"repositoryId": snapshot.RepositoryID,
+		"snapshotId":   snapshot.ID,
+		"languages":    len(intelligence.LanguageSummary),
+		"buildPlans":   len(intelligence.BuildCommandCandidates),
+		"testPlans":    len(intelligence.TestCommandCandidates),
+	}); err != nil {
 		return RepositoryIntelligence{}, err
 	}
 	return intelligence, nil
@@ -164,6 +224,18 @@ func (s *Service) DevOpsPlan(ctx context.Context, repositoryID string) (DevOpsPl
 		Warnings:          append([]string{"plan-only: detected commands are not executed by repository intelligence"}, intelligence.Warnings...),
 		Metadata:          map[string]string{"source": "repository-intelligence"},
 		CreatedAt:         now,
+	}
+	projectID := ""
+	if repository, err := s.store.GetRepository(ctx, snapshot.RepositoryID); err == nil {
+		projectID = repository.ProjectID
+	}
+	if err := s.recordRepositoryEventAndAudit(ctx, snapshot.ID, EventDevOpsPlanCreated, "repository DevOps plan created", projectID, map[string]any{
+		"repositoryId": snapshot.RepositoryID,
+		"snapshotId":   snapshot.ID,
+		"planOnly":     true,
+		"releaseReady": plan.ReleaseReady,
+	}); err != nil {
+		return DevOpsPlan{}, err
 	}
 	return plan, nil
 }
@@ -231,7 +303,111 @@ func (s *Service) DevOpsReadinessReview(ctx context.Context, repositoryID string
 	default:
 		review.Status = "blocked"
 	}
+	projectID := ""
+	if repository, err := s.store.GetRepository(ctx, plan.RepositoryID); err == nil {
+		projectID = repository.ProjectID
+	}
+	if err := s.recordRepositoryEventAndAudit(ctx, plan.SnapshotID, EventDevOpsReadinessReviewCreated, "repository readiness review created", projectID, map[string]any{
+		"repositoryId": review.RepositoryID,
+		"snapshotId":   review.SnapshotID,
+		"status":       review.Status,
+		"planOnly":     review.PlanOnly,
+	}); err != nil {
+		return DevOpsReadinessReview{}, err
+	}
 	return review, nil
+}
+
+func (s *Service) Events(ctx context.Context, subject string) ([]event.Event, error) {
+	return s.store.EventsBySubject(ctx, strings.TrimSpace(subject))
+}
+
+func (s *Service) Audits(ctx context.Context, subject string) ([]audit.AuditLog, error) {
+	return s.store.AuditsBySubject(ctx, strings.TrimSpace(subject))
+}
+
+func (s *Service) recordRepositoryEventAndAudit(ctx context.Context, subject string, eventType string, action string, projectID string, data map[string]any) error {
+	subject = strings.TrimSpace(subject)
+	if subject == "" {
+		subject = strings.TrimSpace(valueFromData(data, "repositoryId"))
+	}
+	if subject == "" {
+		return nil
+	}
+	now := s.now().UTC()
+	payload := cloneEventData(data)
+	payload["message"] = action
+	evt := event.Event{
+		SpecVersion:     "1.0",
+		ID:              defaultID("evt"),
+		Type:            eventType,
+		Source:          "nivora/repository",
+		Subject:         subject,
+		Time:            now,
+		DataContentType: "application/json",
+		Data:            payload,
+	}
+	if err := s.store.AppendEvent(ctx, subject, evt); err != nil {
+		return err
+	}
+	return s.store.AppendAudit(ctx, subject, audit.AuditLog{
+		ID:          defaultID("audit"),
+		Action:      action,
+		Subject:     subject,
+		SubjectType: "repository",
+		SubjectID:   subject,
+		ScopeType:   "project",
+		ScopeID:     strings.TrimSpace(projectID),
+		Metadata:    auditMetadata(payload),
+		CreatedAt:   now,
+	})
+}
+
+func cloneEventData(data map[string]any) map[string]any {
+	out := map[string]any{}
+	for key, value := range data {
+		if strings.TrimSpace(key) != "" {
+			out[key] = value
+		}
+	}
+	return out
+}
+
+func valueFromData(data map[string]any, key string) string {
+	if data == nil {
+		return ""
+	}
+	value, _ := data[key].(string)
+	return value
+}
+
+func auditMetadata(data map[string]any) map[string]string {
+	if len(data) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for key, value := range data {
+		key = strings.TrimSpace(key)
+		if key == "" {
+			continue
+		}
+		switch typed := value.(type) {
+		case string:
+			if typed != "" {
+				out[key] = typed
+			}
+		case fmt.Stringer:
+			out[key] = typed.String()
+		case bool:
+			out[key] = fmt.Sprintf("%t", typed)
+		case int:
+			out[key] = fmt.Sprintf("%d", typed)
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func commandPlanWarnings(kind string) []string {

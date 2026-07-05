@@ -74,6 +74,12 @@ Workflow job `labels` are preserved in WorkflowPlan records and in the generated
 
 Workflow source metadata is also preserved for traceability. When a guarded WorkflowRun queues a PipelineRun, the PipelineRun stores `workflowId`, `workflowPlanId`, `workflowRunId`, `repositoryId`, and `repositorySnapshotId`. Generated JobRun and StepRun records store `workflowJobId` and `workflowStepId`. These fields help audit a runtime record back to a repository snapshot and workflow plan; they do not grant permissions, execute code, or replace runner policy checks.
 
+## Events And Audit
+
+Repository create, snapshot, intelligence refresh, DevOps plan, and readiness-review paths record metadata-only events and audit entries through the configured store. In PostgreSQL mode, audit entries are written through the shared hash-chained audit writer used by the rest of the control plane.
+
+Workflow validate, plan, run, cancel, retry, and reconcile paths also record metadata-only events and audit entries. Validation does not persist a WorkflowPlan record or raw workflow YAML; it records that a definition was validated and returns the planned view. Workflow plan/run lifecycle events are keyed by the workflow plan ID, workflow run ID, or workflow ID so timeline and audit views can connect repository intelligence, workflow planning, and PipelineRun metadata without storing secret values.
+
 Workflow-level `artifacts` and `cache` entries are recorded as PipelineRun metadata when a guarded WorkflowRun queues a PipelineRun. The control plane records names, paths, cache keys, restore keys, retention hints, and metadata. It does not read artifact files, upload cache blobs, or store large content in the database.
 
 Workflow-level `security`, `release`, and `deployment` sections are plan-only intent summaries. They can show scanner, release, digest, target, apply, or sync intent in a plan, but the workflow planner does not run scanners, create releases, bind artifacts, apply Kubernetes manifests, sync Argo CD, or deploy hosts.
@@ -155,7 +161,7 @@ Each tool is read-only or plan-only and returns `mutated=false`. MCP does not ex
 - GitHub/GitLab/Gitea real network integrations are not implemented.
 - WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.
 - Repository DevOps plans depend on the latest saved snapshot. They are not generated from live remote SCM state and do not create Release, DeploymentRun, SecurityScan, or PipelineRun records.
-- WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Workflow and repository source IDs are copied into the linked PipelineRun/JobRun/StepRun records, including `repositorySnapshotId` when supplied. Read and cancel APIs synchronize through the linked PipelineRun. Workflow-level retry semantics remain future work.
+- WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Workflow and repository source IDs are copied into the linked PipelineRun/JobRun/StepRun records, including `repositorySnapshotId` when supplied. Read, cancel, retry, and reconcile APIs synchronize through the linked PipelineRun. Background retry policy controls and automatic workflow reconciliation remain future work.
 - Workflow security/release/deployment intent is stored in redacted plan records and remains plan-only. It is not release orchestration, deployment execution, or scanner execution.
 - Pipeline artifact/cache/annotation/summary metadata persistence exists in memory and configured PostgreSQL runtime stores. Blob storage is not implemented by this metadata foundation; use storage references for content outside the control plane.
 - Workflow execution still belongs to PipelineRun, Runner, and Worker paths; MCP does not expose workflow action execution.

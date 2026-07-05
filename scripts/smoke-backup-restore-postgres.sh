@@ -13,12 +13,15 @@ fi
 
 DATABASE_URL="${DATABASE_URL:-postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable}"
 REQUIRE_ACTUAL_RESTORE="${NIVORA_REQUIRE_ACTUAL_RESTORE:-${CI:-0}}"
+ISOLATED_SOURCE="${NIVORA_BACKUP_ISOLATED_SOURCE:-${CI:-0}}"
 
 PASS=0
 FAIL=0
 SERVER_PID=""
+SOURCE_DB_CREATED=0
 RESTORE_DB_CREATED=0
 ADMIN_DATABASE_URL=""
+SOURCE_DATABASE_NAME=""
 RESTORE_DATABASE_URL=""
 RESTORE_DATABASE_NAME=""
 
@@ -82,9 +85,17 @@ drop_restore_database() {
   fi
 }
 
+drop_source_database() {
+  if [ "$SOURCE_DB_CREATED" = "1" ] && [ -n "$ADMIN_DATABASE_URL" ] && [ -n "$SOURCE_DATABASE_NAME" ]; then
+    psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"${SOURCE_DATABASE_NAME}\"" >/dev/null 2>&1 || true
+    SOURCE_DB_CREATED=0
+  fi
+}
+
 cleanup() {
   stop_server
   drop_restore_database
+  drop_source_database
   if [ -n "${CONFIG_DIR:-}" ]; then
     rm -rf "$CONFIG_DIR"
   fi
@@ -186,6 +197,37 @@ if ! psql "$DATABASE_URL" -c 'SELECT 1' >/dev/null 2>&1; then
   echo "SKIP: cannot connect to Postgres at $(redact_database_url "$DATABASE_URL")"
   exit 0
 fi
+
+# Keep the restore drill isolated from other integration-test records in CI.
+# Otherwise a broken or deliberately tampered audit chain from a previous test can make
+# this backup smoke look like a restore failure even when the dump/import path is healthy.
+case "$ISOLATED_SOURCE" in
+  1|true|TRUE|yes|YES)
+    base_db=$(psql_value "$DATABASE_URL" 'SELECT current_database()' || printf '')
+    SOURCE_DATABASE_NAME="nivora_backup_src_$$"
+    if sql_identifier_safe "$base_db" && sql_identifier_safe "$SOURCE_DATABASE_NAME"; then
+      ADMIN_DATABASE_URL=$(derive_database_url "$DATABASE_URL" "$base_db" "postgres" || printf '')
+      SOURCE_DATABASE_URL=$(derive_database_url "$DATABASE_URL" "$base_db" "$SOURCE_DATABASE_NAME" || printf '')
+    else
+      SOURCE_DATABASE_URL=""
+    fi
+    if [ -n "$ADMIN_DATABASE_URL" ] && [ -n "$SOURCE_DATABASE_URL" ] &&
+       psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"${SOURCE_DATABASE_NAME}\"" >/dev/null 2>&1 &&
+       psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${SOURCE_DATABASE_NAME}\"" >/dev/null 2>&1; then
+      SOURCE_DB_CREATED=1
+      DATABASE_URL="$SOURCE_DATABASE_URL"
+      pass "isolated source database created for backup smoke"
+      echo "Source database: $(redact_database_url "$DATABASE_URL")"
+    else
+      warn "could not create isolated source database"
+      case "$REQUIRE_ACTUAL_RESTORE" in
+        1|true|TRUE|yes|YES)
+          fail "isolated source database is required in this environment"
+          ;;
+      esac
+    fi
+    ;;
+esac
 
 # --- Phase 1: Run migrations ---
 echo ""

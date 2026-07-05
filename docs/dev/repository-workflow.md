@@ -20,6 +20,16 @@ Detected commands are suggestions only. They are not executed by repository inte
 
 When the server or MCP process is configured with `database.runtime_store: postgres`, repository snapshots, repository intelligence, and workflow plan records are stored in PostgreSQL. The local `nivora repository inspect --path` and `nivora workflow plan --file` commands remain local commands and do not require a database.
 
+## Plan Repository DevOps Candidates
+
+After a repository snapshot exists, Nivora can derive a plan-only DevOps summary:
+
+```bash
+nivora repository devops-plan <repository-id> --server http://localhost:8080
+```
+
+The summary includes build, test, package, security scan, deployment target, and release-candidate metadata from the latest saved snapshot. It does not execute detected commands, run scanners, create releases, bind artifacts, deploy, or mutate runtime state. The response includes `mutated=false` for API, CLI, and MCP callers.
+
 ## Validate A Nivora Workflow
 
 ```bash
@@ -44,6 +54,7 @@ POST /api/v1/repositories/{id}/snapshot
 GET  /api/v1/repositories/{id}/snapshots
 GET  /api/v1/repositories/{id}/intelligence
 POST /api/v1/repositories/{id}/analyze
+POST /api/v1/devops/plan
 ```
 
 Workflow plan-only endpoints:
@@ -81,8 +92,10 @@ Local MCP tools and resources:
 
 ```text
 nivora_repository_inspect
+nivora_repository_devops_plan
 nivora_workflow_validate
 nivora_workflow_plan
+nivora://repositories/{id}/devops-plan
 nivora://workflows
 nivora://workflows/{id}/plan
 nivora://pipelines/runs/{id}/artifacts
@@ -91,13 +104,14 @@ nivora://pipelines/runs/{id}/annotations
 nivora://pipelines/runs/{id}/summary
 ```
 
-Each tool is read-only or plan-only and returns `mutated=false`. MCP does not execute workflow steps.
+Each tool is read-only or plan-only and returns `mutated=false`. MCP does not execute workflow steps, repository commands, scanner runs, release creation, or deployment actions.
 
 ## Known Limits
 
 - RepositorySnapshot and RepositoryIntelligence are durable only in configured PostgreSQL server/MCP mode; local commands and default development mode still use in-memory state or direct local output.
 - GitHub/GitLab/Gitea real network integrations are not implemented.
 - WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.
+- Repository DevOps plans depend on the latest saved snapshot. They are not generated from live remote SCM state and do not create Release, DeploymentRun, SecurityScan, or PipelineRun records.
 - WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Read APIs refresh the metadata status from the linked PipelineRun, but workflow-level retry/cancel semantics are still owned by the PipelineRun runtime.
 - Workflow security/release/deployment intent is stored in redacted plan records and remains plan-only. It is not release orchestration, deployment execution, or scanner execution.
 - Pipeline artifact/cache/annotation/summary metadata persistence exists in memory and configured PostgreSQL runtime stores. Blob storage is not implemented by this metadata foundation; use storage references for content outside the control plane.

@@ -222,6 +222,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/repositories/{id}/snapshots", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListRepositorySnapshots(repositoryService)))
 		api.Get("/repositories/{id}/intelligence", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetRepositoryIntelligence(repositoryService)))
 		api.Post("/repositories/{id}/analyze", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.AnalyzeRepository(repositoryService)))
+		api.Post("/devops/plan", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.PlanRepositoryDevOps(repositoryService)))
 		api.Get("/workflows", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.ListWorkflows(workflowService)))
 		api.Get("/workflows/plans", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.ListWorkflowPlans(workflowService)))
 		api.Get("/workflows/plans/{id}", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.GetWorkflowPlan(workflowService)))

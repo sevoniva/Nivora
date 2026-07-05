@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
+	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 )
 
@@ -39,6 +40,75 @@ func TestMCPRepositoryInspectToolIsPlanOnlyAndRedacted(t *testing.T) {
 	}
 	if strings.Contains(body, "should-not-leak") {
 		t.Fatalf("repository inspect leaked .env content: %s", body)
+	}
+}
+
+func TestMCPRepositoryDevOpsPlanResourceAndToolArePlanOnly(t *testing.T) {
+	root := t.TempDir()
+	if err := os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.invalid/devops\n\ngo 1.23\n"), 0o600); err != nil {
+		t.Fatalf("write go.mod: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, "Dockerfile"), []byte("FROM scratch\n"), 0o600); err != nil {
+		t.Fatalf("write Dockerfile: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(root, ".env"), []byte("TOKEN=should-not-leak\n"), 0o600); err != nil {
+		t.Fatalf("write .env: %v", err)
+	}
+
+	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	projectID, _ := createMCPCatalogAndPipelineFixture(t, server)
+	repositories, err := server.services.Catalog.ListRepositories(context.Background(), projectID)
+	if err != nil {
+		t.Fatalf("list catalog repositories: %v", err)
+	}
+	if len(repositories) == 0 {
+		t.Fatal("expected catalog repository fixture")
+	}
+	repositoryID := repositories[0].ID
+	saved, err := server.services.Repositories.SaveRepository(context.Background(), repositoryusecase.Repository{
+		ID:            repositoryID,
+		Name:          repositories[0].Name,
+		Provider:      repositoryusecase.ProviderLocal,
+		URL:           root,
+		DefaultBranch: "HEAD",
+		ProjectID:     projectID,
+		Status:        repositoryusecase.RepositoryStatusActive,
+	})
+	if err != nil {
+		t.Fatalf("save repository usecase record: %v", err)
+	}
+	if _, err := server.services.Repositories.CreateSnapshot(context.Background(), repositoryusecase.SnapshotInput{Repository: saved, Ref: "HEAD", LocalPath: root}); err != nil {
+		t.Fatalf("create repository snapshot: %v", err)
+	}
+
+	resource, err := server.ReadResource(context.Background(), "nivora://repositories/"+repositoryID+"/devops-plan")
+	if err != nil {
+		t.Fatalf("ReadResource devops-plan: %v", err)
+	}
+	for _, want := range []string{`"mutated": false`, `"releaseCandidate"`, "go test ./...", "plan-only"} {
+		if !strings.Contains(resource.Text, want) {
+			t.Fatalf("devops plan resource missing %q: %s", want, resource.Text)
+		}
+	}
+	if strings.Contains(resource.Text, "should-not-leak") {
+		t.Fatalf("devops plan resource leaked .env content: %s", resource.Text)
+	}
+
+	result, err := server.CallTool(context.Background(), "nivora_repository_devops_plan", map[string]any{"repositoryId": repositoryID})
+	if err != nil {
+		t.Fatalf("repository devops plan transport error: %v", err)
+	}
+	if result.IsError || len(result.Content) == 0 {
+		t.Fatalf("repository devops plan result = %#v", result)
+	}
+	body := result.Content[0].Text
+	for _, want := range []string{`"mutated": false`, `"releaseCandidate"`, "go build ./...", "metadata-only"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("devops plan tool body missing %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "should-not-leak") {
+		t.Fatalf("devops plan tool leaked .env content: %s", body)
 	}
 }
 

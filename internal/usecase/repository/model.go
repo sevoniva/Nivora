@@ -104,18 +104,38 @@ type PackagePlan struct {
 	CreatedAt    time.Time          `json:"createdAt"`
 }
 
+type SecurityScanPlan struct {
+	RepositoryID string    `json:"repositoryId"`
+	SnapshotID   string    `json:"snapshotId,omitempty"`
+	Candidates   []string  `json:"candidates,omitempty"`
+	Warnings     []string  `json:"warnings,omitempty"`
+	CreatedAt    time.Time `json:"createdAt"`
+}
+
+type ReleaseCandidatePlan struct {
+	RepositoryID       string    `json:"repositoryId"`
+	SnapshotID         string    `json:"snapshotId,omitempty"`
+	Eligible           bool      `json:"eligible"`
+	ArtifactCandidates []string  `json:"artifactCandidates,omitempty"`
+	RequiredChecks     []string  `json:"requiredChecks,omitempty"`
+	Warnings           []string  `json:"warnings,omitempty"`
+	CreatedAt          time.Time `json:"createdAt"`
+}
+
 type DevOpsPlan struct {
-	RepositoryID      string            `json:"repositoryId"`
-	SnapshotID        string            `json:"snapshotId,omitempty"`
-	Build             BuildPlan         `json:"build"`
-	Test              TestPlan          `json:"test"`
-	Package           PackagePlan       `json:"package"`
-	SecurityScans     []string          `json:"securityScans,omitempty"`
-	DeploymentTargets []string          `json:"deploymentTargets,omitempty"`
-	ReleaseReady      bool              `json:"releaseReady"`
-	Warnings          []string          `json:"warnings,omitempty"`
-	Metadata          map[string]string `json:"metadata,omitempty"`
-	CreatedAt         time.Time         `json:"createdAt"`
+	RepositoryID      string               `json:"repositoryId"`
+	SnapshotID        string               `json:"snapshotId,omitempty"`
+	Build             BuildPlan            `json:"build"`
+	Test              TestPlan             `json:"test"`
+	Package           PackagePlan          `json:"package"`
+	Security          SecurityScanPlan     `json:"security"`
+	ReleaseCandidate  ReleaseCandidatePlan `json:"releaseCandidate"`
+	SecurityScans     []string             `json:"securityScans,omitempty"`
+	DeploymentTargets []string             `json:"deploymentTargets,omitempty"`
+	ReleaseReady      bool                 `json:"releaseReady"`
+	Warnings          []string             `json:"warnings,omitempty"`
+	Metadata          map[string]string    `json:"metadata,omitempty"`
+	CreatedAt         time.Time            `json:"createdAt"`
 }
 
 type SnapshotInput struct {

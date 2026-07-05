@@ -1283,6 +1283,48 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/devops/plan:
+    post:
+      summary: Plan repository DevOps candidates
+      description: Requires `project.read`. Returns a plan-only DevOps summary from the latest repository snapshot, including build, test, package, security scan, deployment target, and release-candidate metadata. It does not execute repository code, create releases, trigger scans, deploy, or mutate runtime state.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DevOpsPlanRequest"
+      parameters:
+        - name: repositoryId
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Repository id fallback when no JSON body is provided.
+      responses:
+        "200":
+          description: Plan-only DevOps summary
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plan:
+                    $ref: "#/components/schemas/DevOpsPlan"
+                  mutated:
+                    type: boolean
+                    const: false
+        "400":
+          description: Request is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Repository snapshot was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/workflows:
     get:
       summary: List Nivora Workflow summaries
@@ -5072,6 +5114,110 @@ components:
         warnings:
           type: array
           items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+    DevOpsPlanRequest:
+      type: object
+      properties:
+        repositoryId:
+          type: string
+          description: Repository id to plan from the latest saved snapshot.
+    CommandPlan:
+      type: object
+      properties:
+        repositoryId:
+          type: string
+        snapshotId:
+          type: string
+        commands:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommandCandidate"
+        warnings:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+    SecurityScanPlan:
+      type: object
+      properties:
+        repositoryId:
+          type: string
+        snapshotId:
+          type: string
+        candidates:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+    ReleaseCandidatePlan:
+      type: object
+      properties:
+        repositoryId:
+          type: string
+        snapshotId:
+          type: string
+        eligible:
+          type: boolean
+        artifactCandidates:
+          type: array
+          items:
+            type: string
+        requiredChecks:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+    DevOpsPlan:
+      type: object
+      properties:
+        repositoryId:
+          type: string
+        snapshotId:
+          type: string
+        build:
+          $ref: "#/components/schemas/CommandPlan"
+        test:
+          $ref: "#/components/schemas/CommandPlan"
+        package:
+          $ref: "#/components/schemas/CommandPlan"
+        security:
+          $ref: "#/components/schemas/SecurityScanPlan"
+        releaseCandidate:
+          $ref: "#/components/schemas/ReleaseCandidatePlan"
+        securityScans:
+          type: array
+          items:
+            type: string
+        deploymentTargets:
+          type: array
+          items:
+            type: string
+        releaseReady:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties:
             type: string
         createdAt:
           type: string

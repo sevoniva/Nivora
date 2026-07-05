@@ -145,20 +145,61 @@ func (s *Service) DevOpsPlan(ctx context.Context, repositoryID string) (DevOpsPl
 	}
 	intelligence := AnalyzeSnapshot(snapshot, s.now().UTC())
 	now := s.now().UTC()
+	build := BuildPlan{RepositoryID: snapshot.RepositoryID, SnapshotID: snapshot.ID, Commands: intelligence.BuildCommandCandidates, Warnings: commandPlanWarnings("build"), CreatedAt: now}
+	test := TestPlan{RepositoryID: snapshot.RepositoryID, SnapshotID: snapshot.ID, Commands: intelligence.TestCommandCandidates, Warnings: commandPlanWarnings("test"), CreatedAt: now}
+	pkg := PackagePlan{RepositoryID: snapshot.RepositoryID, SnapshotID: snapshot.ID, Commands: intelligence.PackageCommandCandidates, Warnings: commandPlanWarnings("package"), CreatedAt: now}
+	security := SecurityScanPlan{RepositoryID: snapshot.RepositoryID, SnapshotID: snapshot.ID, Candidates: append([]string(nil), intelligence.SecurityScanCandidates...), Warnings: []string{"security scans are plan-only; no scanner is executed by repository planning"}, CreatedAt: now}
+	releaseCandidate := releaseCandidatePlan(snapshot, intelligence, now)
 	plan := DevOpsPlan{
 		RepositoryID:      snapshot.RepositoryID,
 		SnapshotID:        snapshot.ID,
-		Build:             BuildPlan{RepositoryID: snapshot.RepositoryID, SnapshotID: snapshot.ID, Commands: intelligence.BuildCommandCandidates, CreatedAt: now},
-		Test:              TestPlan{RepositoryID: snapshot.RepositoryID, SnapshotID: snapshot.ID, Commands: intelligence.TestCommandCandidates, CreatedAt: now},
-		Package:           PackagePlan{RepositoryID: snapshot.RepositoryID, SnapshotID: snapshot.ID, Commands: intelligence.PackageCommandCandidates, CreatedAt: now},
+		Build:             build,
+		Test:              test,
+		Package:           pkg,
+		Security:          security,
+		ReleaseCandidate:  releaseCandidate,
 		SecurityScans:     append([]string(nil), intelligence.SecurityScanCandidates...),
 		DeploymentTargets: append([]string(nil), intelligence.DeploymentTargetCandidates...),
-		ReleaseReady:      len(intelligence.BuildCommandCandidates) > 0 || len(intelligence.PackageCommandCandidates) > 0,
+		ReleaseReady:      releaseCandidate.Eligible,
 		Warnings:          append([]string{"plan-only: detected commands are not executed by repository intelligence"}, intelligence.Warnings...),
 		Metadata:          map[string]string{"source": "repository-intelligence"},
 		CreatedAt:         now,
 	}
 	return plan, nil
+}
+
+func commandPlanWarnings(kind string) []string {
+	return []string{kind + " commands are detection candidates and are not executed by repository planning"}
+}
+
+func releaseCandidatePlan(snapshot RepositorySnapshot, intelligence RepositoryIntelligence, now time.Time) ReleaseCandidatePlan {
+	artifacts := []string{}
+	for _, candidate := range intelligence.PackageCommandCandidates {
+		artifacts = append(artifacts, candidate.Name)
+	}
+	if len(artifacts) == 0 && len(intelligence.BuildCommandCandidates) > 0 {
+		artifacts = append(artifacts, "build-output")
+	}
+	requiredChecks := []string{}
+	if len(intelligence.TestCommandCandidates) > 0 {
+		requiredChecks = append(requiredChecks, "tests")
+	}
+	if len(intelligence.SecurityScanCandidates) > 0 {
+		requiredChecks = append(requiredChecks, "security-scans")
+	}
+	warnings := []string{"release candidate plan is metadata-only; no Release or ReleaseArtifact is created"}
+	if len(artifacts) == 0 {
+		warnings = append(warnings, "no artifact-producing build or package candidate was detected")
+	}
+	return ReleaseCandidatePlan{
+		RepositoryID:       snapshot.RepositoryID,
+		SnapshotID:         snapshot.ID,
+		Eligible:           len(artifacts) > 0,
+		ArtifactCandidates: dedupeSorted(artifacts),
+		RequiredChecks:     dedupeSorted(requiredChecks),
+		Warnings:           dedupeSorted(warnings),
+		CreatedAt:          now,
+	}
 }
 
 func AnalyzeSnapshot(snapshot RepositorySnapshot, now time.Time) RepositoryIntelligence {

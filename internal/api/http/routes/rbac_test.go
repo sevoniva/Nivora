@@ -56,6 +56,7 @@ var criticalRoutes = []struct {
 	{"GET", "/api/v1/repositories/repo-1/snapshots", domainauth.PermissionProjectRead, false},
 	{"GET", "/api/v1/repositories/repo-1/intelligence", domainauth.PermissionProjectRead, false},
 	{"POST", "/api/v1/repositories/repo-1/analyze", domainauth.PermissionProjectRead, false},
+	{"POST", "/api/v1/devops/plan", domainauth.PermissionProjectRead, false},
 	{"POST", "/api/v1/workflows/validate", domainauth.PermissionWorkflowPlan, false},
 	{"POST", "/api/v1/workflows/plan", domainauth.PermissionWorkflowPlan, false},
 	{"GET", "/api/v1/workflows", domainauth.PermissionWorkflowPlan, false},

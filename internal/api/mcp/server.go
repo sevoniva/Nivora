@@ -123,6 +123,7 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://repositories/{id}", "Repository", "Repository catalog record by id"),
 		resource("nivora://repositories/{id}/snapshot/latest", "Repository latest snapshot", "Latest repository snapshot metadata by id"),
 		resource("nivora://repositories/{id}/intelligence", "Repository intelligence", "Latest repository intelligence by id"),
+		resource("nivora://repositories/{id}/devops-plan", "Repository DevOps plan", "Plan-only build, test, package, security, release-candidate, and deployment summary by repository id"),
 		resource("nivora://workflows", "Workflows", "Stored workflow summaries visible to the MCP subject"),
 		resource("nivora://workflows/{id}/plan", "Workflow plan", "Stored workflow plan record by id"),
 		resource("nivora://pipelines/definitions", "Pipeline definitions", "Pipeline definition catalog"),
@@ -218,6 +219,9 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			"name": stringProperty("optional repository name"),
 			"ref":  stringProperty("optional ref label"),
 		}, []string{"path"})),
+		tool("nivora_repository_devops_plan", "Read a plan-only DevOps plan for a repository latest snapshot", objectSchema(map[string]any{
+			"repositoryId": stringProperty("repository id"),
+		}, []string{"repositoryId"})),
 		tool("nivora_workflow_validate", "Validate a Nivora Workflow YAML document", objectSchema(map[string]any{
 			"content": stringProperty("workflow YAML content"),
 		}, []string{"content"})),
@@ -897,6 +901,23 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return map[string]any{"snapshot": snapshot, "intelligence": intelligence, "mutated": false}, nil
+	case "nivora_repository_devops_plan":
+		repositoryID, err := requiredString(arguments, "repositoryId")
+		if err != nil {
+			return nil, err
+		}
+		repository, err := s.services.Catalog.GetRepository(ctx, repositoryID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("repository "+repositoryID, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+		plan, err := s.services.Repositories.DevOpsPlan(ctx, repositoryID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"plan": plan, "mutated": false}, nil
 	case "nivora_workflow_validate":
 		content, err := requiredString(arguments, "content")
 		if err != nil {
@@ -1995,6 +2016,20 @@ func (s *Server) repositoryResource(ctx context.Context, rest string) (any, erro
 			return nil, err
 		}
 		return map[string]any{"intelligence": intelligence, "mutated": false}, nil
+	case strings.HasSuffix(rest, "/devops-plan"):
+		id := strings.TrimSuffix(rest, "/devops-plan")
+		repository, err := s.services.Catalog.GetRepository(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("repository "+id, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+		plan, err := s.services.Repositories.DevOpsPlan(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"plan": plan, "mutated": false}, nil
 	default:
 		repository, err := s.services.Catalog.GetRepository(ctx, rest)
 		if err != nil {
@@ -2347,6 +2382,7 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_search_logs",
 		"nivora_get_catalog_summary",
 		"nivora_repository_inspect",
+		"nivora_repository_devops_plan",
 		"nivora_list_pipeline_definitions",
 		"nivora_get_pipeline_definition",
 		"nivora_get_pipeline_run",

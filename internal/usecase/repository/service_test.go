@@ -102,6 +102,15 @@ func TestRepositorySnapshotAndIntelligenceForLocalRepo(t *testing.T) {
 	if !plan.ReleaseReady {
 		t.Fatal("expected plan to be release ready from detected build/package candidates")
 	}
+	if !plan.ReleaseCandidate.Eligible || len(plan.ReleaseCandidate.ArtifactCandidates) == 0 {
+		t.Fatalf("release candidate plan missing artifact candidates: %#v", plan.ReleaseCandidate)
+	}
+	if len(plan.Security.Candidates) == 0 || !strings.Contains(strings.Join(plan.Security.Warnings, "\n"), "plan-only") {
+		t.Fatalf("security plan missing candidates/warnings: %#v", plan.Security)
+	}
+	if !strings.Contains(strings.Join(plan.Build.Warnings, "\n"), "not executed") {
+		t.Fatalf("build plan should be plan-only: %#v", plan.Build.Warnings)
+	}
 	if !strings.Contains(strings.Join(plan.Warnings, "\n"), "not executed") {
 		t.Fatalf("expected plan-only warning, got %#v", plan.Warnings)
 	}

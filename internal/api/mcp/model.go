@@ -18,6 +18,7 @@ import (
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	releaseusecase "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 )
 
@@ -38,6 +39,7 @@ type Services struct {
 	PipelineDefs *pipelineusecase.DefinitionCatalog
 	Deployments  *deploymentusecase.Service
 	Catalog      *catalogusecase.Service
+	Repositories *repositoryusecase.Service
 	Artifacts    *artifactusecase.Service
 	Releases     *releaseusecase.Service
 	Security     *securityusecase.Service

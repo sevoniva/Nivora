@@ -20,6 +20,8 @@ const (
 	PermissionEnvironmentRead   = "environment.read"
 	PermissionEnvironmentWrite  = "environment.write"
 	PermissionPipelineRun       = "pipeline.run"
+	PermissionWorkflowPlan      = "workflow.plan"
+	PermissionWorkflowRun       = "workflow.run"
 	PermissionDeploymentCreate  = "deployment.create"
 	PermissionDeploymentApprove = "deployment.approve"
 	PermissionDeploymentCancel  = "deployment.cancel"

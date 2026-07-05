@@ -6,6 +6,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	scmgeneric "github.com/sevoniva/nivora/internal/adapters/scm/generic"
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	"github.com/sevoniva/nivora/internal/api/http/handlers"
 	apimiddleware "github.com/sevoniva/nivora/internal/api/http/middleware"
@@ -24,6 +25,7 @@ import (
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 	runtimecenter "github.com/sevoniva/nivora/internal/usecase/runtimecenter"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
 	tenancyusecase "github.com/sevoniva/nivora/internal/usecase/tenancy"
@@ -37,6 +39,7 @@ type routeOptions struct {
 	pipelineCatalog         *pipelineusecase.DefinitionCatalog
 	policyCatalog           *policyusecase.Service
 	artifactRegistryCatalog *artifactusecase.RegistryService
+	repositoryService       *repositoryusecase.Service
 }
 
 func WithCatalogService(service *catalogusecase.Service) Option {
@@ -71,6 +74,14 @@ func WithArtifactRegistryCatalog(service *artifactusecase.RegistryService) Optio
 	}
 }
 
+func WithRepositoryService(service *repositoryusecase.Service) Option {
+	return func(options *routeOptions) {
+		if service != nil {
+			options.repositoryService = service
+		}
+	}
+}
+
 func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineService *pipelineusecase.Service, deploymentService *deploymentusecase.Service, artifactService *artifactusecase.Service, releaseService *releaseorchestration.Service, securityService *securityusecase.Service, credentialService *credentialusecase.Service, authService *authusecase.Service, approvalService *approvalusecase.Service, cloudService *cloudusecase.Service, tenancyService *tenancyusecase.Service, complianceService *complianceusecase.Service, pluginRegistry *pluginusecase.Registry, opts ...Option) http.Handler {
 	r := chi.NewRouter()
 	runtimeCenter := runtimecenter.NewService(pipelineService, deploymentService, releaseService)
@@ -79,6 +90,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		pipelineCatalog:         pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore()),
 		policyCatalog:           policyusecase.NewService(policyusecase.NewMemoryStore()),
 		artifactRegistryCatalog: artifactusecase.NewRegistryService(artifactusecase.NewRegistryMemoryStore()),
+		repositoryService:       repositoryusecase.NewService(repositoryusecase.NewMemoryStore(), scmgeneric.New()),
 	}
 	for _, opt := range opts {
 		opt(&routeConfig)
@@ -87,6 +99,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	pipelineCatalog := routeConfig.pipelineCatalog
 	policyCatalog := routeConfig.policyCatalog
 	artifactRegistryCatalog := routeConfig.artifactRegistryCatalog
+	repositoryService := routeConfig.repositoryService
 	deploymentService.WithRepositoryCatalog(catalogService)
 	deploymentService.WithPolicyCatalog(policyCatalog)
 	releaseService.WithPolicyCatalog(policyCatalog)
@@ -192,6 +205,13 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Patch("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.UpdateRepository(catalogService)))
 		api.Delete("/repositories/{id}", apimiddleware.RequirePermission(authService, "project.write", handlers.RespondError, handlers.DisableRepository(catalogService)))
 		api.Post("/repositories/{id}/validate", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ValidateRepository(catalogService)))
+		api.Post("/repositories/{id}/snapshot", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.CreateRepositorySnapshot(catalogService, repositoryService)))
+		api.Get("/repositories/{id}/snapshots", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.ListRepositorySnapshots(repositoryService)))
+		api.Get("/repositories/{id}/intelligence", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetRepositoryIntelligence(repositoryService)))
+		api.Post("/repositories/{id}/analyze", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.AnalyzeRepository(repositoryService)))
+		api.Post("/workflows/validate", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.ValidateWorkflowDefinition()))
+		api.Post("/workflows/plan", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.PlanWorkflowDefinition()))
+		api.Post("/workflows/run", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.WorkflowRunGuardedPlaceholder()))
 		api.Get("/release-targets", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.ListReleaseTargets(catalogService)))
 		api.Post("/release-targets", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.CreateReleaseTarget(catalogService)))
 		api.Get("/release-targets/{id}", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.GetReleaseTarget(catalogService)))
@@ -393,4 +413,10 @@ type routeGroup struct {
 
 func placeholderGroups() []routeGroup {
 	return []routeGroup{}
+}
+
+func placeholderOperations() map[string]bool {
+	return map[string]bool{
+		"post /api/v1/workflows/run": true,
+	}
 }

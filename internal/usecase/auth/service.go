@@ -40,7 +40,7 @@ func DefaultRoles() map[string]domainauth.Role {
 		domainauth.RoleOwner:      {Name: domainauth.RoleOwner, Description: "Full administrative access", Permissions: all},
 		domainauth.RoleAdmin:      {Name: domainauth.RoleAdmin, Description: "Administrative access", Permissions: all},
 		domainauth.RoleMaintainer: {Name: domainauth.RoleMaintainer, Description: "Delivery operation access", Permissions: permissionsWithout(all, domainauth.PermissionCredentialManage, domainauth.PermissionPolicyManage, domainauth.PermissionAuditRead)},
-		domainauth.RoleDeveloper:  {Name: domainauth.RoleDeveloper, Description: "Build and deploy access", Permissions: permissionsOnly(domainauth.PermissionProjectRead, domainauth.PermissionApplicationRead, domainauth.PermissionEnvironmentRead, domainauth.PermissionPipelineRun, domainauth.PermissionDeploymentCreate, domainauth.PermissionDeploymentCancel, domainauth.PermissionReleaseCreate)},
+		domainauth.RoleDeveloper:  {Name: domainauth.RoleDeveloper, Description: "Build and deploy access", Permissions: permissionsOnly(domainauth.PermissionProjectRead, domainauth.PermissionApplicationRead, domainauth.PermissionEnvironmentRead, domainauth.PermissionPipelineRun, domainauth.PermissionWorkflowPlan, domainauth.PermissionWorkflowRun, domainauth.PermissionDeploymentCreate, domainauth.PermissionDeploymentCancel, domainauth.PermissionReleaseCreate)},
 		domainauth.RoleViewer:     {Name: domainauth.RoleViewer, Description: "Read-only access", Permissions: permissionsOnly(domainauth.PermissionProjectRead, domainauth.PermissionApplicationRead, domainauth.PermissionEnvironmentRead)},
 		domainauth.RoleAuditor:    {Name: domainauth.RoleAuditor, Description: "Read and audit access", Permissions: permissionsOnly(domainauth.PermissionProjectRead, domainauth.PermissionAuditRead)},
 	}
@@ -55,6 +55,8 @@ func DefaultPermissions() []domainauth.Permission {
 		domainauth.PermissionEnvironmentRead,
 		domainauth.PermissionEnvironmentWrite,
 		domainauth.PermissionPipelineRun,
+		domainauth.PermissionWorkflowPlan,
+		domainauth.PermissionWorkflowRun,
 		domainauth.PermissionDeploymentCreate,
 		domainauth.PermissionDeploymentApprove,
 		domainauth.PermissionDeploymentCancel,

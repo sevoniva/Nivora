@@ -15,6 +15,8 @@ import (
 	"sync"
 	"time"
 
+	scmgeneric "github.com/sevoniva/nivora/internal/adapters/scm/generic"
+	domainapp "github.com/sevoniva/nivora/internal/domain/application"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
 	domainevent "github.com/sevoniva/nivora/internal/domain/event"
@@ -29,7 +31,9 @@ import (
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	releaseusecase "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
+	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 )
 
 const jsonMime = "application/json"
@@ -81,6 +85,9 @@ func NewServer(services Services, logger *slog.Logger) *Server {
 	if services.PipelineDefs == nil {
 		services.PipelineDefs = pipelineusecase.NewDefinitionCatalog(pipelineusecase.NewDefinitionMemoryStore())
 	}
+	if services.Repositories == nil {
+		services.Repositories = repositoryusecase.NewService(repositoryusecase.NewMemoryStore(), scmgeneric.New())
+	}
 	return &Server{services: services, logger: logger, rateLimit: &rateLimitState{}}
 }
 
@@ -109,6 +116,11 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://events", "Runtime events", "Aggregate runtime events with MCP response caps"),
 		resource("nivora://logs", "Runtime logs", "Aggregate runtime log chunks with MCP response caps"),
 		resource("nivora://catalog/summary", "Catalog summary", "Organization, project, application, environment, repository, and target summary"),
+		resource("nivora://repositories", "Repositories", "Repository catalog records visible to the MCP subject"),
+		resource("nivora://repositories/{id}", "Repository", "Repository catalog record by id"),
+		resource("nivora://repositories/{id}/snapshot/latest", "Repository latest snapshot", "Latest repository snapshot metadata by id"),
+		resource("nivora://repositories/{id}/intelligence", "Repository intelligence", "Latest repository intelligence by id"),
+		resource("nivora://workflows/{id}/plan", "Workflow plan", "Stored workflow plan resource placeholder by id"),
 		resource("nivora://pipelines/definitions", "Pipeline definitions", "Pipeline definition catalog"),
 		resource("nivora://pipelines/definitions/{id}", "Pipeline definition", "Pipeline definition record by id"),
 		resource("nivora://pipelines/runs/{id}", "PipelineRun", "PipelineRun record by id"),
@@ -193,6 +205,17 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 			"orgId":     stringProperty("optional org id filter"),
 			"projectId": stringProperty("optional project id filter"),
 		}, nil)),
+		tool("nivora_repository_inspect", "Inspect a local repository path and return snapshot/intelligence without executing repository code", objectSchema(map[string]any{
+			"path": stringProperty("local repository path"),
+			"name": stringProperty("optional repository name"),
+			"ref":  stringProperty("optional ref label"),
+		}, []string{"path"})),
+		tool("nivora_workflow_validate", "Validate a Nivora Workflow YAML document", objectSchema(map[string]any{
+			"content": stringProperty("workflow YAML content"),
+		}, []string{"content"})),
+		tool("nivora_workflow_plan", "Create a plan-only Nivora Workflow DAG from YAML content", objectSchema(map[string]any{
+			"content": stringProperty("workflow YAML content"),
+		}, []string{"content"})),
 		tool("nivora_list_pipeline_definitions", "List pipeline definitions", objectSchema(map[string]any{
 			"projectId": stringProperty("optional project id filter"),
 			"limit":     integerProperty("page size, 1-100"),
@@ -395,6 +418,16 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string, query url.
 		return s.logSearch(ctx, mcpLogFilter{Limit: page.Limit, Offset: page.Offset})
 	case uri == "nivora://catalog/summary":
 		return s.catalogSummary(ctx, "", "")
+	case uri == "nivora://repositories":
+		return s.repositoryList(ctx, "")
+	case strings.HasPrefix(uri, "nivora://repositories/"):
+		return s.repositoryResource(ctx, strings.TrimPrefix(uri, "nivora://repositories/"))
+	case strings.HasPrefix(uri, "nivora://workflows/"):
+		return nil, OperationError{
+			Code:               "not_implemented",
+			Message:            "stored workflow resources are not implemented yet; use nivora_workflow_validate or nivora_workflow_plan with explicit YAML content",
+			RequiredFutureGate: "workflow-definition-store",
+		}
 	case uri == "nivora://pipelines/definitions":
 		page, err := mcpPageFromQuery(query)
 		if err != nil {
@@ -774,6 +807,62 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 		})
 	case "nivora_get_catalog_summary":
 		return s.catalogSummary(ctx, stringArg(arguments, "orgId"), stringArg(arguments, "projectId"))
+	case "nivora_repository_inspect":
+		path, err := requiredString(arguments, "path")
+		if err != nil {
+			return nil, err
+		}
+		name := firstNonEmpty(stringArg(arguments, "name"), "local-repository")
+		repository := repositoryusecase.Repository{
+			ID:            "mcp-local-repository",
+			Name:          name,
+			Provider:      repositoryusecase.ProviderLocal,
+			URL:           path,
+			DefaultBranch: "HEAD",
+			Status:        repositoryusecase.RepositoryStatusActive,
+		}
+		service := repositoryusecase.NewService(repositoryusecase.NewMemoryStore(), scmgeneric.New())
+		saved, err := service.SaveRepository(ctx, repository)
+		if err != nil {
+			return nil, err
+		}
+		snapshot, err := service.CreateSnapshot(ctx, repositoryusecase.SnapshotInput{Repository: saved, Ref: stringArg(arguments, "ref"), LocalPath: path})
+		if err != nil {
+			return nil, err
+		}
+		intelligence, err := service.GetIntelligence(ctx, snapshot.RepositoryID, snapshot.ID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"snapshot": snapshot, "intelligence": intelligence, "mutated": false}, nil
+	case "nivora_workflow_validate":
+		content, err := requiredString(arguments, "content")
+		if err != nil {
+			return nil, err
+		}
+		def, err := workflowusecase.ParseDefinition([]byte(content))
+		if err != nil {
+			return nil, err
+		}
+		plan, err := workflowusecase.PlanDefinition(def, workflowusecase.PlanOptions{})
+		if err != nil {
+			return map[string]any{"valid": false, "error": err.Error(), "mutated": false}, nil
+		}
+		return map[string]any{"valid": true, "plan": plan, "mutated": false}, nil
+	case "nivora_workflow_plan":
+		content, err := requiredString(arguments, "content")
+		if err != nil {
+			return nil, err
+		}
+		def, err := workflowusecase.ParseDefinition([]byte(content))
+		if err != nil {
+			return nil, err
+		}
+		plan, err := workflowusecase.PlanDefinition(def, workflowusecase.PlanOptions{})
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"plan": plan, "mutated": false}, nil
 	case "nivora_list_pipeline_definitions":
 		page, err := mcpPageFromArgs(arguments)
 		if err != nil {
@@ -1772,6 +1861,91 @@ func (s *Server) catalogSummary(ctx context.Context, orgID string, projectID str
 	}, nil
 }
 
+func (s *Server) repositoryList(ctx context.Context, projectID string) (any, error) {
+	repositories, err := s.services.Catalog.ListRepositories(ctx, projectID)
+	if err != nil {
+		return nil, err
+	}
+	filtered := make([]domainapp.Repository, 0, len(repositories))
+	for _, repository := range repositories {
+		if s.ensureSubjectScope("repository "+repository.ID, repository.ProjectID, "") == nil {
+			filtered = append(filtered, repository)
+		}
+	}
+	return map[string]any{"repositories": filtered, "count": len(filtered), "mutated": false}, nil
+}
+
+func (s *Server) repositoryResource(ctx context.Context, rest string) (any, error) {
+	switch {
+	case strings.HasSuffix(rest, "/snapshot/latest"):
+		id := strings.TrimSuffix(rest, "/snapshot/latest")
+		repository, err := s.services.Catalog.GetRepository(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("repository "+id, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+		snapshot, err := s.services.Repositories.GetLatestSnapshot(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"snapshot": snapshot, "mutated": false}, nil
+	case strings.HasSuffix(rest, "/intelligence"):
+		id := strings.TrimSuffix(rest, "/intelligence")
+		repository, err := s.services.Catalog.GetRepository(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("repository "+id, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+		snapshot, err := s.services.Repositories.GetLatestSnapshot(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		intelligence, err := s.services.Repositories.GetIntelligence(ctx, id, snapshot.ID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{"intelligence": intelligence, "mutated": false}, nil
+	default:
+		repository, err := s.services.Catalog.GetRepository(ctx, rest)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("repository "+rest, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+		return map[string]any{"repository": repository, "mutated": false}, nil
+	}
+}
+
+func repositoryUsecaseFromCatalog(repository domainapp.Repository) repositoryusecase.Repository {
+	status := repositoryusecase.RepositoryStatusActive
+	if !repository.Enabled {
+		status = repositoryusecase.RepositoryStatusDisabled
+	}
+	provider := repositoryusecase.Provider(repository.Provider)
+	if provider == "" || provider == "generic" {
+		provider = repositoryusecase.ProviderGenericGit
+	}
+	return repositoryusecase.Repository{
+		ID:            repository.ID,
+		Name:          repository.Name,
+		Provider:      provider,
+		URL:           repository.URL,
+		DefaultBranch: repository.DefaultBranch,
+		CredentialRef: repository.CredentialRef,
+		ProjectID:     repository.ProjectID,
+		Labels:        repository.Labels,
+		Metadata:      repository.Metadata,
+		Status:        status,
+		CreatedAt:     repository.CreatedAt,
+		UpdatedAt:     repository.UpdatedAt,
+	}
+}
+
 func (s *Server) ensurePipelineScope(record pipelineusecase.RunRecord, resource string) error {
 	return s.ensureSubjectScope(resource, record.Pipeline.ProjectID, "")
 }
@@ -2009,11 +2183,14 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_inspect_artifact_reference",
 		"nivora_plan_deployment_local":
 		return domainauth.PermissionDeploymentCreate
+	case "nivora_workflow_validate", "nivora_workflow_plan":
+		return domainauth.PermissionWorkflowPlan
 	case "nivora_status",
 		"nivora_get_runtime_recovery_status",
 		"nivora_search_events",
 		"nivora_search_logs",
 		"nivora_get_catalog_summary",
+		"nivora_repository_inspect",
 		"nivora_list_pipeline_definitions",
 		"nivora_get_pipeline_definition",
 		"nivora_get_pipeline_run",

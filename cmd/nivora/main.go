@@ -16,6 +16,7 @@ import (
 
 	ociartifact "github.com/sevoniva/nivora/internal/adapters/artifact/oci"
 	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
+	scmgeneric "github.com/sevoniva/nivora/internal/adapters/scm/generic"
 	"github.com/sevoniva/nivora/internal/app/runner"
 	"github.com/sevoniva/nivora/internal/app/server"
 	"github.com/sevoniva/nivora/internal/app/worker"
@@ -31,7 +32,9 @@ import (
 	pluginusecase "github.com/sevoniva/nivora/internal/usecase/plugin"
 	policyusecase "github.com/sevoniva/nivora/internal/usecase/policy"
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
+	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 	securityusecase "github.com/sevoniva/nivora/internal/usecase/security"
+	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 	"github.com/sevoniva/nivora/internal/version"
 	"github.com/spf13/cobra"
 	"gopkg.in/yaml.v3"
@@ -60,6 +63,7 @@ func newRootCommand() *cobra.Command {
 	root.AddCommand(newApplicationCommand())
 	root.AddCommand(newEnvironmentCommand())
 	root.AddCommand(newRepositoryCommand())
+	root.AddCommand(newWorkflowCommand())
 	root.AddCommand(newTargetCommand())
 	root.AddCommand(newApprovalsCommand())
 	root.AddCommand(newChangeWindowCommand())
@@ -1807,6 +1811,14 @@ func newRepositoryCommand() *cobra.Command {
 	cmd.AddCommand(newRepositoryUpdateCommand())
 	cmd.AddCommand(newCatalogDisableCommand("disable", "Disable a repository", "/api/v1/repositories"))
 	cmd.AddCommand(newRepositoryValidateCommand())
+	cmd.AddCommand(newRepositoryInspectCommand())
+	return cmd
+}
+
+func newWorkflowCommand() *cobra.Command {
+	cmd := &cobra.Command{Use: "workflow", Short: "Nivora Workflow authoring utilities"}
+	cmd.AddCommand(newWorkflowValidateCommand())
+	cmd.AddCommand(newWorkflowPlanCommand())
 	return cmd
 }
 
@@ -2180,6 +2192,102 @@ func newRepositoryValidateCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newRepositoryInspectCommand() *cobra.Command {
+	var path string
+	var name string
+	var ref string
+	cmd := &cobra.Command{
+		Use:   "inspect",
+		Short: "Inspect a local repository path without executing repository code",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if path == "" {
+				return fmt.Errorf("--path is required")
+			}
+			if name == "" {
+				name = "local-repository"
+			}
+			repository := repositoryusecase.Repository{
+				ID:            "repo-local-inspect",
+				Name:          name,
+				Provider:      repositoryusecase.ProviderLocal,
+				URL:           path,
+				DefaultBranch: "HEAD",
+				Status:        repositoryusecase.RepositoryStatusActive,
+			}
+			service := repositoryusecase.NewService(repositoryusecase.NewMemoryStore(), scmgeneric.New())
+			saved, err := service.SaveRepository(cmd.Context(), repository)
+			if err != nil {
+				return err
+			}
+			snapshot, err := service.CreateSnapshot(cmd.Context(), repositoryusecase.SnapshotInput{Repository: saved, Ref: ref, LocalPath: path})
+			if err != nil {
+				return err
+			}
+			intelligence, err := service.GetIntelligence(cmd.Context(), snapshot.RepositoryID, snapshot.ID)
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), map[string]any{"snapshot": snapshot, "intelligence": intelligence})
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&path, "path", "", "local repository path")
+	cmd.Flags().StringVar(&name, "name", "", "repository display name")
+	cmd.Flags().StringVar(&ref, "ref", "", "repository ref label for the snapshot")
+	return cmd
+}
+
+func newWorkflowValidateCommand() *cobra.Command {
+	var file string
+	cmd := &cobra.Command{
+		Use:   "validate",
+		Short: "Validate a Nivora Workflow file",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if file == "" {
+				return fmt.Errorf("--file is required")
+			}
+			def, err := workflowusecase.LoadDefinitionFile(file)
+			if err != nil {
+				return err
+			}
+			plan, err := workflowusecase.PlanDefinition(def, workflowusecase.PlanOptions{})
+			if err != nil {
+				printJSON(cmd.OutOrStdout(), map[string]any{"valid": false, "error": err.Error()})
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), map[string]any{"valid": true, "plan": plan})
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&file, "file", "", "workflow file path")
+	return cmd
+}
+
+func newWorkflowPlanCommand() *cobra.Command {
+	var file string
+	cmd := &cobra.Command{
+		Use:   "plan",
+		Short: "Create a plan-only Nivora Workflow DAG",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if file == "" {
+				return fmt.Errorf("--file is required")
+			}
+			def, err := workflowusecase.LoadDefinitionFile(file)
+			if err != nil {
+				return err
+			}
+			plan, err := workflowusecase.PlanDefinition(def, workflowusecase.PlanOptions{})
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), plan)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&file, "file", "", "workflow file path")
 	return cmd
 }
 

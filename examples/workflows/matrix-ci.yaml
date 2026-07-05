@@ -1,0 +1,21 @@
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: matrix-ci
+on:
+  - manual
+jobs:
+  test:
+    runsOn:
+      - self-hosted
+      - shell
+    strategy:
+      matrix:
+        go:
+          - "1.22"
+          - "1.23"
+        os:
+          - linux
+    steps:
+      - name: matrix test
+        run: go test ./...

@@ -68,17 +68,21 @@ func TestOpenAPIPlaceholderRouteLabelsMatchRouter(t *testing.T) {
 	openapi := readOpenAPIOperations(t)
 	placeholders := map[string]bool{}
 	for _, group := range placeholderGroups() {
-		placeholders["/api/v1"+group.path] = true
+		placeholders["get /api/v1"+group.path] = true
+	}
+	for key := range placeholderOperations() {
+		placeholders[key] = true
 	}
 
 	for path, ops := range openapi {
 		for method, op := range ops {
+			key := method + " " + path
 			isPlaceholderDoc := strings.Contains(strings.ToLower(op.Summary+" "+op.Description), "placeholder") ||
 				strings.Contains(strings.ToLower(op.Summary+" "+op.Description), "not implemented")
-			if placeholders[path] && !isPlaceholderDoc {
+			if placeholders[key] && !isPlaceholderDoc {
 				t.Fatalf("placeholder route %s %s is not documented as placeholder/not implemented", strings.ToUpper(method), path)
 			}
-			if !placeholders[path] && isPlaceholderDoc {
+			if !placeholders[key] && isPlaceholderDoc {
 				t.Fatalf("implemented route %s %s is documented as placeholder/not implemented", strings.ToUpper(method), path)
 			}
 		}
@@ -102,6 +106,24 @@ func TestAllPlaceholderRoutesReturnStructuredNotImplemented(t *testing.T) {
 		if !strings.Contains(rec.Body.String(), `"code":"not_implemented"`) || !strings.Contains(rec.Body.String(), `"path":"`+path+`"`) {
 			t.Fatalf("%s response is not structured not_implemented: %s", path, rec.Body.String())
 		}
+	}
+}
+
+func TestWorkflowRunPlaceholderReturnsStructuredNotImplemented(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusNotImplemented {
+		t.Fatalf("workflow run placeholder status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "not_implemented") {
+		t.Fatalf("workflow run placeholder body missing not_implemented: %s", rec.Body.String())
 	}
 }
 

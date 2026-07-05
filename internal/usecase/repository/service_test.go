@@ -2,17 +2,15 @@ package repository
 
 import (
 	"context"
-	"os"
-	"path/filepath"
+	"errors"
 	"strings"
 	"testing"
 
-	scmgeneric "github.com/sevoniva/nivora/internal/adapters/scm/generic"
 	"github.com/sevoniva/nivora/internal/ports/scm"
 )
 
 func TestRepositoryRejectsInlineCredentials(t *testing.T) {
-	service := NewService(NewMemoryStore(), scmgeneric.New())
+	service := NewService(NewMemoryStore(), fakeSCMProvider{})
 	_, err := service.SaveRepository(context.Background(), Repository{
 		ID:       "repo-secret-url",
 		Name:     "secret-url",
@@ -28,35 +26,40 @@ func TestRepositoryRejectsInlineCredentials(t *testing.T) {
 }
 
 func TestRepositorySnapshotAndIntelligenceForLocalRepo(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, root, "go.mod", "module example.com/demo\n\ngo 1.22\n")
-	writeFile(t, root, "cmd/demo/main.go", "package main\nfunc main(){}\n")
-	writeFile(t, root, "package.json", `{"scripts":{"build":"vite build","test":"vitest"}}`)
-	writeFile(t, root, "vite.config.ts", "export default {}\n")
-	writeFile(t, root, "src/App.tsx", "export function App(){ return null }\n")
-	writeFile(t, root, "Dockerfile", "FROM scratch\n")
-	writeFile(t, root, "deploy/k8s/deployment.yaml", "apiVersion: apps/v1\nkind: Deployment\n")
-	writeFile(t, root, "charts/demo/Chart.yaml", "apiVersion: v2\nname: demo\n")
-	writeFile(t, root, ".github/workflows/ci.yaml", "name: ci\n")
-	writeFile(t, root, ".gitlab-ci.yml", "stages: [test]\n")
-	writeFile(t, root, ".nivora/workflows/ci.yaml", "kind: Workflow\n")
-	writeFile(t, root, ".env", "TOKEN=should-not-be-read\n")
-
 	repository := Repository{
 		ID:            "repo-local",
 		Name:          "local",
-		Provider:      ProviderLocal,
-		URL:           root,
+		Provider:      ProviderGenericGit,
+		URL:           "https://example.invalid/team/repo.git",
 		DefaultBranch: "main",
 		ProjectID:     "project-a",
 		CredentialRef: "credential-ref-placeholder",
 	}
-	service := NewService(NewMemoryStore(), scmgeneric.NewWithRepositories(nil))
+	service := NewService(NewMemoryStore(), fakeSCMProvider{tree: scm.Tree{
+		RepositoryID: "repo-local",
+		Ref:          "main",
+		TreeHash:     "sha256:fake-tree",
+		Files: []scm.FileInfo{
+			{Path: "go.mod", Size: 32, Hash: "sha256:gomod"},
+			{Path: "cmd/demo/main.go", Size: 28, Hash: "sha256:main"},
+			{Path: "package.json", Size: 44, Hash: "sha256:package"},
+			{Path: "vite.config.ts", Size: 18, Hash: "sha256:vite"},
+			{Path: "src/App.tsx", Size: 37, Hash: "sha256:app"},
+			{Path: "Dockerfile", Size: 13, Hash: "sha256:dockerfile"},
+			{Path: "deploy/k8s/deployment.yaml", Size: 42, Hash: "sha256:k8s"},
+			{Path: "charts/demo/Chart.yaml", Size: 28, Hash: "sha256:chart"},
+			{Path: ".github/workflows/ci.yaml", Size: 9, Hash: "sha256:gha"},
+			{Path: ".gitlab-ci.yml", Size: 14, Hash: "sha256:gitlab"},
+			{Path: ".nivora/workflows/ci.yaml", Size: 15, Hash: "sha256:nivora"},
+			{Path: ".env", Size: 25},
+		},
+		Warnings: []string{`secret-like environment file ".env" detected; values were not read`},
+	}})
 	saved, err := service.SaveRepository(context.Background(), repository)
 	if err != nil {
 		t.Fatalf("save repository: %v", err)
 	}
-	snapshot, err := service.CreateSnapshot(context.Background(), SnapshotInput{Repository: saved, LocalPath: root})
+	snapshot, err := service.CreateSnapshot(context.Background(), SnapshotInput{Repository: saved})
 	if err != nil {
 		t.Fatalf("create snapshot: %v", err)
 	}
@@ -104,42 +107,6 @@ func TestRepositorySnapshotAndIntelligenceForLocalRepo(t *testing.T) {
 	}
 }
 
-func TestGenericProviderDiffsLocalTrees(t *testing.T) {
-	base := t.TempDir()
-	head := t.TempDir()
-	writeFile(t, base, "go.mod", "module example.com/demo\n")
-	writeFile(t, base, "README.md", "old\n")
-	writeFile(t, head, "go.mod", "module example.com/demo\n")
-	writeFile(t, head, "README.md", "new\n")
-	writeFile(t, head, "cmd/main.go", "package main\n")
-
-	provider := scmgeneric.New()
-	diff, err := provider.DiffRefs(context.Background(), localRef(base), localRef(head))
-	if err != nil {
-		t.Fatalf("diff refs: %v", err)
-	}
-	assertContains(t, diff.AddedFiles, "cmd/main.go")
-	assertContains(t, diff.ChangedFiles, "README.md")
-	if len(diff.RemovedFiles) != 0 {
-		t.Fatalf("removed files = %#v", diff.RemovedFiles)
-	}
-}
-
-func localRef(path string) scm.RepositoryRef {
-	return scm.RepositoryRef{LocalPath: path}
-}
-
-func writeFile(t *testing.T, root string, rel string, body string) {
-	t.Helper()
-	path := filepath.Join(root, filepath.FromSlash(rel))
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		t.Fatalf("mkdir: %v", err)
-	}
-	if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
-		t.Fatalf("write %s: %v", rel, err)
-	}
-}
-
 func assertContains(t *testing.T, values []string, expected string) {
 	t.Helper()
 	for _, value := range values {
@@ -148,6 +115,93 @@ func assertContains(t *testing.T, values []string, expected string) {
 		}
 	}
 	t.Fatalf("%q not found in %#v", expected, values)
+}
+
+type fakeSCMProvider struct {
+	tree scm.Tree
+}
+
+func (p fakeSCMProvider) ValidateCredential(ctx context.Context, credential scm.CredentialRef) error {
+	return ctx.Err()
+}
+
+func (p fakeSCMProvider) GetRepository(ctx context.Context, repositoryID string) (scm.Repository, error) {
+	if err := ctx.Err(); err != nil {
+		return scm.Repository{}, err
+	}
+	return scm.Repository{ID: repositoryID, URL: "https://example.invalid/repo.git", Provider: string(ProviderGenericGit)}, nil
+}
+
+func (p fakeSCMProvider) ValidateRepository(ctx context.Context, repository scm.Repository) error {
+	return ctx.Err()
+}
+
+func (p fakeSCMProvider) ResolveRef(ctx context.Context, ref scm.RepositoryRef) (scm.Commit, error) {
+	if err := ctx.Err(); err != nil {
+		return scm.Commit{}, err
+	}
+	return scm.Commit{SHA: "sha256:fake-tree"}, nil
+}
+
+func (p fakeSCMProvider) ListBranches(ctx context.Context, repositoryID string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return []string{"main"}, nil
+}
+
+func (p fakeSCMProvider) ListTags(ctx context.Context, repositoryID string) ([]string, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return []string{}, nil
+}
+
+func (p fakeSCMProvider) GetCommit(ctx context.Context, repositoryID string, ref string) (scm.Commit, error) {
+	return p.ResolveRef(ctx, scm.RepositoryRef{RepositoryID: repositoryID, Ref: ref})
+}
+
+func (p fakeSCMProvider) ReadFile(ctx context.Context, ref scm.RepositoryRef, path string) ([]byte, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	return nil, errors.New("file not found")
+}
+
+func (p fakeSCMProvider) ListTree(ctx context.Context, ref scm.RepositoryRef) (scm.Tree, error) {
+	return p.CreateSnapshot(ctx, ref)
+}
+
+func (p fakeSCMProvider) CreateSnapshot(ctx context.Context, ref scm.RepositoryRef) (scm.Tree, error) {
+	if err := ctx.Err(); err != nil {
+		return scm.Tree{}, err
+	}
+	tree := p.tree
+	if tree.RepositoryID == "" {
+		tree.RepositoryID = ref.RepositoryID
+	}
+	if tree.Ref == "" {
+		tree.Ref = ref.Ref
+	}
+	return tree, nil
+}
+
+func (p fakeSCMProvider) DiffRefs(ctx context.Context, base scm.RepositoryRef, head scm.RepositoryRef) (scm.DiffSummary, error) {
+	if err := ctx.Err(); err != nil {
+		return scm.DiffSummary{}, err
+	}
+	return scm.DiffSummary{}, nil
+}
+
+func (p fakeSCMProvider) GetCapabilities(ctx context.Context) (scm.Capabilities, error) {
+	if err := ctx.Err(); err != nil {
+		return scm.Capabilities{}, err
+	}
+	return scm.Capabilities{Provider: "fake", ReadOnly: true}, nil
+}
+
+func (p fakeSCMProvider) CreateCommitStatus(ctx context.Context, repositoryID string, sha string, status scm.CommitStatus) error {
+	return ctx.Err()
 }
 
 func assertCommand(t *testing.T, values []CommandCandidate, expected string, optional ...bool) {

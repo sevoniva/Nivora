@@ -1,0 +1,13 @@
+apiVersion: nivora.io/v1alpha1
+kind: Repository
+metadata:
+  name: local-service
+spec:
+  provider: local
+  url: file:///replace/with/local/repository/path
+  defaultBranch: HEAD
+  projectId: example-project
+  credentialRef: ""
+  notes:
+    - Example only. Do not place secrets or private keys in this file.
+    - Local path snapshotting is intended for development and CI fixtures.

@@ -178,9 +178,15 @@ func (p *Provider) ListTree(ctx context.Context, ref scm.RepositoryRef) (scm.Tre
 			warnings = append(warnings, fmt.Sprintf("skip unreadable file %q: %v", rel, err))
 			return nil
 		}
-		hash, err := fileHash(path, info.Size())
-		if err != nil {
-			warnings = append(warnings, fmt.Sprintf("skip file hash for %q: %v", rel, err))
+		hash := ""
+		if sensitiveFile(rel) {
+			warnings = append(warnings, fmt.Sprintf("secret-like file %q recorded as metadata only; content was not read", rel))
+		} else {
+			var err error
+			hash, err = fileHash(path, info.Size())
+			if err != nil {
+				warnings = append(warnings, fmt.Sprintf("skip file hash for %q: %v", rel, err))
+			}
 		}
 		files = append(files, scm.FileInfo{Path: filepath.ToSlash(rel), Size: info.Size(), Hash: hash})
 		return nil
@@ -365,6 +371,20 @@ func skipFile(rel string) bool {
 		return true
 	}
 	return false
+}
+
+func sensitiveFile(rel string) bool {
+	name := strings.ToLower(filepath.Base(rel))
+	switch name {
+	case ".env", ".env.local", ".env.production", ".envrc", ".npmrc", ".pypirc", ".netrc", ".dockerconfigjson", "kubeconfig", "config":
+		return true
+	}
+	return strings.Contains(name, "secret") ||
+		strings.Contains(name, "password") ||
+		strings.Contains(name, "token") ||
+		strings.Contains(name, "credential") ||
+		strings.HasPrefix(name, "id_rsa") ||
+		strings.HasPrefix(name, "id_ed25519")
 }
 
 func fileHash(path string, size int64) (string, error) {

@@ -1190,6 +1190,174 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/SCMRepositoryValidationResult"
+  /api/v1/repositories/{id}/snapshot:
+    post:
+      summary: Create a repository snapshot
+      description: Requires `project.read`. Creates a static metadata snapshot through the configured read-only repository provider. Local paths are accepted only for local/dev inspection. Secret file contents and credential values are never stored or returned.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RepositorySnapshotRequest"
+      responses:
+        "201":
+          description: Repository snapshot created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepositorySnapshot"
+        "400":
+          description: Snapshot request is invalid or provider validation failed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Repository was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/repositories/{id}/snapshots:
+    get:
+      summary: List repository snapshots
+      description: Requires `project.read`. Returns static snapshot metadata captured for a repository.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Repository snapshots
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  snapshots:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/RepositorySnapshot"
+        "404":
+          description: Repository snapshot records were not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/repositories/{id}/intelligence:
+    get:
+      summary: Get latest repository intelligence
+      description: Requires `project.read`. Returns static detection output for the latest repository snapshot. It does not execute repository code or detected commands.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Repository intelligence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepositoryIntelligence"
+        "404":
+          description: Repository snapshot or intelligence was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/repositories/{id}/analyze:
+    post:
+      summary: Recompute repository intelligence
+      description: Requires `project.read`. Recomputes static repository intelligence from the latest saved snapshot. Detected commands are suggestions only and are not executed.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Repository intelligence
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RepositoryIntelligence"
+        "404":
+          description: Repository snapshot was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/workflows/validate:
+    post:
+      summary: Validate a Nivora Workflow definition
+      description: Requires `workflow.plan`. Accepts raw Nivora Workflow YAML or a JSON body with `content`. Validation is parser/planner-only and does not execute steps, external actions, or repository code.
+      requestBody:
+        required: true
+        content:
+          application/yaml:
+            schema:
+              type: string
+          text/yaml:
+            schema:
+              type: string
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowDefinitionRequest"
+      responses:
+        "200":
+          description: Workflow definition is valid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowValidationResult"
+        "400":
+          description: Workflow definition is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowValidationResult"
+  /api/v1/workflows/plan:
+    post:
+      summary: Plan a Nivora Workflow definition
+      description: Requires `workflow.plan`. Produces a plan-only DAG from raw YAML or JSON `content`; it does not create a PipelineRun or execute shell commands.
+      requestBody:
+        required: true
+        content:
+          application/yaml:
+            schema:
+              type: string
+          text/yaml:
+            schema:
+              type: string
+          application/json:
+            schema:
+              $ref: "#/components/schemas/WorkflowDefinitionRequest"
+      responses:
+        "200":
+          description: Workflow plan
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowPlan"
+        "400":
+          description: Workflow definition is invalid
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/workflows/run:
+    post:
+      summary: Request a guarded Workflow run
+      description: Requires `workflow.run`. This endpoint is intentionally a guarded placeholder in the current beta-candidate foundation and returns `not_implemented`; workflow execution must continue through explicitly modeled PipelineRun paths.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        "501":
+          description: Workflow run is not implemented in this foundation phase
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/artifact-registries:
     get:
       summary: List artifact registry definitions
@@ -4530,6 +4698,201 @@ components:
           type: array
           items:
             type: string
+    RepositorySnapshotRequest:
+      type: object
+      properties:
+        ref:
+          type: string
+          description: Optional branch, tag, or revision label to inspect.
+        localPath:
+          type: string
+          description: Optional local repository path for local/dev inspection. Do not use this for production remote provider writes.
+    RepositoryFile:
+      type: object
+      properties:
+        path:
+          type: string
+        size:
+          type: integer
+          format: int64
+        hash:
+          type: string
+          description: File content hash when the provider can compute it safely.
+    RepositorySnapshot:
+      type: object
+      properties:
+        id:
+          type: string
+        repositoryId:
+          type: string
+        ref:
+          type: string
+        commitSha:
+          type: string
+        branch:
+          type: string
+        tag:
+          type: string
+        treeHash:
+          type: string
+        files:
+          type: array
+          items:
+            $ref: "#/components/schemas/RepositoryFile"
+        detectedLanguages:
+          type: array
+          items:
+            type: string
+        detectedFrameworks:
+          type: array
+          items:
+            type: string
+        detectedBuildTools:
+          type: array
+          items:
+            type: string
+        detectedPackageManagers:
+          type: array
+          items:
+            type: string
+        detectedDeploymentFiles:
+          type: array
+          items:
+            type: string
+        detectedWorkflowFiles:
+          type: array
+          items:
+            type: string
+        detectedSecurityFiles:
+          type: array
+          items:
+            type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        metadata:
+          type: object
+          additionalProperties:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+    CommandCandidate:
+      type: object
+      properties:
+        name:
+          type: string
+        command:
+          type: string
+        source:
+          type: string
+          description: Detection source. Commands are suggestions and are not executed by intelligence endpoints.
+    RepositoryIntelligence:
+      type: object
+      properties:
+        repositoryId:
+          type: string
+        snapshotId:
+          type: string
+        languageSummary:
+          type: array
+          items:
+            type: string
+        frameworkSummary:
+          type: array
+          items:
+            type: string
+        buildCommandCandidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommandCandidate"
+        testCommandCandidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommandCandidate"
+        packageCommandCandidates:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommandCandidate"
+        deploymentTargetCandidates:
+          type: array
+          items:
+            type: string
+        securityScanCandidates:
+          type: array
+          items:
+            type: string
+        recommendedNivoraWorkflowDraft:
+          type: string
+        warnings:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+    WorkflowDefinitionRequest:
+      type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          description: Raw Nivora Workflow YAML content.
+    WorkflowValidationResult:
+      type: object
+      properties:
+        valid:
+          type: boolean
+        error:
+          type: string
+        plan:
+          $ref: "#/components/schemas/WorkflowPlan"
+    WorkflowPlan:
+      type: object
+      properties:
+        workflowId:
+          type: string
+        name:
+          type: string
+        triggers:
+          type: array
+          items:
+            type: string
+        jobs:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        edges:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        runnerRequirements:
+          type: array
+          items:
+            type: string
+        artifactOutputs:
+          type: array
+          items:
+            type: string
+        cacheHints:
+          type: array
+          items:
+            type: string
+        securityWarnings:
+          type: array
+          items:
+            type: string
+        unsupportedFeatures:
+          type: array
+          items:
+            type: string
+        estimatedExecutionMode:
+          type: string
+        conversionReady:
+          type: boolean
     CatalogUpdateRequest:
       type: object
       properties:

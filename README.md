@@ -22,6 +22,8 @@ Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/sta
 | DeploymentRun runtime | Partial; YAML dry-run, guarded apply, inventory, health, diff, audit, and PostgreSQL persistence foundations exist |
 | Release and ReleaseExecution | Partial; sequential orchestration and PostgreSQL persistence foundations exist |
 | Release target catalog | Foundation; `/api/v1/release-targets` and `nivora target` manage target metadata with PostgreSQL persistence in configured server mode and unsafe operations disabled by default |
+| Repository catalog / intelligence | Foundation; repository metadata catalog, local/generic read-only snapshotting, static language/build/test/package detection, `nivora repository inspect`, and repository MCP read/plan tools exist; external SCM writes remain future work |
+| Nivora Workflow | Foundation; `.nivora/workflows/*.yaml` parser, validator, DAG/matrix planner, Pipeline definition conversion, `nivora workflow validate/plan`, and plan-only API/MCP surfaces exist; durable stored Workflow runs are not implemented |
 | Runner protocol | Partial; tokens, heartbeat, claim, logs, status, and isolation profiles exist; OS-level sandboxing is still operator work |
 | Kubernetes YAML | Experimental guarded apply/rollback foundation; no default destructive behavior |
 | GitOps / Argo CD | Experimental planning/status/guarded sync foundation; no production Argo automation |
@@ -33,7 +35,7 @@ Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/sta
 | Multi-cloud | Placeholder/foundation inventory only; no cloud deployment |
 | Host deployment | Experimental plan/dry-run/noop and guarded SSH surface |
 | Web console | Experimental minimal UI that consumes backend APIs |
-| MCP control plane | Foundation; local stdio read-only and plan-only AI access plus experimental opt-in remote read-only JSON-RPC, aggregate event/log reads, denied action tools, runner-token rejection, compliance-backed audit, and 29 validated operator scenarios with golden answers; remote MCP is not broadly exposed or production-ready |
+| MCP control plane | Foundation; local stdio read-only and plan-only AI access plus experimental opt-in remote read-only JSON-RPC, repository/workflow plan tools, aggregate event/log reads, denied action tools, runner-token rejection, compliance-backed audit, and 31 validated operator scenarios with golden answers; remote MCP is not broadly exposed or production-ready |
 | Integration capability index | Foundation; read-only `/api/v1/integrations` labels built-in, skeleton, noop, foundation, and experimental adapter capabilities |
 | Packaging | Partial; Docker Compose, Helm, production-like values, and smoke checks exist |
 | Observability / audit | Partial; diagnostics, metrics, runtime recovery center, production doctor, read-only visualization API index, runbooks, and audit/evidence export foundations; production retention/export still needs hardening |

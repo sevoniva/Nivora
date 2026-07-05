@@ -1,0 +1,26 @@
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: go-ci
+  labels:
+    example: "true"
+on:
+  - manual
+  - push
+jobs:
+  test:
+    runsOn:
+      - self-hosted
+      - shell
+    steps:
+      - name: test
+        run: go test ./...
+  build:
+    needs:
+      - test
+    runsOn:
+      - self-hosted
+      - shell
+    steps:
+      - name: build
+        run: go build ./cmd/nivora

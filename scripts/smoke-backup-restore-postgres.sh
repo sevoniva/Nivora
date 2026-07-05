@@ -13,18 +13,22 @@ fi
 
 DATABASE_URL="${DATABASE_URL:-postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable}"
 
+redact_database_url() {
+  printf '%s\n' "$1" | sed -E 's#(postgres(ql)?://)[^/@]*@#\1***@#'
+}
+
 # Test Postgres connectivity.
 if ! command -v psql >/dev/null 2>&1; then
   echo "SKIP: psql not found; cannot verify Postgres connectivity"
   exit 0
 fi
 if ! psql "$DATABASE_URL" -c 'SELECT 1' >/dev/null 2>&1; then
-  echo "SKIP: cannot connect to Postgres at $DATABASE_URL"
+  echo "SKIP: cannot connect to Postgres at $(redact_database_url "$DATABASE_URL")"
   exit 0
 fi
 
 echo "=== Backup/Restore Drill ==="
-echo "Database: ${DATABASE_URL}"
+echo "Database: $(redact_database_url "$DATABASE_URL")"
 PASS=0
 FAIL=0
 

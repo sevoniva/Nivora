@@ -88,8 +88,9 @@ The script (`scripts/smoke-backup-restore-postgres.sh`):
 4. Runs pg_dump (if available)
 5. Restarts the server
 6. Verifies PipelineRun and audit records survived
+7. Redacts `DATABASE_URL` when printing skip or target information
 
-Skip with `SKIP_BACKUP_RESTORE=1` or if PostgreSQL is unavailable.
+Skip with `SKIP_BACKUP_RESTORE=1` or if PostgreSQL is unavailable. The GitHub `postgres-integration` job runs this smoke path after migration, store, audit, MCP audit, live deploy, and multi-process recovery checks.
 
 ## Migration Drill
 
@@ -101,7 +102,7 @@ NIVORA_RUN_POSTGRES_INTEGRATION=true DATABASE_URL="$NIVORA_DATABASE_URL" make te
 make smoke-backup-restore
 ```
 
-The baseline unit test suite does not require PostgreSQL. Real database migration, recovery, and backup/restore checks are opt-in so local CI remains self-contained.
+The baseline unit test suite does not require PostgreSQL. Real database migration, recovery, and backup/restore checks are opt-in for local development and run in the GitHub `postgres-integration` job.
 
 ## Event Outbox Recovery
 
@@ -131,9 +132,10 @@ Tested only when optional PostgreSQL integration is enabled:
 
 - migration up/down against a real PostgreSQL schema
 - PipelineRun, DeploymentRun, ReleaseExecution, runner claim, outbox, and compliance evidence recovery after reconnect
+- backup/restore smoke that starts a Postgres-backed server, creates a PipelineRun, runs `pg_dump` when available, restarts the server, and verifies persisted records
 
 Not yet production-proven:
 
 - automated restore from a production backup in a live environment
 - object-store restore with large evidence payloads
-- backup/restore drill automated in CI (requires PostgreSQL; runs as opt-in locally)
+- production-scale backup/restore drills with encrypted off-host backup storage

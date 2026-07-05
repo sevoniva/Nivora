@@ -90,3 +90,5 @@ jobs:
         run: make smoke-live-deploy
       - name: Multi-process recovery smoke
         run: make smoke-multiprocess-recovery
+      - name: Backup and restore smoke
+        run: make smoke-backup-restore

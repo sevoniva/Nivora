@@ -33,7 +33,7 @@ The Compose production smoke validates `deployments/docker-compose/docker-compos
 
 ## CI Integration
 
-The smoke test runs in CI as part of the `postgres-integration` job after store and recovery tests. It gracefully skips Helm checks if `helm` is not available.
+CI runs Helm rendering/linting, Helm safety checks, web/build checks, and the PostgreSQL backup/restore smoke in the `postgres-integration` job. `make smoke-production-install` remains a local operator check that combines the Helm and Docker Compose production profile scripts.
 
 ## Operational Notes
 

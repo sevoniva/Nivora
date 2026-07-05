@@ -163,6 +163,45 @@ func TestServiceRunCreatesQueuedPipelineRunAndWorkflowRun(t *testing.T) {
 	}
 }
 
+func TestServiceRefreshRunStatusTracksPipelineRunTerminalState(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	pipelines := newWorkflowPipelineService()
+	result, err := service.Run(context.Background(), RunInput{
+		Content:          executableWorkflow(t),
+		RepositoryID:     "repo-a",
+		ProjectID:        "project-a",
+		Confirm:          true,
+		AllowPipelineRun: true,
+	}, pipelines)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if _, err := pipelines.ProcessQueued(context.Background(), 1); err != nil {
+		t.Fatalf("ProcessQueued: %v", err)
+	}
+	refreshed, err := service.RefreshRunStatus(context.Background(), result.WorkflowRun.ID, pipelines)
+	if err != nil {
+		t.Fatalf("RefreshRunStatus: %v", err)
+	}
+	if refreshed.Status != RunSucceeded {
+		t.Fatalf("refreshed status = %s", refreshed.Status)
+	}
+	loaded, err := service.GetRun(context.Background(), result.WorkflowRun.ID)
+	if err != nil {
+		t.Fatalf("GetRun: %v", err)
+	}
+	if loaded.Status != RunSucceeded {
+		t.Fatalf("stored status = %s", loaded.Status)
+	}
+	runs, err := service.RefreshRuns(context.Background(), RunListFilter{RepositoryID: "repo-a", Status: RunSucceeded}, pipelines)
+	if err != nil {
+		t.Fatalf("RefreshRuns: %v", err)
+	}
+	if len(runs) != 1 || runs[0].ID != result.WorkflowRun.ID {
+		t.Fatalf("RefreshRuns = %#v", runs)
+	}
+}
+
 func executableWorkflow(t *testing.T) string {
 	t.Helper()
 	return `apiVersion: nivora.io/v1alpha1

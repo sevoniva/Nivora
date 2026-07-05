@@ -9,7 +9,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	"github.com/sevoniva/nivora/internal/infra/config"
+	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
 )
 
 func TestRepositorySnapshotAndIntelligenceRoutesUseLocalStaticInspection(t *testing.T) {
@@ -89,7 +91,8 @@ func TestWorkflowValidatePlanAndGuardedRunRoutes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
-	router := newTestRouter(cfg)
+	pipelineService := newTestPipelineService()
+	router := newTestRouterWithPipelineAndAuth(cfg, pipelineService, authusecase.NewService(authusecase.NewMemoryStore(), memory.New()))
 	workflow := strings.TrimSpace(`
 apiVersion: nivora.io/v1alpha1
 kind: Workflow
@@ -101,12 +104,12 @@ jobs:
     runsOn: [self-hosted, shell]
     steps:
       - name: test
-        run: go test ./...
+        run: echo test
   build:
     needs: [test]
     steps:
       - name: build
-        run: go build ./...
+        run: echo build
 `)
 
 	req := httptest.NewRequest(http.MethodPost, "/api/v1/workflows/validate", strings.NewReader(workflow))
@@ -189,15 +192,18 @@ jobs:
 		t.Fatalf("workflowRun missing: %#v", runResult)
 	}
 	runID := stringField(t, workflowRun, "id")
+	if _, err := pipelineService.ProcessQueued(req.Context(), 1); err != nil {
+		t.Fatalf("process workflow-created PipelineRun: %v", err)
+	}
 
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/runs/"+runID, nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"pipelineRunId"`) {
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"pipelineRunId"`) || !strings.Contains(rec.Body.String(), `"status":"Succeeded"`) {
 		t.Fatalf("get workflow run status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/runs?repositoryId=repo-api&status=Queued", nil)
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/runs?repositoryId=repo-api&status=Succeeded", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), runID) {

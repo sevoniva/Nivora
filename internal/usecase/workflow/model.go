@@ -193,9 +193,14 @@ type WorkflowSummary struct {
 type RunStatus string
 
 const (
-	RunQueued   RunStatus = "Queued"
-	RunFailed   RunStatus = "Failed"
-	RunCanceled RunStatus = "Canceled"
+	RunPending   RunStatus = "Pending"
+	RunQueued    RunStatus = "Queued"
+	RunRunning   RunStatus = "Running"
+	RunPaused    RunStatus = "Paused"
+	RunSucceeded RunStatus = "Succeeded"
+	RunFailed    RunStatus = "Failed"
+	RunCanceled  RunStatus = "Canceled"
+	RunTimeout   RunStatus = "Timeout"
 )
 
 type RunInput struct {

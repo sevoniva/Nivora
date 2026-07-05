@@ -58,6 +58,8 @@ POST /api/v1/workflows/run
 
 `/api/v1/workflows/run` requires `confirm=true` and `allowPipelineRun=true`. It creates a WorkflowRun metadata record and queues a PipelineRun through the existing runtime; it does not execute shell steps in the HTTP handler.
 
+`GET /api/v1/workflows/runs` and `GET /api/v1/workflows/runs/{id}` refresh WorkflowRun status from the linked PipelineRun when that PipelineRun is still available in the configured runtime store.
+
 ## MCP Surface
 
 Local MCP tools:
@@ -75,6 +77,6 @@ Each tool is read-only or plan-only and returns `mutated=false`. MCP does not ex
 - RepositorySnapshot and RepositoryIntelligence are durable only in configured PostgreSQL server/MCP mode; local commands and default development mode still use in-memory state or direct local output.
 - GitHub/GitLab/Gitea real network integrations are not implemented.
 - WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.
-- WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun.
+- WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Read APIs refresh the metadata status from the linked PipelineRun, but workflow-level retry/cancel semantics are still owned by the PipelineRun runtime.
 - Workflow execution still belongs to PipelineRun, Runner, and Worker paths; MCP does not expose workflow action execution.
 - Shell execution is not a sandbox.

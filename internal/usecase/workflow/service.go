@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
@@ -17,6 +18,10 @@ var ErrNotFound = errors.New("workflow record not found")
 
 type PipelineRunCreator interface {
 	CreateQueued(ctx context.Context, input pipelineusecase.CreateRunInput) (pipelineusecase.CreateRunResult, error)
+}
+
+type PipelineRunReader interface {
+	Get(ctx context.Context, id string) (pipelineusecase.RunRecord, error)
 }
 
 type Service struct {
@@ -195,6 +200,84 @@ func (s *Service) ListRuns(ctx context.Context, filter RunListFilter) ([]RunReco
 	filter.WorkflowID = strings.TrimSpace(filter.WorkflowID)
 	filter.ProjectID = strings.TrimSpace(filter.ProjectID)
 	return s.store.ListRuns(ctx, filter)
+}
+
+func (s *Service) RefreshRunStatus(ctx context.Context, id string, pipelines PipelineRunReader) (RunRecord, error) {
+	record, err := s.GetRun(ctx, id)
+	if err != nil {
+		return RunRecord{}, err
+	}
+	return s.refreshRunRecordStatus(ctx, record, pipelines)
+}
+
+func (s *Service) RefreshRuns(ctx context.Context, filter RunListFilter, pipelines PipelineRunReader) ([]RunRecord, error) {
+	filter.RepositoryID = strings.TrimSpace(filter.RepositoryID)
+	filter.WorkflowID = strings.TrimSpace(filter.WorkflowID)
+	filter.ProjectID = strings.TrimSpace(filter.ProjectID)
+	requestedStatus := filter.Status
+	filter.Status = ""
+	records, err := s.store.ListRuns(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]RunRecord, 0, len(records))
+	for _, record := range records {
+		refreshed, err := s.refreshRunRecordStatus(ctx, record, pipelines)
+		if err != nil {
+			return nil, err
+		}
+		if requestedStatus != "" && refreshed.Status != requestedStatus {
+			continue
+		}
+		out = append(out, refreshed)
+	}
+	return out, nil
+}
+
+func (s *Service) refreshRunRecordStatus(ctx context.Context, record RunRecord, pipelines PipelineRunReader) (RunRecord, error) {
+	if pipelines == nil || strings.TrimSpace(record.PipelineRunID) == "" {
+		return record, nil
+	}
+	pipelineRecord, err := pipelines.Get(ctx, record.PipelineRunID)
+	if err != nil {
+		if errors.Is(err, pipelineusecase.ErrRunNotFound) {
+			return record, nil
+		}
+		return RunRecord{}, err
+	}
+	status := runStatusFromPipeline(pipelineRecord.Run.Status)
+	if status == "" || status == record.Status {
+		return record, nil
+	}
+	record.Status = status
+	record.UpdatedAt = s.now().UTC()
+	if err := s.store.SaveRun(ctx, record); err != nil {
+		return RunRecord{}, err
+	}
+	return s.store.GetRun(ctx, record.ID)
+}
+
+func runStatusFromPipeline(status domainpipeline.PipelineRunStatus) RunStatus {
+	switch status {
+	case domainpipeline.PipelineRunPending:
+		return RunPending
+	case domainpipeline.PipelineRunQueued:
+		return RunQueued
+	case domainpipeline.PipelineRunRunning:
+		return RunRunning
+	case domainpipeline.PipelineRunPaused:
+		return RunPaused
+	case domainpipeline.PipelineRunSucceeded:
+		return RunSucceeded
+	case domainpipeline.PipelineRunFailed:
+		return RunFailed
+	case domainpipeline.PipelineRunCanceled:
+		return RunCanceled
+	case domainpipeline.PipelineRunTimeout:
+		return RunTimeout
+	default:
+		return ""
+	}
 }
 
 func (s *Service) planRecordForRun(ctx context.Context, input RunInput) (PlanRecord, error) {

@@ -1448,7 +1448,7 @@ paths:
   /api/v1/workflows/runs:
     get:
       summary: List guarded Nivora Workflow runs
-      description: Requires `workflow.run`. Returns WorkflowRun metadata records created by the guarded run endpoint. WorkflowRun records reference queued PipelineRuns and do not contain raw workflow YAML or secret values.
+      description: Requires `workflow.run`. Returns WorkflowRun metadata records created by the guarded run endpoint. Reads synchronize WorkflowRun status from the linked PipelineRun when available. WorkflowRun records do not contain raw workflow YAML or secret values.
       parameters:
         - name: repositoryId
           in: query
@@ -1489,7 +1489,7 @@ paths:
   /api/v1/workflows/runs/{id}:
     get:
       summary: Get guarded Nivora Workflow run metadata
-      description: Requires `workflow.run`. Returns a WorkflowRun metadata record by id.
+      description: Requires `workflow.run`. Returns a WorkflowRun metadata record by id and synchronizes status from the linked PipelineRun when available.
       parameters:
         - name: id
           in: path
@@ -5178,7 +5178,7 @@ components:
           type: string
         status:
           type: string
-          enum: [Queued, Failed, Canceled]
+          enum: [Pending, Queued, Running, Paused, Succeeded, Failed, Canceled, Timeout]
         warnings:
           type: array
           items:

@@ -206,18 +206,18 @@ func GetWorkflowPlan(service *workflowusecase.Service) http.HandlerFunc {
 	}
 }
 
-func ListWorkflowRuns(service *workflowusecase.Service) http.HandlerFunc {
+func ListWorkflowRuns(service *workflowusecase.Service, pipelines *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
 		offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
-		runs, err := service.ListRuns(r.Context(), workflowusecase.RunListFilter{
+		runs, err := service.RefreshRuns(r.Context(), workflowusecase.RunListFilter{
 			RepositoryID: r.URL.Query().Get("repositoryId"),
 			WorkflowID:   r.URL.Query().Get("workflowId"),
 			ProjectID:    r.URL.Query().Get("projectId"),
 			Status:       workflowusecase.RunStatus(r.URL.Query().Get("status")),
 			Limit:        limit,
 			Offset:       offset,
-		})
+		}, pipelines)
 		if err != nil {
 			respondWorkflowError(w, r, err)
 			return
@@ -226,9 +226,9 @@ func ListWorkflowRuns(service *workflowusecase.Service) http.HandlerFunc {
 	}
 }
 
-func GetWorkflowRun(service *workflowusecase.Service) http.HandlerFunc {
+func GetWorkflowRun(service *workflowusecase.Service, pipelines *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		record, err := service.GetRun(r.Context(), chi.URLParam(r, "id"))
+		record, err := service.RefreshRunStatus(r.Context(), chi.URLParam(r, "id"), pipelines)
 		if err != nil {
 			respondWorkflowError(w, r, err)
 			return

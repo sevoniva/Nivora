@@ -522,7 +522,14 @@ func pipelineRecordInRequestScope(r *http.Request, record pipelineusecase.RunRec
 	if scopeID == "" {
 		return false
 	}
-	return scopeType == tenant.ScopeProject && record.Pipeline.ProjectID == scopeID
+	switch scopeType {
+	case tenant.ScopeProject:
+		return record.Pipeline.ProjectID == scopeID
+	case tenant.ScopeEnvironment:
+		return pipelineEnvironmentID(record) == scopeID
+	default:
+		return false
+	}
 }
 
 func getAuthorizedRunner(w http.ResponseWriter, r *http.Request, service *pipelineusecase.Service) (domainrunner.Runner, bool) {

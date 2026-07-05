@@ -908,6 +908,107 @@ func TestTenantIsolationRunnerAdminJobMutationRespectsPipelineScope(t *testing.T
 	}
 }
 
+func TestTenantIsolationRunnerAdminJobMutationRespectsEnvironmentScope(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	cfg.Auth.Enabled = true
+	cfg.Auth.Mode = "token"
+	authService := authusecase.NewService(authusecase.NewMemoryStore(), memory.New())
+	pipelineService := newTestPipelineService()
+	router := newTestRouterWithPipelineAndAuth(cfg, pipelineService, authService)
+
+	envProdAdmin := createScopedToken(t, authService, "runner-admin-env-prod", domainauth.RoleAdmin, "environment", "env-prod")
+	envProdRecord, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition:    tenantClaimDefinition("admin-env-prod"),
+		ProjectID:     "project-a",
+		EnvironmentID: "env-prod",
+	})
+	if err != nil {
+		t.Fatalf("create env-prod queued run: %v", err)
+	}
+	envDevRecord, err := pipelineService.CreateQueued(context.Background(), pipelineusecase.CreateRunInput{
+		Definition:    tenantClaimDefinition("admin-env-dev"),
+		ProjectID:     "project-a",
+		EnvironmentID: "env-dev",
+	})
+	if err != nil {
+		t.Fatalf("create env-dev queued run: %v", err)
+	}
+	envProdJobID := envProdRecord.Record.Stages[0].Jobs[0].Job.ID
+	envDevJobID := envDevRecord.Record.Stages[0].Jobs[0].Job.ID
+
+	paths := []string{
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID,
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/logs",
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/events",
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/timeline",
+	}
+	for _, path := range paths {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+envProdAdmin)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("env-prod admin should read %s, got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+
+	for _, path := range []string{
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID,
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/logs",
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/events",
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/timeline",
+	} {
+		req := httptest.NewRequest(http.MethodGet, path, nil)
+		req.Header.Set("Authorization", "Bearer "+envProdAdmin)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("env-prod admin should be forbidden from env-dev %s, got %d body=%s", path, rec.Code, rec.Body.String())
+		}
+	}
+
+	logBody := `{"pipelineRunId":"` + envDevRecord.Record.Run.ID + `","stream":"stdout","content":"cross-env"}`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/jobs/"+envDevJobID+"/logs", strings.NewReader(logBody))
+	req.Header.Set("Authorization", "Bearer "+envProdAdmin)
+	req.Header.Set("Content-Type", "application/json")
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("env-prod runner admin should not append env-dev job log, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/jobs/"+envDevJobID+"/status", strings.NewReader(`{"status":"Running"}`))
+	req.Header.Set("Authorization", "Bearer "+envProdAdmin)
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusForbidden {
+		t.Fatalf("env-prod runner admin should not update env-dev job status, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	logBody = `{"pipelineRunId":"` + envProdRecord.Record.Run.ID + `","stream":"stdout","content":"own-env"}`
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/jobs/"+envProdJobID+"/logs", strings.NewReader(logBody))
+	req.Header.Set("Authorization", "Bearer "+envProdAdmin)
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("env-prod runner admin should append own environment job log, got %d body=%s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/jobs/"+envProdJobID+"/status", strings.NewReader(`{"status":"Running"}`))
+	req.Header.Set("Authorization", "Bearer "+envProdAdmin)
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("env-prod runner admin should update own environment job status, got %d body=%s", rec.Code, rec.Body.String())
+	}
+}
+
 func TestTenantIsolationEvidenceBundles(t *testing.T) {
 	router, auth := newIsoRouter(t)
 	developerA := createScopedToken(t, auth, "evidence-dev-a", domainauth.RoleDeveloper, "project", "project-a")

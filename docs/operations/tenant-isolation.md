@@ -19,7 +19,7 @@ Nivora provides project/environment-level tenant isolation through scoped servic
 | Visualization | Viewer (project-A) | Read-only access | ✅ |
 | Runner Admin | Developer (project-A) | Permission-gated (runner.manage) | ✅ |
 | Runner job claim | Scoped runner token | Project/environment labels and RunnerGroup constraints | ✅ |
-| Runner admin job mutation | Admin (project-A) | `/api/v1/jobs/{id}/logs` and `/api/v1/jobs/{id}/status` check the owning PipelineRun scope | ✅ |
+| Runner admin job mutation | Admin (project-A or environment-prod) | `/api/v1/jobs/{id}/logs` and `/api/v1/jobs/{id}/status` check the owning PipelineRun project/environment scope | ✅ |
 | Policies | Admin (project-A) | Permission-gated (policy.manage) | ✅ |
 
 ### Not Yet Exhaustively Tested
@@ -56,5 +56,5 @@ go test -v -run "TestRBAC|TestCrossTenant|TestTenantIsolation" ./internal/api/ht
 - Visualization summaries are not tenant-filtered.
 - Audit search is not scope-filtered by default.
 - Runner job claims are scope-checked through runner labels, RunnerGroup constraints, and queued PipelineRun ownership. This is still a control-plane metadata guardrail, not a runtime sandbox.
-- Admin compatibility job mutation endpoints are scope-checked against the owning PipelineRun before log append or status update.
+- Admin compatibility job mutation endpoints are scope-checked against the owning PipelineRun project or environment before log append or status update.
 - These are documented gaps for future hardening.

@@ -77,6 +77,7 @@ func PlanDefinition(def Definition, options PlanOptions) (Plan, error) {
 				Name:            firstNonEmpty(job.Name, jobID),
 				Needs:           append([]string(nil), job.Needs...),
 				RunsOn:          append([]string(nil), job.RunsOn...),
+				Labels:          copyStringMap(job.Labels),
 				Matrix:          copyStringMap(matrix),
 				TimeoutMinutes:  job.TimeoutMinutes,
 				StepCount:       len(job.Steps),
@@ -166,6 +167,7 @@ func ToPipelineDefinition(def Definition, options PlanOptions) (PipelineConversi
 				pipelineJob := pipelineusecase.Job{
 					Name:           plannedJobID(jobID, matrix, index, len(expansions)),
 					Executor:       "shell",
+					Labels:         copyStringMap(job.Labels),
 					TimeoutSeconds: job.TimeoutMinutes * 60,
 				}
 				for stepIndex, step := range job.Steps {
@@ -216,6 +218,7 @@ func ToPipelineDefinitionFromPlan(plan Plan) (PipelineConversion, error) {
 		pipelineJob := pipelineusecase.Job{
 			Name:           firstNonEmpty(job.ID, job.Name),
 			Executor:       "shell",
+			Labels:         copyStringMap(job.Labels),
 			TimeoutSeconds: job.TimeoutMinutes * 60,
 		}
 		for stepIndex, step := range stepsByJob[job.ID] {
@@ -271,6 +274,9 @@ func validateDefinitionShape(def Definition, options PlanOptions) error {
 		}
 		if err := validateEnv(job.Env, options.MaxEnvSize); err != nil {
 			return fmt.Errorf("%w: job %q env: %v", ErrInvalid, id, err)
+		}
+		if err := validateWorkflowJobLabels(id, job.Labels); err != nil {
+			return err
 		}
 		if len(job.Steps) == 0 {
 			return fmt.Errorf("%w: job %q must define at least one step", ErrInvalid, id)
@@ -579,6 +585,20 @@ func validateStringMetadata(section string, values map[string]string) error {
 		}
 		if secretLike(key) && !safeSecretRef(value) {
 			return fmt.Errorf("%w: %s metadata %q looks secret-like and must use secretRef: or credentialRef:", ErrInvalid, section, key)
+		}
+	}
+	return nil
+}
+
+func validateWorkflowJobLabels(jobID string, values map[string]string) error {
+	for key, value := range values {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || value == "" {
+			return fmt.Errorf("%w: job %q labels must not contain empty keys or values", ErrInvalid, jobID)
+		}
+		if secretLike(key) || secretLike(value) {
+			return fmt.Errorf("%w: job %q label %q looks secret-like and is not allowed", ErrInvalid, jobID, key)
 		}
 	}
 	return nil

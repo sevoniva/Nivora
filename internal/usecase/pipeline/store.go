@@ -303,8 +303,11 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 			for jobIndex := range record.Stages[stageIndex].Jobs {
 				job := &record.Stages[stageIndex].Jobs[jobIndex].Job
 				executor := domainrunner.ExecutorShell
+				jobLabels := map[string]string(nil)
 				if stageIndex < len(record.Definition.Spec.Stages) && jobIndex < len(record.Definition.Spec.Stages[stageIndex].Jobs) {
-					executor = normalizeRecordExecutor(record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex].Executor)
+					specJob := record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex]
+					executor = normalizeRecordExecutor(specJob.Executor)
+					jobLabels = specJob.Labels
 				}
 				if !domainrunner.IsSupportedExecutorCapability(executor) {
 					continue
@@ -313,6 +316,9 @@ func (s *MemoryStore) ClaimJob(ctx context.Context, runnerID string, leaseUntil 
 					continue
 				}
 				if !runnerSupportsExecutor(runner, executor) {
+					continue
+				}
+				if !labelsMatch(runner.Labels, jobLabels) {
 					continue
 				}
 				claimable := job.Status == domainpipeline.JobRunPending || job.Status == domainpipeline.JobRunRetrying
@@ -1109,6 +1115,7 @@ func cloneSpecStages(stages []Stage) []Stage {
 	for i := range out {
 		out[i].Jobs = append([]Job(nil), out[i].Jobs...)
 		for j := range out[i].Jobs {
+			out[i].Jobs[j].Labels = cloneMap(out[i].Jobs[j].Labels)
 			out[i].Jobs[j].Steps = append([]Step(nil), out[i].Jobs[j].Steps...)
 		}
 	}

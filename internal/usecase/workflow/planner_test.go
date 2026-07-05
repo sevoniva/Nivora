@@ -311,6 +311,71 @@ jobs:
 	}
 }
 
+func TestWorkflowPlanPreservesJobLabelsForPipelineConversion(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: labeled-runner
+on: manual
+jobs:
+  test:
+    runsOn: [self-hosted, shell]
+    labels:
+      runtime: workflow
+      tier: secure
+    steps:
+      - run: go test ./...
+`))
+	if err != nil {
+		t.Fatalf("parse workflow: %v", err)
+	}
+	plan, err := PlanDefinition(def, PlanOptions{})
+	if err != nil {
+		t.Fatalf("PlanDefinition: %v", err)
+	}
+	if got := plan.Jobs[0].Labels["runtime"]; got != "workflow" {
+		t.Fatalf("planned job labels = %#v", plan.Jobs[0].Labels)
+	}
+	direct, err := ToPipelineDefinition(def, PlanOptions{})
+	if err != nil {
+		t.Fatalf("direct conversion: %v", err)
+	}
+	if got := direct.Definition.Spec.Stages[0].Jobs[0].Labels["tier"]; got != "secure" {
+		t.Fatalf("direct converted labels = %#v", direct.Definition.Spec.Stages[0].Jobs[0].Labels)
+	}
+	fromPlan, err := ToPipelineDefinitionFromPlan(plan)
+	if err != nil {
+		t.Fatalf("plan conversion: %v", err)
+	}
+	if got := fromPlan.Definition.Spec.Stages[0].Jobs[0].Labels["runtime"]; got != "workflow" {
+		t.Fatalf("plan converted labels = %#v", fromPlan.Definition.Spec.Stages[0].Jobs[0].Labels)
+	}
+}
+
+func TestWorkflowPlanRejectsSecretLikeJobLabels(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: unsafe-label
+on: manual
+jobs:
+  test:
+    labels:
+      token: runner-a
+    steps:
+      - run: echo ok
+`))
+	if err != nil {
+		t.Fatalf("parse workflow: %v", err)
+	}
+	_, err = PlanDefinition(def, PlanOptions{})
+	if err == nil || !strings.Contains(err.Error(), "label") {
+		t.Fatalf("expected secret-like label rejection, got %v", err)
+	}
+}
+
 func TestWorkflowPlanRejectsSecretLikePermissionScope(t *testing.T) {
 	def, err := ParseDefinition([]byte(`
 apiVersion: nivora.io/v1alpha1

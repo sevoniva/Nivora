@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -30,11 +31,12 @@ type Stage struct {
 }
 
 type Job struct {
-	Name           string `json:"name" yaml:"name"`
-	Executor       string `json:"executor" yaml:"executor"`
-	Retries        int    `json:"retries,omitempty" yaml:"retries,omitempty"`
-	TimeoutSeconds int    `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
-	Steps          []Step `json:"steps" yaml:"steps"`
+	Name           string            `json:"name" yaml:"name"`
+	Executor       string            `json:"executor" yaml:"executor"`
+	Labels         map[string]string `json:"labels,omitempty" yaml:"labels,omitempty"`
+	Retries        int               `json:"retries,omitempty" yaml:"retries,omitempty"`
+	TimeoutSeconds int               `json:"timeoutSeconds,omitempty" yaml:"timeoutSeconds,omitempty"`
+	Steps          []Step            `json:"steps" yaml:"steps"`
 }
 
 type Step struct {
@@ -102,6 +104,9 @@ func (d Definition) Validate() error {
 			if job.Retries < 0 {
 				return fmt.Errorf("job %q retries must be zero or greater", job.Name)
 			}
+			if err := validateJobLabels(job.Name, job.Labels); err != nil {
+				return err
+			}
 			if job.TimeoutSeconds < 0 {
 				return fmt.Errorf("job %q timeoutSeconds must be zero or greater", job.Name)
 			}
@@ -126,4 +131,28 @@ func (d Definition) Validate() error {
 		}
 	}
 	return nil
+}
+
+func validateJobLabels(jobName string, labels map[string]string) error {
+	for key, value := range labels {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key == "" || value == "" {
+			return fmt.Errorf("job %q labels must not contain empty keys or values", jobName)
+		}
+		if secretLikeLabel(key) || secretLikeLabel(value) {
+			return fmt.Errorf("job %q label %q looks secret-like and is not allowed", jobName, key)
+		}
+	}
+	return nil
+}
+
+func secretLikeLabel(value string) bool {
+	lower := strings.ToLower(strings.TrimSpace(value))
+	for _, part := range []string{"token", "password", "secret", "private_key", "kubeconfig", "authorization", "access_key", "bearer"} {
+		if strings.Contains(lower, part) {
+			return true
+		}
+	}
+	return false
 }

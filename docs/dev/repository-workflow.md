@@ -70,6 +70,8 @@ The cancel command asks the server to cancel the linked PipelineRun. The reconci
 
 Workflow-level `permissions` entries are recorded as plan-only permission requests. They make workflow intent visible to API, CLI, and MCP callers, but they do not grant runtime access by themselves. Write, run, admin, and `id-token` style requests produce security warnings and remain subject to Nivora RBAC, runner policy, explicit confirmation, and configured unsafe-operation gates.
 
+Workflow job `labels` are preserved in WorkflowPlan records and in the generated PipelineRun definition. Runner claim paths in both memory and PostgreSQL stores require a runner to carry matching job labels before it can claim the job. These labels are scheduling metadata only; they do not sandbox shell execution, and secret-like label keys or values are rejected.
+
 Workflow-level `artifacts` and `cache` entries are recorded as PipelineRun metadata when a guarded WorkflowRun queues a PipelineRun. The control plane records names, paths, cache keys, restore keys, retention hints, and metadata. It does not read artifact files, upload cache blobs, or store large content in the database.
 
 Workflow-level `security`, `release`, and `deployment` sections are plan-only intent summaries. They can show scanner, release, digest, target, apply, or sync intent in a plan, but the workflow planner does not run scanners, create releases, bind artifacts, apply Kubernetes manifests, sync Argo CD, or deploy hosts.

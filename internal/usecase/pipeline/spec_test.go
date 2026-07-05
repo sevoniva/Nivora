@@ -33,6 +33,32 @@ spec:
 	}
 }
 
+func TestParseDefinitionPreservesJobLabels(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: labeled
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: secure
+          executor: shell
+          labels:
+            runtime: workflow
+            tier: secure
+          steps:
+            - run: echo ok
+`))
+	if err != nil {
+		t.Fatalf("parse definition: %v", err)
+	}
+	if got := def.Spec.Stages[0].Jobs[0].Labels["tier"]; got != "secure" {
+		t.Fatalf("job labels = %#v", def.Spec.Stages[0].Jobs[0].Labels)
+	}
+}
+
 func TestParseDefinitionRejectsUnsupportedExecutor(t *testing.T) {
 	_, err := ParseDefinition([]byte(`
 apiVersion: nivora.io/v1alpha1
@@ -129,6 +155,44 @@ spec:
           steps:
             - run: echo nope
               timeoutSeconds: -1
+`,
+		},
+		{
+			name: "empty job label",
+			body: `
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: bad
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: job
+          executor: shell
+          labels:
+            runtime: ""
+          steps:
+            - run: echo nope
+`,
+		},
+		{
+			name: "secret-like job label",
+			body: `
+apiVersion: nivora.io/v1alpha1
+kind: Pipeline
+metadata:
+  name: bad
+spec:
+  stages:
+    - name: build
+      jobs:
+        - name: job
+          executor: shell
+          labels:
+            token: runner-a
+          steps:
+            - run: echo nope
 `,
 		},
 	}

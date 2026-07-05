@@ -10150,6 +10150,9 @@ components:
           description: Pipeline DSL execution currently supports only the shell executor. Runner capability metadata may advertise future executor profiles separately.
           type: string
           enum: [shell]
+        labels:
+          description: Job-level runner label requirements. A runner must carry these labels before it can claim the job. Secret-like label keys or values are rejected.
+          $ref: "#/components/schemas/CatalogMetadata"
         steps:
           type: array
           items:

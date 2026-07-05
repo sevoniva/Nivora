@@ -525,6 +525,45 @@ func TestRunnerClaimRespectsEnvironmentScopeLabel(t *testing.T) {
 	}
 }
 
+func TestRunnerClaimRespectsJobLabels(t *testing.T) {
+	service := newTestService()
+	if _, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:        "runner-without-job-labels",
+		Name:      "runner-without-job-labels",
+		Status:    "online",
+		Labels:    map[string]string{"runtime": "generic"},
+		Executors: []string{"shell"},
+	}); err != nil {
+		t.Fatalf("register unmatched runner: %v", err)
+	}
+	matched, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:        "runner-workflow-labels",
+		Name:      "runner-workflow-labels",
+		Status:    "online",
+		Labels:    map[string]string{"runtime": "workflow", "tier": "secure"},
+		Executors: []string{"shell"},
+	})
+	if err != nil {
+		t.Fatalf("register matched runner: %v", err)
+	}
+	def := testDefinition(`printf "secure"`)
+	def.Spec.Stages[0].Jobs[0].Labels = map[string]string{"runtime": "workflow", "tier": "secure"}
+	created, err := service.CreateQueued(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("create queued run: %v", err)
+	}
+	if _, err := service.ClaimJob(context.Background(), "runner-without-job-labels", time.Minute); !errors.Is(err, ErrNoClaimableJob) {
+		t.Fatalf("runner without job labels should not claim, got %v", err)
+	}
+	claim, err := service.ClaimJob(context.Background(), matched.Runner.ID, time.Minute)
+	if err != nil {
+		t.Fatalf("claim with matching job labels: %v", err)
+	}
+	if claim.PipelineRunID != created.Record.Run.ID || claim.RunnerID != matched.Runner.ID {
+		t.Fatalf("claim = %#v created = %s", claim, created.Record.Run.ID)
+	}
+}
+
 func TestRunnerGroupConstrainsRegistrationAndClaim(t *testing.T) {
 	service := newTestService()
 	group, err := service.CreateRunnerGroup(context.Background(), domainrunner.RunnerGroup{

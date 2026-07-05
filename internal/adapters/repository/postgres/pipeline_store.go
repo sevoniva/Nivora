@@ -1164,8 +1164,11 @@ func claimRecordJob(record *pipelineusecase.RunRecord, runner domainrunner.Runne
 		for jobIndex := range record.Stages[stageIndex].Jobs {
 			job := &record.Stages[stageIndex].Jobs[jobIndex].Job
 			executor := domainrunner.ExecutorShell
+			jobLabels := map[string]string(nil)
 			if stageIndex < len(record.Definition.Spec.Stages) && jobIndex < len(record.Definition.Spec.Stages[stageIndex].Jobs) {
-				executor = normalizeRecordExecutor(record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex].Executor)
+				specJob := record.Definition.Spec.Stages[stageIndex].Jobs[jobIndex]
+				executor = normalizeRecordExecutor(specJob.Executor)
+				jobLabels = specJob.Labels
 			}
 			if !domainrunner.IsSupportedExecutorCapability(executor) {
 				continue
@@ -1174,6 +1177,9 @@ func claimRecordJob(record *pipelineusecase.RunRecord, runner domainrunner.Runne
 				continue
 			}
 			if !runnerSupportsExecutor(runner, executor) {
+				continue
+			}
+			if !labelsMatch(runner.Labels, jobLabels) {
 				continue
 			}
 			claimable := job.Status == domainpipeline.JobRunPending || job.Status == domainpipeline.JobRunRetrying

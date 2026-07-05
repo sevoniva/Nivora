@@ -6,9 +6,11 @@ import (
 	"io"
 	"strings"
 	"testing"
+	"time"
 
 	domainevent "github.com/sevoniva/nivora/internal/domain/event"
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
+	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
 	"github.com/sevoniva/nivora/internal/ports/executor"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
@@ -196,6 +198,64 @@ func TestServiceRunRecordsWorkflowArtifactsAndCachesAsPipelineMetadata(t *testin
 	}
 	if !strings.Contains(strings.Join(result.Warnings, "\n"), "metadata only") {
 		t.Fatalf("expected metadata-only warning, got %#v", result.Warnings)
+	}
+}
+
+func TestServiceRunPreservesWorkflowJobLabelsForRunnerClaim(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	pipelines := newWorkflowPipelineService()
+	result, err := service.Run(context.Background(), RunInput{
+		Content: `apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: Labeled Runner Workflow
+on: manual
+jobs:
+  build:
+    runsOn: [self-hosted, shell]
+    labels:
+      runtime: workflow
+      tier: secure
+    steps:
+      - run: echo ok
+`,
+		Confirm:          true,
+		AllowPipelineRun: true,
+	}, pipelines)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if got := result.PipelineRun.Definition.Spec.Stages[0].Jobs[0].Labels["runtime"]; got != "workflow" {
+		t.Fatalf("pipeline job labels = %#v", result.PipelineRun.Definition.Spec.Stages[0].Jobs[0].Labels)
+	}
+	if _, err := pipelines.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:        "runner-unmatched",
+		Name:      "runner-unmatched",
+		Status:    "online",
+		Labels:    map[string]string{"runtime": "generic"},
+		Executors: []string{"shell"},
+	}); err != nil {
+		t.Fatalf("register unmatched runner: %v", err)
+	}
+	matched, err := pipelines.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:        "runner-workflow",
+		Name:      "runner-workflow",
+		Status:    "online",
+		Labels:    map[string]string{"runtime": "workflow", "tier": "secure"},
+		Executors: []string{"shell"},
+	})
+	if err != nil {
+		t.Fatalf("register matched runner: %v", err)
+	}
+	if _, err := pipelines.ClaimJob(context.Background(), "runner-unmatched", time.Minute); !errors.Is(err, pipelineusecase.ErrNoClaimableJob) {
+		t.Fatalf("unmatched runner should not claim workflow job, got %v", err)
+	}
+	claim, err := pipelines.ClaimJob(context.Background(), matched.Runner.ID, time.Minute)
+	if err != nil {
+		t.Fatalf("claim workflow job: %v", err)
+	}
+	if claim.PipelineRunID != result.PipelineRun.Run.ID || claim.RunnerID != matched.Runner.ID {
+		t.Fatalf("claim = %#v pipelineRun=%s", claim, result.PipelineRun.Run.ID)
 	}
 }
 

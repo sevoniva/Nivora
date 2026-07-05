@@ -166,6 +166,7 @@ type PlannedJob struct {
 	Name            string            `json:"name"`
 	Needs           []string          `json:"needs,omitempty"`
 	RunsOn          []string          `json:"runsOn,omitempty"`
+	Labels          map[string]string `json:"labels,omitempty"`
 	Matrix          map[string]string `json:"matrix,omitempty"`
 	TimeoutMinutes  int               `json:"timeoutMinutes,omitempty"`
 	StepCount       int               `json:"stepCount"`

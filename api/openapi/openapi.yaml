@@ -7264,6 +7264,8 @@ components:
           type: array
           items:
             type: string
+        kubernetesSafety:
+          $ref: "#/components/schemas/KubernetesSafetyOptions"
         gitops:
           type: object
           properties:
@@ -7319,6 +7321,42 @@ components:
             timeoutSeconds:
               type: integer
               minimum: 0
+    KubernetesSafetyOptions:
+      type: object
+      description: Optional Kubernetes YAML safety policy overlays. These options can only tighten Nivora's built-in safety defaults; they do not disable privileged, hostPath, cluster-scoped, namespace, or latest-tag protections.
+      properties:
+        requireDigest:
+          type: boolean
+          description: Adds warnings when manifest images are not digest-pinned.
+        allowedNamespaces:
+          type: array
+          description: Optional namespace allowlist for the target namespace and manifest metadata namespaces.
+          items:
+            type: string
+        deniedNamespaces:
+          type: array
+          description: Additional namespaces to deny. Built-in Kubernetes system namespace denials remain active.
+          items:
+            type: string
+        allowedKinds:
+          type: array
+          description: Optional Kubernetes kind allowlist.
+          items:
+            type: string
+        deniedKinds:
+          type: array
+          description: Additional Kubernetes kinds to deny.
+          items:
+            type: string
+        maxManifestBytes:
+          type: integer
+          format: int64
+          minimum: 0
+          description: Optional stricter manifest byte limit. Values above the built-in default do not relax the default limit.
+        maxResourceCount:
+          type: integer
+          minimum: 0
+          description: Optional stricter rendered resource count limit. Values above the built-in default do not relax the default limit.
     DeploymentRunRecord:
       type: object
       properties:

@@ -248,7 +248,7 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 		return CreateRunResult{}, err
 	}
 	record.Plan = s.buildPlan(record.Run.ID, input.Definition, documents)
-	record.Plan = appendKubernetesSafetyWarnings(record.Plan, documents, input.Definition.Spec.Target.Namespace)
+	record.Plan = appendKubernetesSafetyWarnings(record.Plan, documents, input.Definition)
 	record = s.attachResourceObservability(record, input.Definition, documents)
 	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("rendered %d manifest document(s)", len(documents)), int64(len(record.Logs)+1)))
 	return CreateRunResult{Record: record}, nil
@@ -1624,7 +1624,7 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 }
 
 func (s *Service) enforceKubernetesSafety(ctx context.Context, record RunRecord, docs []ManifestDocument, actorID string) (RunRecord, bool, error) {
-	result := DefaultK8sSafetyPolicy().ValidateManifests(ctx, docs, record.Definition.Spec.Target.Namespace)
+	result := KubernetesSafetyPolicyFromSpec(record.Definition.Spec).ValidateManifests(ctx, docs, record.Definition.Spec.Target.Namespace)
 	record.Plan = appendKubernetesSafetyResult(record.Plan, result)
 	if result.Allowed {
 		return record, true, nil
@@ -1641,8 +1641,8 @@ func (s *Service) enforceKubernetesSafety(ctx context.Context, record RunRecord,
 	return failed, false, err
 }
 
-func appendKubernetesSafetyWarnings(plan DeploymentPlan, docs []ManifestDocument, namespace string) DeploymentPlan {
-	result := DefaultK8sSafetyPolicy().ValidateManifests(context.Background(), docs, namespace)
+func appendKubernetesSafetyWarnings(plan DeploymentPlan, docs []ManifestDocument, def Definition) DeploymentPlan {
+	result := KubernetesSafetyPolicyFromSpec(def.Spec).ValidateManifests(context.Background(), docs, def.Spec.Target.Namespace)
 	return appendKubernetesSafetyResult(plan, result)
 }
 

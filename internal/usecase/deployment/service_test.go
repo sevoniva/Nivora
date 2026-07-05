@@ -209,6 +209,58 @@ func TestServiceRejectsTooManyKubernetesResourcesBeforeDryRun(t *testing.T) {
 	}
 }
 
+func TestServiceRejectsKubernetesSafetyAllowedNamespaceBeforeDryRun(t *testing.T) {
+	service, def := newTestServiceWithClient(t, true, testManifestClient{})
+	def.Spec.Target.Namespace = "prod"
+	def.Spec.KubernetesSafety.AllowedNamespaces = []string{"staging"}
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("allowed-namespace denial should persist failed run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	if !strings.Contains(result.Record.Run.Reason, "allowed namespace") && !strings.Contains(result.Record.Run.Reason, "allowed namespace list") {
+		t.Fatalf("reason = %q", result.Record.Run.Reason)
+	}
+	if result.Record.DryRun.Message != "" {
+		t.Fatalf("dry-run should not execute after namespace denial: %#v", result.Record.DryRun)
+	}
+	assertPlanWarningContains(t, result.Record.Plan.Warnings, "kubernetes safety policy denied")
+}
+
+func TestServiceRejectsConfiguredKubernetesResourceLimitBeforeDryRun(t *testing.T) {
+	service, def := newTestServiceWithClient(t, true, testManifestClient{})
+	def.Spec.KubernetesSafety.MaxResourceCount = 1
+	writeDeploymentManifest(t, def, manyConfigMapsManifest(2))
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("configured resource limit denial should persist failed run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	if !strings.Contains(result.Record.Run.Reason, "resource count 2 exceeds max 1") {
+		t.Fatalf("reason = %q", result.Record.Run.Reason)
+	}
+	if result.Record.DryRun.Message != "" {
+		t.Fatalf("dry-run should not execute after configured resource limit denial: %#v", result.Record.DryRun)
+	}
+}
+
+func TestServicePlanWarnsForConfiguredKubernetesDeniedKind(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	def.Spec.KubernetesSafety.DeniedKinds = []string{"Deployment"}
+
+	result, err := service.Plan(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	assertPlanWarningContains(t, result.Record.Plan.Warnings, "Deployment is a denied kind")
+}
+
 func TestServiceFailsInvalidManifest(t *testing.T) {
 	service, def := newTestService(t, true, nil)
 	invalid := filepath.Join(t.TempDir(), "invalid.yaml")

@@ -34,6 +34,27 @@ The Kubernetes YAML path is:
 
 Plan-only requests surface safety warnings without mutating a cluster. DeploymentRun execution fails before dry-run/apply when the safety policy denies the rendered manifest set.
 
+Deployment specs can add `spec.kubernetesSafety` to tighten the default policy:
+
+```yaml
+spec:
+  target:
+    type: kubernetes-yaml
+    namespace: default
+  kubernetesSafety:
+    allowedNamespaces:
+      - default
+    deniedNamespaces:
+      - prod
+    deniedKinds:
+      - PersistentVolume
+    maxManifestBytes: 1048576
+    maxResourceCount: 10
+    requireDigest: true
+```
+
+These fields cannot disable the built-in denials for privileged containers, hostPath, host namespace modes, cluster-scoped resources, Kubernetes system namespaces, namespace mismatches, or `:latest` images. Size and resource-count values above the built-in defaults do not relax the defaults.
+
 Supported rollout checks:
 
 - `Deployment`
@@ -49,6 +70,12 @@ Dry-run:
 
 ```sh
 nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
+```
+
+Dry-run with an explicit safety overlay:
+
+```sh
+nivora deployment dry-run --local examples/deployments/yaml-safety-policy.yaml
 ```
 
 Guarded apply:

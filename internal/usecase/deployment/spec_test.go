@@ -36,6 +36,47 @@ spec:
 	}
 }
 
+func TestParseDefinitionKubernetesSafetyOptions(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: demo
+spec:
+  application: demo-app
+  environment: dev
+  target:
+    type: kubernetes-yaml
+    name: dev-kind
+    namespace: staging
+  manifests:
+    - deployment.yaml
+  kubernetesSafety:
+    allowedNamespaces: ["staging"]
+    deniedNamespaces: ["prod"]
+    allowedKinds: ["Deployment", "Service"]
+    deniedKinds: ["Secret"]
+    maxManifestBytes: 65536
+    maxResourceCount: 10
+    requireDigest: true
+  options:
+    dryRun: true
+    apply: false
+`))
+	if err != nil {
+		t.Fatalf("parse definition: %v", err)
+	}
+	if got := def.Spec.KubernetesSafety.AllowedNamespaces; len(got) != 1 || got[0] != "staging" {
+		t.Fatalf("allowed namespaces = %#v", got)
+	}
+	if !def.Spec.KubernetesSafety.RequireDigest {
+		t.Fatal("expected requireDigest")
+	}
+	if def.Spec.KubernetesSafety.MaxResourceCount != 10 {
+		t.Fatalf("max resource count = %d", def.Spec.KubernetesSafety.MaxResourceCount)
+	}
+}
+
 func TestDefinitionValidationRejectsInvalidSpec(t *testing.T) {
 	tests := []struct {
 		name string
@@ -48,6 +89,10 @@ func TestDefinitionValidationRejectsInvalidSpec(t *testing.T) {
 		{name: "missing manifests", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target", Namespace: "default"}}}},
 		{name: "apply with dry run", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target", Namespace: "default"}, Manifests: []string{"a.yaml"}, Options: Options{Apply: true, DryRun: true}}}},
 		{name: "negative timeout", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target", Namespace: "default"}, Manifests: []string{"a.yaml"}, Options: Options{TimeoutSeconds: -1}}}},
+		{name: "negative kubernetes safety bytes", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target", Namespace: "default"}, Manifests: []string{"a.yaml"}, KubernetesSafety: KubernetesSafetyOptions{MaxManifestBytes: -1}}}},
+		{name: "negative kubernetes safety resources", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target", Namespace: "default"}, Manifests: []string{"a.yaml"}, KubernetesSafety: KubernetesSafetyOptions{MaxResourceCount: -1}}}},
+		{name: "empty kubernetes safety namespace", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target", Namespace: "default"}, Manifests: []string{"a.yaml"}, KubernetesSafety: KubernetesSafetyOptions{AllowedNamespaces: []string{""}}}}},
+		{name: "empty kubernetes safety kind", def: Definition{Kind: "Deployment", Metadata: Metadata{Name: "demo"}, Spec: Spec{Application: "app", Environment: "dev", Target: Target{Type: "kubernetes-yaml", Name: "target", Namespace: "default"}, Manifests: []string{"a.yaml"}, KubernetesSafety: KubernetesSafetyOptions{DeniedKinds: []string{" "}}}}},
 	}
 
 	for _, tt := range tests {

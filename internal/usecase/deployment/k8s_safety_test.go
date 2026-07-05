@@ -187,6 +187,57 @@ spec:
 	}
 }
 
+func TestK8sSafetyOptionsOnlyTightenDefaults(t *testing.T) {
+	p := DefaultK8sSafetyPolicy().WithOptions(KubernetesSafetyOptions{
+		AllowedNamespaces: []string{"staging"},
+		DeniedNamespaces:  []string{"prod"},
+		DeniedKinds:       []string{"Secret"},
+		MaxManifestBytes:  DefaultK8sSafetyPolicy().MaxManifestBytes + 1024,
+		MaxResourceCount:  DefaultK8sSafetyPolicy().MaxResourceCount + 10,
+		RequireDigest:     true,
+	})
+	if !p.RequireDigest {
+		t.Fatal("expected requireDigest to be enabled")
+	}
+	if !containsK8sName(p.AllowedNamespaces, "staging") {
+		t.Fatalf("allowed namespaces = %#v", p.AllowedNamespaces)
+	}
+	if !containsK8sName(p.DeniedNamespaces, "kube-system") || !containsK8sName(p.DeniedNamespaces, "prod") {
+		t.Fatalf("denied namespaces should retain defaults and custom denylist: %#v", p.DeniedNamespaces)
+	}
+	if p.MaxManifestBytes != DefaultK8sSafetyPolicy().MaxManifestBytes {
+		t.Fatalf("max manifest bytes should not be relaxed: %d", p.MaxManifestBytes)
+	}
+	if p.MaxResourceCount != DefaultK8sSafetyPolicy().MaxResourceCount {
+		t.Fatalf("max resource count should not be relaxed: %d", p.MaxResourceCount)
+	}
+}
+
+func TestK8sSafetyOptionsCanTightenResourceCount(t *testing.T) {
+	p := DefaultK8sSafetyPolicy().WithOptions(KubernetesSafetyOptions{MaxResourceCount: 1})
+	docs := []ManifestDocument{
+		doc("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: one\n"),
+		doc("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: two\n"),
+	}
+	result := p.ValidateManifests(context.Background(), docs, "default")
+	if result.Allowed {
+		t.Fatal("expected tightened resource count to deny manifest set")
+	}
+}
+
+func TestK8sSafetyAllowedKinds(t *testing.T) {
+	p := DefaultK8sSafetyPolicy().WithOptions(KubernetesSafetyOptions{AllowedKinds: []string{"ConfigMap"}})
+	result := p.ValidateManifests(context.Background(), []ManifestDocument{doc(`
+apiVersion: v1
+kind: Service
+metadata:
+  name: svc
+`)}, "default")
+	if result.Allowed {
+		t.Fatalf("expected Service to be denied by allowedKinds, checks: %#v", result.Checks)
+	}
+}
+
 func TestK8sSafetyRejectsManifestNamespaceMismatch(t *testing.T) {
 	p := DefaultK8sSafetyPolicy()
 	p.AllowedNamespaces = []string{"staging"}

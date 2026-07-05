@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
@@ -20,15 +21,16 @@ type Metadata struct {
 }
 
 type Spec struct {
-	Application string     `json:"application" yaml:"application"`
-	Environment string     `json:"environment" yaml:"environment"`
-	Target      Target     `json:"target" yaml:"target"`
-	Artifact    Artifact   `json:"artifact,omitempty" yaml:"artifact,omitempty"`
-	Artifacts   []Artifact `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
-	Manifests   []string   `json:"manifests" yaml:"manifests"`
-	GitOps      GitOps     `json:"gitops,omitempty" yaml:"gitops,omitempty"`
-	Host        HostSpec   `json:"host,omitempty" yaml:"host,omitempty"`
-	Options     Options    `json:"options,omitempty" yaml:"options,omitempty"`
+	Application      string                  `json:"application" yaml:"application"`
+	Environment      string                  `json:"environment" yaml:"environment"`
+	Target           Target                  `json:"target" yaml:"target"`
+	Artifact         Artifact                `json:"artifact,omitempty" yaml:"artifact,omitempty"`
+	Artifacts        []Artifact              `json:"artifacts,omitempty" yaml:"artifacts,omitempty"`
+	Manifests        []string                `json:"manifests" yaml:"manifests"`
+	KubernetesSafety KubernetesSafetyOptions `json:"kubernetesSafety,omitempty" yaml:"kubernetesSafety,omitempty"`
+	GitOps           GitOps                  `json:"gitops,omitempty" yaml:"gitops,omitempty"`
+	Host             HostSpec                `json:"host,omitempty" yaml:"host,omitempty"`
+	Options          Options                 `json:"options,omitempty" yaml:"options,omitempty"`
 }
 
 type Target struct {
@@ -110,6 +112,19 @@ type GitOps struct {
 	RequireStatus      bool     `json:"requireStatus" yaml:"requireStatus"`
 	StatusRead         bool     `json:"statusRead" yaml:"statusRead"`
 	Files              []string `json:"files,omitempty" yaml:"files,omitempty"`
+}
+
+// KubernetesSafetyOptions can only tighten the built-in Kubernetes safety policy.
+// It intentionally does not expose switches that disable privileged, hostPath,
+// cluster-scoped, namespace, or latest-tag protections.
+type KubernetesSafetyOptions struct {
+	RequireDigest     bool     `json:"requireDigest,omitempty" yaml:"requireDigest,omitempty"`
+	AllowedNamespaces []string `json:"allowedNamespaces,omitempty" yaml:"allowedNamespaces,omitempty"`
+	DeniedNamespaces  []string `json:"deniedNamespaces,omitempty" yaml:"deniedNamespaces,omitempty"`
+	AllowedKinds      []string `json:"allowedKinds,omitempty" yaml:"allowedKinds,omitempty"`
+	DeniedKinds       []string `json:"deniedKinds,omitempty" yaml:"deniedKinds,omitempty"`
+	MaxManifestBytes  int64    `json:"maxManifestBytes,omitempty" yaml:"maxManifestBytes,omitempty"`
+	MaxResourceCount  int      `json:"maxResourceCount,omitempty" yaml:"maxResourceCount,omitempty"`
 }
 
 type Options struct {
@@ -238,8 +253,41 @@ func (d Definition) Validate() error {
 	if d.Spec.Options.TimeoutSeconds < 0 {
 		return errors.New("deployment options.timeoutSeconds cannot be negative")
 	}
+	if err := validateKubernetesSafetyOptions(d.Spec.KubernetesSafety); err != nil {
+		return err
+	}
 	if d.Spec.GitOps.Sync && d.Spec.GitOps.Mode == "" {
 		d.Spec.GitOps.Mode = "plan"
+	}
+	return nil
+}
+
+func validateKubernetesSafetyOptions(options KubernetesSafetyOptions) error {
+	if options.MaxManifestBytes < 0 {
+		return errors.New("deployment kubernetesSafety.maxManifestBytes cannot be negative")
+	}
+	if options.MaxResourceCount < 0 {
+		return errors.New("deployment kubernetesSafety.maxResourceCount cannot be negative")
+	}
+	for i, namespace := range options.AllowedNamespaces {
+		if strings.TrimSpace(namespace) == "" {
+			return fmt.Errorf("deployment kubernetesSafety.allowedNamespaces[%d] cannot be empty", i)
+		}
+	}
+	for i, namespace := range options.DeniedNamespaces {
+		if strings.TrimSpace(namespace) == "" {
+			return fmt.Errorf("deployment kubernetesSafety.deniedNamespaces[%d] cannot be empty", i)
+		}
+	}
+	for i, kind := range options.AllowedKinds {
+		if strings.TrimSpace(kind) == "" {
+			return fmt.Errorf("deployment kubernetesSafety.allowedKinds[%d] cannot be empty", i)
+		}
+	}
+	for i, kind := range options.DeniedKinds {
+		if strings.TrimSpace(kind) == "" {
+			return fmt.Errorf("deployment kubernetesSafety.deniedKinds[%d] cannot be empty", i)
+		}
 	}
 	return nil
 }

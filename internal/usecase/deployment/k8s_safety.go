@@ -45,6 +45,38 @@ func DefaultK8sSafetyPolicy() K8sSafetyPolicy {
 	}
 }
 
+func KubernetesSafetyPolicyFromSpec(spec Spec) K8sSafetyPolicy {
+	return DefaultK8sSafetyPolicy().WithOptions(spec.KubernetesSafety)
+}
+
+// WithOptions applies Deployment spec safety options as stricter overlays.
+// It never disables the built-in deny rules and never raises default size/count
+// limits, so user-provided options can only narrow the accepted manifest set.
+func (p K8sSafetyPolicy) WithOptions(options KubernetesSafetyOptions) K8sSafetyPolicy {
+	if options.RequireDigest {
+		p.RequireDigest = true
+	}
+	if len(options.AllowedNamespaces) > 0 {
+		p.AllowedNamespaces = compactK8sNames(options.AllowedNamespaces)
+	}
+	if len(options.DeniedNamespaces) > 0 {
+		p.DeniedNamespaces = appendUniqueK8sNames(p.DeniedNamespaces, options.DeniedNamespaces...)
+	}
+	if len(options.AllowedKinds) > 0 {
+		p.AllowedKinds = compactK8sNames(options.AllowedKinds)
+	}
+	if len(options.DeniedKinds) > 0 {
+		p.DeniedKinds = appendUniqueK8sNames(p.DeniedKinds, options.DeniedKinds...)
+	}
+	if options.MaxManifestBytes > 0 && (p.MaxManifestBytes == 0 || options.MaxManifestBytes < p.MaxManifestBytes) {
+		p.MaxManifestBytes = options.MaxManifestBytes
+	}
+	if options.MaxResourceCount > 0 && (p.MaxResourceCount == 0 || options.MaxResourceCount < p.MaxResourceCount) {
+		p.MaxResourceCount = options.MaxResourceCount
+	}
+	return p
+}
+
 // K8sSafetyCheck holds a single policy check result.
 type K8sSafetyCheck struct {
 	Passed  bool   `json:"passed"`
@@ -178,6 +210,13 @@ func (p K8sSafetyPolicy) ValidateManifests(ctx context.Context, documents []Mani
 		}
 
 		// Denied kinds.
+		if len(p.AllowedKinds) > 0 && !containsK8sName(p.AllowedKinds, kind) {
+			result.Allowed = false
+			result.Checks = append(result.Checks, K8sSafetyCheck{
+				Passed: false, Rule: "allowed-kind", Kind: kind, Name: name,
+				Message: fmt.Sprintf("%s is not in the allowed kind list", kind),
+			})
+		}
 		for _, denied := range p.DeniedKinds {
 			if strings.EqualFold(kind, denied) {
 				result.Allowed = false
@@ -301,9 +340,33 @@ func k8sBool(obj map[string]interface{}, key string) bool {
 func containsK8sName(values []string, value string) bool {
 	value = strings.TrimSpace(value)
 	for _, candidate := range values {
-		if strings.TrimSpace(candidate) == value {
+		if strings.EqualFold(strings.TrimSpace(candidate), value) {
 			return true
 		}
 	}
 	return false
+}
+
+func appendUniqueK8sNames(base []string, values ...string) []string {
+	out := compactK8sNames(base)
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || containsK8sName(out, value) {
+			continue
+		}
+		out = append(out, value)
+	}
+	return out
+}
+
+func compactK8sNames(values []string) []string {
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" || containsK8sName(out, value) {
+			continue
+		}
+		out = append(out, value)
+	}
+	return out
 }

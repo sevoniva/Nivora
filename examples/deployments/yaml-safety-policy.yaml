@@ -1,0 +1,33 @@
+apiVersion: nivora.io/v1alpha1
+kind: Deployment
+metadata:
+  name: yaml-safety-policy
+spec:
+  application: example-service
+  environment: dev
+  target:
+    type: kubernetes-yaml
+    name: dev-kind
+    namespace: default
+  manifests:
+    - examples/yaml/deployment.yaml
+    - examples/yaml/service.yaml
+    - examples/yaml/configmap.yaml
+  artifacts:
+    - name: example-service
+      type: image
+      reference: example.invalid/sevoniva/example-service:dev
+      target:
+        imageName: example.invalid/sevoniva/example-service
+  kubernetesSafety:
+    allowedNamespaces:
+      - default
+    deniedNamespaces:
+      - prod
+    deniedKinds:
+      - PersistentVolume
+    maxManifestBytes: 1048576
+    maxResourceCount: 10
+  options:
+    dryRun: true
+    apply: false

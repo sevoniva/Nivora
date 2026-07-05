@@ -62,6 +62,7 @@ var criticalRoutes = []struct {
 	{"GET", "/api/v1/workflows", domainauth.PermissionWorkflowPlan, false},
 	{"GET", "/api/v1/workflows/plans", domainauth.PermissionWorkflowPlan, false},
 	{"GET", "/api/v1/workflows/plans/wplan-rbac", domainauth.PermissionWorkflowPlan, false},
+	{"GET", "/api/v1/workflows/workflow-rbac", domainauth.PermissionWorkflowPlan, false},
 	{"GET", "/api/v1/workflows/workflow-rbac/plan", domainauth.PermissionWorkflowPlan, false},
 	{"GET", "/api/v1/workflows/runs", domainauth.PermissionWorkflowRun, false},
 	{"GET", "/api/v1/workflows/runs/wrun-rbac", domainauth.PermissionWorkflowRun, false},

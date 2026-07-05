@@ -151,6 +151,19 @@ func (s *Service) ListWorkflows(ctx context.Context, filter PlanListFilter) ([]W
 	return out, nil
 }
 
+func (s *Service) GetWorkflow(ctx context.Context, workflowID string) (WorkflowSummary, error) {
+	workflows, err := s.ListWorkflows(ctx, PlanListFilter{WorkflowID: strings.TrimSpace(workflowID)})
+	if err != nil {
+		return WorkflowSummary{}, err
+	}
+	for _, summary := range workflows {
+		if summary.WorkflowID == strings.TrimSpace(workflowID) {
+			return summary, nil
+		}
+	}
+	return WorkflowSummary{}, ErrNotFound
+}
+
 func (s *Service) Run(ctx context.Context, input RunInput, pipelines PipelineRunCreator) (RunResult, error) {
 	if pipelines == nil {
 		return RunResult{}, fmt.Errorf("%w: pipeline runtime is required", ErrInvalid)

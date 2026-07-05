@@ -172,6 +172,17 @@ func ListWorkflows(service *workflowusecase.Service) http.HandlerFunc {
 	}
 }
 
+func GetWorkflow(service *workflowusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		workflow, err := service.GetWorkflow(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, workflow)
+	}
+}
+
 func GetWorkflowLatestPlan(service *workflowusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		record, err := service.GetLatestPlan(r.Context(), chi.URLParam(r, "id"))

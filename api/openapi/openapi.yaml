@@ -1350,6 +1350,29 @@ paths:
                     type: array
                     items:
                       $ref: "#/components/schemas/WorkflowSummary"
+  /api/v1/workflows/{id}:
+    get:
+      summary: Get a Nivora Workflow summary
+      description: Requires `workflow.plan`. Returns one workflow summary derived from stored WorkflowPlan records. It does not return raw workflow YAML.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow summary
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowSummary"
+        "404":
+          description: Workflow was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/workflows/validate:
     post:
       summary: Validate a Nivora Workflow definition

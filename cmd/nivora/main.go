@@ -1818,12 +1818,70 @@ func newRepositoryCommand() *cobra.Command {
 
 func newWorkflowCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "workflow", Short: "Nivora Workflow authoring utilities"}
+	cmd.AddCommand(newWorkflowListCommand())
+	cmd.AddCommand(newWorkflowGetCommand())
 	cmd.AddCommand(newWorkflowValidateCommand())
 	cmd.AddCommand(newWorkflowPlanCommand())
 	cmd.AddCommand(newWorkflowRunCommand())
 	cmd.AddCommand(newWorkflowCancelCommand())
 	cmd.AddCommand(newWorkflowReconcileCommand())
 	cmd.AddCommand(newWorkflowRetryCommand())
+	return cmd
+}
+
+func newWorkflowListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var repositoryID string
+	var workflowID string
+	cmd := &cobra.Command{
+		Use:   "list",
+		Short: "List stored Nivora Workflow summaries from the server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			values := url.Values{}
+			if repositoryID != "" {
+				values.Set("repositoryId", repositoryID)
+			}
+			if workflowID != "" {
+				values.Set("workflowId", workflowID)
+			}
+			query := ""
+			if len(values) > 0 {
+				query = "?" + values.Encode()
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/workflows"+query, nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&repositoryID, "repository-id", "", "repository id filter")
+	cmd.Flags().StringVar(&workflowID, "workflow-id", "", "workflow id filter")
+	return cmd
+}
+
+func newWorkflowGetCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "get <workflow-id>",
+		Short: "Get a stored Nivora Workflow summary from the server",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/workflows/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd
 }
 

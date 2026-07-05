@@ -165,6 +165,13 @@ jobs:
 		t.Fatalf("list workflows status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/workflow-go-ci", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"workflowId":"workflow-go-ci"`) || !strings.Contains(rec.Body.String(), `"latestPlanId":"`+planID+`"`) {
+		t.Fatalf("get workflow status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
 	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/workflow-go-ci/plan", nil)
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)

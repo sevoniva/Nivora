@@ -174,3 +174,51 @@ jobs:
 		t.Fatalf("workflow plan resource = %#v", resource)
 	}
 }
+
+func TestMCPWorkflowRunResourcesReadGuardedRunMetadata(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleDeveloper, "mcp-local")
+	result, err := server.services.Workflows.Run(context.Background(), workflowusecase.RunInput{
+		Content: `
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: mcp-run
+on: [manual]
+jobs:
+  test:
+    steps:
+      - run: echo mcp
+`,
+		RepositoryID:     "repo-mcp",
+		ProjectID:        "project-mcp",
+		EnvironmentID:    "env-mcp",
+		Confirm:          true,
+		AllowPipelineRun: true,
+	}, server.services.Pipelines)
+	if err != nil {
+		t.Fatalf("store workflow run: %v", err)
+	}
+	if _, err := server.services.Pipelines.ProcessQueued(context.Background(), 1); err != nil {
+		t.Fatalf("process linked PipelineRun: %v", err)
+	}
+
+	list, err := server.ReadResource(context.Background(), "nivora://workflows/runs")
+	if err != nil {
+		t.Fatalf("ReadResource workflow runs: %v", err)
+	}
+	for _, want := range []string{`"workflowRuns"`, result.WorkflowRun.ID, `"Succeeded"`, `"mutated": false`} {
+		if !strings.Contains(list.Text, want) {
+			t.Fatalf("workflow run list missing %q: %s", want, list.Text)
+		}
+	}
+
+	resource, err := server.ReadResource(context.Background(), "nivora://workflows/runs/"+result.WorkflowRun.ID)
+	if err != nil {
+		t.Fatalf("ReadResource workflow run: %v", err)
+	}
+	for _, want := range []string{`"workflowRun"`, result.WorkflowRun.ID, result.PipelineRun.Run.ID, `"Succeeded"`, `"mutated": false`} {
+		if !strings.Contains(resource.Text, want) {
+			t.Fatalf("workflow run resource missing %q: %s", want, resource.Text)
+		}
+	}
+}

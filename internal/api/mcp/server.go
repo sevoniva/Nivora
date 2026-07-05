@@ -126,6 +126,8 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://repositories/{id}/devops-plan", "Repository DevOps plan", "Plan-only build, test, package, security, release-candidate, and deployment summary by repository id"),
 		resource("nivora://workflows", "Workflows", "Stored workflow summaries visible to the MCP subject"),
 		resource("nivora://workflows/{id}/plan", "Workflow plan", "Stored workflow plan record by id"),
+		resource("nivora://workflows/runs", "Workflow runs", "Guarded WorkflowRun metadata visible to the MCP subject"),
+		resource("nivora://workflows/runs/{id}", "Workflow run", "Guarded WorkflowRun metadata by id"),
 		resource("nivora://pipelines/definitions", "Pipeline definitions", "Pipeline definition catalog"),
 		resource("nivora://pipelines/definitions/{id}", "Pipeline definition", "Pipeline definition record by id"),
 		resource("nivora://pipelines/runs/{id}", "PipelineRun", "PipelineRun record by id"),
@@ -444,6 +446,14 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string, query url.
 			return nil, err
 		}
 		return s.workflowListResource(ctx, page)
+	case uri == "nivora://workflows/runs":
+		page, err := mcpPageFromQuery(query)
+		if err != nil {
+			return nil, err
+		}
+		return s.workflowRunListResource(ctx, page)
+	case strings.HasPrefix(uri, "nivora://workflows/runs/"):
+		return s.workflowRunResource(ctx, strings.TrimPrefix(uri, "nivora://workflows/runs/"))
 	case strings.HasPrefix(uri, "nivora://workflows/"):
 		return s.workflowPlanResource(ctx, strings.TrimPrefix(uri, "nivora://workflows/"))
 	case uri == "nivora://pipelines/definitions":
@@ -2104,6 +2114,87 @@ func (s *Server) workflowListResource(ctx context.Context, page mcpPage) (any, e
 		"warnings":   warnings,
 		"mutated":    false,
 	}, nil
+}
+
+func (s *Server) workflowRunListResource(ctx context.Context, page mcpPage) (any, error) {
+	var (
+		runs []workflowusecase.RunRecord
+		err  error
+	)
+	filter := workflowusecase.RunListFilter{Limit: 100}
+	if s.services.Pipelines != nil {
+		runs, err = s.services.Workflows.RefreshRuns(ctx, filter, s.services.Pipelines)
+	} else {
+		runs, err = s.services.Workflows.ListRuns(ctx, filter)
+	}
+	if err != nil {
+		return nil, err
+	}
+	visible := make([]workflowusecase.RunRecord, 0, len(runs))
+	warnings := []string{}
+	for _, run := range runs {
+		err := s.ensureWorkflowRunScope(ctx, run)
+		if err == nil {
+			visible = append(visible, run)
+			continue
+		}
+		var opErr OperationError
+		if errors.As(err, &opErr) && opErr.Code == "mcp_scope_denied" {
+			continue
+		}
+		warnings = append(warnings, "workflow run scope metadata unavailable for "+run.ID)
+	}
+	limited, pagination, truncated := paginateMCPItems(visible, page)
+	if truncated {
+		warnings = append(warnings, "workflow run list truncated by MCP pagination")
+	}
+	return map[string]any{
+		"workflowRuns": limited,
+		"count":        len(limited),
+		"pagination":   pagination,
+		"warnings":     warnings,
+		"mutated":      false,
+	}, nil
+}
+
+func (s *Server) workflowRunResource(ctx context.Context, id string) (any, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, OperationError{Code: "invalid_request", Message: "workflow run id is required"}
+	}
+	var (
+		run workflowusecase.RunRecord
+		err error
+	)
+	if s.services.Pipelines != nil {
+		run, err = s.services.Workflows.RefreshRunStatus(ctx, id, s.services.Pipelines)
+	} else {
+		run, err = s.services.Workflows.GetRun(ctx, id)
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureWorkflowRunScope(ctx, run); err != nil {
+		return nil, err
+	}
+	return map[string]any{"workflowRun": run, "mutated": false}, nil
+}
+
+func (s *Server) ensureWorkflowRunScope(ctx context.Context, run workflowusecase.RunRecord) error {
+	if run.ProjectID != "" || run.EnvironmentID != "" {
+		return s.ensureSubjectScope("workflow run "+run.ID, run.ProjectID, run.EnvironmentID)
+	}
+	if run.RepositoryID != "" {
+		repository, err := s.services.Catalog.GetRepository(ctx, run.RepositoryID)
+		if err != nil {
+			return err
+		}
+		return s.ensureSubjectScope("workflow run "+run.ID, repository.ProjectID, "")
+	}
+	if isGlobalSubject(s.services.Subject) {
+		return nil
+	}
+	return OperationError{Code: "mcp_scope_denied", Message: "MCP subject scope does not allow access to workflow run " + run.ID}
 }
 
 func repositoryUsecaseFromCatalog(repository domainapp.Repository) repositoryusecase.Repository {

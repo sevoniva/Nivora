@@ -8,6 +8,9 @@ import (
 	"testing"
 
 	domainauth "github.com/sevoniva/nivora/internal/domain/auth"
+	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
+	releaseusecase "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 )
@@ -173,6 +176,15 @@ jobs:
 	if !strings.Contains(resource.Text, `"workflowPlan"`) || !strings.Contains(resource.Text, `"mutated": false`) {
 		t.Fatalf("workflow plan resource = %#v", resource)
 	}
+	detail, err := server.ReadResource(context.Background(), "nivora://workflows/"+record.WorkflowID)
+	if err != nil {
+		t.Fatalf("ReadResource workflow detail: %v", err)
+	}
+	for _, want := range []string{`"workflow"`, record.WorkflowID, record.ID, `"mutated": false`} {
+		if !strings.Contains(detail.Text, want) {
+			t.Fatalf("workflow detail missing %q: %s", want, detail.Text)
+		}
+	}
 }
 
 func TestMCPWorkflowRunResourcesReadGuardedRunMetadata(t *testing.T) {
@@ -221,4 +233,146 @@ jobs:
 			t.Fatalf("workflow run resource missing %q: %s", want, resource.Text)
 		}
 	}
+}
+
+func TestMCPPipelineRunDAGAliasIsReadOnly(t *testing.T) {
+	server := newTestMCPServer(t, domainauth.RoleDeveloper, "mcp-local")
+	result, err := server.services.Workflows.Run(context.Background(), workflowusecase.RunInput{
+		Content: `
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: mcp-dag
+on: [manual]
+jobs:
+  build:
+    steps:
+      - name: build
+        run: echo build
+  test:
+    needs: [build]
+    steps:
+      - name: test
+        run: echo test
+`,
+		ProjectID:        "project-mcp",
+		Confirm:          true,
+		AllowPipelineRun: true,
+	}, server.services.Pipelines)
+	if err != nil {
+		t.Fatalf("run workflow: %v", err)
+	}
+	resource, err := server.ReadResource(context.Background(), "nivora://pipeline-runs/"+result.PipelineRun.Run.ID+"/dag")
+	if err != nil {
+		t.Fatalf("ReadResource pipeline-run dag: %v", err)
+	}
+	for _, want := range []string{`"nodes"`, `"edges"`, `"pipelineRun"`, `"jobRun"`, `"stepRun"`, `"mutated": false`} {
+		if !strings.Contains(resource.Text, want) {
+			t.Fatalf("pipeline dag missing %q: %s", want, resource.Text)
+		}
+	}
+}
+
+func TestMCPDeploymentAndReleasePlanResourcesAreReadOnly(t *testing.T) {
+	server, deployments := newTestMCPServerAndDeploymentService(t, domainauth.RoleMaintainer, "mcp-local")
+	manifest := writeMCPDeploymentManifest(t)
+	deploymentResult, err := deployments.CreateAndRun(context.Background(), deploymentusecase.CreateRunInput{
+		ProjectID: "project-mcp",
+		Definition: deploymentusecase.Definition{
+			APIVersion: "nivora.io/v1alpha1",
+			Kind:       "Deployment",
+			Metadata:   deploymentusecase.Metadata{Name: "mcp-plan"},
+			Spec: deploymentusecase.Spec{
+				Application: "demo",
+				Environment: "staging",
+				Target:      deploymentusecase.Target{Type: "kubernetes-yaml", Name: "dry-run", Namespace: "default"},
+				Manifests:   []string{manifest},
+				Options:     deploymentusecase.Options{DryRun: true, Apply: false},
+			},
+		},
+	})
+	if err != nil {
+		t.Fatalf("create deployment: %v", err)
+	}
+	deploymentPlan, err := server.ReadResource(context.Background(), "nivora://deployment-plans/"+deploymentResult.Record.Run.ID)
+	if err != nil {
+		t.Fatalf("ReadResource deployment plan: %v", err)
+	}
+	for _, want := range []string{`"deploymentPlan"`, deploymentResult.Record.Run.ID, `"mutated": false`} {
+		if !strings.Contains(deploymentPlan.Text, want) {
+			t.Fatalf("deployment plan missing %q: %s", want, deploymentPlan.Text)
+		}
+	}
+
+	releaseDefinition := releaseusecase.Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "ReleaseOrchestration",
+		Metadata:   releaseusecase.Metadata{Name: "mcp-release-plan"},
+		Spec: releaseusecase.Spec{
+			Environment: "staging",
+			Strategy:    releaseusecase.StrategyPlanOnly,
+			Release: artifactusecase.ReleaseDefinition{
+				APIVersion: "nivora.io/v1alpha1",
+				Kind:       "Release",
+				Metadata:   artifactusecase.ReleaseMetadata{Name: "mcp-release"},
+				Spec: artifactusecase.ReleaseSpec{
+					Version:     "1.0.0",
+					Application: "demo",
+					Environment: "staging",
+					Artifacts: []artifactusecase.ReleaseArtifactSpec{{
+						Name:      "demo",
+						Type:      "image",
+						Required:  true,
+						Reference: "registry.example.com/demo/app@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+					}},
+				},
+			},
+			Targets: []releaseusecase.TargetSpec{{
+				Name: "noop",
+				Type: "noop",
+				Deployment: deploymentusecase.Definition{
+					APIVersion: "nivora.io/v1alpha1",
+					Kind:       "Deployment",
+					Metadata:   deploymentusecase.Metadata{Name: "mcp-release-deploy"},
+					Spec: deploymentusecase.Spec{
+						Application: "demo",
+						Environment: "staging",
+						Target:      deploymentusecase.Target{Type: "kubernetes-yaml", Name: "dry-run", Namespace: "default"},
+						Manifests:   []string{manifest},
+						Options:     deploymentusecase.Options{DryRun: true, Apply: false},
+					},
+				},
+			}},
+		},
+	}
+	releasePlanRecord, err := server.services.Releases.Plan(context.Background(), releaseusecase.PlanInput{Definition: releaseDefinition, ProjectID: "project-mcp"})
+	if err != nil {
+		t.Fatalf("plan release: %v", err)
+	}
+	releasePlan, err := server.ReadResource(context.Background(), "nivora://release-plans/"+releasePlanRecord.Plan.ID)
+	if err != nil {
+		t.Fatalf("ReadResource release plan: %v", err)
+	}
+	for _, want := range []string{`"releasePlan"`, releasePlanRecord.Plan.ID, `"deploymentPlans"`, `"mutated": false`} {
+		if !strings.Contains(releasePlan.Text, want) {
+			t.Fatalf("release plan missing %q: %s", want, releasePlan.Text)
+		}
+	}
+}
+
+func writeMCPDeploymentManifest(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "resources.yaml")
+	if err := os.WriteFile(path, []byte(`
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: mcp-plan
+  namespace: default
+data:
+  app: demo
+`), 0o600); err != nil {
+		t.Fatalf("write deployment manifest: %v", err)
+	}
+	return path
 }

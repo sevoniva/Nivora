@@ -125,11 +125,15 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://repositories/{id}/intelligence", "Repository intelligence", "Latest repository intelligence by id"),
 		resource("nivora://repositories/{id}/devops-plan", "Repository DevOps plan", "Plan-only build, test, package, security, release-candidate, and deployment summary by repository id"),
 		resource("nivora://workflows", "Workflows", "Stored workflow summaries visible to the MCP subject"),
+		resource("nivora://workflows/{id}", "Workflow", "Stored workflow summary by workflow id"),
 		resource("nivora://workflows/{id}/plan", "Workflow plan", "Stored workflow plan record by id"),
 		resource("nivora://workflows/runs", "Workflow runs", "Guarded WorkflowRun metadata visible to the MCP subject"),
 		resource("nivora://workflows/runs/{id}", "Workflow run", "Guarded WorkflowRun metadata by id"),
 		resource("nivora://pipelines/definitions", "Pipeline definitions", "Pipeline definition catalog"),
 		resource("nivora://pipelines/definitions/{id}", "Pipeline definition", "Pipeline definition record by id"),
+		resource("nivora://pipeline-runs/{id}/dag", "PipelineRun DAG", "PipelineRun graph nodes and edges by id"),
+		resource("nivora://pipeline-runs/{id}/artifacts", "PipelineRun artifacts", "PipelineRun artifact metadata alias by id"),
+		resource("nivora://pipeline-runs/{id}/annotations", "PipelineRun annotations", "PipelineRun annotation metadata alias by id"),
 		resource("nivora://pipelines/runs/{id}", "PipelineRun", "PipelineRun record by id"),
 		resource("nivora://pipelines/runs/{id}/timeline", "PipelineRun timeline", "PipelineRun timeline by id"),
 		resource("nivora://pipelines/runs/{id}/logs", "PipelineRun logs", "PipelineRun logs by id"),
@@ -137,11 +141,13 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://pipelines/runs/{id}/caches", "PipelineRun caches", "PipelineRun cache metadata by id"),
 		resource("nivora://pipelines/runs/{id}/annotations", "PipelineRun annotations", "PipelineRun annotations by id"),
 		resource("nivora://pipelines/runs/{id}/summary", "PipelineRun summary", "PipelineRun artifact, cache, annotation, and summary metadata by id"),
+		resource("nivora://deployment-plans/{id}", "DeploymentPlan", "DeploymentPlan by DeploymentRun id"),
 		resource("nivora://deployments/{id}", "DeploymentRun", "DeploymentRun record by id"),
 		resource("nivora://deployments/{id}/timeline", "DeploymentRun timeline", "DeploymentRun timeline by id"),
 		resource("nivora://deployments/{id}/resources", "Deployment resources", "Deployment resource inventory by id"),
 		resource("nivora://deployments/{id}/health", "Deployment health", "Deployment health by id"),
 		resource("nivora://deployments/{id}/diff", "Deployment diff", "Deployment diff by id"),
+		resource("nivora://release-plans/{id}", "ReleasePlan", "ReleasePlan by plan id"),
 		resource("nivora://releases", "Releases", "Filtered Release inventory visible to the MCP subject"),
 		resource("nivora://releases/{id}", "Release", "Release record by id"),
 		resource("nivora://artifacts", "Artifacts", "Release-bound artifact inventory"),
@@ -455,7 +461,11 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string, query url.
 	case strings.HasPrefix(uri, "nivora://workflows/runs/"):
 		return s.workflowRunResource(ctx, strings.TrimPrefix(uri, "nivora://workflows/runs/"))
 	case strings.HasPrefix(uri, "nivora://workflows/"):
-		return s.workflowPlanResource(ctx, strings.TrimPrefix(uri, "nivora://workflows/"))
+		rest := strings.TrimPrefix(uri, "nivora://workflows/")
+		if strings.HasSuffix(rest, "/plan") {
+			return s.workflowPlanResource(ctx, rest)
+		}
+		return s.workflowResource(ctx, rest)
 	case uri == "nivora://pipelines/definitions":
 		page, err := mcpPageFromQuery(query)
 		if err != nil {
@@ -472,10 +482,16 @@ func (s *Server) readResourcePayload(ctx context.Context, uri string, query url.
 			return nil, err
 		}
 		return definition, nil
+	case strings.HasPrefix(uri, "nivora://pipeline-runs/"):
+		return s.pipelineResource(ctx, strings.TrimPrefix(uri, "nivora://pipeline-runs/"))
 	case strings.HasPrefix(uri, "nivora://pipelines/runs/"):
 		return s.pipelineResource(ctx, strings.TrimPrefix(uri, "nivora://pipelines/runs/"))
+	case strings.HasPrefix(uri, "nivora://deployment-plans/"):
+		return s.deploymentPlanResource(ctx, strings.TrimPrefix(uri, "nivora://deployment-plans/"))
 	case strings.HasPrefix(uri, "nivora://deployments/"):
 		return s.deploymentResource(ctx, strings.TrimPrefix(uri, "nivora://deployments/"))
+	case strings.HasPrefix(uri, "nivora://release-plans/"):
+		return s.releasePlanResource(ctx, strings.TrimPrefix(uri, "nivora://release-plans/"))
 	case uri == "nivora://releases":
 		page, err := mcpPageFromQuery(query)
 		if err != nil {
@@ -565,6 +581,17 @@ func readProjectFile(path string) ([]byte, error) {
 }
 
 func (s *Server) pipelineResource(ctx context.Context, rest string) (any, error) {
+	if strings.HasSuffix(rest, "/dag") {
+		id := strings.TrimSuffix(rest, "/dag")
+		record, err := s.services.Pipelines.Get(ctx, id)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensurePipelineScope(record, "pipeline run "+id); err != nil {
+			return nil, err
+		}
+		return pipelineDAGResource(record), nil
+	}
 	if strings.HasSuffix(rest, "/timeline") {
 		id := strings.TrimSuffix(rest, "/timeline")
 		record, err := s.services.Pipelines.Get(ctx, id)
@@ -646,6 +673,88 @@ func (s *Server) pipelineResource(ctx context.Context, rest string) (any, error)
 	return record, nil
 }
 
+func pipelineDAGResource(record pipelineusecase.RunRecord) map[string]any {
+	nodes := []map[string]any{{
+		"id":     record.Run.ID,
+		"type":   "pipelineRun",
+		"label":  record.Pipeline.Name,
+		"status": string(record.Run.Status),
+	}}
+	edges := make([]map[string]any, 0)
+	var previousStageID string
+	for stageIndex, stage := range record.Stages {
+		stageID := stage.Stage.ID
+		nodes = append(nodes, map[string]any{
+			"id":     stageID,
+			"type":   "stageRun",
+			"label":  stage.Stage.Name,
+			"status": string(stage.Stage.Status),
+			"metadata": map[string]any{
+				"order": stageIndex,
+			},
+		})
+		edges = append(edges, map[string]any{"id": "edge-" + record.Run.ID + "-" + stageID, "source": record.Run.ID, "target": stageID, "label": "contains"})
+		if previousStageID != "" {
+			edges = append(edges, map[string]any{"id": "edge-" + previousStageID + "-" + stageID, "source": previousStageID, "target": stageID, "label": "next"})
+		}
+		previousStageID = stageID
+		for jobIndex, job := range stage.Jobs {
+			jobID := job.Job.ID
+			nodes = append(nodes, map[string]any{
+				"id":     jobID,
+				"type":   "jobRun",
+				"label":  job.Job.Name,
+				"status": string(job.Job.Status),
+				"metadata": map[string]any{
+					"order":    jobIndex,
+					"runnerId": job.Job.RunnerID,
+					"attempt":  job.Job.Attempt,
+				},
+			})
+			edges = append(edges, map[string]any{"id": "edge-" + stageID + "-" + jobID, "source": stageID, "target": jobID, "label": "contains"})
+			for stepIndex, step := range job.Steps {
+				stepID := step.ID
+				nodes = append(nodes, map[string]any{
+					"id":     stepID,
+					"type":   "stepRun",
+					"label":  step.Name,
+					"status": string(step.Status),
+					"metadata": map[string]any{
+						"order":      stepIndex,
+						"stageOrder": stageIndex,
+					},
+				})
+				edges = append(edges, map[string]any{"id": "edge-" + jobID + "-" + stepID, "source": jobID, "target": stepID, "label": "contains"})
+			}
+		}
+	}
+	return map[string]any{
+		"pipelineRunId": record.Run.ID,
+		"nodes":         nodes,
+		"edges":         edges,
+		"count": map[string]int{
+			"nodes": len(nodes),
+			"edges": len(edges),
+		},
+		"mutated": false,
+	}
+}
+
+func (s *Server) deploymentPlanResource(ctx context.Context, id string) (any, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, OperationError{Code: "invalid_request", Message: "deployment plan id is required"}
+	}
+	record, err := s.services.Deployments.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureDeploymentScope(record, "deployment plan "+id); err != nil {
+		return nil, err
+	}
+	return map[string]any{"deploymentPlan": record.Plan, "deploymentRunId": record.Run.ID, "mutated": false}, nil
+}
+
 func (s *Server) deploymentResource(ctx context.Context, rest string) (any, error) {
 	switch {
 	case strings.HasSuffix(rest, "/timeline"):
@@ -698,6 +807,21 @@ func (s *Server) deploymentResource(ctx context.Context, rest string) (any, erro
 		}
 		return record, nil
 	}
+}
+
+func (s *Server) releasePlanResource(ctx context.Context, id string) (any, error) {
+	id = strings.TrimSpace(id)
+	if id == "" {
+		return nil, OperationError{Code: "invalid_request", Message: "release plan id is required"}
+	}
+	record, err := s.services.Releases.GetPlanByID(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := s.ensureReleasePlanScope(record, "release plan "+id); err != nil {
+		return nil, err
+	}
+	return map[string]any{"releasePlan": record, "mutated": false}, nil
 }
 
 func (s *Server) releaseExecutionResource(ctx context.Context, rest string) (any, error) {
@@ -2080,6 +2204,27 @@ func (s *Server) workflowPlanResource(ctx context.Context, rest string) (any, er
 	return map[string]any{"workflowPlan": record, "mutated": false}, nil
 }
 
+func (s *Server) workflowResource(ctx context.Context, id string) (any, error) {
+	id = strings.TrimSpace(strings.TrimSuffix(id, "/"))
+	if id == "" {
+		return nil, OperationError{Code: "invalid_request", Message: "workflow id is required"}
+	}
+	summaries, err := s.services.Workflows.ListWorkflows(ctx, workflowusecase.PlanListFilter{WorkflowID: id, Limit: 100})
+	if err != nil {
+		return nil, err
+	}
+	for _, summary := range summaries {
+		if summary.WorkflowID != id {
+			continue
+		}
+		if err := s.ensureWorkflowSummaryScope(ctx, summary); err != nil {
+			return nil, err
+		}
+		return map[string]any{"workflow": summary, "mutated": false}, nil
+	}
+	return nil, OperationError{Code: "mcp_resource_not_found", Message: "workflow " + id + " not found"}
+}
+
 func (s *Server) workflowListResource(ctx context.Context, page mcpPage) (any, error) {
 	summaries, err := s.services.Workflows.ListWorkflows(ctx, workflowusecase.PlanListFilter{Limit: 100})
 	if err != nil {
@@ -2088,20 +2233,16 @@ func (s *Server) workflowListResource(ctx context.Context, page mcpPage) (any, e
 	visible := make([]workflowusecase.WorkflowSummary, 0, len(summaries))
 	warnings := []string{}
 	for _, summary := range summaries {
-		if summary.RepositoryID == "" {
-			if isGlobalSubject(s.services.Subject) {
-				visible = append(visible, summary)
-			}
-			continue
-		}
-		repository, err := s.services.Catalog.GetRepository(ctx, summary.RepositoryID)
-		if err != nil {
-			warnings = append(warnings, "repository metadata unavailable for workflow "+summary.WorkflowID)
-			continue
-		}
-		if s.ensureSubjectScope("workflow "+summary.WorkflowID, repository.ProjectID, "") == nil {
+		err := s.ensureWorkflowSummaryScope(ctx, summary)
+		if err == nil {
 			visible = append(visible, summary)
+			continue
 		}
+		var opErr OperationError
+		if errors.As(err, &opErr) && opErr.Code == "mcp_scope_denied" {
+			continue
+		}
+		warnings = append(warnings, "workflow scope metadata unavailable for "+summary.WorkflowID)
 	}
 	limited, pagination, truncated := paginateMCPItems(visible, page)
 	if truncated {
@@ -2114,6 +2255,20 @@ func (s *Server) workflowListResource(ctx context.Context, page mcpPage) (any, e
 		"warnings":   warnings,
 		"mutated":    false,
 	}, nil
+}
+
+func (s *Server) ensureWorkflowSummaryScope(ctx context.Context, summary workflowusecase.WorkflowSummary) error {
+	if summary.RepositoryID != "" {
+		repository, err := s.services.Catalog.GetRepository(ctx, summary.RepositoryID)
+		if err != nil {
+			return err
+		}
+		return s.ensureSubjectScope("workflow "+summary.WorkflowID, repository.ProjectID, "")
+	}
+	if isGlobalSubject(s.services.Subject) {
+		return nil
+	}
+	return OperationError{Code: "mcp_scope_denied", Message: "MCP subject scope does not allow access to workflow " + summary.WorkflowID}
 }
 
 func (s *Server) workflowRunListResource(ctx context.Context, page mcpPage) (any, error) {
@@ -2269,6 +2424,18 @@ func (s *Server) ensureReleaseExecutionScope(record releaseusecase.ExecutionReco
 		}
 	}
 	environmentID := firstNonEmpty(record.Execution.EnvironmentID, record.Plan.EnvironmentID)
+	return s.ensureSubjectScope(resource, projectID, environmentID)
+}
+
+func (s *Server) ensureReleasePlanScope(record releaseusecase.PlanRecord, resource string) error {
+	projectID := ""
+	for _, target := range record.Plan.Targets {
+		if target.ProjectID != "" {
+			projectID = target.ProjectID
+			break
+		}
+	}
+	environmentID := record.Plan.EnvironmentID
 	return s.ensureSubjectScope(resource, projectID, environmentID)
 }
 

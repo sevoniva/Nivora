@@ -261,6 +261,10 @@ func (s *Service) GetPlan(ctx context.Context, releaseID string) (PlanRecord, er
 	return s.store.GetLatestPlanForRelease(ctx, releaseID)
 }
 
+func (s *Service) GetPlanByID(ctx context.Context, id string) (PlanRecord, error) {
+	return s.store.GetPlan(ctx, id)
+}
+
 func (s *Service) ListExecutions(ctx context.Context, releaseID string) ([]ExecutionRecord, error) {
 	return s.store.ListExecutions(ctx, releaseID)
 }

@@ -12,6 +12,8 @@ Phase 7.1 adds external secret provider foundations for Kubernetes Secrets and c
 
 Cloud provider placeholders do not import cloud SDKs and do not require credentials. Future real adapters must resolve credentials through `SecretRef` or `CredentialRef` and must keep SDK usage inside adapter packages.
 
+Provider validation responses are treated as untrusted adapter output. Nivora sanitizes provider status fields before returning them through the API or CLI, including diagnostic messages, capability strings, and metadata values that contain credential-like markers.
+
 ## Rotation
 
 Rotation is modeled through the `SecretProvider` port. A successful rotation updates provider metadata such as version and emits audit/events, but the rotated value must not be logged, audited, or returned in API responses.
@@ -30,6 +32,7 @@ These checks are intentionally small. They help prevent accidental use of a secr
 - Do not commit secret values, kubeconfigs, tokens, private keys, or realistic fake credentials.
 - Do not log secret values.
 - Do not return secret values from normal APIs.
+- Do not return provider diagnostic output until it has passed redaction.
 - Use environment variable names and placeholders in examples.
 
 Nivora remains a hardened beta-candidate foundation and is not production-ready.

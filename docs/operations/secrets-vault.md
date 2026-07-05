@@ -7,11 +7,12 @@ Phase 7.1 adds a Vault provider foundation for Nivora's `SecretProvider` port. T
 - The builtin provider remains the default development provider.
 - The Vault adapter exposes provider identity, mount metadata, and capability status.
 - Secret values are never returned through normal APIs.
+- Provider validation status is sanitized before it reaches API or CLI responses. Diagnostic fields that look like tokens, passwords, client secrets, authorization headers, private keys, or kubeconfigs are redacted.
 - Vault-specific values such as tokens must come from future SecretRef/CredentialRef or runtime configuration, never committed files.
 
 ## Validation
 
-Provider validation reports whether a Vault address was configured. It does not contact a live Vault server yet, so it is safe for default tests and local development without Vault.
+Provider validation reports whether a Vault address was configured. It does not contact a live Vault server yet, so it is safe for default tests and local development without Vault. A successful validation response is only a configuration/status check, not a production Vault readiness proof.
 
 ## Future Work
 

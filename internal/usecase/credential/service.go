@@ -94,6 +94,7 @@ func (s *Service) ValidateSecretProvider(ctx context.Context, actorID string) (p
 		return portsecret.ProviderStatus{}, errors.New("secret provider is not configured")
 	}
 	status, err := s.secrets.ValidateProvider(ctx)
+	status = sanitizeProviderStatus(status)
 	if err != nil {
 		return status, err
 	}
@@ -300,6 +301,16 @@ func sanitizeRef(ref domaincredential.SecretRef) domaincredential.SecretRef {
 		ref.Provider = "builtin"
 	}
 	return ref
+}
+
+func sanitizeProviderStatus(status portsecret.ProviderStatus) portsecret.ProviderStatus {
+	status.Provider = crypto.RedactString(status.Provider)
+	status.Message = crypto.RedactString(status.Message)
+	status.Metadata = crypto.RedactMap(status.Metadata)
+	for i, capability := range status.Capabilities {
+		status.Capabilities[i] = crypto.RedactString(capability)
+	}
+	return status
 }
 
 func validateUsagePolicy(ref domaincredential.SecretRef, usage domaincredential.SecretUsage) error {

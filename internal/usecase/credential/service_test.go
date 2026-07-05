@@ -2,6 +2,8 @@ package credential
 
 import (
 	"context"
+	"encoding/json"
+	"strings"
 	"testing"
 
 	domaincredential "github.com/sevoniva/nivora/internal/domain/credential"
@@ -108,6 +110,52 @@ func TestValidateSecretProvider(t *testing.T) {
 	}
 }
 
+func TestValidateSecretProviderRedactsProviderStatus(t *testing.T) {
+	provider := newFakeSecretProvider()
+	provider.status = portsecret.ProviderStatus{
+		Provider:     "vault",
+		Configured:   true,
+		Reachable:    false,
+		Capabilities: []string{"get", "client_secret_debug"},
+		Message:      "client_secret=provider-secret-value",
+		Metadata: map[string]string{
+			"mount":         "secret",
+			"token":         "provider-token-value",
+			"diagnosticURL": "https://vault.example.invalid?password=provider-password-value",
+		},
+	}
+	service := NewService(NewMemoryStore(), provider, nil)
+	status, err := service.ValidateSecretProvider(context.Background(), "tester")
+	if err != nil {
+		t.Fatalf("validate provider: %v", err)
+	}
+	body, err := json.Marshal(status)
+	if err != nil {
+		t.Fatalf("marshal status: %v", err)
+	}
+	for _, forbidden := range []string{"provider-secret-value", "provider-token-value", "provider-password-value", "client_secret_debug"} {
+		if strings.Contains(string(body), forbidden) {
+			t.Fatalf("provider status leaked sensitive value %q: %s", forbidden, body)
+		}
+	}
+	if status.Message != "[REDACTED]" || status.Metadata["token"] != "[REDACTED]" || status.Metadata["diagnosticURL"] != "[REDACTED]" || status.Capabilities[1] != "[REDACTED]" {
+		t.Fatalf("provider status was not redacted: %#v", status)
+	}
+	audits, err := service.Audits(context.Background())
+	if err != nil {
+		t.Fatalf("audits: %v", err)
+	}
+	auditBody, err := json.Marshal(audits)
+	if err != nil {
+		t.Fatalf("marshal audits: %v", err)
+	}
+	for _, forbidden := range []string{"provider-secret-value", "provider-token-value", "provider-password-value"} {
+		if strings.Contains(string(auditBody), forbidden) {
+			t.Fatalf("provider validation audit leaked sensitive value %q: %s", forbidden, auditBody)
+		}
+	}
+}
+
 func TestListCredentialsFiltersByScope(t *testing.T) {
 	service := NewService(NewMemoryStore(), newFakeSecretProvider(), nil)
 	refA, err := service.PutSecret(context.Background(), SecretCreateInput{Name: "a", ScopeType: domaincredential.ScopeProject, ScopeID: "project-a", Value: "a-value"})
@@ -166,6 +214,7 @@ type fakeSecretProvider struct {
 	values map[string][]byte
 	refs   map[string]domaincredential.SecretRef
 	usages []domaincredential.SecretUsage
+	status portsecret.ProviderStatus
 }
 
 func newFakeSecretProvider() *fakeSecretProvider {
@@ -216,5 +265,8 @@ func (f *fakeSecretProvider) RecordUsage(ctx context.Context, usage domaincreden
 }
 
 func (f *fakeSecretProvider) ValidateProvider(ctx context.Context) (portsecret.ProviderStatus, error) {
+	if f.status.Provider != "" {
+		return f.status, ctx.Err()
+	}
 	return portsecret.ProviderStatus{Provider: "fake", Configured: true, Reachable: true}, ctx.Err()
 }

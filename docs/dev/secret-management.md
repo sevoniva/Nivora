@@ -34,6 +34,8 @@ go run ./cmd/nivora secret provider validate --token-env NIVORA_AUTH_TOKEN
 
 Provider validation reports the configured provider name, capability metadata, and whether the provider is configured. It must not return secret values.
 
+Provider adapters may include diagnostic messages or metadata in their status response. Nivora sanitizes the returned provider, message, capability, and metadata fields before the status reaches the API or CLI. Values containing markers such as `token`, `password`, `client_secret`, `private_key`, `authorization`, or `kubeconfig` are replaced with `[REDACTED]`.
+
 ## Create Credential Metadata
 
 ```bash
@@ -55,6 +57,7 @@ Validation only checks that the `SecretRef` can be resolved by the configured pr
 - The builtin provider is development-only and in-memory.
 - Vault, Kubernetes Secret, and cloud KMS providers are foundations or placeholders in Phase 7.1.
 - External provider validation does not require local Vault, Kubernetes, or cloud services in CI.
+- Provider validation is a metadata check. It is not proof that a future external provider can read or write production secrets.
 - Normal APIs must not return secret values.
 - Audit records track secret operations and usage, not values.
 - Production-grade external secret storage, enterprise KMS integration, and provider-specific credential workflows remain future work.

@@ -1305,6 +1305,10 @@ paths:
   /api/v1/artifact-registries/validate:
     post:
       summary: Validate generic OCI artifact registry configuration
+      description: >
+        Validates generic OCI registry configuration shape with the same endpoint safety rules used by saved registry metadata.
+        HTTP endpoints require `insecure: true`; endpoint URLs must not contain inline username/password credentials.
+        `credentialRef` is accepted as metadata only and secret values are not resolved or returned.
       requestBody:
         required: true
         content:
@@ -6130,11 +6134,13 @@ components:
           enum: [oci]
         endpoint:
           type: string
+          description: OCI registry host[:port] or URL. Inline username/password userinfo is rejected; use credentialRef instead.
         insecure:
           type: boolean
           default: false
         credentialRef:
           type: string
+          description: CredentialRef id only. The validation route does not resolve or return secret values.
     Artifact:
       type: object
       properties:

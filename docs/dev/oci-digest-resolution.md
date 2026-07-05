@@ -47,3 +47,4 @@ nivora artifact registry create \
 ```
 
 The registry catalog stores `CredentialRef` metadata only. Secret values must live in the secret provider and are not returned by registry APIs.
+Registry endpoints must not embed inline credentials such as `https://user:password@registry.example.com`; validation rejects that shape and points callers back to `CredentialRef`.

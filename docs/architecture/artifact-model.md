@@ -49,6 +49,6 @@ These checks are intentionally lightweight. They are not a substitute for regist
 
 ## Ports and Adapters
 
-The `ArtifactProvider` port owns registry-facing capabilities such as inspection, listing, credential validation, and digest resolution. Phase 6.2 includes a generic OCI foundation that can parse references locally and resolve manifest digests through the standard OCI registry manifest API when a registry endpoint is configured or present in the reference. Credentials are supplied through config, environment variables, or SecretProvider-backed refs; secret values must not be logged or returned by normal APIs.
+The `ArtifactProvider` port owns registry-facing capabilities such as inspection, listing, credential validation, and digest resolution. Phase 6.2 includes a generic OCI foundation that can parse references locally and resolve manifest digests through the standard OCI registry manifest API when a registry endpoint is configured or present in the reference. Credentials are supplied through config, environment variables, or SecretProvider-backed refs; secret values must not be logged or returned by normal APIs. Registry endpoint metadata must not contain inline username/password userinfo; catalog validation rejects that shape and requires `CredentialRef` metadata instead.
 
 Future adapters should remain behind the port and must not leak registry SDK types into domain or use case packages.

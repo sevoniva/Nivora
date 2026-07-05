@@ -56,3 +56,20 @@ func TestArtifactListHelpIncludesInventoryFilters(t *testing.T) {
 		}
 	}
 }
+
+func TestArtifactRegistryValidateHelpIncludesCredentialRef(t *testing.T) {
+	cmd := newArtifactRegistryValidateCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"--help"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("artifact registry validate help failed: %v", err)
+	}
+	help := out.String()
+	for _, flag := range []string{"--endpoint", "--insecure", "--credential-ref", "--token-env"} {
+		if !strings.Contains(help, flag) {
+			t.Fatalf("artifact registry validate help missing %s: %s", flag, help)
+		}
+	}
+}

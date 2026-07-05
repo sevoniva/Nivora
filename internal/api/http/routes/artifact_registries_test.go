@@ -101,3 +101,37 @@ func TestArtifactRegistryCatalogRoutes(t *testing.T) {
 		t.Fatalf("disabled validation should include warning: %s", rec.Body.String())
 	}
 }
+
+func TestArtifactRegistryConfigValidationRejectsInlineCredentials(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load config: %v", err)
+	}
+	router := newTestRouter(cfg)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/artifact-registries/validate", strings.NewReader(`{"name":"inline","type":"oci","endpoint":"https://user:pass@registry.example.com"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("validate inline credential status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "CredentialRef") {
+		t.Fatalf("inline credential rejection should point to CredentialRef: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "user") || strings.Contains(rec.Body.String(), "pass") {
+		t.Fatalf("validation response leaked inline credentials: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/artifact-registries/validate", strings.NewReader(`{"name":"local","type":"oci","endpoint":"http://localhost:30500","insecure":true,"credentialRef":"cred-registry"}`))
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("validate local status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "CredentialRef") || !strings.Contains(rec.Body.String(), "insecure") {
+		t.Fatalf("validation should warn about CredentialRef metadata and insecure registry: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "cred-registry") || strings.Contains(rec.Body.String(), "password") || strings.Contains(rec.Body.String(), "token") {
+		t.Fatalf("validation response leaked credential-like data: %s", rec.Body.String())
+	}
+}

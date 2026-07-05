@@ -3645,10 +3645,11 @@ func newArtifactRegistryValidateCommand() *cobra.Command {
 				return nil
 			}
 			body, err := json.Marshal(map[string]any{
-				"name":     input.Name,
-				"type":     input.Type,
-				"endpoint": input.Endpoint,
-				"insecure": input.Insecure,
+				"name":          input.Name,
+				"type":          input.Type,
+				"endpoint":      input.Endpoint,
+				"insecure":      input.Insecure,
+				"credentialRef": input.CredentialRef,
 			})
 			if err != nil {
 				return err
@@ -3665,6 +3666,7 @@ func newArtifactRegistryValidateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&input.Type, "type", "oci", "registry type, currently oci")
 	cmd.Flags().StringVar(&input.Endpoint, "endpoint", "", "registry endpoint")
 	cmd.Flags().BoolVar(&input.Insecure, "insecure", false, "allow HTTP registry endpoint for local development")
+	cmd.Flags().StringVar(&input.CredentialRef, "credential-ref", "", "CredentialRef id for registry access")
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
 	return cmd

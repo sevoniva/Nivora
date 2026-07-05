@@ -63,6 +63,42 @@ func TestArtifactRegistryCatalogValidation(t *testing.T) {
 	if _, err := service.Create(ctx, RegistryCreateInput{Endpoint: "registry.example.com"}); err == nil {
 		t.Fatal("expected missing name error")
 	}
+	if _, err := service.Create(ctx, RegistryCreateInput{Name: "inline-creds", Endpoint: "https://user:pass@registry.example.com"}); err == nil || strings.Contains(err.Error(), "user") || strings.Contains(err.Error(), "pass") {
+		t.Fatalf("expected inline credential rejection without leaking credential values, got %v", err)
+	}
+}
+
+func TestArtifactRegistryConfigValidationUsesCatalogRules(t *testing.T) {
+	result, err := ValidateRegistryConfig(RegistryCreateInput{
+		Name:          "harbor-compatible",
+		Endpoint:      "http://localhost:30500",
+		Insecure:      true,
+		CredentialRef: "cred-registry",
+	})
+	if err != nil {
+		t.Fatalf("validate registry config: %v", err)
+	}
+	if !result.Valid || result.Type != "oci" || !result.Insecure {
+		t.Fatalf("result = %#v", result)
+	}
+	if joined := strings.Join(result.Warnings, " "); !strings.Contains(joined, "insecure") || !strings.Contains(joined, "CredentialRef") {
+		t.Fatalf("warnings = %#v", result.Warnings)
+	}
+	if strings.Contains(strings.Join(result.Warnings, " "), "cred-registry") {
+		t.Fatalf("validation warning leaked CredentialRef id: %#v", result.Warnings)
+	}
+
+	result, err = ValidateRegistryConfig(RegistryCreateInput{Name: "inline", Endpoint: "https://user:pass@registry.example.com"})
+	if err == nil {
+		t.Fatal("expected inline credential validation error")
+	}
+	if result.Valid {
+		t.Fatalf("inline credential config should be invalid: %#v", result)
+	}
+	rendered := strings.Join(result.Warnings, " ") + " " + err.Error()
+	if strings.Contains(rendered, "user") || strings.Contains(rendered, "pass") {
+		t.Fatalf("validation leaked inline credential material: %s", rendered)
+	}
 }
 
 func TestArtifactRegistryRepositoryArtifacts(t *testing.T) {

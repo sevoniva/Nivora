@@ -154,6 +154,42 @@ func NewRegistryServiceWithProviderFactory(store RegistryStore, factory Registry
 	return service
 }
 
+func ValidateRegistryConfig(input RegistryCreateInput) (RegistryValidationResult, error) {
+	name := strings.TrimSpace(input.Name)
+	registryType := defaultRegistryType(input.Type)
+	endpoint := strings.TrimSpace(input.Endpoint)
+	if endpoint == "" {
+		endpoint = strings.TrimSpace(input.URL)
+	}
+	result := RegistryValidationResult{
+		Valid:    true,
+		Name:     name,
+		Type:     registryType,
+		Endpoint: endpoint,
+		Insecure: input.Insecure,
+		Enabled:  true,
+	}
+	if name == "" {
+		result.Valid = false
+		result.Warnings = append(result.Warnings, "registry name is required")
+	}
+	if input.Insecure {
+		result.Warnings = append(result.Warnings, "insecure OCI registry configuration is for local development only")
+	}
+	if strings.TrimSpace(input.CredentialRef) != "" {
+		result.Warnings = append(result.Warnings, "CredentialRef metadata was provided; secret values are not resolved or returned by validation")
+	}
+	if err := validateRegistryEndpoint(registryType, endpoint, input.Insecure); err != nil {
+		result.Valid = false
+		result.Warnings = append(result.Warnings, err.Error())
+		return result, err
+	}
+	if !result.Valid {
+		return result, fmt.Errorf("%w: registry configuration is invalid", ErrRegistryInvalid)
+	}
+	return result, nil
+}
+
 func (s *RegistryService) Create(ctx context.Context, input RegistryCreateInput) (domainartifact.ArtifactRegistry, error) {
 	name := strings.TrimSpace(input.Name)
 	if name == "" {
@@ -363,6 +399,9 @@ func validateRegistryEndpoint(registryType string, endpoint string, insecure boo
 	}
 	if parsed.Scheme != "http" && parsed.Scheme != "https" {
 		return fmt.Errorf("%w: registry endpoint scheme must be http or https", ErrRegistryInvalid)
+	}
+	if parsed.User != nil && parsed.User.String() != "" {
+		return fmt.Errorf("%w: registry endpoint must not contain inline credentials; use CredentialRef instead", ErrRegistryInvalid)
 	}
 	return nil
 }

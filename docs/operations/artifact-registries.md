@@ -24,6 +24,7 @@ Nivora still does not implement Harbor administration, Nexus/JFrog administratio
 
 - Registry access is optional and not required for CI.
 - `insecure: true` must be explicit for HTTP registries.
+- Registry endpoint URLs must not contain inline username/password material. Use `CredentialRef` metadata and a secret provider instead.
 - Credentials must not be committed.
 - CLI examples should use `--username-env`, `--password-env`, or `--token-env` rather than literal values.
 - Secret values are never returned by normal APIs and should not appear in logs or audit records.
@@ -59,6 +60,18 @@ go run ./cmd/nivora artifact resolve registry.example.com/team/app:1.0.0 \
   --username-env NIVORA_REGISTRY_USERNAME \
   --password-env NIVORA_REGISTRY_PASSWORD
 ```
+
+Validate registry metadata without contacting the registry:
+
+```bash
+go run ./cmd/nivora artifact registry validate \
+  --name local-oci \
+  --endpoint http://localhost:30500 \
+  --insecure \
+  --credential-ref cred-local-registry
+```
+
+Validation rejects endpoints such as `https://user:password@registry.example.com`; registry credentials belong behind `CredentialRef`/`SecretRef` boundaries.
 
 ## Release Binding
 

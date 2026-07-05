@@ -254,6 +254,9 @@ func TestTenantIsolationPipelineRunDetailRoutes(t *testing.T) {
 	tokenB := createScopedToken(t, auth, "pipeline-detail-b", domainauth.RoleDeveloper, "project", "project-b")
 	paths := []string{
 		"/api/v1/pipeline-runs/" + runID,
+		"/api/v1/pipeline-runs/" + runID + "/dag",
+		"/api/v1/pipeline-runs/" + runID + "/jobs",
+		"/api/v1/pipeline-runs/" + runID + "/steps",
 		"/api/v1/pipeline-runs/" + runID + "/logs",
 		"/api/v1/pipeline-runs/" + runID + "/artifacts",
 		"/api/v1/pipeline-runs/" + runID + "/caches",
@@ -945,6 +948,9 @@ func TestTenantIsolationRunnerAdminJobMutationRespectsEnvironmentScope(t *testin
 
 	paths := []string{
 		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID,
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/dag",
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/jobs",
+		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/steps",
 		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/logs",
 		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/artifacts",
 		"/api/v1/pipeline-runs/" + envProdRecord.Record.Run.ID + "/caches",
@@ -965,6 +971,9 @@ func TestTenantIsolationRunnerAdminJobMutationRespectsEnvironmentScope(t *testin
 
 	for _, path := range []string{
 		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID,
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/dag",
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/jobs",
+		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/steps",
 		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/logs",
 		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/artifacts",
 		"/api/v1/pipeline-runs/" + envDevRecord.Record.Run.ID + "/caches",

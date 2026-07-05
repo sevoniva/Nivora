@@ -2554,6 +2554,70 @@ paths:
                 $ref: "#/components/schemas/PipelineRunRecord"
         "404":
           description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/dag:
+    get:
+      summary: Get PipelineRun DAG graph metadata
+      description: Requires `project.read`. Returns a read-only graph derived from existing StageRun, JobRun, and StepRun records; it does not execute or mutate the run.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: PipelineRun graph metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pipelineRunId:
+                    type: string
+                  nodes:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GraphNode"
+                  edges:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/GraphEdge"
+        "404":
+          description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/jobs:
+    get:
+      summary: Get PipelineRun jobs
+      description: Requires `project.read`. Returns read-only JobRun records with their StepRun children; it does not claim jobs or mutate runner state.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: PipelineRun jobs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/JobRun"
+        "404":
+          description: PipelineRun not found
+  /api/v1/pipeline-runs/{id}/steps:
+    get:
+      summary: Get PipelineRun steps
+      description: Requires `project.read`. Returns read-only StepRun records flattened across the PipelineRun; it does not execute steps.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+        - $ref: "#/components/parameters/Limit"
+        - $ref: "#/components/parameters/Offset"
+      responses:
+        "200":
+          description: PipelineRun steps
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/StepRun"
+        "404":
+          description: PipelineRun not found
   /api/v1/pipeline-runs/{id}/logs:
     get:
       summary: Get captured PipelineRun logs

@@ -48,6 +48,36 @@ func TestPipelineRunRoutes(t *testing.T) {
 		t.Fatalf("logs body = %s", rec.Body.String())
 	}
 
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs/"+runID+"/dag", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("dag status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"nodes"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"edges"`)) {
+		t.Fatalf("dag body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs/"+runID+"/jobs", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("jobs status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"job"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"steps"`)) {
+		t.Fatalf("jobs body = %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs/"+runID+"/steps?limit=1", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("steps status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !bytes.Contains(rec.Body.Bytes(), []byte(`"pagination"`)) || !bytes.Contains(rec.Body.Bytes(), []byte(`"items"`)) {
+		t.Fatalf("steps body = %s", rec.Body.String())
+	}
+
 	for _, path := range []string{"/artifacts", "/caches", "/annotations"} {
 		req = httptest.NewRequest(http.MethodGet, "/api/v1/pipeline-runs/"+runID+path, nil)
 		rec = httptest.NewRecorder()

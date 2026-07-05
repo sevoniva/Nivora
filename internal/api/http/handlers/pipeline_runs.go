@@ -100,6 +100,55 @@ func GetPipelineRunLogs(service *pipelineusecase.Service) http.HandlerFunc {
 	}
 }
 
+func GetPipelineRunDAG(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, ok := getAuthorizedPipelineRecord(w, r, service)
+		if !ok {
+			return
+		}
+		nodes, edges := pipelineDAG(record)
+		RespondJSON(w, http.StatusOK, map[string]any{
+			"pipelineRunId": record.Run.ID,
+			"nodes":         nodes,
+			"edges":         edges,
+		})
+	}
+}
+
+func GetPipelineRunJobs(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, ok := getAuthorizedPipelineRecord(w, r, service)
+		if !ok {
+			return
+		}
+		jobs := make([]pipelineusecase.JobRecord, 0)
+		for _, stage := range record.Stages {
+			jobs = append(jobs, stage.Jobs...)
+		}
+		if respondPaginated(w, r, jobs, nil) {
+			return
+		}
+	}
+}
+
+func GetPipelineRunSteps(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, ok := getAuthorizedPipelineRecord(w, r, service)
+		if !ok {
+			return
+		}
+		steps := make([]domainpipeline.StepRun, 0)
+		for _, stage := range record.Stages {
+			for _, job := range stage.Jobs {
+				steps = append(steps, job.Steps...)
+			}
+		}
+		if respondPaginated(w, r, steps, nil) {
+			return
+		}
+	}
+}
+
 func GetPipelineRunArtifacts(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {

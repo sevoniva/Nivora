@@ -31,6 +31,30 @@ func TestDefaultRegistryListsBuiltInPlugins(t *testing.T) {
 	}
 }
 
+func TestDefaultRegistryBuiltInsDeclareIntegrationBoundaryMetadata(t *testing.T) {
+	registry := NewDefaultRegistry()
+	plugins, err := registry.List(context.Background())
+	if err != nil {
+		t.Fatalf("list plugins: %v", err)
+	}
+	for _, plugin := range plugins {
+		for _, key := range []string{"maturity", "adapterKind", "boundary", "credentialMode", "networkAccess", "safe", "defaultMutation"} {
+			if plugin.Metadata[key] == "" {
+				t.Fatalf("%s missing metadata %s: %#v", plugin.Name, key, plugin.Metadata)
+			}
+		}
+		if plugin.Metadata["safe"] != "true" {
+			t.Fatalf("%s must be safe by default: %#v", plugin.Name, plugin.Metadata)
+		}
+		if plugin.Metadata["defaultMutation"] != "false" {
+			t.Fatalf("%s must not default to external mutation: %#v", plugin.Name, plugin.Metadata)
+		}
+		if plugin.Lifecycle.Execute {
+			t.Fatalf("%s built-in lifecycle must not execute external actions by default", plugin.Name)
+		}
+	}
+}
+
 func TestRegistryCapabilityMatching(t *testing.T) {
 	registry := NewDefaultRegistry()
 	matches, err := registry.MatchCapability(context.Background(), "artifact.resolve_digest")

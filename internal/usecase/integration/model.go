@@ -17,8 +17,13 @@ type Integration struct {
 	Status                 string                  `json:"status"`
 	Protocol               string                  `json:"protocol"`
 	Maturity               string                  `json:"maturity"`
+	AdapterKind            string                  `json:"adapterKind"`
+	Boundary               string                  `json:"boundary"`
+	CredentialMode         string                  `json:"credentialMode"`
+	NetworkAccess          string                  `json:"networkAccess"`
 	Capabilities           []IntegrationCapability `json:"capabilities"`
 	SafeByDefault          bool                    `json:"safeByDefault"`
+	DefaultMutation        bool                    `json:"defaultMutation"`
 	MutatesExternalSystems bool                    `json:"mutatesExternalSystems"`
 	Notes                  []string                `json:"notes,omitempty"`
 	UpdatedAt              time.Time               `json:"updatedAt,omitempty"`

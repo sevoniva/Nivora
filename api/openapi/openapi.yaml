@@ -5887,12 +5887,30 @@ components:
           type: string
         maturity:
           type: string
-          enum: [foundation, placeholder, experimental]
+          enum: [partial, foundation, placeholder, experimental]
+        adapterKind:
+          type: string
+          description: Honest adapter implementation category such as foundation, noop, skeleton, fake, or placeholder.
+          enum: [foundation, noop, skeleton, fake, placeholder]
+        boundary:
+          type: string
+          description: Safety boundary for the integration entry; metadata-only and noop entries do not call external systems.
+          enum: [read-only, metadata-only, plan-only, guarded-action, noop, development-only]
+        credentialMode:
+          type: string
+          description: How credentials may be represented. Reference-only modes must not return secret values.
+          enum: [none, credential_ref_only, secret_ref_only]
+        networkAccess:
+          type: string
+          description: Whether baseline use requires network access. Optional access must be explicitly configured.
+          enum: [none, optional]
         capabilities:
           type: array
           items:
             $ref: "#/components/schemas/PluginCapability"
         safeByDefault:
+          type: boolean
+        defaultMutation:
           type: boolean
         mutatesExternalSystems:
           type: boolean

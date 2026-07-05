@@ -47,6 +47,20 @@ Examples:
 
 The registry validates manifest shape and compatibility. It does not load code, install packages, download artifacts, or execute untrusted binaries.
 
+## Integration Boundaries
+
+Built-in plugins that appear in the integration index must declare conservative boundary metadata:
+
+- `maturity`: `foundation`, `partial`, `experimental`, or `placeholder`
+- `adapterKind`: `foundation`, `noop`, `skeleton`, `fake`, or `placeholder`
+- `boundary`: `read-only`, `metadata-only`, `plan-only`, `guarded-action`, `noop`, or `development-only`
+- `credentialMode`: `none`, `credential_ref_only`, or `secret_ref_only`
+- `networkAccess`: `none` or `optional`
+- `safe`: `true`
+- `defaultMutation`: `false`
+
+This metadata is exposed through `/api/v1/integrations` and `nivora integrations list`. It is intentionally blunt: skeleton cloud providers remain skeletons, noop adapters remain noop adapters, and guarded-action entries do not imply production automation. The current matrix is tracked in `docs/status/EXTERNAL_INTEGRATION_BOUNDARY_MATRIX.md`.
+
 ## External Protocol Direction
 
 The protocol skeleton lives at `api/proto/plugin.proto`.

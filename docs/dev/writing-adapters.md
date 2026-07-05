@@ -34,6 +34,26 @@ You can inspect the built-in registry locally:
 nivora plugins capabilities artifact-oci --local
 ```
 
+## Integration Boundary Metadata
+
+Every built-in adapter that appears in the integration index must declare explicit boundary metadata. The integration index is used by API, CLI, web, and MCP read paths, so vague entries can make skeletons look more complete than they are.
+
+Required metadata keys:
+
+| Key | Allowed values | Purpose |
+|---|---|---|
+| `maturity` | `foundation`, `partial`, `experimental`, `placeholder` | Current implementation maturity. Do not use production language. |
+| `adapterKind` | `foundation`, `noop`, `skeleton`, `fake`, `placeholder` | What kind of implementation backs the entry. |
+| `boundary` | `read-only`, `metadata-only`, `plan-only`, `guarded-action`, `noop`, `development-only` | The strongest behavior the entry should advertise by default. |
+| `credentialMode` | `none`, `credential_ref_only`, `secret_ref_only` | How credentials are represented. Values are references only, never secret values. |
+| `networkAccess` | `none`, `optional` | Whether network calls can happen when explicitly configured. Baseline tests must not require network access. |
+| `safe` | `true` | Built-in entries must remain safe by default. |
+| `defaultMutation` | `false` | Built-in entries must not mutate external systems by default. |
+
+Use `credential_ref_only` for adapters that can use credentials later through a trusted use case or adapter boundary. Use `secret_ref_only` only for secret-provider entries. Do not put credential values, registry passwords, bearer tokens, kubeconfigs, private keys, or local endpoints in metadata.
+
+The current built-in integration boundary matrix lives in `docs/status/EXTERNAL_INTEGRATION_BOUNDARY_MATRIX.md`. Update it when adding or changing a built-in adapter.
+
 ## External Plugins
 
 External plugins are future work. The Phase 7.4 protocol skeleton is intentionally small:

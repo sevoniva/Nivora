@@ -35,44 +35,44 @@ func NewDefaultRegistry() *Registry {
 	return NewRegistry([]domainplugin.Manifest{
 		builtin("scm-generic", domainplugin.TypeSCM, []domainplugin.Capability{
 			capability("scm.placeholder", "SCM provider adapter skeleton for future Git providers"),
-		}, now),
+		}, now, boundaryMetadata("foundation", "skeleton", "metadata-only", "credential_ref_only", "none")),
 		builtin("artifact-oci", domainplugin.TypeArtifact, []domainplugin.Capability{
 			capability("artifact.inspect", "Parse and inspect OCI artifact references"),
 			capability("artifact.resolve_digest", "Resolve OCI image digests when configured"),
-		}, now),
+		}, now, boundaryMetadata("partial", "foundation", "read-only", "credential_ref_only", "optional")),
 		builtin("cloud-aws", domainplugin.TypeCloud, []domainplugin.Capability{
 			capability("cloud.inventory", "AWS inventory provider skeleton backed by deterministic local behavior"),
-		}, now),
+		}, now, boundaryMetadata("foundation", "skeleton", "metadata-only", "credential_ref_only", "none")),
 		builtin("cloud-aliyun", domainplugin.TypeCloud, []domainplugin.Capability{
 			capability("cloud.inventory", "Aliyun inventory provider skeleton backed by deterministic local behavior"),
-		}, now),
+		}, now, boundaryMetadata("foundation", "skeleton", "metadata-only", "credential_ref_only", "none")),
 		builtin("cloud-tencent", domainplugin.TypeCloud, []domainplugin.Capability{
 			capability("cloud.inventory", "Tencent Cloud inventory provider skeleton backed by deterministic local behavior"),
-		}, now),
+		}, now, boundaryMetadata("foundation", "skeleton", "metadata-only", "credential_ref_only", "none")),
 		builtin("executor-shell", domainplugin.TypeExecutor, []domainplugin.Capability{
 			capability("executor.shell", "Execute safe local shell steps for Phase 1 PipelineRuns"),
-		}, now),
+		}, now, boundaryMetadata("partial", "foundation", "development-only", "none", "none")),
 		builtin("executor-yaml-apply", domainplugin.TypeExecutor, []domainplugin.Capability{
 			capability("executor.kubernetes_yaml.plan", "Plan and validate static Kubernetes YAML manifests"),
 			capability("executor.kubernetes_yaml.noop_apply", "Run guarded noop apply flow for tests and local development"),
-		}, now),
+		}, now, boundaryMetadata("experimental", "foundation", "guarded-action", "credential_ref_only", "optional")),
 		builtin("executor-argocd", domainplugin.TypeGitOps, []domainplugin.Capability{
 			capability("gitops.plan", "Build GitOps change plans"),
 			capability("argocd.status", "Read deterministic Argo CD application status through noop provider"),
 			capability("argocd.guarded_sync", "Model guarded sync requests without production automation"),
-		}, now),
+		}, now, boundaryMetadata("experimental", "noop", "guarded-action", "credential_ref_only", "optional")),
 		builtin("secret-builtin", domainplugin.TypeSecret, []domainplugin.Capability{
 			capability("secret.store_development", "Store local development secrets behind SecretRef metadata"),
-		}, now),
+		}, now, boundaryMetadata("partial", "foundation", "development-only", "secret_ref_only", "none")),
 		builtin("notification-noop", domainplugin.TypeNotification, []domainplugin.Capability{
 			capability("notification.noop", "Record notification requests without external delivery"),
-		}, now),
+		}, now, boundaryMetadata("foundation", "noop", "noop", "none", "none")),
 		builtin("policy-builtin", domainplugin.TypePolicy, []domainplugin.Capability{
 			capability("policy.evaluate", "Evaluate minimal built-in delivery gate rules"),
-		}, now),
+		}, now, boundaryMetadata("foundation", "foundation", "read-only", "none", "none")),
 		builtin("scanner-noop", domainplugin.TypeScanner, []domainplugin.Capability{
 			capability("security.scan_noop", "Return deterministic no-op security scan results for tests"),
-		}, now),
+		}, now, boundaryMetadata("foundation", "noop", "noop", "none", "none")),
 	})
 }
 
@@ -176,7 +176,17 @@ func (r *Registry) MatchCapability(ctx context.Context, capabilityName string) (
 	return matches, nil
 }
 
-func builtin(name string, pluginType domainplugin.Type, capabilities []domainplugin.Capability, now time.Time) domainplugin.Manifest {
+func builtin(name string, pluginType domainplugin.Type, capabilities []domainplugin.Capability, now time.Time, metadata ...map[string]string) domainplugin.Manifest {
+	mergedMetadata := map[string]string{
+		"phase":           "7.4",
+		"safe":            "true",
+		"defaultMutation": "false",
+	}
+	for _, item := range metadata {
+		for key, value := range item {
+			mergedMetadata[key] = value
+		}
+	}
 	return domainplugin.Manifest{
 		APIVersion:   domainplugin.ManifestAPIVersion,
 		Name:         name,
@@ -195,13 +205,20 @@ func builtin(name string, pluginType domainplugin.Type, capabilities []domainplu
 			ValidateConfig: true,
 			Execute:        false,
 		},
-		Status: domainplugin.StatusBuiltIn,
-		Metadata: map[string]string{
-			"phase": "7.4",
-			"safe":  "true",
-		},
+		Status:    domainplugin.StatusBuiltIn,
+		Metadata:  mergedMetadata,
 		CreatedAt: now,
 		UpdatedAt: now,
+	}
+}
+
+func boundaryMetadata(maturity string, adapterKind string, boundary string, credentialMode string, networkAccess string) map[string]string {
+	return map[string]string{
+		"maturity":       maturity,
+		"adapterKind":    adapterKind,
+		"boundary":       boundary,
+		"credentialMode": credentialMode,
+		"networkAccess":  networkAccess,
 	}
 }
 

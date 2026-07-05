@@ -29,7 +29,12 @@ func TestListIntegrationsRoute(t *testing.T) {
 			Name                   string `json:"name"`
 			Type                   string `json:"type"`
 			Maturity               string `json:"maturity"`
+			AdapterKind            string `json:"adapterKind"`
+			Boundary               string `json:"boundary"`
+			CredentialMode         string `json:"credentialMode"`
+			NetworkAccess          string `json:"networkAccess"`
 			SafeByDefault          bool   `json:"safeByDefault"`
+			DefaultMutation        bool   `json:"defaultMutation"`
 			MutatesExternalSystems bool   `json:"mutatesExternalSystems"`
 		} `json:"integrations"`
 		Count    int      `json:"count"`
@@ -49,13 +54,19 @@ func TestListIntegrationsRoute(t *testing.T) {
 	}
 	var foundArgo bool
 	for _, integration := range body.Integrations {
+		if integration.AdapterKind == "" || integration.Boundary == "" || integration.CredentialMode == "" || integration.NetworkAccess == "" {
+			t.Fatalf("integration missing boundary metadata: %#v", integration)
+		}
+		if integration.DefaultMutation || integration.MutatesExternalSystems {
+			t.Fatalf("integration route exposes default mutation: %#v", integration)
+		}
 		if integration.Name == "executor-argocd" {
 			foundArgo = true
 			if integration.Maturity != "experimental" {
 				t.Fatalf("argocd maturity = %q", integration.Maturity)
 			}
-			if integration.MutatesExternalSystems {
-				t.Fatalf("argocd integration should not expose unguarded mutation")
+			if integration.Boundary != "guarded-action" || integration.AdapterKind != "noop" || integration.CredentialMode != "credential_ref_only" {
+				t.Fatalf("argocd integration boundary = %#v", integration)
 			}
 		}
 	}

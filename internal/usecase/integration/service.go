@@ -40,16 +40,31 @@ func (s *Service) List(ctx context.Context) (ListResult, error) {
 			Type:                   string(manifest.Type),
 			Status:                 string(manifest.Status),
 			Protocol:               manifest.Protocol,
-			Maturity:               maturity(manifest.Name, capabilities),
+			Maturity:               metadataOr(manifest.Metadata, "maturity", maturity(manifest.Name, capabilities)),
+			AdapterKind:            metadataOr(manifest.Metadata, "adapterKind", adapterKind(manifest.Name, capabilities)),
+			Boundary:               metadataOr(manifest.Metadata, "boundary", boundary(manifest.Name, manifest.Protocol, capabilities)),
+			CredentialMode:         metadataOr(manifest.Metadata, "credentialMode", "none"),
+			NetworkAccess:          metadataOr(manifest.Metadata, "networkAccess", "none"),
 			Capabilities:           capabilities,
 			SafeByDefault:          manifest.Metadata["safe"] == "true",
+			DefaultMutation:        manifest.Metadata["defaultMutation"] == "true",
 			MutatesExternalSystems: manifest.Lifecycle.Execute,
-			Notes:                  notes(manifest.Name, manifest.Protocol, capabilities),
+			Notes:                  notes(manifest.Name, manifest.Protocol, manifest.Metadata, capabilities),
 			UpdatedAt:              manifest.UpdatedAt,
 		})
 	}
 	result.Count = len(result.Integrations)
 	return result, nil
+}
+
+func metadataOr(metadata map[string]string, key string, fallback string) string {
+	if metadata == nil {
+		return fallback
+	}
+	if value := strings.TrimSpace(metadata[key]); value != "" {
+		return value
+	}
+	return fallback
 }
 
 func maturity(name string, capabilities []IntegrationCapability) string {
@@ -68,7 +83,39 @@ func maturity(name string, capabilities []IntegrationCapability) string {
 	}
 }
 
-func notes(name string, protocol string, capabilities []IntegrationCapability) []string {
+func adapterKind(name string, capabilities []IntegrationCapability) string {
+	text := strings.ToLower(name + " " + capabilityText(capabilities))
+	switch {
+	case strings.Contains(text, "noop") || strings.Contains(text, "no-op"):
+		return "noop"
+	case strings.Contains(text, "fake") || strings.Contains(text, "deterministic local"):
+		return "fake"
+	case strings.Contains(text, "placeholder"):
+		return "placeholder"
+	case strings.Contains(text, "skeleton"):
+		return "skeleton"
+	default:
+		return "foundation"
+	}
+}
+
+func boundary(name string, protocol string, capabilities []IntegrationCapability) string {
+	text := strings.ToLower(name + " " + protocol + " " + capabilityText(capabilities))
+	switch {
+	case strings.Contains(text, "guarded_sync") || strings.Contains(text, "noop_apply"):
+		return "guarded-action"
+	case strings.Contains(text, "plan"):
+		return "plan-only"
+	case strings.Contains(text, "noop") || strings.Contains(text, "no-op"):
+		return "noop"
+	case strings.Contains(text, "skeleton") || strings.Contains(text, "placeholder"):
+		return "metadata-only"
+	default:
+		return "read-only"
+	}
+}
+
+func notes(name string, protocol string, metadata map[string]string, capabilities []IntegrationCapability) []string {
 	items := []string{"metadata-only integration entry; no credentials or secret values are returned"}
 	text := strings.ToLower(name + " " + protocol + " " + capabilityText(capabilities))
 	if strings.Contains(text, "skeleton") || strings.Contains(text, "placeholder") {
@@ -79,6 +126,12 @@ func notes(name string, protocol string, capabilities []IntegrationCapability) [
 	}
 	if strings.Contains(text, "argocd") {
 		items = append(items, "Argo CD sync remains guarded and disabled unless explicitly allowed")
+	}
+	if metadataOr(metadata, "networkAccess", "none") == "optional" {
+		items = append(items, "network access is optional and must be explicitly configured")
+	}
+	if metadataOr(metadata, "credentialMode", "none") != "none" {
+		items = append(items, "credentials are represented by references only; secret values are not returned")
 	}
 	return items
 }

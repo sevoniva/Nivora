@@ -32,7 +32,7 @@ func TestIntegrationsListLocalUsesBuiltInRegistry(t *testing.T) {
 		t.Fatalf("integrations list --local failed: %v output=%s", err, out.String())
 	}
 	output := out.String()
-	for _, want := range []string{"integrations", "warnings", "foundation", "experimental"} {
+	for _, want := range []string{"integrations", "warnings", "foundation", "experimental", "adapterKind", "boundary", "credential_ref_only", "defaultMutation"} {
 		if !strings.Contains(output, want) {
 			t.Fatalf("integrations local output missing %q: %s", want, output)
 		}

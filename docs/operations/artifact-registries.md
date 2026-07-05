@@ -16,7 +16,7 @@ Nivora still does not implement Harbor administration, Nexus/JFrog administratio
   - size when returned by the registry
   - manifest schema summary when available
 - Explicit insecure registry configuration for local HTTP registries.
-- Registry credentials through config, environment variables, or `SecretProvider`-backed credential refs.
+- Registry credentials through config, environment variables, or `SecretProvider`-backed credential refs. In server runtime wiring, credential, artifact, and artifact-registry services share the same configured provider so saved registry listing can resolve the referenced secret internally.
 - Release artifact binding with `resolveDigest`, `requireDigest`, and `blockMutable`.
 - Deployment image verification and guarded digest substitution when a deployment artifact target requests substitution.
 
@@ -73,6 +73,8 @@ go run ./cmd/nivora artifact registry validate \
 
 Validation rejects endpoints such as `https://user:password@registry.example.com`; registry credentials belong behind `CredentialRef`/`SecretRef` boundaries.
 
+Saved registry validation is metadata-only. It checks endpoint shape, enabled state, and unsafe settings, but it does not contact the registry or read the secret. Registry listing and digest resolution are the paths that may resolve a `CredentialRef` through the configured `SecretProvider`.
+
 ## Release Binding
 
 ```yaml
@@ -98,4 +100,5 @@ spec:
 - Harbor project/user/robot account APIs are not implemented.
 - Nexus and JFrog management APIs remain future work.
 - Token refresh and advanced registry auth flows remain future work.
+- The builtin in-memory secret provider is development-only; production-like installs should use an external secret provider foundation or operator-managed secret source when available.
 - CI tests use fake/local HTTP registries and do not require external registry access.

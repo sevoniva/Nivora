@@ -36,12 +36,13 @@ func Run(ctx context.Context, configPath string) error {
 }
 
 func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) error {
+	secretProvider := appruntime.NewSecretProvider()
 	pipelineService, closePipeline, err := appruntime.NewPipelineServiceWithConfig(ctx, cfg)
 	if err != nil {
 		return err
 	}
 	defer closePipeline()
-	artifactService, closeArtifact, err := appruntime.NewArtifactServiceWithConfig(ctx, cfg)
+	artifactService, closeArtifact, err := appruntime.NewArtifactServiceWithConfigAndSecretProvider(ctx, cfg, secretProvider)
 	if err != nil {
 		return err
 	}
@@ -51,7 +52,7 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer closeSecurity()
-	credentialService, closeCredential, err := appruntime.NewCredentialServiceWithConfig(ctx, cfg)
+	credentialService, closeCredential, err := appruntime.NewCredentialServiceWithConfigAndSecretProvider(ctx, cfg, secretProvider)
 	if err != nil {
 		return err
 	}
@@ -92,7 +93,7 @@ func RunWithConfig(ctx context.Context, cfg config.Config, logger *slog.Logger) 
 		return err
 	}
 	defer closePipelineCatalog()
-	artifactRegistryCatalog, closeArtifactRegistryCatalog, err := appruntime.NewArtifactRegistryServiceWithConfig(ctx, cfg)
+	artifactRegistryCatalog, closeArtifactRegistryCatalog, err := appruntime.NewArtifactRegistryServiceWithConfigAndSecretProvider(ctx, cfg, secretProvider)
 	if err != nil {
 		return err
 	}

@@ -85,8 +85,8 @@ Result: Allowed, OverrideReason recorded
 
 ## Current Limitations
 
-- OCI digest resolution is a foundation/skeleton adapter — no real registry API calls.
-- Digest is parsed from the reference string, not verified against a registry.
+- OCI digest resolution is a guarded foundation. It can resolve manifest digests through generic OCI `HEAD` / `GET` calls when a registry endpoint is configured, but CI does not require an external registry.
+- Digest-pinned references can be inspected locally without network access. Tag-only references need optional registry resolution before they become digest-qualified.
 - No signature/cosign verification (future DevSecOps hardening).
 - No Harbor/Nexus/JFrog management API integration.
 - Immutability is enforced at the policy level, not at the registry level.

@@ -1284,7 +1284,7 @@ paths:
   /api/v1/artifact-registries/{id}/artifacts:
     get:
       summary: List artifacts from a saved OCI registry definition
-      description: Requires project.read permission. Lists tags for an explicit OCI repository through the saved registry metadata. It does not crawl the registry and never returns CredentialRef secret values.
+      description: Requires project.read permission. Lists tags for an explicit OCI repository through the saved registry metadata. When CredentialRef is configured, the runtime OCI adapter resolves it through the configured SecretProvider; secret values are never returned. This route does not crawl the whole registry.
       parameters:
         - $ref: "#/components/parameters/ID"
         - name: repository

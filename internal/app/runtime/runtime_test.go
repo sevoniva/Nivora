@@ -1,9 +1,15 @@
 package runtime
 
 import (
+	"context"
+	"net/http"
+	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/sevoniva/nivora/internal/infra/config"
+	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
+	credentialusecase "github.com/sevoniva/nivora/internal/usecase/credential"
 )
 
 func TestMemoryStoreSelection(t *testing.T) {
@@ -115,5 +121,63 @@ func TestInvalidRuntimeStoreRejected(t *testing.T) {
 	err := cfg.Validate()
 	if err == nil {
 		t.Fatal("expected error for invalid runtime store")
+	}
+}
+
+func TestArtifactRegistryRuntimeUsesSharedSecretProviderCredentialRef(t *testing.T) {
+	ctx := context.Background()
+	secrets := NewSecretProvider()
+	credentialService := NewCredentialServiceWithSecretProvider(secrets)
+	secretRef, err := credentialService.PutSecret(ctx, credentialusecase.SecretCreateInput{
+		Name:  "registry credential",
+		Key:   "registry/credentials/local",
+		Value: `{"username":"registry-user","password":"registry-pass"}`,
+	})
+	if err != nil {
+		t.Fatalf("put registry secret: %v", err)
+	}
+
+	sawAuthenticatedRequest := false
+	registryServer := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.URL.Path != "/v2/team/app/tags/list" {
+			t.Fatalf("unexpected registry path: %s", r.URL.Path)
+		}
+		user, password, ok := r.BasicAuth()
+		if !ok || user != "registry-user" || password != "registry-pass" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		sawAuthenticatedRequest = true
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"name":"team/app","tags":["1.0.0"]}`))
+	}))
+	defer registryServer.Close()
+
+	registryService := NewArtifactRegistryServiceWithSecretProvider(secrets)
+	registry, err := registryService.Create(ctx, artifactusecase.RegistryCreateInput{
+		Name:          "local-oci",
+		Endpoint:      registryServer.URL,
+		Insecure:      true,
+		CredentialRef: secretRef.ID,
+	})
+	if err != nil {
+		t.Fatalf("create artifact registry: %v", err)
+	}
+	result, err := registryService.ListRepositoryArtifacts(ctx, artifactusecase.RegistryRepositoryListInput{
+		RegistryID: registry.ID,
+		Repository: "registry.example.com/team/app",
+	})
+	if err != nil {
+		t.Fatalf("list registry artifacts with shared secret provider: %v", err)
+	}
+	if !sawAuthenticatedRequest {
+		t.Fatal("registry request was not authenticated with shared SecretProvider credential")
+	}
+	if len(result.Artifacts) != 1 || result.Artifacts[0].Version != "1.0.0" {
+		t.Fatalf("unexpected artifact listing: %#v", result.Artifacts)
+	}
+	rendered := strings.Join(result.Warnings, " ")
+	if strings.Contains(rendered, "registry-user") || strings.Contains(rendered, "registry-pass") || strings.Contains(rendered, secretRef.ID) {
+		t.Fatalf("registry listing warning leaked credential material: %q", rendered)
 	}
 }

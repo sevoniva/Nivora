@@ -25,6 +25,7 @@ import (
 	portartifact "github.com/sevoniva/nivora/internal/ports/artifact"
 	portcloud "github.com/sevoniva/nivora/internal/ports/cloud"
 	"github.com/sevoniva/nivora/internal/ports/policy"
+	portsecret "github.com/sevoniva/nivora/internal/ports/secret"
 	approvalusecase "github.com/sevoniva/nivora/internal/usecase/approval"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	authusecase "github.com/sevoniva/nivora/internal/usecase/auth"
@@ -151,40 +152,66 @@ func NewDeploymentServiceWithStoreAndGovernance(store deploymentusecase.Store, s
 }
 
 func NewArtifactService() *artifactusecase.Service {
-	return NewArtifactServiceWithStore(artifactusecase.NewMemoryStore())
+	return NewArtifactServiceWithSecretProvider(newRuntimeSecretProvider())
 }
 
 func NewArtifactServiceWithConfig(ctx context.Context, cfg config.Config) (*artifactusecase.Service, func(), error) {
+	return NewArtifactServiceWithConfigAndSecretProvider(ctx, cfg, newRuntimeSecretProvider())
+}
+
+func NewArtifactServiceWithConfigAndSecretProvider(ctx context.Context, cfg config.Config, secrets portsecret.Provider) (*artifactusecase.Service, func(), error) {
 	if cfg.Database.RuntimeStore != "postgres" {
-		return NewArtifactService(), func() {}, nil
+		return NewArtifactServiceWithSecretProvider(secrets), func() {}, nil
 	}
 	pool, err := db.Open(ctx, cfg.Database.URL)
 	if err != nil {
 		return nil, nil, err
 	}
-	return NewArtifactServiceWithStore(postgresrepo.NewReleaseStore(pool)), pool.Close, nil
+	return NewArtifactServiceWithStoreAndSecretProvider(postgresrepo.NewReleaseStore(pool), secrets), pool.Close, nil
 }
 
 func NewArtifactServiceWithStore(store artifactusecase.Store) *artifactusecase.Service {
-	return artifactusecase.NewService(store, ociartifact.New(ociartifact.WithSecretProvider(builtinsecret.New())), memory.New())
+	return NewArtifactServiceWithStoreAndSecretProvider(store, newRuntimeSecretProvider())
+}
+
+func NewArtifactServiceWithSecretProvider(secrets portsecret.Provider) *artifactusecase.Service {
+	return NewArtifactServiceWithStoreAndSecretProvider(artifactusecase.NewMemoryStore(), secrets)
+}
+
+func NewArtifactServiceWithStoreAndSecretProvider(store artifactusecase.Store, secrets portsecret.Provider) *artifactusecase.Service {
+	secrets = ensureRuntimeSecretProvider(secrets)
+	return artifactusecase.NewService(store, ociartifact.New(ociartifact.WithSecretProvider(secrets)), memory.New())
 }
 
 func NewArtifactRegistryService() *artifactusecase.RegistryService {
-	return artifactusecase.NewRegistryServiceWithProviderFactory(artifactusecase.NewRegistryMemoryStore(), artifactRegistryProviderFactory())
+	return NewArtifactRegistryServiceWithSecretProvider(newRuntimeSecretProvider())
 }
 
 func NewArtifactRegistryServiceWithConfig(ctx context.Context, cfg config.Config) (*artifactusecase.RegistryService, func(), error) {
+	return NewArtifactRegistryServiceWithConfigAndSecretProvider(ctx, cfg, newRuntimeSecretProvider())
+}
+
+func NewArtifactRegistryServiceWithConfigAndSecretProvider(ctx context.Context, cfg config.Config, secrets portsecret.Provider) (*artifactusecase.RegistryService, func(), error) {
 	if cfg.Database.RuntimeStore != "postgres" {
-		return NewArtifactRegistryService(), func() {}, nil
+		return NewArtifactRegistryServiceWithSecretProvider(secrets), func() {}, nil
 	}
 	pool, err := db.Open(ctx, cfg.Database.URL)
 	if err != nil {
 		return nil, nil, err
 	}
-	return artifactusecase.NewRegistryServiceWithProviderFactory(postgresrepo.NewArtifactRegistryStore(pool), artifactRegistryProviderFactory()), pool.Close, nil
+	return artifactusecase.NewRegistryServiceWithProviderFactory(postgresrepo.NewArtifactRegistryStore(pool), artifactRegistryProviderFactoryWithSecretProvider(secrets)), pool.Close, nil
+}
+
+func NewArtifactRegistryServiceWithSecretProvider(secrets portsecret.Provider) *artifactusecase.RegistryService {
+	return artifactusecase.NewRegistryServiceWithProviderFactory(artifactusecase.NewRegistryMemoryStore(), artifactRegistryProviderFactoryWithSecretProvider(secrets))
 }
 
 func artifactRegistryProviderFactory() artifactusecase.RegistryProviderFactory {
+	return artifactRegistryProviderFactoryWithSecretProvider(newRuntimeSecretProvider())
+}
+
+func artifactRegistryProviderFactoryWithSecretProvider(secrets portsecret.Provider) artifactusecase.RegistryProviderFactory {
+	secrets = ensureRuntimeSecretProvider(secrets)
 	return func(registry domainartifact.ArtifactRegistry) portartifact.ArtifactProvider {
 		return ociartifact.New(
 			ociartifact.WithConfig(ociartifact.Config{
@@ -193,7 +220,7 @@ func artifactRegistryProviderFactory() artifactusecase.RegistryProviderFactory {
 				Insecure:      registry.Insecure,
 				CredentialRef: portartifact.CredentialRef{ID: registry.CredentialRef},
 			}),
-			ociartifact.WithSecretProvider(builtinsecret.New()),
+			ociartifact.WithSecretProvider(secrets),
 		)
 	}
 }
@@ -294,18 +321,26 @@ func NewPolicyCatalogServiceWithConfig(ctx context.Context, cfg config.Config) (
 }
 
 func NewCredentialService() *credentialusecase.Service {
-	return credentialusecase.NewService(credentialusecase.NewMemoryStore(), builtinsecret.New(), memory.New())
+	return NewCredentialServiceWithSecretProvider(newRuntimeSecretProvider())
 }
 
 func NewCredentialServiceWithConfig(ctx context.Context, cfg config.Config) (*credentialusecase.Service, func(), error) {
+	return NewCredentialServiceWithConfigAndSecretProvider(ctx, cfg, newRuntimeSecretProvider())
+}
+
+func NewCredentialServiceWithConfigAndSecretProvider(ctx context.Context, cfg config.Config, secrets portsecret.Provider) (*credentialusecase.Service, func(), error) {
 	if cfg.Database.RuntimeStore != "postgres" {
-		return NewCredentialService(), func() {}, nil
+		return NewCredentialServiceWithSecretProvider(secrets), func() {}, nil
 	}
 	pool, err := db.Open(ctx, cfg.Database.URL)
 	if err != nil {
 		return nil, nil, err
 	}
-	return credentialusecase.NewService(postgresrepo.NewCredentialStore(pool), builtinsecret.New(), memory.New()), pool.Close, nil
+	return credentialusecase.NewService(postgresrepo.NewCredentialStore(pool), ensureRuntimeSecretProvider(secrets), memory.New()), pool.Close, nil
+}
+
+func NewCredentialServiceWithSecretProvider(secrets portsecret.Provider) *credentialusecase.Service {
+	return credentialusecase.NewService(credentialusecase.NewMemoryStore(), ensureRuntimeSecretProvider(secrets), memory.New())
 }
 
 func NewAuthService() *authusecase.Service {
@@ -400,6 +435,21 @@ func NewPluginRegistry() *pluginusecase.Registry {
 }
 
 type allowAllPolicyEngine struct{}
+
+func NewSecretProvider() portsecret.Provider {
+	return builtinsecret.New()
+}
+
+func newRuntimeSecretProvider() portsecret.Provider {
+	return NewSecretProvider()
+}
+
+func ensureRuntimeSecretProvider(secrets portsecret.Provider) portsecret.Provider {
+	if secrets != nil {
+		return secrets
+	}
+	return newRuntimeSecretProvider()
+}
 
 func (allowAllPolicyEngine) Evaluate(ctx context.Context, request policy.Request) (policy.Result, error) {
 	select {

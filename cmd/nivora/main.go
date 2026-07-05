@@ -1821,6 +1821,7 @@ func newWorkflowCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "workflow", Short: "Nivora Workflow authoring utilities"}
 	cmd.AddCommand(newWorkflowListCommand())
 	cmd.AddCommand(newWorkflowGetCommand())
+	cmd.AddCommand(newWorkflowDraftCommand())
 	cmd.AddCommand(newWorkflowValidateCommand())
 	cmd.AddCommand(newWorkflowPlanCommand())
 	cmd.AddCommand(newWorkflowRunCommand())
@@ -2351,6 +2352,42 @@ func newRepositoryReadinessReviewCommand() *cobra.Command {
 	}
 	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
 	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newWorkflowDraftCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	var repositoryID string
+	cmd := &cobra.Command{
+		Use:   "draft",
+		Short: "Read the recommended Nivora Workflow draft for a repository",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if repositoryID == "" {
+				return fmt.Errorf("--repository-id is required")
+			}
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/repositories/"+url.PathEscape(repositoryID)+"/intelligence", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			record, ok := payload.(map[string]any)
+			if !ok {
+				printJSON(cmd.OutOrStdout(), payload)
+				return nil
+			}
+			printJSON(cmd.OutOrStdout(), map[string]any{
+				"repositoryId":  record["repositoryId"],
+				"snapshotId":    record["snapshotId"],
+				"workflowDraft": record["recommendedNivoraWorkflowDraft"],
+				"mutated":       false,
+			})
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&repositoryID, "repository-id", "", "repository id")
+	cmd.Flags().StringVar(&repositoryID, "repository", "", "repository id")
 	return cmd
 }
 

@@ -130,6 +130,23 @@ func TestMCPRepositoryDevOpsPlanResourceAndToolArePlanOnly(t *testing.T) {
 	if strings.Contains(body, "should-not-leak") {
 		t.Fatalf("devops readiness review leaked .env content: %s", body)
 	}
+
+	result, err = server.CallTool(context.Background(), "nivora_workflow_draft_generate", map[string]any{"repositoryId": repositoryID})
+	if err != nil {
+		t.Fatalf("workflow draft generate transport error: %v", err)
+	}
+	if result.IsError || len(result.Content) == 0 {
+		t.Fatalf("workflow draft generate result = %#v", result)
+	}
+	body = result.Content[0].Text
+	for _, want := range []string{`"mutated": false`, `"workflowDraft"`, "kind: Workflow"} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("workflow draft generate body missing %q: %s", want, body)
+		}
+	}
+	if strings.Contains(body, "should-not-leak") {
+		t.Fatalf("workflow draft generate leaked .env content: %s", body)
+	}
 }
 
 func TestMCPWorkflowToolsPlanOnly(t *testing.T) {

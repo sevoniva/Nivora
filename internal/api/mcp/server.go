@@ -233,6 +233,9 @@ func (s *Server) ListTools(ctx context.Context) ([]Tool, error) {
 		tool("nivora_devops_readiness_review", "Review repository DevOps readiness from the latest snapshot without executing commands", objectSchema(map[string]any{
 			"repositoryId": stringProperty("repository id"),
 		}, []string{"repositoryId"})),
+		tool("nivora_workflow_draft_generate", "Read the recommended Nivora Workflow draft from repository intelligence", objectSchema(map[string]any{
+			"repositoryId": stringProperty("repository id"),
+		}, []string{"repositoryId"})),
 		tool("nivora_workflow_validate", "Validate a Nivora Workflow YAML document", objectSchema(map[string]any{
 			"content": stringProperty("workflow YAML content"),
 		}, []string{"content"})),
@@ -1072,6 +1075,32 @@ func (s *Server) callToolPayload(ctx context.Context, name string, arguments map
 			return nil, err
 		}
 		return map[string]any{"review": review, "mutated": false}, nil
+	case "nivora_workflow_draft_generate":
+		repositoryID, err := requiredString(arguments, "repositoryId")
+		if err != nil {
+			return nil, err
+		}
+		repository, err := s.services.Catalog.GetRepository(ctx, repositoryID)
+		if err != nil {
+			return nil, err
+		}
+		if err := s.ensureSubjectScope("repository "+repositoryID, repository.ProjectID, ""); err != nil {
+			return nil, err
+		}
+		snapshot, err := s.services.Repositories.GetLatestSnapshot(ctx, repositoryID)
+		if err != nil {
+			return nil, err
+		}
+		intelligence, err := s.services.Repositories.GetIntelligence(ctx, repositoryID, snapshot.ID)
+		if err != nil {
+			return nil, err
+		}
+		return map[string]any{
+			"repositoryId":  intelligence.RepositoryID,
+			"snapshotId":    intelligence.SnapshotID,
+			"workflowDraft": intelligence.RecommendedNivoraWorkflowDraft,
+			"mutated":       false,
+		}, nil
 	case "nivora_workflow_validate":
 		content, err := requiredString(arguments, "content")
 		if err != nil {
@@ -2662,6 +2691,7 @@ func (s *Server) toolPermission(name string) string {
 		"nivora_repository_inspect",
 		"nivora_repository_devops_plan",
 		"nivora_devops_readiness_review",
+		"nivora_workflow_draft_generate",
 		"nivora_list_pipeline_definitions",
 		"nivora_get_pipeline_definition",
 		"nivora_get_pipeline_run",

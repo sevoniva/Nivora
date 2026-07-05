@@ -16,6 +16,18 @@ import (
 	releaseorchestration "github.com/sevoniva/nivora/internal/usecase/releaseorchestration"
 )
 
+func TestComputeAuditHashNormalizesSubMicrosecondTimestamps(t *testing.T) {
+	createdAt := time.Date(2026, 7, 5, 4, 14, 17, 498123789, time.UTC)
+	truncated := createdAt.Truncate(time.Microsecond)
+
+	fromNanoseconds := computeAuditHash("prev", "actor", "action", "credential", "subject", "credential", "", createdAt)
+	fromDatabasePrecision := computeAuditHash("prev", "actor", "action", "credential", "subject", "credential", "", truncated)
+
+	if fromNanoseconds != fromDatabasePrecision {
+		t.Fatalf("audit hash must be stable across Go nanosecond and PostgreSQL microsecond timestamp precision")
+	}
+}
+
 func TestPostgresIntegrationAuditHashChainPipeline(t *testing.T) {
 	if os.Getenv("NIVORA_RUN_POSTGRES_INTEGRATION") != "true" {
 		t.Skip("set NIVORA_RUN_POSTGRES_INTEGRATION=true to run")

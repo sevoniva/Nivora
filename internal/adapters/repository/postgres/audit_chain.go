@@ -16,6 +16,8 @@ import (
 // table (for querying) and the compliance_audit_records table (for tamper-evident
 // hash chain verification).
 func AppendHashChainedAudit(ctx context.Context, pool *pgxpool.Pool, source string, entry audit.AuditLog) error {
+	entry.CreatedAt = normalizeAuditCreatedAt(entry.CreatedAt)
+
 	// 1. Write plain audit log for queryability
 	payload, _ := json.Marshal(entry)
 	_, err := pool.Exec(ctx, `INSERT INTO governance_audit_logs (id, source, actor_id, action, subject, payload, created_at) VALUES ($1,$2,$3,$4,$5,$6,$7)`,
@@ -49,8 +51,13 @@ func latestComplianceAuditHash(ctx context.Context, pool *pgxpool.Pool, scopeTyp
 }
 
 func computeAuditHash(prevHash, actorID, action, subjectType, subjectID, scopeType, scopeID string, createdAt time.Time) string {
+	createdAt = normalizeAuditCreatedAt(createdAt)
 	canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
 		prevHash, actorID, action, subjectType, subjectID, scopeType, scopeID, createdAt.UTC().Format(time.RFC3339Nano))
 	hash := sha256.Sum256([]byte(canonical))
 	return hex.EncodeToString(hash[:])
+}
+
+func normalizeAuditCreatedAt(createdAt time.Time) time.Time {
+	return createdAt.UTC().Truncate(time.Microsecond)
 }

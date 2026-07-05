@@ -2,11 +2,8 @@ package postgres
 
 import (
 	"context"
-	"crypto/sha256"
-	"encoding/hex"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"sort"
 	"time"
 
@@ -259,16 +256,14 @@ func (s *ComplianceStore) AppendAuditRecord(ctx context.Context, record AuditRec
 	if len(record.Payload) == 0 {
 		record.Payload = []byte("{}")
 	}
+	record.CreatedAt = normalizeAuditCreatedAt(record.CreatedAt)
 	prevHash, err := s.latestAuditHash(ctx, record.ScopeType, record.ScopeID)
 	if err != nil {
 		return err
 	}
 	record.PreviousHash = prevHash
 
-	canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
-		prevHash, record.ActorID, record.Action, record.SubjectType, record.SubjectID, record.ScopeType, record.ScopeID, record.CreatedAt.UTC().Format(time.RFC3339Nano))
-	hash := sha256.Sum256([]byte(canonical))
-	record.RecordHash = hex.EncodeToString(hash[:])
+	record.RecordHash = computeAuditHash(prevHash, record.ActorID, record.Action, record.SubjectType, record.SubjectID, record.ScopeType, record.ScopeID, record.CreatedAt)
 
 	_, err = s.pool.Exec(ctx, `INSERT INTO compliance_audit_records
 		(id, actor_id, action, subject_type, subject_id, subject, scope_type, scope_id, correlation_id, request_id, previous_hash, record_hash, payload, created_at)
@@ -314,10 +309,7 @@ func (s *ComplianceStore) VerifyAuditChain(ctx context.Context, scopeType, scope
 		if r.PreviousHash != expectedPrev {
 			return false, r.ID, nil
 		}
-		canonical := fmt.Sprintf("%s|%s|%s|%s|%s|%s|%s|%s",
-			r.PreviousHash, r.ActorID, r.Action, r.SubjectType, r.SubjectID, r.ScopeType, r.ScopeID, r.CreatedAt.UTC().Format(time.RFC3339Nano))
-		hash := sha256.Sum256([]byte(canonical))
-		expectedHash := hex.EncodeToString(hash[:])
+		expectedHash := computeAuditHash(r.PreviousHash, r.ActorID, r.Action, r.SubjectType, r.SubjectID, r.ScopeType, r.ScopeID, r.CreatedAt)
 		if r.RecordHash != expectedHash {
 			return false, r.ID, nil
 		}

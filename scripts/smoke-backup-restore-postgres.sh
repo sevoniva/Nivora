@@ -37,6 +37,11 @@ redact_file() {
   sed -E 's#(postgres(ql)?://)[^/@]*@#\1***@#g'
 }
 
+json_bool_true() {
+  field="$1"
+  grep -Eq "\"${field}\"[[:space:]]*:[[:space:]]*true"
+}
+
 sql_identifier_safe() {
   case "$1" in
     ""|*[!A-Za-z0-9_]*)
@@ -57,7 +62,7 @@ derive_database_url() {
   if ! sql_identifier_safe "$current_db" || ! sql_identifier_safe "$target_db"; then
     return 1
   fi
-  derived=$(printf '%s\n' "$source_url" | sed "s#/${current_db}\\([?]\\|$\\)#/${target_db}\\1#")
+  derived=$(printf '%s\n' "$source_url" | sed -E "s#/${current_db}([?]|$)#/${target_db}\\1#")
   if [ "$derived" = "$source_url" ] && [ "$current_db" != "$target_db" ]; then
     return 1
   fi
@@ -78,16 +83,27 @@ stop_server() {
   fi
 }
 
+drop_database_if_exists() {
+  db_name="$1"
+  if [ -z "$db_name" ] || [ -z "$ADMIN_DATABASE_URL" ]; then
+    return 0
+  fi
+  if psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"${db_name}\" WITH (FORCE)" >/dev/null 2>&1; then
+    return 0
+  fi
+  psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"${db_name}\"" >/dev/null 2>&1 || true
+}
+
 drop_restore_database() {
   if [ "$RESTORE_DB_CREATED" = "1" ] && [ -n "$ADMIN_DATABASE_URL" ] && [ -n "$RESTORE_DATABASE_NAME" ]; then
-    psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"${RESTORE_DATABASE_NAME}\"" >/dev/null 2>&1 || true
+    drop_database_if_exists "$RESTORE_DATABASE_NAME"
     RESTORE_DB_CREATED=0
   fi
 }
 
 drop_source_database() {
   if [ "$SOURCE_DB_CREATED" = "1" ] && [ -n "$ADMIN_DATABASE_URL" ] && [ -n "$SOURCE_DATABASE_NAME" ]; then
-    psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"${SOURCE_DATABASE_NAME}\"" >/dev/null 2>&1 || true
+    drop_database_if_exists "$SOURCE_DATABASE_NAME"
     SOURCE_DB_CREATED=0
   fi
 }
@@ -212,7 +228,7 @@ case "$ISOLATED_SOURCE" in
       SOURCE_DATABASE_URL=""
     fi
     if [ -n "$ADMIN_DATABASE_URL" ] && [ -n "$SOURCE_DATABASE_URL" ] &&
-       psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"${SOURCE_DATABASE_NAME}\"" >/dev/null 2>&1 &&
+       drop_database_if_exists "$SOURCE_DATABASE_NAME" &&
        psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${SOURCE_DATABASE_NAME}\"" >/dev/null 2>&1; then
       SOURCE_DB_CREATED=1
       DATABASE_URL="$SOURCE_DATABASE_URL"
@@ -371,7 +387,7 @@ if [ "$BACKUP_READY" = "1" ]; then
 
   if [ -n "$ADMIN_DATABASE_URL" ] && [ -n "$RESTORE_DATABASE_URL" ]; then
     echo "  Creating temporary restore database ${RESTORE_DATABASE_NAME}..."
-    if psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "DROP DATABASE IF EXISTS \"${RESTORE_DATABASE_NAME}\"" >/dev/null 2>&1 &&
+    if drop_database_if_exists "$RESTORE_DATABASE_NAME" &&
        psql "$ADMIN_DATABASE_URL" -v ON_ERROR_STOP=1 -c "CREATE DATABASE \"${RESTORE_DATABASE_NAME}\"" >/dev/null 2>&1; then
       RESTORE_DB_CREATED=1
       pass "temporary restore database created"
@@ -438,10 +454,14 @@ if [ "$ACTUAL_RESTORE_DONE" = "1" ]; then
       fail "credential metadata not found from restored database"
     fi
   fi
-  if curl -fsS "${BASE_URL}/api/v1/audit/verify?scopeType=credential" 2>/dev/null | grep -q '"valid":true'; then
+  audit_verify_response=$(curl -fsS "${BASE_URL}/api/v1/audit/verify?scopeType=credential" 2>/dev/null || printf '')
+  if printf '%s\n' "$audit_verify_response" | json_bool_true "valid"; then
     pass "credential audit hash chain verifies from restored database"
   else
     fail "credential audit hash chain did not verify from restored database"
+    if [ -n "$audit_verify_response" ]; then
+      printf '%s\n' "$audit_verify_response" | redact_file >&2
+    fi
   fi
   stop_server
 else

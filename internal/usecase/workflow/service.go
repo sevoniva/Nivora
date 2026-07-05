@@ -20,6 +20,11 @@ type PipelineRunCreator interface {
 	CreateQueued(ctx context.Context, input pipelineusecase.CreateRunInput) (pipelineusecase.CreateRunResult, error)
 }
 
+type PipelineMetadataRecorder interface {
+	RecordArtifact(ctx context.Context, artifact pipelineusecase.PipelineArtifact) (pipelineusecase.PipelineArtifact, error)
+	RecordCacheEntry(ctx context.Context, entry pipelineusecase.PipelineCacheEntry) (pipelineusecase.PipelineCacheEntry, error)
+}
+
 type PipelineRunReader interface {
 	Get(ctx context.Context, id string) (pipelineusecase.RunRecord, error)
 }
@@ -163,6 +168,13 @@ func (s *Service) Run(ctx context.Context, input RunInput, pipelines PipelineRun
 	if err != nil {
 		return RunResult{}, err
 	}
+	if recorder, ok := pipelines.(PipelineMetadataRecorder); ok {
+		metadataWarnings, err := s.recordPipelinePlanMetadata(ctx, planRecord, pipelineResult.Record.Run.ID, recorder)
+		if err != nil {
+			return RunResult{}, err
+		}
+		conversion.Warnings = append(conversion.Warnings, metadataWarnings...)
+	}
 	now := s.now().UTC()
 	record := RunRecord{
 		ID:             defaultID("wrun"),
@@ -189,6 +201,73 @@ func (s *Service) Run(ctx context.Context, input RunInput, pipelines PipelineRun
 		Plan:        planRecord.Plan,
 		Warnings:    append([]string(nil), record.Warnings...),
 	}, nil
+}
+
+func (s *Service) recordPipelinePlanMetadata(ctx context.Context, planRecord PlanRecord, pipelineRunID string, recorder PipelineMetadataRecorder) ([]string, error) {
+	if strings.TrimSpace(pipelineRunID) == "" || recorder == nil {
+		return nil, nil
+	}
+	warnings := []string{}
+	baseMetadata := map[string]string{
+		"workflowId":     planRecord.WorkflowID,
+		"workflowPlanId": planRecord.ID,
+		"source":         "workflow-plan",
+	}
+	for _, artifact := range planRecord.Plan.ArtifactOutputs {
+		metadata := mergeStringMetadata(baseMetadata, artifact.Metadata)
+		if artifact.Path != "" {
+			metadata["path"] = artifact.Path
+		}
+		_, err := recorder.RecordArtifact(ctx, pipelineusecase.PipelineArtifact{
+			PipelineRunID: pipelineRunID,
+			Name:          artifact.Name,
+			Type:          firstNonEmpty(artifact.Type, "workflow-artifact"),
+			ContentHash:   artifact.ContentHash,
+			StorageRef:    artifact.StorageRef,
+			RetentionDays: artifact.RetentionDays,
+			Metadata:      metadata,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	for _, cache := range planRecord.Plan.CacheHints {
+		metadata := mergeStringMetadata(baseMetadata, cache.Metadata)
+		if len(cache.Path) > 0 {
+			metadata["paths"] = strings.Join(cache.Path, ",")
+		}
+		_, err := recorder.RecordCacheEntry(ctx, pipelineusecase.PipelineCacheEntry{
+			PipelineRunID: pipelineRunID,
+			Key:           cache.Key,
+			RestoreKeys:   append([]string(nil), cache.RestoreKeys...),
+			Scope:         cache.Scope,
+			Metadata:      metadata,
+		})
+		if err != nil {
+			return nil, err
+		}
+	}
+	if len(planRecord.Plan.ArtifactOutputs) > 0 || len(planRecord.Plan.CacheHints) > 0 {
+		warnings = append(warnings, "workflow artifact and cache declarations were recorded as PipelineRun metadata only; no artifact or cache blob was read or uploaded")
+	}
+	return warnings, nil
+}
+
+func mergeStringMetadata(values ...map[string]string) map[string]string {
+	out := map[string]string{}
+	for _, metadata := range values {
+		for key, value := range metadata {
+			key = strings.TrimSpace(key)
+			value = strings.TrimSpace(value)
+			if key != "" && value != "" {
+				out[key] = value
+			}
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
 }
 
 func (s *Service) GetRun(ctx context.Context, id string) (RunRecord, error) {

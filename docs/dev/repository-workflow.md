@@ -28,8 +28,12 @@ nivora workflow plan --file examples/workflows/go-ci.yaml
 nivora workflow run --file examples/workflows/go-ci.yaml --confirm --allow-pipeline-run --server http://localhost:8080
 ```
 
-The planner builds a DAG and checks dependency cycles, missing `needs` targets, matrix size limits, unsupported `uses`, and secret-like environment values.
+The planner builds a DAG and checks dependency cycles, missing `needs` targets, matrix size limits, unsupported `uses`, artifact/cache declarations, plan-only security/release/deployment intent, and secret-like environment or intent values.
 The run command is server-backed and queue-only. It creates WorkflowRun metadata plus a queued PipelineRun when the server authorizes the request; it does not execute workflow steps inside the CLI process.
+
+Workflow-level `artifacts` and `cache` entries are recorded as PipelineRun metadata when a guarded WorkflowRun queues a PipelineRun. The control plane records names, paths, cache keys, restore keys, retention hints, and metadata. It does not read artifact files, upload cache blobs, or store large content in the database.
+
+Workflow-level `security`, `release`, and `deployment` sections are plan-only intent summaries. They can show scanner, release, digest, target, apply, or sync intent in a plan, but the workflow planner does not run scanners, create releases, bind artifacts, apply Kubernetes manifests, sync Argo CD, or deploy hosts.
 
 ## API Surface
 
@@ -95,6 +99,7 @@ Each tool is read-only or plan-only and returns `mutated=false`. MCP does not ex
 - GitHub/GitLab/Gitea real network integrations are not implemented.
 - WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.
 - WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Read APIs refresh the metadata status from the linked PipelineRun, but workflow-level retry/cancel semantics are still owned by the PipelineRun runtime.
+- Workflow security/release/deployment intent is stored in redacted plan records and remains plan-only. It is not release orchestration, deployment execution, or scanner execution.
 - Pipeline artifact/cache/annotation/summary metadata persistence exists in memory and configured PostgreSQL runtime stores. Blob storage is not implemented by this metadata foundation; use storage references for content outside the control plane.
 - Workflow execution still belongs to PipelineRun, Runner, and Worker paths; MCP does not expose workflow action execution.
 - Shell execution is not a sandbox.

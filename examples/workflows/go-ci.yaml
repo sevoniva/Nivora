@@ -24,3 +24,31 @@ jobs:
     steps:
       - name: build
         run: go build ./cmd/nivora
+artifacts:
+  - name: nivora-binary
+    path: dist/nivora
+    type: binary
+    retentionDays: 7
+cache:
+  - key: go-mod
+    path:
+      - go.mod
+      - go.sum
+    restoreKeys:
+      - go-mod-main
+    scope: project
+security:
+  scanners:
+    - noop
+  required: false
+release:
+  name: nivora-dev
+  environment: dev
+  artifacts:
+    - nivora-binary
+  requireDigest: false
+deployment:
+  targetType: kubernetes-yaml
+  targetName: dev-yaml
+  environment: dev
+  apply: false

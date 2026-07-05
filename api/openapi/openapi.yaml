@@ -5147,7 +5147,17 @@ components:
           items:
             type: object
             additionalProperties: true
+        steps:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
         edges:
+          type: array
+          items:
+            type: object
+            additionalProperties: true
+        matrixExpansions:
           type: array
           items:
             type: object
@@ -5155,15 +5165,22 @@ components:
         runnerRequirements:
           type: array
           items:
-            type: string
+            type: object
+            additionalProperties: true
         artifactOutputs:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/WorkflowArtifactSpec"
         cacheHints:
           type: array
           items:
-            type: string
+            $ref: "#/components/schemas/WorkflowCacheSpec"
+        securityIntent:
+          $ref: "#/components/schemas/WorkflowSecurityIntent"
+        releaseIntent:
+          $ref: "#/components/schemas/WorkflowReleaseIntent"
+        deploymentIntent:
+          $ref: "#/components/schemas/WorkflowDeploymentIntent"
         securityWarnings:
           type: array
           items:
@@ -5176,6 +5193,120 @@ components:
           type: string
         conversionReady:
           type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+    WorkflowArtifactSpec:
+      type: object
+      properties:
+        name:
+          type: string
+        path:
+          type: string
+        type:
+          type: string
+        contentHash:
+          type: string
+        storageRef:
+          type: string
+        retentionDays:
+          type: integer
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+    WorkflowCacheSpec:
+      type: object
+      properties:
+        key:
+          type: string
+        path:
+          type: array
+          items:
+            type: string
+        restoreKeys:
+          type: array
+          items:
+            type: string
+        scope:
+          type: string
+        metadata:
+          $ref: "#/components/schemas/CatalogMetadata"
+    WorkflowSecurityIntent:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        scanners:
+          type: array
+          items:
+            type: string
+        required:
+          type: boolean
+        policy:
+          type: string
+        planOnly:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        unsupportedKeys:
+          type: array
+          items:
+            type: string
+    WorkflowReleaseIntent:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        name:
+          type: string
+        environment:
+          type: string
+        artifacts:
+          type: array
+          items:
+            type: string
+        requireDigest:
+          type: boolean
+        planOnly:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        unsupportedKeys:
+          type: array
+          items:
+            type: string
+    WorkflowDeploymentIntent:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        targetType:
+          type: string
+        targetName:
+          type: string
+        environment:
+          type: string
+        planOnly:
+          type: boolean
+        applyRequested:
+          type: boolean
+        syncRequested:
+          type: boolean
+        warnings:
+          type: array
+          items:
+            type: string
+        unsupportedKeys:
+          type: array
+          items:
+            type: string
     WorkflowPlanRecord:
       type: object
       properties:

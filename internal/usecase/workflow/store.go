@@ -213,9 +213,52 @@ func copyPlan(in Plan) Plan {
 		out.RunnerRequirements[i].RunsOn = append([]string(nil), in.RunnerRequirements[i].RunsOn...)
 	}
 	out.ArtifactOutputs = append([]ArtifactSpec(nil), in.ArtifactOutputs...)
+	for i := range out.ArtifactOutputs {
+		out.ArtifactOutputs[i].Metadata = copyStringMap(in.ArtifactOutputs[i].Metadata)
+	}
 	out.CacheHints = append([]CacheSpec(nil), in.CacheHints...)
+	for i := range out.CacheHints {
+		out.CacheHints[i].Path = append([]string(nil), in.CacheHints[i].Path...)
+		out.CacheHints[i].RestoreKeys = append([]string(nil), in.CacheHints[i].RestoreKeys...)
+		out.CacheHints[i].Metadata = copyStringMap(in.CacheHints[i].Metadata)
+	}
+	out.SecurityIntent = copySecurityIntent(in.SecurityIntent)
+	out.ReleaseIntent = copyReleaseIntent(in.ReleaseIntent)
+	out.DeploymentIntent = copyDeploymentIntent(in.DeploymentIntent)
 	out.SecurityWarnings = append([]string(nil), in.SecurityWarnings...)
 	out.UnsupportedFeatures = append([]string(nil), in.UnsupportedFeatures...)
 	out.Warnings = append([]string(nil), in.Warnings...)
 	return out
+}
+
+func copySecurityIntent(in *SecurityIntentPlan) *SecurityIntentPlan {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Scanners = append([]string(nil), in.Scanners...)
+	out.Warnings = append([]string(nil), in.Warnings...)
+	out.UnsupportedKeys = append([]string(nil), in.UnsupportedKeys...)
+	return &out
+}
+
+func copyReleaseIntent(in *ReleaseIntentPlan) *ReleaseIntentPlan {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Artifacts = append([]string(nil), in.Artifacts...)
+	out.Warnings = append([]string(nil), in.Warnings...)
+	out.UnsupportedKeys = append([]string(nil), in.UnsupportedKeys...)
+	return &out
+}
+
+func copyDeploymentIntent(in *DeploymentIntentPlan) *DeploymentIntentPlan {
+	if in == nil {
+		return nil
+	}
+	out := *in
+	out.Warnings = append([]string(nil), in.Warnings...)
+	out.UnsupportedKeys = append([]string(nil), in.UnsupportedKeys...)
+	return &out
 }

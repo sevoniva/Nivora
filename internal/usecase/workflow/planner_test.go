@@ -204,3 +204,94 @@ jobs:
 		t.Fatalf("triggers = %#v", plan.Triggers)
 	}
 }
+
+func TestWorkflowPlanIncludesPlanOnlyIntents(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: intent-ci
+on:
+  - manual
+  - schedule
+jobs:
+  test:
+    runsOn: [self-hosted]
+    steps:
+      - run: go test ./...
+artifacts:
+  - name: binary
+    path: dist/app
+    type: binary
+    retentionDays: 7
+cache:
+  - key: gomod
+    path: [go.sum, go.mod]
+    restoreKeys: [gomod-main]
+    scope: project
+security:
+  scanners: [noop]
+  required: true
+release:
+  name: demo
+  environment: staging
+  artifacts: [binary]
+  requireDigest: true
+deployment:
+  targetType: kubernetes-yaml
+  targetName: staging-yaml
+  environment: staging
+  apply: true
+`))
+	if err != nil {
+		t.Fatalf("parse workflow: %v", err)
+	}
+	plan, err := PlanDefinition(def, PlanOptions{})
+	if err != nil {
+		t.Fatalf("PlanDefinition: %v", err)
+	}
+	if len(plan.ArtifactOutputs) != 1 || plan.ArtifactOutputs[0].RetentionDays != 7 {
+		t.Fatalf("artifact outputs = %#v", plan.ArtifactOutputs)
+	}
+	if len(plan.CacheHints) != 1 || len(plan.CacheHints[0].RestoreKeys) != 1 {
+		t.Fatalf("cache hints = %#v", plan.CacheHints)
+	}
+	if plan.SecurityIntent == nil || !plan.SecurityIntent.Required || !plan.SecurityIntent.PlanOnly {
+		t.Fatalf("security intent = %#v", plan.SecurityIntent)
+	}
+	if plan.ReleaseIntent == nil || !plan.ReleaseIntent.RequireDigest || !plan.ReleaseIntent.PlanOnly {
+		t.Fatalf("release intent = %#v", plan.ReleaseIntent)
+	}
+	if plan.DeploymentIntent == nil || !plan.DeploymentIntent.ApplyRequested || !plan.DeploymentIntent.PlanOnly {
+		t.Fatalf("deployment intent = %#v", plan.DeploymentIntent)
+	}
+	joinedWarnings := strings.Join(append(plan.Warnings, plan.SecurityWarnings...), "\n")
+	for _, want := range []string{"schedule trigger is a placeholder", "security intent is plan-only", "release intent is plan-only", "apply=true was requested"} {
+		if !strings.Contains(joinedWarnings, want) {
+			t.Fatalf("missing warning %q in %q", want, joinedWarnings)
+		}
+	}
+}
+
+func TestWorkflowPlanRejectsSecretLikeIntentValues(t *testing.T) {
+	def, err := ParseDefinition([]byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: unsafe-intent
+on: manual
+jobs:
+  test:
+    steps:
+      - run: echo ok
+deployment:
+  token: inline-token-value
+`))
+	if err != nil {
+		t.Fatalf("parse workflow: %v", err)
+	}
+	_, err = PlanDefinition(def, PlanOptions{})
+	if err == nil || !strings.Contains(err.Error(), "deployment.token") {
+		t.Fatalf("expected secret-like deployment intent rejection, got %v", err)
+	}
+}

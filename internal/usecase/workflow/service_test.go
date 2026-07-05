@@ -163,6 +163,41 @@ func TestServiceRunCreatesQueuedPipelineRunAndWorkflowRun(t *testing.T) {
 	}
 }
 
+func TestServiceRunRecordsWorkflowArtifactsAndCachesAsPipelineMetadata(t *testing.T) {
+	service := NewService(NewMemoryStore())
+	pipelines := newWorkflowPipelineService()
+	result, err := service.Run(context.Background(), RunInput{
+		Content:          workflowWithOutputs(t),
+		RepositoryID:     "repo-a",
+		ProjectID:        "project-a",
+		Confirm:          true,
+		AllowPipelineRun: true,
+	}, pipelines)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	artifacts, err := pipelines.Artifacts(context.Background(), result.PipelineRun.Run.ID)
+	if err != nil {
+		t.Fatalf("Artifacts: %v", err)
+	}
+	if len(artifacts) != 1 || artifacts[0].Name != "binary" || artifacts[0].Metadata["workflowPlanId"] != result.WorkflowRun.WorkflowPlanID {
+		t.Fatalf("artifacts = %#v", artifacts)
+	}
+	if artifacts[0].Metadata["path"] != "dist/app" {
+		t.Fatalf("artifact path metadata missing: %#v", artifacts[0].Metadata)
+	}
+	caches, err := pipelines.CacheEntries(context.Background(), result.PipelineRun.Run.ID)
+	if err != nil {
+		t.Fatalf("CacheEntries: %v", err)
+	}
+	if len(caches) != 1 || caches[0].Key != "gomod" || caches[0].Metadata["source"] != "workflow-plan" {
+		t.Fatalf("caches = %#v", caches)
+	}
+	if !strings.Contains(strings.Join(result.Warnings, "\n"), "metadata only") {
+		t.Fatalf("expected metadata-only warning, got %#v", result.Warnings)
+	}
+}
+
 func TestServiceRefreshRunStatusTracksPipelineRunTerminalState(t *testing.T) {
 	service := NewService(NewMemoryStore())
 	pipelines := newWorkflowPipelineService()
@@ -214,6 +249,31 @@ jobs:
     steps:
       - name: test
         run: echo ok
+`
+}
+
+func workflowWithOutputs(t *testing.T) string {
+	t.Helper()
+	return `apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: Output Workflow
+on: manual
+jobs:
+  build:
+    steps:
+      - name: build
+        run: echo ok
+artifacts:
+  - name: binary
+    path: dist/app
+    type: binary
+    metadata:
+      component: api
+cache:
+  - key: gomod
+    path: [go.mod, go.sum]
+    restoreKeys: [gomod-main]
 `
 }
 

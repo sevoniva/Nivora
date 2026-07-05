@@ -21,16 +21,38 @@ func PlanDefinition(def Definition, options PlanOptions) (Plan, error) {
 	if err != nil {
 		return Plan{}, err
 	}
-	plan := Plan{
-		WorkflowID:      workflowID(def),
-		Name:            def.Metadata.Name,
-		Triggers:        append([]string(nil), def.On.Events...),
-		ArtifactOutputs: append([]ArtifactSpec(nil), def.Artifacts...),
-		CacheHints:      append([]CacheSpec(nil), def.Cache...),
-		EstimatedMode:   "plan-only",
-		ConversionReady: true,
-		CreatedAt:       time.Now().UTC(),
+	artifacts, caches, outputWarnings, err := normalizeWorkflowOutputs(def)
+	if err != nil {
+		return Plan{}, err
 	}
+	securityIntent, err := planSecurityIntent(def.Security)
+	if err != nil {
+		return Plan{}, err
+	}
+	releaseIntent, err := planReleaseIntent(def.Release)
+	if err != nil {
+		return Plan{}, err
+	}
+	deploymentIntent, err := planDeploymentIntent(def.Deployment)
+	if err != nil {
+		return Plan{}, err
+	}
+	plan := Plan{
+		WorkflowID:       workflowID(def),
+		Name:             def.Metadata.Name,
+		Triggers:         append([]string(nil), def.On.Events...),
+		ArtifactOutputs:  artifacts,
+		CacheHints:       caches,
+		SecurityIntent:   securityIntent,
+		ReleaseIntent:    releaseIntent,
+		DeploymentIntent: deploymentIntent,
+		EstimatedMode:    "plan-only",
+		ConversionReady:  true,
+		Warnings:         append([]string(nil), outputWarnings...),
+		CreatedAt:        time.Now().UTC(),
+	}
+	plan.Warnings = append(plan.Warnings, triggerWarnings(def.On.Events)...)
+	plan.SecurityWarnings = append(plan.SecurityWarnings, intentWarnings(securityIntent, releaseIntent, deploymentIntent)...)
 	for _, jobID := range order {
 		job := def.Jobs[jobID]
 		expansions, err := expandMatrix(job.Strategy.Matrix, options.MaxMatrixSize)
@@ -260,7 +282,294 @@ func validateDefinitionShape(def Definition, options PlanOptions) error {
 			}
 		}
 	}
+	if err := validateIntentSecrets("security", def.Security); err != nil {
+		return err
+	}
+	if err := validateIntentSecrets("release", def.Release); err != nil {
+		return err
+	}
+	if err := validateIntentSecrets("deployment", def.Deployment); err != nil {
+		return err
+	}
 	return nil
+}
+
+func normalizeWorkflowOutputs(def Definition) ([]ArtifactSpec, []CacheSpec, []string, error) {
+	artifacts := make([]ArtifactSpec, 0, len(def.Artifacts))
+	caches := make([]CacheSpec, 0, len(def.Cache))
+	warnings := []string{}
+	for index, artifact := range def.Artifacts {
+		artifact.Name = strings.TrimSpace(artifact.Name)
+		artifact.Path = strings.TrimSpace(artifact.Path)
+		artifact.Type = strings.TrimSpace(artifact.Type)
+		artifact.ContentHash = strings.TrimSpace(artifact.ContentHash)
+		artifact.StorageRef = strings.TrimSpace(artifact.StorageRef)
+		artifact.Metadata = compactStringMap(artifact.Metadata)
+		if artifact.Name == "" {
+			return nil, nil, nil, fmt.Errorf("%w: artifact %d name is required", ErrInvalid, index)
+		}
+		if artifact.Path == "" && artifact.StorageRef == "" {
+			return nil, nil, nil, fmt.Errorf("%w: artifact %q requires path or storageRef", ErrInvalid, artifact.Name)
+		}
+		if artifact.RetentionDays < 0 {
+			return nil, nil, nil, fmt.Errorf("%w: artifact %q retentionDays must be zero or greater", ErrInvalid, artifact.Name)
+		}
+		if err := validateStringMetadata("artifact "+artifact.Name, artifact.Metadata); err != nil {
+			return nil, nil, nil, err
+		}
+		if artifact.StorageRef != "" {
+			warnings = append(warnings, "artifact "+artifact.Name+" declares storageRef metadata only; workflow planning does not read artifact content")
+		}
+		artifacts = append(artifacts, artifact)
+	}
+	for index, cache := range def.Cache {
+		cache.Key = strings.TrimSpace(cache.Key)
+		cache.Path = compactStrings(cache.Path)
+		cache.RestoreKeys = compactStrings(cache.RestoreKeys)
+		cache.Scope = strings.TrimSpace(cache.Scope)
+		cache.Metadata = compactStringMap(cache.Metadata)
+		if cache.Key == "" {
+			return nil, nil, nil, fmt.Errorf("%w: cache %d key is required", ErrInvalid, index)
+		}
+		if len(cache.Path) == 0 {
+			return nil, nil, nil, fmt.Errorf("%w: cache %q requires at least one path", ErrInvalid, cache.Key)
+		}
+		if err := validateStringMetadata("cache "+cache.Key, cache.Metadata); err != nil {
+			return nil, nil, nil, err
+		}
+		caches = append(caches, cache)
+	}
+	return artifacts, caches, warnings, nil
+}
+
+func planSecurityIntent(values map[string]any) (*SecurityIntentPlan, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	allowed := map[string]struct{}{"enabled": {}, "scanners": {}, "required": {}, "policy": {}}
+	intent := &SecurityIntentPlan{
+		Enabled:  boolValue(values, "enabled", true),
+		Scanners: stringSliceValue(values, "scanners"),
+		Required: boolValue(values, "required", false),
+		Policy:   stringValue(values, "policy"),
+		PlanOnly: true,
+		Warnings: []string{"security intent is plan-only; workflow planning does not execute scanners"},
+	}
+	intent.UnsupportedKeys = unsupportedKeys(values, allowed)
+	if len(intent.UnsupportedKeys) > 0 {
+		intent.Warnings = append(intent.Warnings, "unsupported security keys are ignored in workflow planning: "+strings.Join(intent.UnsupportedKeys, ", "))
+	}
+	intent.Warnings = dedupeSorted(intent.Warnings)
+	return intent, nil
+}
+
+func planReleaseIntent(values map[string]any) (*ReleaseIntentPlan, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	allowed := map[string]struct{}{"enabled": {}, "name": {}, "environment": {}, "artifacts": {}, "requireDigest": {}}
+	intent := &ReleaseIntentPlan{
+		Enabled:       boolValue(values, "enabled", true),
+		Name:          stringValue(values, "name"),
+		Environment:   stringValue(values, "environment"),
+		Artifacts:     stringSliceValue(values, "artifacts"),
+		RequireDigest: boolValue(values, "requireDigest", false),
+		PlanOnly:      true,
+		Warnings:      []string{"release intent is plan-only; workflow planning does not create releases or bind artifacts"},
+	}
+	intent.UnsupportedKeys = unsupportedKeys(values, allowed)
+	if len(intent.UnsupportedKeys) > 0 {
+		intent.Warnings = append(intent.Warnings, "unsupported release keys are ignored in workflow planning: "+strings.Join(intent.UnsupportedKeys, ", "))
+	}
+	intent.Warnings = dedupeSorted(intent.Warnings)
+	return intent, nil
+}
+
+func planDeploymentIntent(values map[string]any) (*DeploymentIntentPlan, error) {
+	if len(values) == 0 {
+		return nil, nil
+	}
+	allowed := map[string]struct{}{"enabled": {}, "targetType": {}, "targetName": {}, "target": {}, "environment": {}, "apply": {}, "sync": {}, "planOnly": {}}
+	target := stringValue(values, "targetName")
+	if target == "" {
+		target = stringValue(values, "target")
+	}
+	intent := &DeploymentIntentPlan{
+		Enabled:        boolValue(values, "enabled", true),
+		TargetType:     stringValue(values, "targetType"),
+		TargetName:     target,
+		Environment:    stringValue(values, "environment"),
+		PlanOnly:       true,
+		ApplyRequested: boolValue(values, "apply", false),
+		SyncRequested:  boolValue(values, "sync", false),
+		Warnings:       []string{"deployment intent is plan-only; workflow planning does not apply Kubernetes resources, sync Argo CD, or deploy hosts"},
+	}
+	if intent.ApplyRequested {
+		intent.Warnings = append(intent.Warnings, "apply=true was requested but remains guarded and is not executed by workflow planning")
+	}
+	if intent.SyncRequested {
+		intent.Warnings = append(intent.Warnings, "sync=true was requested but remains guarded and is not executed by workflow planning")
+	}
+	intent.UnsupportedKeys = unsupportedKeys(values, allowed)
+	if len(intent.UnsupportedKeys) > 0 {
+		intent.Warnings = append(intent.Warnings, "unsupported deployment keys are ignored in workflow planning: "+strings.Join(intent.UnsupportedKeys, ", "))
+	}
+	intent.Warnings = dedupeSorted(intent.Warnings)
+	return intent, nil
+}
+
+func triggerWarnings(events []string) []string {
+	warnings := []string{}
+	for _, event := range events {
+		switch event {
+		case "schedule":
+			warnings = append(warnings, "schedule trigger is a placeholder; no scheduler dispatch is registered by workflow planning")
+		case "push", "pull_request", "tag", "repository_snapshot", "release_requested":
+			warnings = append(warnings, event+" trigger is modeled for planning; provider webhook dispatch is not required in this foundation")
+		}
+	}
+	return warnings
+}
+
+func intentWarnings(intents ...any) []string {
+	warnings := []string{}
+	for _, intent := range intents {
+		switch typed := intent.(type) {
+		case *SecurityIntentPlan:
+			if typed != nil {
+				warnings = append(warnings, typed.Warnings...)
+			}
+		case *ReleaseIntentPlan:
+			if typed != nil {
+				warnings = append(warnings, typed.Warnings...)
+			}
+		case *DeploymentIntentPlan:
+			if typed != nil {
+				warnings = append(warnings, typed.Warnings...)
+			}
+		}
+	}
+	return warnings
+}
+
+func validateIntentSecrets(section string, values map[string]any) error {
+	for key, value := range values {
+		if err := validateIntentValue(section+"."+key, key, value); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateIntentValue(path string, key string, value any) error {
+	if allowedReferenceKey(key) {
+		return nil
+	}
+	if secretLike(key) {
+		text := strings.TrimSpace(fmt.Sprint(value))
+		if !safeSecretRef(text) {
+			return fmt.Errorf("%w: %s looks secret-like and must use secretRef: or credentialRef:", ErrInvalid, path)
+		}
+	}
+	switch typed := value.(type) {
+	case map[string]any:
+		for childKey, childValue := range typed {
+			if err := validateIntentValue(path+"."+childKey, childKey, childValue); err != nil {
+				return err
+			}
+		}
+	case []any:
+		for index, item := range typed {
+			if err := validateIntentValue(fmt.Sprintf("%s[%d]", path, index), key, item); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func validateStringMetadata(section string, values map[string]string) error {
+	for key, value := range values {
+		if allowedReferenceKey(key) {
+			continue
+		}
+		if secretLike(key) && !safeSecretRef(value) {
+			return fmt.Errorf("%w: %s metadata %q looks secret-like and must use secretRef: or credentialRef:", ErrInvalid, section, key)
+		}
+	}
+	return nil
+}
+
+func allowedReferenceKey(key string) bool {
+	normalized := strings.ToLower(strings.ReplaceAll(strings.TrimSpace(key), "_", ""))
+	return normalized == "secretref" || normalized == "credentialref" || normalized == "keyref"
+}
+
+func unsupportedKeys(values map[string]any, allowed map[string]struct{}) []string {
+	out := []string{}
+	for key := range values {
+		if _, ok := allowed[key]; !ok {
+			out = append(out, key)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+func stringValue(values map[string]any, key string) string {
+	value, ok := values[key]
+	if !ok || value == nil {
+		return ""
+	}
+	switch typed := value.(type) {
+	case string:
+		return strings.TrimSpace(typed)
+	default:
+		return strings.TrimSpace(fmt.Sprint(typed))
+	}
+}
+
+func boolValue(values map[string]any, key string, fallback bool) bool {
+	value, ok := values[key]
+	if !ok || value == nil {
+		return fallback
+	}
+	switch typed := value.(type) {
+	case bool:
+		return typed
+	case string:
+		switch strings.ToLower(strings.TrimSpace(typed)) {
+		case "true", "yes", "1":
+			return true
+		case "false", "no", "0":
+			return false
+		default:
+			return fallback
+		}
+	default:
+		return fallback
+	}
+}
+
+func stringSliceValue(values map[string]any, key string) []string {
+	value, ok := values[key]
+	if !ok || value == nil {
+		return nil
+	}
+	switch typed := value.(type) {
+	case []string:
+		return compactStrings(typed)
+	case []any:
+		out := make([]string, 0, len(typed))
+		for _, item := range typed {
+			out = append(out, strings.TrimSpace(fmt.Sprint(item)))
+		}
+		return compactStrings(out)
+	case string:
+		return compactStrings([]string{typed})
+	default:
+		return compactStrings([]string{fmt.Sprint(typed)})
+	}
 }
 
 func topologicalOrder(jobs map[string]Job) ([]string, [][]string, error) {
@@ -493,6 +802,47 @@ func copyStringMap(in map[string]string) map[string]string {
 	out := make(map[string]string, len(in))
 	for key, value := range in {
 		out[key] = value
+	}
+	return out
+}
+
+func compactStringMap(in map[string]string) map[string]string {
+	if len(in) == 0 {
+		return nil
+	}
+	out := map[string]string{}
+	for key, value := range in {
+		key = strings.TrimSpace(key)
+		value = strings.TrimSpace(value)
+		if key != "" && value != "" {
+			out[key] = value
+		}
+	}
+	if len(out) == 0 {
+		return nil
+	}
+	return out
+}
+
+func compactStrings(values []string) []string {
+	if len(values) == 0 {
+		return nil
+	}
+	seen := map[string]struct{}{}
+	out := make([]string, 0, len(values))
+	for _, value := range values {
+		value = strings.TrimSpace(value)
+		if value == "" {
+			continue
+		}
+		if _, ok := seen[value]; ok {
+			continue
+		}
+		seen[value] = struct{}{}
+		out = append(out, value)
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }

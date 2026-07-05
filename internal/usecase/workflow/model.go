@@ -68,13 +68,54 @@ type Step struct {
 }
 
 type ArtifactSpec struct {
-	Name string `json:"name" yaml:"name"`
-	Path string `json:"path" yaml:"path"`
+	Name          string            `json:"name" yaml:"name"`
+	Path          string            `json:"path" yaml:"path"`
+	Type          string            `json:"type,omitempty" yaml:"type,omitempty"`
+	ContentHash   string            `json:"contentHash,omitempty" yaml:"contentHash,omitempty"`
+	StorageRef    string            `json:"storageRef,omitempty" yaml:"storageRef,omitempty"`
+	RetentionDays int               `json:"retentionDays,omitempty" yaml:"retentionDays,omitempty"`
+	Metadata      map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
 }
 
 type CacheSpec struct {
-	Key  string   `json:"key" yaml:"key"`
-	Path []string `json:"path" yaml:"path"`
+	Key         string            `json:"key" yaml:"key"`
+	Path        []string          `json:"path" yaml:"path"`
+	RestoreKeys []string          `json:"restoreKeys,omitempty" yaml:"restoreKeys,omitempty"`
+	Scope       string            `json:"scope,omitempty" yaml:"scope,omitempty"`
+	Metadata    map[string]string `json:"metadata,omitempty" yaml:"metadata,omitempty"`
+}
+
+type SecurityIntentPlan struct {
+	Enabled         bool     `json:"enabled"`
+	Scanners        []string `json:"scanners,omitempty"`
+	Required        bool     `json:"required,omitempty"`
+	Policy          string   `json:"policy,omitempty"`
+	PlanOnly        bool     `json:"planOnly"`
+	Warnings        []string `json:"warnings,omitempty"`
+	UnsupportedKeys []string `json:"unsupportedKeys,omitempty"`
+}
+
+type ReleaseIntentPlan struct {
+	Enabled         bool     `json:"enabled"`
+	Name            string   `json:"name,omitempty"`
+	Environment     string   `json:"environment,omitempty"`
+	Artifacts       []string `json:"artifacts,omitempty"`
+	RequireDigest   bool     `json:"requireDigest,omitempty"`
+	PlanOnly        bool     `json:"planOnly"`
+	Warnings        []string `json:"warnings,omitempty"`
+	UnsupportedKeys []string `json:"unsupportedKeys,omitempty"`
+}
+
+type DeploymentIntentPlan struct {
+	Enabled         bool     `json:"enabled"`
+	TargetType      string   `json:"targetType,omitempty"`
+	TargetName      string   `json:"targetName,omitempty"`
+	Environment     string   `json:"environment,omitempty"`
+	PlanOnly        bool     `json:"planOnly"`
+	ApplyRequested  bool     `json:"applyRequested,omitempty"`
+	SyncRequested   bool     `json:"syncRequested,omitempty"`
+	Warnings        []string `json:"warnings,omitempty"`
+	UnsupportedKeys []string `json:"unsupportedKeys,omitempty"`
 }
 
 type PlanOptions struct {
@@ -85,27 +126,30 @@ type PlanOptions struct {
 }
 
 type Plan struct {
-	PlanID              string              `json:"planId,omitempty"`
-	WorkflowID          string              `json:"workflowId"`
-	RepositoryID        string              `json:"repositoryId,omitempty"`
-	SourcePath          string              `json:"sourcePath,omitempty"`
-	Ref                 string              `json:"ref,omitempty"`
-	ContentHash         string              `json:"contentHash,omitempty"`
-	Name                string              `json:"name"`
-	Triggers            []string            `json:"triggers,omitempty"`
-	Jobs                []PlannedJob        `json:"jobs"`
-	Steps               []PlannedStep       `json:"steps"`
-	Edges               []Edge              `json:"edges,omitempty"`
-	MatrixExpansions    []MatrixExpansion   `json:"matrixExpansions,omitempty"`
-	RunnerRequirements  []RunnerRequirement `json:"runnerRequirements,omitempty"`
-	ArtifactOutputs     []ArtifactSpec      `json:"artifactOutputs,omitempty"`
-	CacheHints          []CacheSpec         `json:"cacheHints,omitempty"`
-	SecurityWarnings    []string            `json:"securityWarnings,omitempty"`
-	UnsupportedFeatures []string            `json:"unsupportedFeatures,omitempty"`
-	EstimatedMode       string              `json:"estimatedExecutionMode"`
-	ConversionReady     bool                `json:"conversionReady"`
-	Warnings            []string            `json:"warnings,omitempty"`
-	CreatedAt           time.Time           `json:"createdAt"`
+	PlanID              string                `json:"planId,omitempty"`
+	WorkflowID          string                `json:"workflowId"`
+	RepositoryID        string                `json:"repositoryId,omitempty"`
+	SourcePath          string                `json:"sourcePath,omitempty"`
+	Ref                 string                `json:"ref,omitempty"`
+	ContentHash         string                `json:"contentHash,omitempty"`
+	Name                string                `json:"name"`
+	Triggers            []string              `json:"triggers,omitempty"`
+	Jobs                []PlannedJob          `json:"jobs"`
+	Steps               []PlannedStep         `json:"steps"`
+	Edges               []Edge                `json:"edges,omitempty"`
+	MatrixExpansions    []MatrixExpansion     `json:"matrixExpansions,omitempty"`
+	RunnerRequirements  []RunnerRequirement   `json:"runnerRequirements,omitempty"`
+	ArtifactOutputs     []ArtifactSpec        `json:"artifactOutputs,omitempty"`
+	CacheHints          []CacheSpec           `json:"cacheHints,omitempty"`
+	SecurityIntent      *SecurityIntentPlan   `json:"securityIntent,omitempty"`
+	ReleaseIntent       *ReleaseIntentPlan    `json:"releaseIntent,omitempty"`
+	DeploymentIntent    *DeploymentIntentPlan `json:"deploymentIntent,omitempty"`
+	SecurityWarnings    []string              `json:"securityWarnings,omitempty"`
+	UnsupportedFeatures []string              `json:"unsupportedFeatures,omitempty"`
+	EstimatedMode       string                `json:"estimatedExecutionMode"`
+	ConversionReady     bool                  `json:"conversionReady"`
+	Warnings            []string              `json:"warnings,omitempty"`
+	CreatedAt           time.Time             `json:"createdAt"`
 }
 
 type PlannedJob struct {

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/sevoniva/nivora/internal/adapters/eventbus/memory"
 	domainartifact "github.com/sevoniva/nivora/internal/domain/artifact"
 	"github.com/sevoniva/nivora/internal/domain/audit"
 	domaindeployment "github.com/sevoniva/nivora/internal/domain/deployment"
@@ -20,6 +21,7 @@ import (
 	domainpipeline "github.com/sevoniva/nivora/internal/domain/pipeline"
 	"github.com/sevoniva/nivora/internal/domain/release"
 	domainrunner "github.com/sevoniva/nivora/internal/domain/runner"
+	"github.com/sevoniva/nivora/internal/ports/executor"
 	artifactusecase "github.com/sevoniva/nivora/internal/usecase/artifact"
 	deploymentusecase "github.com/sevoniva/nivora/internal/usecase/deployment"
 	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
@@ -328,6 +330,134 @@ func TestPostgresIntegrationRunnerClaimRecovery(t *testing.T) {
 	}
 	if reclaimed.JobRunID != claim.JobRunID || !reclaimed.LeaseExpiresAt.Equal(now.Add(3*time.Minute)) {
 		t.Fatalf("reclaimed job = %#v", reclaimed)
+	}
+}
+
+func TestPostgresIntegrationRunnerTokenRotationAndRevocationRecovery(t *testing.T) {
+	db := newPostgresIntegration(t, true)
+	defer db.cleanup()
+	ctx := context.Background()
+	now := fixedIntegrationTime()
+	store, service := newPostgresPipelineService(db.pool, now)
+
+	registered, err := service.RegisterRunnerWithToken(ctx, domainrunner.Runner{
+		ID:              "runner-token-pg",
+		Name:            "runner-token-pg",
+		Status:          "online",
+		Executors:       []string{"shell"},
+		MaxConcurrency:  2,
+		CreatedAt:       now,
+		UpdatedAt:       now,
+		LastHeartbeatAt: &now,
+		LastSeenAt:      &now,
+	})
+	if err != nil {
+		t.Fatalf("register runner token: %v", err)
+	}
+	originalToken := registered.Token.Token
+	if originalToken == "" {
+		t.Fatal("expected one-time runner token")
+	}
+	if _, err := heartbeatRunnerThroughProtocol(ctx, service, "runner-token-pg", originalToken); err != nil {
+		t.Fatalf("heartbeat with original token: %v", err)
+	}
+	if err := store.Save(ctx, scopedPipelineRecord("prun-token-original", "project-a", "env-prod", "shell", now)); err != nil {
+		t.Fatalf("save original token pipeline: %v", err)
+	}
+	originalClaim, err := claimRunnerJobThroughProtocol(ctx, service, "runner-token-pg", originalToken, time.Minute)
+	if err != nil {
+		t.Fatalf("claim with original token: %v", err)
+	}
+	if err := appendRunnerLogThroughProtocol(ctx, service, "runner-token-pg", originalToken, originalClaim, "original token log"); err != nil {
+		t.Fatalf("append log with original token: %v", err)
+	}
+	if err := updateRunnerJobStatusThroughProtocol(ctx, service, "runner-token-pg", originalToken, originalClaim.JobRunID, domainpipeline.JobRunRunning); err != nil {
+		t.Fatalf("update status with original token: %v", err)
+	}
+
+	rotated, err := service.RotateRunnerToken(ctx, "runner-token-pg")
+	if err != nil {
+		t.Fatalf("rotate runner token: %v", err)
+	}
+	rotatedToken := rotated.Token.Token
+	if rotatedToken == "" || rotatedToken == originalToken {
+		t.Fatalf("rotated token = %q, original token = %q", rotatedToken, originalToken)
+	}
+
+	store, service = newPostgresPipelineService(db.restart(t), now.Add(time.Minute))
+	assertRunnerProtocolDenied(t, "old token heartbeat after restart", pipelineusecase.ErrRunnerUnauthorized, func() error {
+		_, err := heartbeatRunnerThroughProtocol(ctx, service, "runner-token-pg", originalToken)
+		return err
+	})
+	assertRunnerProtocolDenied(t, "old token claim after restart", pipelineusecase.ErrRunnerUnauthorized, func() error {
+		_, err := claimRunnerJobThroughProtocol(ctx, service, "runner-token-pg", originalToken, time.Minute)
+		return err
+	})
+	assertRunnerProtocolDenied(t, "old token append log after restart", pipelineusecase.ErrRunnerUnauthorized, func() error {
+		return appendRunnerLogThroughProtocol(ctx, service, "runner-token-pg", originalToken, originalClaim, "old token should not append")
+	})
+	assertRunnerProtocolDenied(t, "old token status update after restart", pipelineusecase.ErrRunnerUnauthorized, func() error {
+		return updateRunnerJobStatusThroughProtocol(ctx, service, "runner-token-pg", originalToken, originalClaim.JobRunID, domainpipeline.JobRunSucceeded)
+	})
+	originalLogs, err := store.LogsByJobRun(ctx, originalClaim.JobRunID)
+	if err != nil {
+		t.Fatalf("load original claim logs: %v", err)
+	}
+	if len(originalLogs) != 1 || originalLogs[0].Content != "original token log" {
+		t.Fatalf("old token mutated logs after rotation: %#v", originalLogs)
+	}
+
+	if _, err := heartbeatRunnerThroughProtocol(ctx, service, "runner-token-pg", rotatedToken); err != nil {
+		t.Fatalf("heartbeat with rotated token after restart: %v", err)
+	}
+	if err := store.Save(ctx, scopedPipelineRecord("prun-token-rotated", "project-a", "env-prod", "shell", now.Add(2*time.Minute))); err != nil {
+		t.Fatalf("save rotated token pipeline: %v", err)
+	}
+	rotatedClaim, err := claimRunnerJobThroughProtocol(ctx, service, "runner-token-pg", rotatedToken, time.Minute)
+	if err != nil {
+		t.Fatalf("claim with rotated token after restart: %v", err)
+	}
+	if rotatedClaim.PipelineRunID != "prun-token-rotated" {
+		t.Fatalf("rotated claim = %#v", rotatedClaim)
+	}
+	if err := appendRunnerLogThroughProtocol(ctx, service, "runner-token-pg", rotatedToken, rotatedClaim, "rotated token log"); err != nil {
+		t.Fatalf("append log with rotated token: %v", err)
+	}
+	if err := updateRunnerJobStatusThroughProtocol(ctx, service, "runner-token-pg", rotatedToken, rotatedClaim.JobRunID, domainpipeline.JobRunRunning); err != nil {
+		t.Fatalf("update status with rotated token: %v", err)
+	}
+
+	if _, err := service.RevokeRunnerToken(ctx, "runner-token-pg"); err != nil {
+		t.Fatalf("revoke runner token: %v", err)
+	}
+	store, service = newPostgresPipelineService(db.restart(t), now.Add(3*time.Minute))
+	assertRunnerProtocolDenied(t, "revoked token heartbeat after restart", pipelineusecase.ErrRunnerTokenRevoked, func() error {
+		_, err := heartbeatRunnerThroughProtocol(ctx, service, "runner-token-pg", rotatedToken)
+		return err
+	})
+	assertRunnerProtocolDenied(t, "revoked token claim after restart", pipelineusecase.ErrRunnerTokenRevoked, func() error {
+		_, err := claimRunnerJobThroughProtocol(ctx, service, "runner-token-pg", rotatedToken, time.Minute)
+		return err
+	})
+	assertRunnerProtocolDenied(t, "revoked token append log after restart", pipelineusecase.ErrRunnerTokenRevoked, func() error {
+		return appendRunnerLogThroughProtocol(ctx, service, "runner-token-pg", rotatedToken, rotatedClaim, "revoked token should not append")
+	})
+	assertRunnerProtocolDenied(t, "revoked token status update after restart", pipelineusecase.ErrRunnerTokenRevoked, func() error {
+		return updateRunnerJobStatusThroughProtocol(ctx, service, "runner-token-pg", rotatedToken, rotatedClaim.JobRunID, domainpipeline.JobRunSucceeded)
+	})
+	rotatedLogs, err := store.LogsByJobRun(ctx, rotatedClaim.JobRunID)
+	if err != nil {
+		t.Fatalf("load rotated claim logs: %v", err)
+	}
+	if len(rotatedLogs) != 1 || rotatedLogs[0].Content != "rotated token log" {
+		t.Fatalf("revoked token mutated logs: %#v", rotatedLogs)
+	}
+	loaded, err := store.Get(ctx, rotatedClaim.PipelineRunID)
+	if err != nil {
+		t.Fatalf("reload rotated claim pipeline: %v", err)
+	}
+	if got := loaded.Stages[0].Jobs[0].Job.Status; got != domainpipeline.JobRunRunning {
+		t.Fatalf("revoked token mutated job status = %s", got)
 	}
 }
 
@@ -724,4 +854,72 @@ func releaseRecords(now time.Time) (releaseorchestration.PlanRecord, releaseorch
 	lease := now.Add(-time.Minute)
 	execution := releaseorchestration.ReleaseExecution{ID: "rexec-recover", ReleaseID: rel.ID, EnvironmentID: "dev", EnvironmentName: "dev", Status: releaseorchestration.ExecutionRunning, CorrelationID: "corr-rexec", OwnerID: "worker-before-restart", LeaseExpiresAt: &lease, Attempt: 1, HeartbeatAt: &lease, Targets: []releaseorchestration.TargetExecution{{TargetID: "target-yaml", TargetName: "yaml", TargetType: "kubernetes-yaml", DeploymentRunID: "drun-recover", Status: releaseorchestration.ExecutionRunning, Order: 1}}, CreatedAt: now, UpdatedAt: lease}
 	return releaseorchestration.PlanRecord{Release: rel, Plan: plan}, releaseorchestration.ExecutionRecord{Release: rel, Plan: plan, Execution: execution}
+}
+
+type postgresTestRunner struct {
+	id string
+}
+
+func (r postgresTestRunner) ID() string {
+	return r.id
+}
+
+func (r postgresTestRunner) RunShellStep(ctx context.Context, jobRunID string, command string, timeout time.Duration) (executor.Result, error) {
+	return executor.Result{ExitCode: 0}, nil
+}
+
+func newPostgresPipelineService(pool *pgxpool.Pool, now time.Time) (*PipelineStore, *pipelineusecase.Service) {
+	store := NewPipelineStore(pool)
+	store.now = func() time.Time { return now }
+	service := pipelineusecase.NewService(store, postgresTestRunner{id: "postgres-service-runner"}, memory.New())
+	return store, service
+}
+
+func heartbeatRunnerThroughProtocol(ctx context.Context, service *pipelineusecase.Service, runnerID string, token string) (domainrunner.Runner, error) {
+	if err := service.ValidateRunnerToken(ctx, runnerID, token); err != nil {
+		return domainrunner.Runner{}, err
+	}
+	return service.HeartbeatRunner(ctx, runnerID)
+}
+
+func claimRunnerJobThroughProtocol(ctx context.Context, service *pipelineusecase.Service, runnerID string, token string, lease time.Duration) (pipelineusecase.JobClaim, error) {
+	if err := service.ValidateRunnerToken(ctx, runnerID, token); err != nil {
+		return pipelineusecase.JobClaim{}, err
+	}
+	return service.ClaimJob(ctx, runnerID, lease)
+}
+
+func appendRunnerLogThroughProtocol(ctx context.Context, service *pipelineusecase.Service, runnerID string, token string, claim pipelineusecase.JobClaim, content string) error {
+	if err := service.ValidateRunnerToken(ctx, runnerID, token); err != nil {
+		return err
+	}
+	if err := service.ValidateRunnerJob(ctx, runnerID, claim.JobRunID); err != nil {
+		return err
+	}
+	_, err := service.AppendJobLog(ctx, claim.JobRunID, pipelineusecase.AppendJobLogInput{
+		PipelineRunID: claim.PipelineRunID,
+		StageRunID:    claim.StageRunID,
+		Stream:        "stdout",
+		Content:       content,
+	})
+	return err
+}
+
+func updateRunnerJobStatusThroughProtocol(ctx context.Context, service *pipelineusecase.Service, runnerID string, token string, jobRunID string, status domainpipeline.JobRunStatus) error {
+	if err := service.ValidateRunnerToken(ctx, runnerID, token); err != nil {
+		return err
+	}
+	if err := service.ValidateRunnerJob(ctx, runnerID, jobRunID); err != nil {
+		return err
+	}
+	_, err := service.UpdateJobStatus(ctx, jobRunID, pipelineusecase.UpdateJobStatusInput{Status: status})
+	return err
+}
+
+func assertRunnerProtocolDenied(t *testing.T, operation string, want error, run func() error) {
+	t.Helper()
+	err := run()
+	if !errors.Is(err, want) {
+		t.Fatalf("%s err = %v, want %v", operation, err, want)
+	}
 }

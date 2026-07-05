@@ -446,7 +446,7 @@ func (s *PipelineStore) SelectRunner(ctx context.Context, executor string, label
 
 func (s *PipelineStore) RotateRunnerToken(ctx context.Context, runnerID string, tokenID string, tokenHash string, at time.Time) (domainrunner.Runner, error) {
 	tag, err := s.pool.Exec(ctx, `UPDATE runtime_runners
-		SET token_id = $2, token_hash = $3, token_rotated_at = CASE WHEN token_created_at IS NULL THEN NULL ELSE $4 END, token_created_at = COALESCE(token_created_at, $4), token_revoked_at = NULL, updated_at = $4, version = version + 1
+		SET token_id = $2, token_hash = $3, token_rotated_at = CASE WHEN token_created_at IS NULL THEN NULL ELSE $4::timestamptz END, token_created_at = COALESCE(token_created_at, $4::timestamptz), token_revoked_at = NULL, updated_at = $4::timestamptz, version = version + 1
 		WHERE id = $1`, runnerID, tokenID, tokenHash, at)
 	if err != nil {
 		return domainrunner.Runner{}, err

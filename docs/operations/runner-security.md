@@ -17,6 +17,8 @@ Nivora runners are execution-plane components. They should be operated as less-t
 
 Raw runner tokens are one-time values returned during registration or rotation. They are not returned by list/get APIs and token hashes must never appear in API responses, logs, audit records, or events.
 
+Runner token rotation and revocation are enforced through the runner protocol gate before heartbeat, claim, log append, or status update. PostgreSQL recovery tests cover the restart case: an old rotated token and a revoked token remain unable to call those protocol operations after a new service instance reconnects to the same database.
+
 ## Endpoint Boundaries
 
 Runner tokens are valid only for:

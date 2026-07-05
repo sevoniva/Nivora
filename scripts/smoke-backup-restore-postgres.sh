@@ -168,13 +168,17 @@ BACKUP_FILE="${CONFIG_DIR}/nivora-backup.sql"
 
 if command -v pg_dump >/dev/null 2>&1; then
   echo "  Running pg_dump..."
-  if pg_dump "$DATABASE_URL" --no-owner --no-privileges > "$BACKUP_FILE" 2>/dev/null; then
+  PG_DUMP_ERR="${CONFIG_DIR}/pg_dump.err"
+  if pg_dump "$DATABASE_URL" --no-owner --no-privileges > "$BACKUP_FILE" 2>"$PG_DUMP_ERR"; then
     backup_size=$(wc -c < "$BACKUP_FILE" | tr -d ' ')
     if [ "$backup_size" -gt 100 ]; then
       pass "pg_dump created backup ($backup_size bytes)"
     else
       fail "pg_dump backup too small ($backup_size bytes)"
     fi
+  elif grep -qi "version mismatch\\|server version" "$PG_DUMP_ERR"; then
+    echo "SKIP: pg_dump client is incompatible with the PostgreSQL server version"
+    sed 's/^/  /' "$PG_DUMP_ERR"
   else
     fail "pg_dump failed"
   fi

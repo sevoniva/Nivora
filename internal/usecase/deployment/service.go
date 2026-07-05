@@ -248,6 +248,7 @@ func (s *Service) Plan(ctx context.Context, input CreateRunInput) (CreateRunResu
 		return CreateRunResult{}, err
 	}
 	record.Plan = s.buildPlan(record.Run.ID, input.Definition, documents)
+	record.Plan = appendKubernetesSafetyWarnings(record.Plan, documents, input.Definition.Spec.Target.Namespace)
 	record = s.attachResourceObservability(record, input.Definition, documents)
 	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", fmt.Sprintf("rendered %d manifest document(s)", len(documents)), int64(len(record.Logs)+1)))
 	return CreateRunResult{Record: record}, nil
@@ -316,6 +317,10 @@ func (s *Service) resumeKubernetesAfterApproval(ctx context.Context, record RunR
 	if record.Plan.DeploymentRunID == "" {
 		record.Plan = s.buildPlan(record.Run.ID, record.Definition, documents)
 		record = s.attachResourceObservability(record, record.Definition, documents)
+	}
+	var safetyAllowed bool
+	if record, safetyAllowed, err = s.enforceKubernetesSafety(ctx, record, documents, actorID); err != nil || !safetyAllowed {
+		return record, err
 	}
 	if err := transitionDeploymentRun(&record.Run, domaindeployment.DeploymentRunVerifying, s.now(), "approval approved"); err != nil {
 		return RunRecord{}, err
@@ -564,6 +569,10 @@ func (s *Service) process(ctx context.Context, record RunRecord, actorID string)
 	}
 	record.Plan = s.buildPlan(record.Run.ID, record.Definition, documents)
 	record = s.attachResourceObservability(record, record.Definition, documents)
+	var safetyAllowed bool
+	if record, safetyAllowed, err = s.enforceKubernetesSafety(ctx, record, documents, actorID); err != nil || !safetyAllowed {
+		return record, err
+	}
 	if s.security != nil {
 		scanInput, err := s.securityScanInput(ctx, record, actorID)
 		if err != nil {
@@ -1612,6 +1621,64 @@ func (s *Service) buildPlan(runID string, def Definition, docs []ManifestDocumen
 		Warnings:        warnings,
 		DiffSummary:     fmt.Sprintf("desired state contains %d manifest resource(s); live diff is not available in Phase 2.4", len(docs)),
 	}
+}
+
+func (s *Service) enforceKubernetesSafety(ctx context.Context, record RunRecord, docs []ManifestDocument, actorID string) (RunRecord, bool, error) {
+	result := DefaultK8sSafetyPolicy().ValidateManifests(ctx, docs, record.Definition.Spec.Target.Namespace)
+	record.Plan = appendKubernetesSafetyResult(record.Plan, result)
+	if result.Allowed {
+		return record, true, nil
+	}
+	reason := "kubernetes safety policy denied"
+	if message := firstFailedKubernetesSafetyMessage(result); message != "" {
+		reason += ": " + message
+	}
+	record.Logs = append(record.Logs, s.logChunk(record.Run.ID, "system", reason, int64(len(record.Logs)+1)))
+	if err := s.store.Save(ctx, record); err != nil {
+		return RunRecord{}, false, err
+	}
+	failed, err := s.fail(ctx, record, actorID, reason)
+	return failed, false, err
+}
+
+func appendKubernetesSafetyWarnings(plan DeploymentPlan, docs []ManifestDocument, namespace string) DeploymentPlan {
+	result := DefaultK8sSafetyPolicy().ValidateManifests(context.Background(), docs, namespace)
+	return appendKubernetesSafetyResult(plan, result)
+}
+
+func appendKubernetesSafetyResult(plan DeploymentPlan, result K8sSafetyResult) DeploymentPlan {
+	if result.Allowed {
+		return plan
+	}
+	message := "kubernetes safety policy denied"
+	if detail := firstFailedKubernetesSafetyMessage(result); detail != "" {
+		message += ": " + detail
+	}
+	if !containsString(plan.Warnings, message) {
+		plan.Warnings = append(plan.Warnings, message)
+	}
+	return plan
+}
+
+func firstFailedKubernetesSafetyMessage(result K8sSafetyResult) string {
+	for _, check := range result.Checks {
+		if !check.Passed {
+			return check.Message
+		}
+	}
+	if len(result.Warnings) > 0 {
+		return result.Warnings[0]
+	}
+	return ""
+}
+
+func containsString(values []string, needle string) bool {
+	for _, value := range values {
+		if value == needle {
+			return true
+		}
+	}
+	return false
 }
 
 func (s *Service) buildHostPlan(runID string, def Definition) (DeploymentPlan, HostDeploymentPlan, RollbackPlan) {

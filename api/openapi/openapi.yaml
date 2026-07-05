@@ -2406,7 +2406,7 @@ paths:
                   $ref: "#/components/schemas/DeploymentRunRecord"
     post:
       summary: Create and run a non-destructive DeploymentRun
-      description: Creates a DeploymentRun through the configured runtime. Kubernetes YAML and host targets run non-destructive dry-run/noop behavior by default; Kubernetes apply, GitOps push/sync, host remote deploy, and rollback execution require their dedicated guarded endpoints or explicit server-side confirmation paths.
+      description: Creates a DeploymentRun through the configured runtime. Kubernetes YAML and host targets run non-destructive dry-run/noop behavior by default; Kubernetes manifest safety checks run before dry-run/apply and reject unsafe rendered manifests. Kubernetes apply, GitOps push/sync, host remote deploy, and rollback execution require their dedicated guarded endpoints or explicit server-side confirmation paths.
       requestBody:
         required: true
         content:
@@ -2425,7 +2425,7 @@ paths:
   /api/v1/deployments/apply:
     post:
       summary: Create and run an explicitly confirmed Kubernetes YAML apply
-      description: Apply is never the default. The request must include confirm=true; configured adapters may still reject unsafe targets.
+      description: Apply is never the default. The request must include confirm=true; Kubernetes manifest safety checks run before dry-run/apply; configured adapters may still reject unsafe targets.
       requestBody:
         required: true
         content:

@@ -117,6 +117,28 @@ func TestServiceDeploymentPlanWarnsForUnboundManifestImage(t *testing.T) {
 	}
 }
 
+func TestServiceDeploymentPlanWarnsForKubernetesSafetyViolation(t *testing.T) {
+	service, def := newTestService(t, true, nil)
+	writeDeploymentManifest(t, def, `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: unsafe
+spec:
+  containers:
+    - name: app
+      image: example.local/demo:dev
+      securityContext:
+        privileged: true
+`)
+
+	result, err := service.Plan(context.Background(), CreateRunInput{Definition: def})
+	if err != nil {
+		t.Fatalf("plan: %v", err)
+	}
+	assertPlanWarningContains(t, result.Record.Plan.Warnings, "kubernetes safety policy denied")
+}
+
 func TestServiceDeploymentPlanBindsManifestImage(t *testing.T) {
 	service, def := newTestService(t, true, nil)
 	def.Spec.Artifacts[0].Target.ImageName = "demo-app"
@@ -134,6 +156,56 @@ func TestServiceDeploymentPlanBindsManifestImage(t *testing.T) {
 		if strings.Contains(warning, "differs from bound artifact") || strings.Contains(warning, "not bound to a release artifact") {
 			t.Fatalf("unexpected binding warning: %s", warning)
 		}
+	}
+}
+
+func TestServiceRejectsKubernetesSafetyViolationBeforeDryRun(t *testing.T) {
+	service, def := newTestServiceWithClient(t, true, testManifestClient{})
+	writeDeploymentManifest(t, def, `
+apiVersion: v1
+kind: Pod
+metadata:
+  name: unsafe
+spec:
+  containers:
+    - name: app
+      image: example.local/demo:dev
+      securityContext:
+        privileged: true
+`)
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("safety denial should persist failed run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	if !strings.Contains(result.Record.Run.Reason, "kubernetes safety policy denied") || !strings.Contains(result.Record.Run.Reason, "privileged") {
+		t.Fatalf("reason = %q", result.Record.Run.Reason)
+	}
+	if result.Record.DryRun.Message != "" {
+		t.Fatalf("dry-run should not execute after safety denial: %#v", result.Record.DryRun)
+	}
+	assertPlanWarningContains(t, result.Record.Plan.Warnings, "kubernetes safety policy denied")
+}
+
+func TestServiceRejectsTooManyKubernetesResourcesBeforeDryRun(t *testing.T) {
+	service, def := newTestServiceWithClient(t, true, testManifestClient{})
+	writeDeploymentManifest(t, def, manyConfigMapsManifest(DefaultK8sSafetyPolicy().MaxResourceCount+1))
+
+	result, err := service.CreateAndRun(context.Background(), CreateRunInput{Definition: def, ActorID: "tester"})
+	if err != nil {
+		t.Fatalf("resource-count denial should persist failed run: %v", err)
+	}
+	if result.Record.Run.Status != domaindeployment.DeploymentRunFailed {
+		t.Fatalf("status = %s", result.Record.Run.Status)
+	}
+	if !strings.Contains(result.Record.Run.Reason, "resource count") || !strings.Contains(result.Record.Run.Reason, "exceeds max") {
+		t.Fatalf("reason = %q", result.Record.Run.Reason)
+	}
+	if result.Record.DryRun.Message != "" {
+		t.Fatalf("dry-run should not execute after resource-count denial: %#v", result.Record.DryRun)
 	}
 }
 
@@ -953,6 +1025,37 @@ func assertHasDeploymentEvent(t *testing.T, events []event.Event, eventType stri
 		}
 	}
 	t.Fatalf("missing event %s in %#v", eventType, events)
+}
+
+func assertPlanWarningContains(t *testing.T, warnings []string, needle string) {
+	t.Helper()
+	for _, warning := range warnings {
+		if strings.Contains(warning, needle) {
+			return
+		}
+	}
+	t.Fatalf("missing warning containing %q in %#v", needle, warnings)
+}
+
+func writeDeploymentManifest(t *testing.T, def Definition, body string) {
+	t.Helper()
+	if len(def.Spec.Manifests) == 0 {
+		t.Fatal("test definition has no manifest path")
+	}
+	if err := os.WriteFile(def.Spec.Manifests[0], []byte(body), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+}
+
+func manyConfigMapsManifest(count int) string {
+	var b strings.Builder
+	for i := 0; i < count; i++ {
+		if i > 0 {
+			b.WriteString("---\n")
+		}
+		b.WriteString(fmt.Sprintf("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: cm-%03d\n", i))
+	}
+	return b.String()
 }
 
 type fakeRepositoryCatalog struct {

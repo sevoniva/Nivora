@@ -11,6 +11,8 @@ Nivora is still not GA production-ready. Kubernetes apply and rollback remain gu
 - Apply requires explicit confirmation through API or CLI.
 - Rollback requires explicit confirmation.
 - Prune/delete is not performed by default.
+- Manifest safety checks run before server-side dry-run or apply.
+- The default safety policy rejects missing target namespace, denied Kubernetes system namespaces, cluster-scoped resources, manifest namespace mismatches, privileged containers, hostPath volumes, host namespace modes, `:latest` images, manifests larger than 1 MiB, and more than 100 rendered resources.
 - Kubeconfig files and credentials must not be committed.
 - CI must not require a Kubernetes cluster.
 
@@ -23,11 +25,14 @@ The Kubernetes YAML path is:
 3. Build desired resource inventory.
 4. Create manifest snapshot.
 5. Run policy and security gates.
-6. Run server-side dry-run through the configured `KubernetesManifestClient`.
-7. Apply only when explicitly confirmed.
-8. Watch rollout for common workload kinds.
-9. Evaluate lightweight health.
-10. Record logs, events, audit, timeline, diff, resource inventory, and rollback baseline.
+6. Run Kubernetes manifest safety checks.
+7. Run server-side dry-run through the configured `KubernetesManifestClient`.
+8. Apply only when explicitly confirmed.
+9. Watch rollout for common workload kinds.
+10. Evaluate lightweight health.
+11. Record logs, events, audit, timeline, diff, resource inventory, and rollback baseline.
+
+Plan-only requests surface safety warnings without mutating a cluster. DeploymentRun execution fails before dry-run/apply when the safety policy denies the rendered manifest set.
 
 Supported rollout checks:
 

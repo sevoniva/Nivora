@@ -263,6 +263,28 @@ func TestK8sSafetyMaxSizeExceeded(t *testing.T) {
 	}
 }
 
+func TestK8sSafetyMaxResourceCountExceeded(t *testing.T) {
+	p := DefaultK8sSafetyPolicy()
+	p.MaxResourceCount = 1
+	docs := []ManifestDocument{
+		doc("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: one\n"),
+		doc("apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: two\n"),
+	}
+	result := p.ValidateManifests(context.Background(), docs, "default")
+	if result.Allowed {
+		t.Fatal("expected resource count check to fail")
+	}
+	found := false
+	for _, check := range result.Checks {
+		if check.Rule == "max-resource-count" && !check.Passed {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("expected max-resource-count failure, checks: %#v", result.Checks)
+	}
+}
+
 func TestK8sSafetyDenyHostPID(t *testing.T) {
 	p := DefaultK8sSafetyPolicy()
 	docs := []ManifestDocument{doc(`

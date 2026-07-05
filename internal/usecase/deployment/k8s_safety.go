@@ -23,6 +23,7 @@ type K8sSafetyPolicy struct {
 	AllowedKinds      []string `json:"allowedKinds,omitempty" yaml:"allowedKinds,omitempty"`
 	DeniedKinds       []string `json:"deniedKinds,omitempty" yaml:"deniedKinds,omitempty"`
 	MaxManifestBytes  int64    `json:"maxManifestBytes" yaml:"maxManifestBytes"`
+	MaxResourceCount  int      `json:"maxResourceCount" yaml:"maxResourceCount"`
 	DenyClusterScoped bool     `json:"denyClusterScoped" yaml:"denyClusterScoped"`
 }
 
@@ -40,6 +41,7 @@ func DefaultK8sSafetyPolicy() K8sSafetyPolicy {
 		DeniedKinds:       []string{},
 		DenyClusterScoped: true,
 		MaxManifestBytes:  1 << 20, // 1MB
+		MaxResourceCount:  100,
 	}
 }
 
@@ -98,16 +100,28 @@ func (p K8sSafetyPolicy) ValidateManifests(ctx context.Context, documents []Mani
 	for _, doc := range documents {
 		totalBytes += len(doc.Content)
 	}
-	if int64(totalBytes) > p.MaxManifestBytes {
+	if p.MaxManifestBytes > 0 && int64(totalBytes) > p.MaxManifestBytes {
 		result.Allowed = false
 		result.Checks = append(result.Checks, K8sSafetyCheck{
 			Passed: false, Rule: "max-manifest-size",
 			Message: fmt.Sprintf("manifest size %d exceeds max %d", totalBytes, p.MaxManifestBytes),
 		})
-	} else {
+	} else if p.MaxManifestBytes > 0 {
 		result.Checks = append(result.Checks, K8sSafetyCheck{
 			Passed: true, Rule: "max-manifest-size",
 			Message: fmt.Sprintf("manifest size %d within limit", totalBytes),
+		})
+	}
+	if p.MaxResourceCount > 0 && len(documents) > p.MaxResourceCount {
+		result.Allowed = false
+		result.Checks = append(result.Checks, K8sSafetyCheck{
+			Passed: false, Rule: "max-resource-count",
+			Message: fmt.Sprintf("resource count %d exceeds max %d", len(documents), p.MaxResourceCount),
+		})
+	} else if p.MaxResourceCount > 0 {
+		result.Checks = append(result.Checks, K8sSafetyCheck{
+			Passed: true, Rule: "max-resource-count",
+			Message: fmt.Sprintf("resource count %d within limit", len(documents)),
 		})
 	}
 

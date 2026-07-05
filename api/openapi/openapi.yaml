@@ -1283,10 +1283,53 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/repositories/{id}/devops-plans:
+    get:
+      summary: List repository DevOps plan records
+      description: Requires `project.read`. Lists persisted plan-only DevOps plan records for a repository. Records contain metadata and command candidates only; repository commands are not executed.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Repository DevOps plan records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  plans:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/DevOpsPlanRecord"
+        "404":
+          description: Repository was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/repositories/{id}/devops-plan/latest:
+    get:
+      summary: Get latest repository DevOps plan record
+      description: Requires `project.read`. Returns the latest persisted plan-only DevOps plan record for a repository. The read path does not generate or execute a plan.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Latest repository DevOps plan record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevOpsPlanRecord"
+        "404":
+          description: Repository or plan record was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/devops/plan:
     post:
       summary: Plan repository DevOps candidates
-      description: Requires `project.read`. Returns a plan-only DevOps summary from the latest repository snapshot, including build, test, package, security scan, deployment target, and release-candidate metadata. It does not execute repository code, create releases, trigger scans, deploy, or mutate runtime state.
+      description: Requires `project.read`. Creates and returns a persisted plan-only DevOps summary from the latest repository snapshot, including build, test, package, security scan, deployment target, and release-candidate metadata. It records control-plane plan/audit metadata, but does not execute repository code, create releases, trigger scans, deploy, or mutate runtime execution state.
       requestBody:
         required: false
         content:
@@ -1321,6 +1364,25 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Repository snapshot was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/devops/plans/{id}:
+    get:
+      summary: Get repository DevOps plan record
+      description: Requires `project.read`. Returns a persisted plan-only DevOps plan record by id.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      responses:
+        "200":
+          description: Repository DevOps plan record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DevOpsPlanRecord"
+        "404":
+          description: Plan record was not found
           content:
             application/json:
               schema:
@@ -5426,10 +5488,16 @@ components:
     DevOpsPlan:
       type: object
       properties:
+        planId:
+          type: string
+          description: Persisted DevOps plan record id when the plan was created through a server-backed path.
         repositoryId:
           type: string
         snapshotId:
           type: string
+        contentHash:
+          type: string
+          description: Stable hash of the redacted plan content excluding creation timestamps and generated ids.
         build:
           $ref: "#/components/schemas/CommandPlan"
         test:
@@ -5458,6 +5526,24 @@ components:
           type: object
           additionalProperties:
             type: string
+        createdAt:
+          type: string
+          format: date-time
+    DevOpsPlanRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        repositoryId:
+          type: string
+        snapshotId:
+          type: string
+        projectId:
+          type: string
+        contentHash:
+          type: string
+        plan:
+          $ref: "#/components/schemas/DevOpsPlan"
         createdAt:
           type: string
           format: date-time

@@ -42,6 +42,28 @@ func TestRepositoryWorkflowMigrationIsReversibleAndIndexed(t *testing.T) {
 	}
 }
 
+func TestRepositoryDevOpsPlanMigrationIsReversibleAndIndexed(t *testing.T) {
+	up := readMigration(t, "000022_repository_devops_plan_records.up.sql")
+	down := readMigration(t, "000022_repository_devops_plan_records.down.sql")
+
+	if !strings.Contains(up, "CREATE TABLE IF NOT EXISTS repository_devops_plan_records") {
+		t.Fatalf("up migration missing repository_devops_plan_records table")
+	}
+	if !strings.Contains(down, "DROP TABLE IF EXISTS repository_devops_plan_records") {
+		t.Fatalf("down migration missing repository_devops_plan_records drop")
+	}
+	for _, index := range []string{
+		"idx_repository_devops_plan_records_repository_created",
+		"idx_repository_devops_plan_records_snapshot_created",
+		"idx_repository_devops_plan_records_project_created",
+		"idx_repository_devops_plan_records_content_hash",
+	} {
+		if !strings.Contains(up, index) {
+			t.Fatalf("up migration missing index %s", index)
+		}
+	}
+}
+
 func TestPostgresIntegrationRepositorySnapshotIntelligenceRecovery(t *testing.T) {
 	db := newPostgresIntegration(t, true)
 	defer db.cleanup()
@@ -100,6 +122,56 @@ func TestPostgresIntegrationRepositorySnapshotIntelligenceRecovery(t *testing.T)
 	}
 	if err := store.SaveIntelligence(ctx, intelligence); err != nil {
 		t.Fatalf("save intelligence: %v", err)
+	}
+	plan := repositoryusecase.DevOpsPlan{
+		PlanID:       "devops-plan-durable",
+		RepositoryID: repository.ID,
+		SnapshotID:   snapshot.ID,
+		ContentHash:  "sha256:devops-plan",
+		Build: repositoryusecase.BuildPlan{
+			RepositoryID: repository.ID,
+			SnapshotID:   snapshot.ID,
+			Commands:     []repositoryusecase.CommandCandidate{{Name: "go-build", Command: "go build ./...", Source: "go.mod"}},
+			Warnings:     []string{"build commands are detection candidates and are not executed by repository planning"},
+			CreatedAt:    now,
+		},
+		Test: repositoryusecase.TestPlan{
+			RepositoryID: repository.ID,
+			SnapshotID:   snapshot.ID,
+			Commands:     []repositoryusecase.CommandCandidate{{Name: "go-test", Command: "go test ./...", Source: "go.mod"}},
+			Warnings:     []string{"test commands are detection candidates and are not executed by repository planning"},
+			CreatedAt:    now,
+		},
+		Security: repositoryusecase.SecurityScanPlan{
+			RepositoryID: repository.ID,
+			SnapshotID:   snapshot.ID,
+			Candidates:   []string{"gosec"},
+			Warnings:     []string{"security scans are plan-only; no scanner is executed by repository planning"},
+			CreatedAt:    now,
+		},
+		ReleaseCandidate: repositoryusecase.ReleaseCandidatePlan{
+			RepositoryID:       repository.ID,
+			SnapshotID:         snapshot.ID,
+			Eligible:           true,
+			ArtifactCandidates: []string{"build-output"},
+			Warnings:           []string{"release candidate plan is metadata-only; no Release or ReleaseArtifact is created"},
+			CreatedAt:          now,
+		},
+		ReleaseReady: true,
+		Warnings:     []string{"plan-only: detected commands are not executed by repository intelligence"},
+		Metadata:     map[string]string{"source": "repository-intelligence"},
+		CreatedAt:    now,
+	}
+	if err := store.SaveDevOpsPlan(ctx, repositoryusecase.DevOpsPlanRecord{
+		ID:           "devops-plan-durable",
+		RepositoryID: repository.ID,
+		SnapshotID:   snapshot.ID,
+		ProjectID:    repository.ProjectID,
+		ContentHash:  plan.ContentHash,
+		Plan:         plan,
+		CreatedAt:    now,
+	}); err != nil {
+		t.Fatalf("save devops plan: %v", err)
 	}
 	if err := store.AppendEvent(ctx, snapshot.ID, event.Event{
 		SpecVersion:     "1.0",
@@ -166,6 +238,21 @@ func TestPostgresIntegrationRepositorySnapshotIntelligenceRecovery(t *testing.T)
 	}
 	if len(loadedIntelligence.BuildCommandCandidates) != 1 || loadedIntelligence.BuildCommandCandidates[0].Command != "go build ./..." {
 		t.Fatalf("loaded intelligence = %#v", loadedIntelligence)
+	}
+	loadedPlan, err := store.GetDevOpsPlan(ctx, "devops-plan-durable")
+	if err != nil {
+		t.Fatalf("reload devops plan: %v", err)
+	}
+	if loadedPlan.RepositoryID != repository.ID || loadedPlan.Plan.Build.Commands[0].Command != "go build ./..." || loadedPlan.ProjectID != repository.ProjectID {
+		t.Fatalf("loaded devops plan = %#v", loadedPlan)
+	}
+	latestPlan, err := store.GetLatestDevOpsPlan(ctx, repository.ID)
+	if err != nil || latestPlan.ID != loadedPlan.ID {
+		t.Fatalf("latest devops plan = %#v err=%v", latestPlan, err)
+	}
+	plans, err := store.ListDevOpsPlans(ctx, repository.ID)
+	if err != nil || len(plans) != 1 || plans[0].ID != loadedPlan.ID {
+		t.Fatalf("list devops plans = %#v err=%v", plans, err)
 	}
 	events, err := store.EventsBySubject(ctx, snapshot.ID)
 	if err != nil || len(events) != 1 || events[0].Type != repositoryusecase.EventRepositorySnapshotCreated {

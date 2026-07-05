@@ -123,7 +123,7 @@ func (s *Server) ListResources(ctx context.Context) ([]Resource, error) {
 		resource("nivora://repositories/{id}", "Repository", "Repository catalog record by id"),
 		resource("nivora://repositories/{id}/snapshot/latest", "Repository latest snapshot", "Latest repository snapshot metadata by id"),
 		resource("nivora://repositories/{id}/intelligence", "Repository intelligence", "Latest repository intelligence by id"),
-		resource("nivora://repositories/{id}/devops-plan", "Repository DevOps plan", "Plan-only build, test, package, security, release-candidate, and deployment summary by repository id"),
+		resource("nivora://repositories/{id}/devops-plan", "Repository DevOps plan", "Latest saved plan-only build, test, package, security, release-candidate, and deployment summary by repository id"),
 		resource("nivora://workflows", "Workflows", "Stored workflow summaries visible to the MCP subject"),
 		resource("nivora://workflows/{id}", "Workflow", "Stored workflow summary by workflow id"),
 		resource("nivora://workflows/{id}/plan", "Workflow plan", "Stored workflow plan record by id"),
@@ -2370,11 +2370,11 @@ func (s *Server) repositoryResource(ctx context.Context, rest string) (any, erro
 		if err := s.ensureSubjectScope("repository "+id, repository.ProjectID, ""); err != nil {
 			return nil, err
 		}
-		plan, err := s.services.Repositories.DevOpsPlan(ctx, id)
+		record, err := s.services.Repositories.GetLatestDevOpsPlan(ctx, id)
 		if err != nil {
 			return nil, err
 		}
-		return map[string]any{"plan": plan, "mutated": false}, nil
+		return map[string]any{"devopsPlan": record, "mutated": false}, nil
 	default:
 		repository, err := s.services.Catalog.GetRepository(ctx, rest)
 		if err != nil {

@@ -108,6 +108,9 @@ func TestRepositorySnapshotAndIntelligenceForLocalRepo(t *testing.T) {
 	if !plan.ReleaseReady {
 		t.Fatal("expected plan to be release ready from detected build/package candidates")
 	}
+	if plan.PlanID == "" || !strings.HasPrefix(plan.ContentHash, "sha256:") {
+		t.Fatalf("expected durable plan id and content hash, got %#v", plan)
+	}
 	if !plan.ReleaseCandidate.Eligible || len(plan.ReleaseCandidate.ArtifactCandidates) == 0 {
 		t.Fatalf("release candidate plan missing artifact candidates: %#v", plan.ReleaseCandidate)
 	}
@@ -122,6 +125,24 @@ func TestRepositorySnapshotAndIntelligenceForLocalRepo(t *testing.T) {
 	}
 	assertRepositoryEvent(t, service, snapshot.ID, EventDevOpsPlanCreated)
 	assertRepositoryAudit(t, service, snapshot.ID, "repository DevOps plan created")
+	loadedPlan, err := service.GetDevOpsPlan(context.Background(), plan.PlanID)
+	if err != nil {
+		t.Fatalf("get devops plan record: %v", err)
+	}
+	if loadedPlan.ID != plan.PlanID || loadedPlan.Plan.ContentHash != plan.ContentHash || loadedPlan.ProjectID != "project-a" {
+		t.Fatalf("unexpected loaded plan record: %#v", loadedPlan)
+	}
+	latestPlan, err := service.GetLatestDevOpsPlan(context.Background(), repository.ID)
+	if err != nil {
+		t.Fatalf("get latest devops plan record: %v", err)
+	}
+	if latestPlan.ID != plan.PlanID {
+		t.Fatalf("latest plan = %#v, want %s", latestPlan, plan.PlanID)
+	}
+	plans, err := service.ListDevOpsPlans(context.Background(), repository.ID)
+	if err != nil || len(plans) != 1 || plans[0].ID != plan.PlanID {
+		t.Fatalf("list devops plan records = %#v err=%v", plans, err)
+	}
 
 	review, err := service.DevOpsReadinessReview(context.Background(), repository.ID)
 	if err != nil {
@@ -129,6 +150,9 @@ func TestRepositorySnapshotAndIntelligenceForLocalRepo(t *testing.T) {
 	}
 	if review.Status != "plan_ready" || !review.PlanOnly || !review.ReleaseReady {
 		t.Fatalf("unexpected readiness review status: %#v", review)
+	}
+	if review.Metadata["devopsPlanId"] == "" || !strings.HasPrefix(review.Metadata["devopsPlanContentHash"], "sha256:") {
+		t.Fatalf("readiness review missing plan record metadata: %#v", review.Metadata)
 	}
 	if len(review.Strengths) == 0 || len(review.Blockers) != 0 {
 		t.Fatalf("unexpected readiness review findings: strengths=%#v blockers=%#v", review.Strengths, review.Blockers)

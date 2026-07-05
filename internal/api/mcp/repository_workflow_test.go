@@ -121,19 +121,6 @@ func TestMCPRepositoryDevOpsPlanResourceAndToolArePlanOnly(t *testing.T) {
 		t.Fatalf("repository intelligence analyze leaked .env content: %s", body)
 	}
 
-	resource, err := server.ReadResource(context.Background(), "nivora://repositories/"+repositoryID+"/devops-plan")
-	if err != nil {
-		t.Fatalf("ReadResource devops-plan: %v", err)
-	}
-	for _, want := range []string{`"mutated": false`, `"releaseCandidate"`, "go test ./...", "plan-only"} {
-		if !strings.Contains(resource.Text, want) {
-			t.Fatalf("devops plan resource missing %q: %s", want, resource.Text)
-		}
-	}
-	if strings.Contains(resource.Text, "should-not-leak") {
-		t.Fatalf("devops plan resource leaked .env content: %s", resource.Text)
-	}
-
 	result, err = server.CallTool(context.Background(), "nivora_repository_devops_plan", map[string]any{"repositoryId": repositoryID})
 	if err != nil {
 		t.Fatalf("repository devops plan transport error: %v", err)
@@ -149,6 +136,19 @@ func TestMCPRepositoryDevOpsPlanResourceAndToolArePlanOnly(t *testing.T) {
 	}
 	if strings.Contains(body, "should-not-leak") {
 		t.Fatalf("devops plan tool leaked .env content: %s", body)
+	}
+
+	resource, err := server.ReadResource(context.Background(), "nivora://repositories/"+repositoryID+"/devops-plan")
+	if err != nil {
+		t.Fatalf("ReadResource devops-plan: %v", err)
+	}
+	for _, want := range []string{`"mutated": false`, `"devopsPlan"`, `"releaseCandidate"`, "go test ./...", "plan-only"} {
+		if !strings.Contains(resource.Text, want) {
+			t.Fatalf("devops plan resource missing %q: %s", want, resource.Text)
+		}
+	}
+	if strings.Contains(resource.Text, "should-not-leak") {
+		t.Fatalf("devops plan resource leaked .env content: %s", resource.Text)
 	}
 
 	result, err = server.CallTool(context.Background(), "nivora_devops_readiness_review", map[string]any{"repositoryId": repositoryID})

@@ -11,7 +11,7 @@ Read-only tools and resources expose control-plane state such as:
 - system status and runtime recovery status
 - explicit runtime recovery summaries across pipeline, deployment, release, and outbox state
 - organization, project, application, environment, repository, and release-target catalog summaries
-- repository snapshots, static repository intelligence, DevOps plans, and readiness reviews
+- repository snapshots, static repository intelligence, saved DevOps plans, and readiness reviews
 - stored Nivora Workflow summaries, plans, and guarded WorkflowRun metadata
 - pipeline definition catalog reads
 - runner summaries
@@ -22,7 +22,7 @@ Read-only tools and resources expose control-plane state such as:
 - persisted evidence bundles
 - capability status
 
-Plan-only tools may explain failures or produce local plans. They return `mutated=false` and must not perform apply, sync, rollback, approval, token, secret, runner, host, Git, prune, or delete operations.
+Plan-only tools may explain failures or produce local plans. They return `mutated=false` and must not perform apply, sync, rollback, approval, token, secret, runner, host, Git, prune, or delete operations. Repository DevOps plan generation may create a saved control-plane plan record and audit entry; it still must not execute repository commands or mutate external systems.
 
 Repository and workflow prompts are also plan-only guidance. They must treat detected build/test/package commands as suggestions until a guarded workflow run is requested through the normal control-plane path.
 

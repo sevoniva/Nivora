@@ -49,9 +49,11 @@ After a repository snapshot exists, Nivora can derive a plan-only DevOps summary
 
 ```bash
 nivora repository devops-plan <repository-id> --server http://localhost:8080
+nivora repository devops-plans <repository-id> --server http://localhost:8080
+nivora repository devops-plan-get <plan-id> --server http://localhost:8080
 ```
 
-The summary includes build, test, package, security scan, deployment target, and release-candidate metadata from the latest saved snapshot. It does not execute detected commands, run scanners, create releases, bind artifacts, deploy, or mutate runtime state. The response includes `mutated=false` for API, CLI, and MCP callers.
+The first command creates a saved plan record with `planId` and `contentHash`. The read commands list saved plan records or fetch a record by ID. A saved record includes build, test, package, security scan, deployment target, and release-candidate metadata from the latest saved snapshot. It does not execute detected commands, run scanners, create releases, bind artifacts, deploy, or mutate runtime execution state. API, CLI, and MCP responses keep `mutated=false` to mean no external system or runtime execution was changed.
 
 ## Validate A Nivora Workflow
 
@@ -76,7 +78,7 @@ Workflow source metadata is also preserved for traceability. When a guarded Work
 
 ## Events And Audit
 
-Repository create, catalog validation, snapshot, intelligence refresh, DevOps plan, and readiness-review paths record metadata-only events and audit entries through the configured store. In PostgreSQL mode, audit entries are written through the shared hash-chained audit writer used by the rest of the control plane.
+Repository create, catalog validation, snapshot, intelligence refresh, DevOps plan, and readiness-review paths record metadata-only events and audit entries through the configured store. DevOps plan creation also stores a redacted plan record with a stable content hash so later API, CLI, and MCP reads can refer to the exact plan evidence instead of recomputing it silently. In PostgreSQL mode, audit entries are written through the shared hash-chained audit writer used by the rest of the control plane.
 
 Workflow validate, plan, run, cancel, retry, and reconcile paths also record metadata-only events and audit entries. Validation does not persist a WorkflowPlan record or raw workflow YAML; it records that a definition was validated and returns the planned view. Workflow plan/run lifecycle events are keyed by the workflow plan ID, workflow run ID, or workflow ID so timeline and audit views can connect repository intelligence, workflow planning, and PipelineRun metadata without storing secret values.
 
@@ -95,7 +97,10 @@ POST /api/v1/repositories/{id}/snapshot
 GET  /api/v1/repositories/{id}/snapshots
 GET  /api/v1/repositories/{id}/intelligence
 POST /api/v1/repositories/{id}/analyze
+GET  /api/v1/repositories/{id}/devops-plans
+GET  /api/v1/repositories/{id}/devops-plan/latest
 POST /api/v1/devops/plan
+GET  /api/v1/devops/plans/{id}
 ```
 
 Workflow plan-only endpoints:
@@ -164,15 +169,15 @@ nivora://pipelines/runs/{id}/annotations
 nivora://pipelines/runs/{id}/summary
 ```
 
-Each tool is read-only or plan-only and returns `mutated=false`. MCP does not execute workflow steps, repository commands, scanner runs, release creation, or deployment actions.
+Each tool is read-only or plan-only and returns `mutated=false`. The `nivora_repository_devops_plan` tool may create a saved plan record and audit entry, but it does not execute workflow steps, repository commands, scanner runs, release creation, or deployment actions. The `nivora://repositories/{id}/devops-plan` resource reads the latest saved plan record and does not generate a new one.
 
 ## Known Limits
 
 - `make verify-workflow` runs the workflow planner unit tests and validates/plans the checked-in workflow examples without external SCM, registry, Kubernetes, or runner services.
-- RepositorySnapshot and RepositoryIntelligence are durable only in configured PostgreSQL server/MCP mode; local commands and default development mode still use in-memory state or direct local output.
+- RepositorySnapshot, RepositoryIntelligence, and Repository DevOps plan records are durable only in configured PostgreSQL server/MCP mode; local commands and default development mode still use in-memory state or direct local output.
 - GitHub/GitLab/Gitea real network integrations are not implemented.
 - WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.
-- Repository DevOps plans depend on the latest saved snapshot. They are not generated from live remote SCM state and do not create Release, DeploymentRun, SecurityScan, or PipelineRun records.
+- Repository DevOps plans depend on the latest saved snapshot. Saved plan records are metadata-only evidence and are not generated from live remote SCM state; they do not create Release, DeploymentRun, SecurityScan, or PipelineRun records.
 - WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun. Workflow and repository source IDs are copied into the linked PipelineRun/JobRun/StepRun records, including `repositorySnapshotId` when supplied. Read, cancel, retry, and reconcile APIs synchronize through the linked PipelineRun. Background retry policy controls and automatic workflow reconciliation remain future work.
 - Workflow security/release/deployment intent is stored in redacted plan records and remains plan-only. It is not release orchestration, deployment execution, or scanner execution.
 - Pipeline artifact/cache/annotation/summary metadata persistence exists in memory and configured PostgreSQL runtime stores. Blob storage is not implemented by this metadata foundation; use storage references for content outside the control plane.

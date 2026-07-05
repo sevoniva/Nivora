@@ -1816,6 +1816,8 @@ func newRepositoryCommand() *cobra.Command {
 	cmd.AddCommand(newRepositoryAnalyzeCommand())
 	cmd.AddCommand(newRepositoryInspectCommand())
 	cmd.AddCommand(newRepositoryDevOpsPlanCommand())
+	cmd.AddCommand(newRepositoryDevOpsPlanListCommand())
+	cmd.AddCommand(newRepositoryDevOpsPlanGetCommand())
 	cmd.AddCommand(newRepositoryReadinessReviewCommand())
 	return cmd
 }
@@ -2487,6 +2489,48 @@ func newRepositoryDevOpsPlanCommand() *cobra.Command {
 				return err
 			}
 			payload, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/devops/plan", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newRepositoryDevOpsPlanListCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "devops-plans <repository-id>",
+		Short: "List saved repository DevOps plan records",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/repositories/"+url.PathEscape(args[0])+"/devops-plans", nil, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), payload)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	return cmd
+}
+
+func newRepositoryDevOpsPlanGetCommand() *cobra.Command {
+	var serverURL string
+	var tokenEnv string
+	cmd := &cobra.Command{
+		Use:   "devops-plan-get <plan-id>",
+		Short: "Get a saved repository DevOps plan record",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			payload, err := doJSONWithToken(cmd.Context(), http.MethodGet, serverURL, "/api/v1/devops/plans/"+url.PathEscape(args[0]), nil, os.Getenv(tokenEnv))
 			if err != nil {
 				return err
 			}

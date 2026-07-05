@@ -26,6 +26,7 @@ channels:
         $ref: "#/components/messages/Event"
   devops.devops.plan.created:
     address: devops.devops.plan.created
+    description: Emitted when a repository DevOps plan record is created from static repository intelligence. Event data includes repositoryId, snapshotId, planId, contentHash, planOnly, and releaseReady; no repository command is executed.
     messages:
       event:
         $ref: "#/components/messages/Event"

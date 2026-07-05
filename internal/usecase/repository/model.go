@@ -123,8 +123,10 @@ type ReleaseCandidatePlan struct {
 }
 
 type DevOpsPlan struct {
+	PlanID            string               `json:"planId,omitempty"`
 	RepositoryID      string               `json:"repositoryId"`
 	SnapshotID        string               `json:"snapshotId,omitempty"`
+	ContentHash       string               `json:"contentHash,omitempty"`
 	Build             BuildPlan            `json:"build"`
 	Test              TestPlan             `json:"test"`
 	Package           PackagePlan          `json:"package"`
@@ -136,6 +138,16 @@ type DevOpsPlan struct {
 	Warnings          []string             `json:"warnings,omitempty"`
 	Metadata          map[string]string    `json:"metadata,omitempty"`
 	CreatedAt         time.Time            `json:"createdAt"`
+}
+
+type DevOpsPlanRecord struct {
+	ID           string     `json:"id"`
+	RepositoryID string     `json:"repositoryId"`
+	SnapshotID   string     `json:"snapshotId,omitempty"`
+	ProjectID    string     `json:"projectId,omitempty"`
+	ContentHash  string     `json:"contentHash"`
+	Plan         DevOpsPlan `json:"plan"`
+	CreatedAt    time.Time  `json:"createdAt"`
 }
 
 type DevOpsReadinessReview struct {

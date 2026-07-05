@@ -95,6 +95,42 @@ func TestRepositorySnapshotAndIntelligenceRoutesUseLocalStaticInspection(t *test
 	if strings.Contains(rec.Body.String(), "TOKEN=placeholder") {
 		t.Fatalf("devops plan leaked .env content: %s", rec.Body.String())
 	}
+	var planResponse map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &planResponse); err != nil {
+		t.Fatalf("decode devops plan response: %v", err)
+	}
+	planPayload, ok := planResponse["plan"].(map[string]any)
+	if !ok {
+		t.Fatalf("plan response missing plan object: %#v", planResponse)
+	}
+	planID := stringField(t, planPayload, "planId")
+	if planID == "" || !strings.HasPrefix(stringField(t, planPayload, "contentHash"), "sha256:") {
+		t.Fatalf("plan response missing durable metadata: %#v", planPayload)
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/repositories/"+repositoryID+"/devops-plan/latest", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"id":"`+planID+`"`) || !strings.Contains(rec.Body.String(), `"contentHash"`) {
+		t.Fatalf("latest devops plan status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "TOKEN=placeholder") {
+		t.Fatalf("latest devops plan leaked .env content: %s", rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/repositories/"+repositoryID+"/devops-plans", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"plans"`) || !strings.Contains(rec.Body.String(), planID) {
+		t.Fatalf("list devops plans status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/devops/plans/"+planID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"id":"`+planID+`"`) || !strings.Contains(rec.Body.String(), `"releaseCandidate"`) {
+		t.Fatalf("get devops plan status = %d body = %s", rec.Code, rec.Body.String())
+	}
 
 	req = httptest.NewRequest(http.MethodPost, "/api/v1/devops/readiness-review", strings.NewReader(`{"repositoryId":"`+repositoryID+`"}`))
 	req.Header.Set("Content-Type", "application/json")

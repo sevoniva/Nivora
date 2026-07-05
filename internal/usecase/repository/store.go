@@ -25,6 +25,10 @@ type Store interface {
 	ListSnapshots(ctx context.Context, repositoryID string) ([]RepositorySnapshot, error)
 	SaveIntelligence(ctx context.Context, intelligence RepositoryIntelligence) error
 	GetIntelligence(ctx context.Context, repositoryID string, snapshotID string) (RepositoryIntelligence, error)
+	SaveDevOpsPlan(ctx context.Context, record DevOpsPlanRecord) error
+	GetDevOpsPlan(ctx context.Context, id string) (DevOpsPlanRecord, error)
+	GetLatestDevOpsPlan(ctx context.Context, repositoryID string) (DevOpsPlanRecord, error)
+	ListDevOpsPlans(ctx context.Context, repositoryID string) ([]DevOpsPlanRecord, error)
 	AppendEvent(ctx context.Context, subject string, evt event.Event) error
 	EventsBySubject(ctx context.Context, subject string) ([]event.Event, error)
 	AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error
@@ -36,6 +40,7 @@ type MemoryStore struct {
 	repositories map[string]Repository
 	snapshots    map[string]RepositorySnapshot
 	intelligence map[string]RepositoryIntelligence
+	devopsPlans  map[string]DevOpsPlanRecord
 	events       map[string][]event.Event
 	audits       map[string][]audit.AuditLog
 }
@@ -45,6 +50,7 @@ func NewMemoryStore() *MemoryStore {
 		repositories: map[string]Repository{},
 		snapshots:    map[string]RepositorySnapshot{},
 		intelligence: map[string]RepositoryIntelligence{},
+		devopsPlans:  map[string]DevOpsPlanRecord{},
 		events:       map[string][]event.Event{},
 		audits:       map[string][]audit.AuditLog{},
 	}
@@ -167,6 +173,61 @@ func (s *MemoryStore) GetIntelligence(ctx context.Context, repositoryID string, 
 	return copyIntelligence(intelligence), nil
 }
 
+func (s *MemoryStore) SaveDevOpsPlan(ctx context.Context, record DevOpsPlanRecord) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.devopsPlans[record.ID] = copyDevOpsPlanRecord(record)
+	return nil
+}
+
+func (s *MemoryStore) GetDevOpsPlan(ctx context.Context, id string) (DevOpsPlanRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return DevOpsPlanRecord{}, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	record, ok := s.devopsPlans[id]
+	if !ok {
+		return DevOpsPlanRecord{}, ErrNotFound
+	}
+	return copyDevOpsPlanRecord(record), nil
+}
+
+func (s *MemoryStore) GetLatestDevOpsPlan(ctx context.Context, repositoryID string) (DevOpsPlanRecord, error) {
+	records, err := s.ListDevOpsPlans(ctx, repositoryID)
+	if err != nil {
+		return DevOpsPlanRecord{}, err
+	}
+	if len(records) == 0 {
+		return DevOpsPlanRecord{}, ErrNotFound
+	}
+	return records[len(records)-1], nil
+}
+
+func (s *MemoryStore) ListDevOpsPlans(ctx context.Context, repositoryID string) ([]DevOpsPlanRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []DevOpsPlanRecord
+	for _, record := range s.devopsPlans {
+		if repositoryID == "" || record.RepositoryID == repositoryID {
+			out = append(out, copyDevOpsPlanRecord(record))
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].CreatedAt.Before(out[j].CreatedAt)
+	})
+	return out, nil
+}
+
 func (s *MemoryStore) AppendEvent(ctx context.Context, subject string, evt event.Event) error {
 	if err := ctx.Err(); err != nil {
 		return err
@@ -255,6 +316,32 @@ func copyIntelligence(in RepositoryIntelligence) RepositoryIntelligence {
 	out.DeploymentTargetCandidates = append([]string(nil), in.DeploymentTargetCandidates...)
 	out.SecurityScanCandidates = append([]string(nil), in.SecurityScanCandidates...)
 	out.Warnings = append([]string(nil), in.Warnings...)
+	return out
+}
+
+func copyDevOpsPlanRecord(in DevOpsPlanRecord) DevOpsPlanRecord {
+	out := in
+	out.Plan = copyDevOpsPlan(in.Plan)
+	return out
+}
+
+func copyDevOpsPlan(in DevOpsPlan) DevOpsPlan {
+	out := in
+	out.Build.Commands = append([]CommandCandidate(nil), in.Build.Commands...)
+	out.Build.Warnings = append([]string(nil), in.Build.Warnings...)
+	out.Test.Commands = append([]CommandCandidate(nil), in.Test.Commands...)
+	out.Test.Warnings = append([]string(nil), in.Test.Warnings...)
+	out.Package.Commands = append([]CommandCandidate(nil), in.Package.Commands...)
+	out.Package.Warnings = append([]string(nil), in.Package.Warnings...)
+	out.Security.Candidates = append([]string(nil), in.Security.Candidates...)
+	out.Security.Warnings = append([]string(nil), in.Security.Warnings...)
+	out.ReleaseCandidate.ArtifactCandidates = append([]string(nil), in.ReleaseCandidate.ArtifactCandidates...)
+	out.ReleaseCandidate.RequiredChecks = append([]string(nil), in.ReleaseCandidate.RequiredChecks...)
+	out.ReleaseCandidate.Warnings = append([]string(nil), in.ReleaseCandidate.Warnings...)
+	out.SecurityScans = append([]string(nil), in.SecurityScans...)
+	out.DeploymentTargets = append([]string(nil), in.DeploymentTargets...)
+	out.Warnings = append([]string(nil), in.Warnings...)
+	out.Metadata = copyMap(in.Metadata)
 	return out
 }
 

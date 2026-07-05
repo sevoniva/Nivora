@@ -3,7 +3,9 @@ package repository
 import (
 	"context"
 	"crypto/rand"
+	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net/url"
@@ -229,15 +231,44 @@ func (s *Service) DevOpsPlan(ctx context.Context, repositoryID string) (DevOpsPl
 	if repository, err := s.store.GetRepository(ctx, snapshot.RepositoryID); err == nil {
 		projectID = repository.ProjectID
 	}
+	planID := defaultID("devops-plan")
+	plan.PlanID = planID
+	plan.ContentHash = devOpsPlanContentHash(plan)
+	record := DevOpsPlanRecord{
+		ID:           planID,
+		RepositoryID: plan.RepositoryID,
+		SnapshotID:   plan.SnapshotID,
+		ProjectID:    projectID,
+		ContentHash:  plan.ContentHash,
+		Plan:         plan,
+		CreatedAt:    now,
+	}
+	if err := s.store.SaveDevOpsPlan(ctx, record); err != nil {
+		return DevOpsPlan{}, err
+	}
 	if err := s.recordRepositoryEventAndAudit(ctx, snapshot.ID, EventDevOpsPlanCreated, "repository DevOps plan created", projectID, map[string]any{
 		"repositoryId": snapshot.RepositoryID,
 		"snapshotId":   snapshot.ID,
+		"planId":       planID,
+		"contentHash":  plan.ContentHash,
 		"planOnly":     true,
 		"releaseReady": plan.ReleaseReady,
 	}); err != nil {
 		return DevOpsPlan{}, err
 	}
 	return plan, nil
+}
+
+func (s *Service) GetDevOpsPlan(ctx context.Context, id string) (DevOpsPlanRecord, error) {
+	return s.store.GetDevOpsPlan(ctx, strings.TrimSpace(id))
+}
+
+func (s *Service) GetLatestDevOpsPlan(ctx context.Context, repositoryID string) (DevOpsPlanRecord, error) {
+	return s.store.GetLatestDevOpsPlan(ctx, strings.TrimSpace(repositoryID))
+}
+
+func (s *Service) ListDevOpsPlans(ctx context.Context, repositoryID string) ([]DevOpsPlanRecord, error) {
+	return s.store.ListDevOpsPlans(ctx, strings.TrimSpace(repositoryID))
 }
 
 func (s *Service) DevOpsReadinessReview(ctx context.Context, repositoryID string) (DevOpsReadinessReview, error) {
@@ -257,7 +288,7 @@ func (s *Service) DevOpsReadinessReview(ctx context.Context, repositoryID string
 		SecurityPlanAvailable:  len(plan.Security.Candidates) > 0,
 		DeploymentTargets:      append([]string(nil), plan.DeploymentTargets...),
 		Warnings:               append([]string{"readiness review is plan-only and does not execute repository commands, create releases, trigger scanners, or deploy"}, plan.Warnings...),
-		Metadata:               map[string]string{"source": "repository-intelligence", "devopsPlanSnapshotId": plan.SnapshotID},
+		Metadata:               map[string]string{"source": "repository-intelligence", "devopsPlanId": plan.PlanID, "devopsPlanContentHash": plan.ContentHash, "devopsPlanSnapshotId": plan.SnapshotID},
 		CreatedAt:              now,
 		RecommendedNextActions: []string{"Review generated Nivora Workflow draft before enabling guarded execution"},
 	}
@@ -310,12 +341,29 @@ func (s *Service) DevOpsReadinessReview(ctx context.Context, repositoryID string
 	if err := s.recordRepositoryEventAndAudit(ctx, plan.SnapshotID, EventDevOpsReadinessReviewCreated, "repository readiness review created", projectID, map[string]any{
 		"repositoryId": review.RepositoryID,
 		"snapshotId":   review.SnapshotID,
+		"planId":       plan.PlanID,
+		"contentHash":  plan.ContentHash,
 		"status":       review.Status,
 		"planOnly":     review.PlanOnly,
 	}); err != nil {
 		return DevOpsReadinessReview{}, err
 	}
 	return review, nil
+}
+
+func devOpsPlanContentHash(plan DevOpsPlan) string {
+	stable := copyDevOpsPlan(plan)
+	stable.PlanID = ""
+	stable.ContentHash = ""
+	stable.CreatedAt = time.Time{}
+	stable.Build.CreatedAt = time.Time{}
+	stable.Test.CreatedAt = time.Time{}
+	stable.Package.CreatedAt = time.Time{}
+	stable.Security.CreatedAt = time.Time{}
+	stable.ReleaseCandidate.CreatedAt = time.Time{}
+	body, _ := json.Marshal(stable)
+	sum := sha256.Sum256(body)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }
 
 func (s *Service) Events(ctx context.Context, subject string) ([]event.Event, error) {

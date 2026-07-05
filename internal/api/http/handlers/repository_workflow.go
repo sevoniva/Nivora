@@ -161,6 +161,49 @@ func PlanRepositoryDevOps(repositories *repositoryusecase.Service) http.HandlerF
 	}
 }
 
+func ListRepositoryDevOpsPlans(catalog *catalogusecase.Service, repositories *repositoryusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		repositoryID := chi.URLParam(r, "id")
+		if _, err := catalog.GetRepository(r.Context(), repositoryID); err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		plans, err := repositories.ListDevOpsPlans(r.Context(), repositoryID)
+		if err != nil {
+			respondRepositoryError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{"plans": plans})
+	}
+}
+
+func GetRepositoryLatestDevOpsPlan(catalog *catalogusecase.Service, repositories *repositoryusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		repositoryID := chi.URLParam(r, "id")
+		if _, err := catalog.GetRepository(r.Context(), repositoryID); err != nil {
+			respondCatalogError(w, r, err)
+			return
+		}
+		record, err := repositories.GetLatestDevOpsPlan(r.Context(), repositoryID)
+		if err != nil {
+			respondRepositoryError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record)
+	}
+}
+
+func GetRepositoryDevOpsPlan(repositories *repositoryusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, err := repositories.GetDevOpsPlan(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondRepositoryError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record)
+	}
+}
+
 func ReviewRepositoryDevOpsReadiness(repositories *repositoryusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		var input devOpsPlanRequest

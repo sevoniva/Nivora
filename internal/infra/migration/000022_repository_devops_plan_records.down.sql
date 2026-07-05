@@ -1,0 +1,5 @@
+DROP INDEX IF EXISTS idx_repository_devops_plan_records_content_hash;
+DROP INDEX IF EXISTS idx_repository_devops_plan_records_project_created;
+DROP INDEX IF EXISTS idx_repository_devops_plan_records_snapshot_created;
+DROP INDEX IF EXISTS idx_repository_devops_plan_records_repository_created;
+DROP TABLE IF EXISTS repository_devops_plan_records;

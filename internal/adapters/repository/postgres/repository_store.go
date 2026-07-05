@@ -167,6 +167,54 @@ func (s *RepositoryStore) GetIntelligence(ctx context.Context, repositoryID stri
 	return intelligence, err
 }
 
+func (s *RepositoryStore) SaveDevOpsPlan(ctx context.Context, record repositoryusecase.DevOpsPlanRecord) error {
+	_, err := s.pool.Exec(ctx, `INSERT INTO repository_devops_plan_records (
+		id, repository_id, snapshot_id, project_id, content_hash, plan, created_at
+	) VALUES ($1,$2,$3,$4,$5,$6,$7)
+	ON CONFLICT (id) DO UPDATE SET
+		repository_id=EXCLUDED.repository_id,
+		snapshot_id=EXCLUDED.snapshot_id,
+		project_id=EXCLUDED.project_id,
+		content_hash=EXCLUDED.content_hash,
+		plan=EXCLUDED.plan,
+		created_at=EXCLUDED.created_at`,
+		record.ID, record.RepositoryID, record.SnapshotID, record.ProjectID, record.ContentHash, jsonBytes(record.Plan), record.CreatedAt)
+	return err
+}
+
+func (s *RepositoryStore) GetDevOpsPlan(ctx context.Context, id string) (repositoryusecase.DevOpsPlanRecord, error) {
+	record, err := scanDevOpsPlanRecord(s.pool.QueryRow(ctx, repositoryDevOpsPlanRecordSelect()+` WHERE id=$1`, id))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return repositoryusecase.DevOpsPlanRecord{}, fmt.Errorf("%w: DevOps plan %q", repositoryusecase.ErrNotFound, id)
+	}
+	return record, err
+}
+
+func (s *RepositoryStore) GetLatestDevOpsPlan(ctx context.Context, repositoryID string) (repositoryusecase.DevOpsPlanRecord, error) {
+	record, err := scanDevOpsPlanRecord(s.pool.QueryRow(ctx, repositoryDevOpsPlanRecordSelect()+` WHERE repository_id=$1 ORDER BY created_at DESC, id DESC LIMIT 1`, repositoryID))
+	if errors.Is(err, pgx.ErrNoRows) {
+		return repositoryusecase.DevOpsPlanRecord{}, fmt.Errorf("%w: latest DevOps plan for repository %q", repositoryusecase.ErrNotFound, repositoryID)
+	}
+	return record, err
+}
+
+func (s *RepositoryStore) ListDevOpsPlans(ctx context.Context, repositoryID string) ([]repositoryusecase.DevOpsPlanRecord, error) {
+	rows, err := s.pool.Query(ctx, repositoryDevOpsPlanRecordSelect()+` WHERE ($1='' OR repository_id=$1) ORDER BY created_at, id`, repositoryID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []repositoryusecase.DevOpsPlanRecord
+	for rows.Next() {
+		record, err := scanDevOpsPlanRecord(rows)
+		if err != nil {
+			return nil, err
+		}
+		out = append(out, record)
+	}
+	return nonNil(out), rows.Err()
+}
+
 func (s *RepositoryStore) AppendEvent(ctx context.Context, subject string, evt event.Event) error {
 	if evt.Time.IsZero() {
 		evt.Time = time.Now().UTC()
@@ -238,6 +286,10 @@ func repositorySnapshotSelect() string {
 	return `SELECT id, repository_id, ref, commit_sha, branch, tag, tree_hash, files, detected_languages, detected_frameworks, detected_build_tools, detected_package_managers, detected_deployment_files, detected_workflow_files, detected_security_files, warnings, metadata, created_at FROM repository_snapshots`
 }
 
+func repositoryDevOpsPlanRecordSelect() string {
+	return `SELECT id, repository_id, snapshot_id, project_id, content_hash, plan, created_at FROM repository_devops_plan_records`
+}
+
 func scanRepositoryRecord(row scanner) (repositoryusecase.Repository, error) {
 	var repository repositoryusecase.Repository
 	var labels, metadata []byte
@@ -288,6 +340,17 @@ func scanRepositoryIntelligence(row scanner) (repositoryusecase.RepositoryIntell
 	readJSON(securityScans, &intelligence.SecurityScanCandidates)
 	readJSON(warnings, &intelligence.Warnings)
 	return intelligence, nil
+}
+
+func scanDevOpsPlanRecord(row scanner) (repositoryusecase.DevOpsPlanRecord, error) {
+	var record repositoryusecase.DevOpsPlanRecord
+	var plan []byte
+	err := row.Scan(&record.ID, &record.RepositoryID, &record.SnapshotID, &record.ProjectID, &record.ContentHash, &plan, &record.CreatedAt)
+	if err != nil {
+		return repositoryusecase.DevOpsPlanRecord{}, err
+	}
+	readJSON(plan, &record.Plan)
+	return record, nil
 }
 
 func jsonBytes(value any) []byte {

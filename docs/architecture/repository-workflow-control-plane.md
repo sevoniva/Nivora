@@ -66,9 +66,9 @@ It supports parser/planner foundation behavior:
 
 The workflow planner can convert compatible definitions into the existing Pipeline definition model. PipelineRun remains the CI runtime object; this layer must not create a second workflow engine.
 
-`/api/v1/workflows/run` is intentionally a structured `not_implemented` placeholder until the execution path is explicitly modeled through PipelineRun and runner policy.
+`/api/v1/workflows/run` is guarded by RBAC plus explicit `confirm=true` and `allowPipelineRun=true`. It records WorkflowRun metadata and creates a queued PipelineRun through the existing runtime. It does not execute shell steps directly and is not exposed through MCP action tools.
 
-WorkflowPlan records are durable in configured PostgreSQL mode. Raw WorkflowDefinition YAML and WorkflowRun lifecycle metadata are still future hardening because they need stronger redaction, tenant scope, and PipelineRun execution mapping.
+WorkflowPlan and WorkflowRun records are durable in configured PostgreSQL mode. Raw WorkflowDefinition YAML is still not stored by this plan/run foundation because source document retention needs stronger redaction and tenant-scope review.
 
 ## MCP Surface
 

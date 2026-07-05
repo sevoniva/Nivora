@@ -1,6 +1,6 @@
 # Database Operations
 
-Nivora uses PostgreSQL as the target source of truth. Local demos still run with in-memory stores by default, but the runtime now has PostgreSQL-backed repository foundations for PipelineRun, DeploymentRun, release artifact binding, ReleasePlan, ReleaseExecution, catalog metadata, Pipeline definition state, repository snapshot/intelligence records, workflow plan records, artifact registry catalogs, and policy catalogs.
+Nivora uses PostgreSQL as the target source of truth. Local demos still run with in-memory stores by default, but the runtime now has PostgreSQL-backed repository foundations for PipelineRun, DeploymentRun, release artifact binding, ReleasePlan, ReleaseExecution, catalog metadata, Pipeline definition state, repository snapshot/intelligence records, WorkflowPlan/WorkflowRun records, artifact registry catalogs, and policy catalogs.
 
 Nivora is not production-ready.
 
@@ -28,6 +28,7 @@ Current migration groups:
 - `000016_security_policy_results`: persisted policy result records for security and deployment/release gates.
 - `000017_repository_workflow_persistence`: repository record, snapshot, and intelligence persistence for repository workflow foundations.
 - `000018_workflow_plan_persistence`: stored Nivora Workflow plan records with content hashes and redacted plan JSON.
+- `000019_workflow_run_persistence`: guarded WorkflowRun metadata records linked to queued PipelineRuns.
 
 Run migrations with:
 
@@ -89,6 +90,7 @@ The Phase 5.1 runtime tables are prefixed with `runtime_` and use text IDs to ma
 - `repository_snapshots`
 - `repository_intelligence`
 - `workflow_plan_records`
+- `workflow_run_records`
 - `pipeline_definitions`
 - `catalog_artifact_registries`
 - `catalog_policies`

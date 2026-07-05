@@ -161,6 +161,62 @@ func ToPipelineDefinition(def Definition, options PlanOptions) (PipelineConversi
 	return PipelineConversion{Definition: pipeline, Warnings: []string{"workflow converted to PipelineRun-compatible staged shell jobs; advanced provider action semantics are not executed"}}, nil
 }
 
+func ToPipelineDefinitionFromPlan(plan Plan) (PipelineConversion, error) {
+	if !plan.ConversionReady {
+		return PipelineConversion{}, fmt.Errorf("%w: workflow plan contains foundation-only features that cannot execute as PipelineRun", ErrInvalid)
+	}
+	if strings.TrimSpace(plan.WorkflowID) == "" {
+		return PipelineConversion{}, fmt.Errorf("%w: workflow plan id is required", ErrInvalid)
+	}
+	stepsByJob := map[string][]PlannedStep{}
+	for _, step := range plan.Steps {
+		if step.Uses != "" || !step.ConversionReady {
+			return PipelineConversion{}, fmt.Errorf("%w: uses step %q is not executable by PipelineRun foundation", ErrInvalid, step.Uses)
+		}
+		stepsByJob[step.JobID] = append(stepsByJob[step.JobID], step)
+	}
+	pipeline := pipelineusecase.Definition{
+		APIVersion: "nivora.io/v1alpha1",
+		Kind:       "Pipeline",
+		Metadata:   pipelineusecase.Metadata{Name: firstNonEmpty(plan.Name, plan.WorkflowID)},
+	}
+	for index, job := range plan.Jobs {
+		if !job.ConversionReady {
+			return PipelineConversion{}, fmt.Errorf("%w: workflow job %q is not executable by PipelineRun foundation", ErrInvalid, job.ID)
+		}
+		stage := pipelineusecase.Stage{Name: fmt.Sprintf("workflow-%d", index+1)}
+		pipelineJob := pipelineusecase.Job{
+			Name:           firstNonEmpty(job.ID, job.Name),
+			Executor:       "shell",
+			TimeoutSeconds: job.TimeoutMinutes * 60,
+		}
+		for stepIndex, step := range stepsByJob[job.ID] {
+			if strings.TrimSpace(step.Run) == "" {
+				return PipelineConversion{}, fmt.Errorf("%w: workflow job %q step %d has no run command", ErrInvalid, job.ID, stepIndex)
+			}
+			pipelineJob.Steps = append(pipelineJob.Steps, pipelineusecase.Step{
+				Name:           firstNonEmpty(step.Name, fmt.Sprintf("step-%d", stepIndex+1)),
+				Run:            step.Run,
+				TimeoutSeconds: step.TimeoutMinutes * 60,
+			})
+		}
+		if len(pipelineJob.Steps) == 0 {
+			return PipelineConversion{}, fmt.Errorf("%w: workflow job %q has no executable steps", ErrInvalid, job.ID)
+		}
+		stage.Jobs = append(stage.Jobs, pipelineJob)
+		pipeline.Spec.Stages = append(pipeline.Spec.Stages, stage)
+	}
+	if err := pipeline.Validate(); err != nil {
+		return PipelineConversion{}, err
+	}
+	warnings := []string{
+		"workflow plan converted to a queued PipelineRun; stage ordering is derived from the stored plan and external action semantics are not executed",
+	}
+	warnings = append(warnings, plan.SecurityWarnings...)
+	warnings = append(warnings, plan.Warnings...)
+	return PipelineConversion{Definition: pipeline, Warnings: dedupeSorted(warnings)}, nil
+}
+
 func validateDefinitionShape(def Definition, options PlanOptions) error {
 	if def.Kind != "Workflow" {
 		return fmt.Errorf("%w: workflow kind must be Workflow", ErrInvalid)

@@ -109,22 +109,46 @@ func TestAllPlaceholderRoutesReturnStructuredNotImplemented(t *testing.T) {
 	}
 }
 
-func TestWorkflowRunPlaceholderReturnsStructuredNotImplemented(t *testing.T) {
+func TestWorkflowRunRequiresConfirmationAndQueuesPipelineRun(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {
 		t.Fatalf("load default config: %v", err)
 	}
 	router := newTestRouter(cfg)
-	req := httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{}`))
+	workflow := `apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: guarded-run
+on: manual
+jobs:
+  test:
+    steps:
+      - run: echo ok
+`
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{"content":`+quoteJSONForContract(workflow)+`}`))
 	req.Header.Set("Content-Type", "application/json")
 	rec := httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusNotImplemented {
-		t.Fatalf("workflow run placeholder status = %d body = %s", rec.Code, rec.Body.String())
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("workflow run without confirmation status = %d body = %s", rec.Code, rec.Body.String())
 	}
-	if !strings.Contains(rec.Body.String(), "not_implemented") {
-		t.Fatalf("workflow run placeholder body missing not_implemented: %s", rec.Body.String())
+	if !strings.Contains(rec.Body.String(), "allowPipelineRun") {
+		t.Fatalf("workflow run confirmation error missing guard message: %s", rec.Body.String())
 	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{"content":`+quoteJSONForContract(workflow)+`,"confirm":true,"allowPipelineRun":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted || !strings.Contains(rec.Body.String(), `"workflowRun"`) || !strings.Contains(rec.Body.String(), `"pipelineRun"`) {
+		t.Fatalf("workflow run guarded queue status = %d body = %s", rec.Code, rec.Body.String())
+	}
+}
+
+func quoteJSONForContract(value string) string {
+	quoted := `"` + strings.ReplaceAll(strings.ReplaceAll(value, `\`, `\\`), `"`, `\"`) + `"`
+	quoted = strings.ReplaceAll(quoted, "\n", `\n`)
+	return quoted
 }
 
 type openAPIDocument struct {

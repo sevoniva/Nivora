@@ -2,6 +2,9 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -33,6 +36,54 @@ func TestRepositoryInspectLocalCommand(t *testing.T) {
 	}
 	if strings.Contains(body, "should-not-leak") {
 		t.Fatalf("repository inspect leaked .env content: %s", body)
+	}
+}
+
+func TestWorkflowRunCommandSendsGuardedServerRequest(t *testing.T) {
+	workflow := filepath.Join(t.TempDir(), "ci.yaml")
+	if err := os.WriteFile(workflow, []byte(`
+apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: cli-run
+on: [manual]
+jobs:
+  test:
+    steps:
+      - run: echo ok
+`), 0o600); err != nil {
+		t.Fatalf("write workflow: %v", err)
+	}
+
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/api/v1/workflows/run" {
+			t.Fatalf("unexpected request %s %s", r.Method, r.URL.Path)
+		}
+		var payload map[string]any
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("decode payload: %v", err)
+		}
+		if payload["confirm"] != true || payload["allowPipelineRun"] != true {
+			t.Fatalf("guard flags not sent: %#v", payload)
+		}
+		if !strings.Contains(payload["content"].(string), "cli-run") {
+			t.Fatalf("workflow content missing: %#v", payload)
+		}
+		w.WriteHeader(http.StatusAccepted)
+		_, _ = w.Write([]byte(`{"workflowRun":{"id":"wrun-cli","status":"Queued"},"pipelineRun":{"run":{"id":"prun-cli","status":"Queued"}}}`))
+	}))
+	defer server.Close()
+
+	cmd := newRootCommand()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetErr(&out)
+	cmd.SetArgs([]string{"workflow", "run", "--file", workflow, "--server", server.URL, "--confirm", "--allow-pipeline-run"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("workflow run failed: %v output=%s", err, out.String())
+	}
+	if !strings.Contains(out.String(), "wrun-cli") || !strings.Contains(out.String(), "prun-cli") {
+		t.Fatalf("workflow run output missing ids: %s", out.String())
 	}
 }
 

@@ -12,15 +12,19 @@ type Store interface {
 	GetPlan(ctx context.Context, id string) (PlanRecord, error)
 	GetLatestPlan(ctx context.Context, workflowID string) (PlanRecord, error)
 	ListPlans(ctx context.Context, filter PlanListFilter) ([]PlanRecord, error)
+	SaveRun(ctx context.Context, record RunRecord) error
+	GetRun(ctx context.Context, id string) (RunRecord, error)
+	ListRuns(ctx context.Context, filter RunListFilter) ([]RunRecord, error)
 }
 
 type MemoryStore struct {
 	mu    sync.RWMutex
 	plans map[string]PlanRecord
+	runs  map[string]RunRecord
 }
 
 func NewMemoryStore() *MemoryStore {
-	return &MemoryStore{plans: map[string]PlanRecord{}}
+	return &MemoryStore{plans: map[string]PlanRecord{}, runs: map[string]RunRecord{}}
 }
 
 func (s *MemoryStore) SavePlan(ctx context.Context, record PlanRecord) error {
@@ -82,6 +86,60 @@ func (s *MemoryStore) ListPlans(ctx context.Context, filter PlanListFilter) ([]P
 	return applyPlanPage(out, filter), nil
 }
 
+func (s *MemoryStore) SaveRun(ctx context.Context, record RunRecord) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.runs[record.ID] = copyRunRecord(record)
+	return nil
+}
+
+func (s *MemoryStore) GetRun(ctx context.Context, id string) (RunRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return RunRecord{}, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	record, ok := s.runs[strings.TrimSpace(id)]
+	if !ok {
+		return RunRecord{}, ErrNotFound
+	}
+	return copyRunRecord(record), nil
+}
+
+func (s *MemoryStore) ListRuns(ctx context.Context, filter RunListFilter) ([]RunRecord, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	var out []RunRecord
+	for _, record := range s.runs {
+		if filter.RepositoryID != "" && record.RepositoryID != filter.RepositoryID {
+			continue
+		}
+		if filter.WorkflowID != "" && record.WorkflowID != filter.WorkflowID {
+			continue
+		}
+		if filter.ProjectID != "" && record.ProjectID != filter.ProjectID {
+			continue
+		}
+		if filter.Status != "" && record.Status != filter.Status {
+			continue
+		}
+		out = append(out, copyRunRecord(record))
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].CreatedAt.Equal(out[j].CreatedAt) {
+			return out[i].ID < out[j].ID
+		}
+		return out[i].CreatedAt.After(out[j].CreatedAt)
+	})
+	return applyRunPage(out, filter), nil
+}
+
 func applyPlanPage(records []PlanRecord, filter PlanListFilter) []PlanRecord {
 	offset := filter.Offset
 	if offset < 0 {
@@ -101,9 +159,34 @@ func applyPlanPage(records []PlanRecord, filter PlanListFilter) []PlanRecord {
 	return records
 }
 
+func applyRunPage(records []RunRecord, filter RunListFilter) []RunRecord {
+	offset := filter.Offset
+	if offset < 0 {
+		offset = 0
+	}
+	if offset >= len(records) {
+		return []RunRecord{}
+	}
+	records = records[offset:]
+	limit := filter.Limit
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	if len(records) > limit {
+		records = records[:limit]
+	}
+	return records
+}
+
 func copyPlanRecord(in PlanRecord) PlanRecord {
 	out := in
 	out.Plan = copyPlan(in.Plan)
+	return out
+}
+
+func copyRunRecord(in RunRecord) RunRecord {
+	out := in
+	out.Warnings = append([]string(nil), in.Warnings...)
 	return out
 }
 

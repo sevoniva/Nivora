@@ -178,3 +178,59 @@ type PlanListFilter struct {
 	Limit        int
 	Offset       int
 }
+
+type RunStatus string
+
+const (
+	RunQueued   RunStatus = "Queued"
+	RunFailed   RunStatus = "Failed"
+	RunCanceled RunStatus = "Canceled"
+)
+
+type RunInput struct {
+	Content          string
+	PlanID           string
+	RepositoryID     string
+	Path             string
+	Ref              string
+	ProjectID        string
+	EnvironmentID    string
+	ActorID          string
+	CorrelationID    string
+	Confirm          bool
+	AllowPipelineRun bool
+	Options          PlanOptions
+}
+
+type RunRecord struct {
+	ID             string    `json:"id"`
+	WorkflowID     string    `json:"workflowId"`
+	WorkflowPlanID string    `json:"workflowPlanId"`
+	RepositoryID   string    `json:"repositoryId,omitempty"`
+	PipelineRunID  string    `json:"pipelineRunId"`
+	PipelineID     string    `json:"pipelineId"`
+	ProjectID      string    `json:"projectId,omitempty"`
+	EnvironmentID  string    `json:"environmentId,omitempty"`
+	Ref            string    `json:"ref,omitempty"`
+	Status         RunStatus `json:"status"`
+	Warnings       []string  `json:"warnings,omitempty"`
+	CreatedAt      time.Time `json:"createdAt"`
+	UpdatedAt      time.Time `json:"updatedAt"`
+}
+
+type RunResult struct {
+	WorkflowRun RunRecord                 `json:"workflowRun"`
+	PipelineRun pipelineusecase.RunRecord `json:"pipelineRun"`
+	Conversion  PipelineConversion        `json:"conversion"`
+	Plan        Plan                      `json:"plan"`
+	Warnings    []string                  `json:"warnings,omitempty"`
+}
+
+type RunListFilter struct {
+	RepositoryID string
+	WorkflowID   string
+	ProjectID    string
+	Status       RunStatus
+	Limit        int
+	Offset       int
+}

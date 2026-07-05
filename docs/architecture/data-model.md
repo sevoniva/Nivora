@@ -78,6 +78,7 @@ Persisted by the catalog hardening pass:
 - repository snapshot records in `repository_snapshots`
 - repository static intelligence records in `repository_intelligence`
 - workflow plan records in `workflow_plan_records`
+- guarded workflow run metadata records in `workflow_run_records`
 - Pipeline definitions and version/hash metadata in `pipeline_definitions`
 - artifact registry metadata and CredentialRef linkage in `catalog_artifact_registries`
 - policy definitions in `catalog_policies`

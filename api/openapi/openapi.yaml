@@ -1397,19 +1397,89 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/v1/workflows/runs:
+    get:
+      summary: List guarded Nivora Workflow runs
+      description: Requires `workflow.run`. Returns WorkflowRun metadata records created by the guarded run endpoint. WorkflowRun records reference queued PipelineRuns and do not contain raw workflow YAML or secret values.
+      parameters:
+        - name: repositoryId
+          in: query
+          schema:
+            type: string
+        - name: workflowId
+          in: query
+          schema:
+            type: string
+        - name: projectId
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+        - name: offset
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Workflow run records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  workflowRuns:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/WorkflowRunRecord"
+  /api/v1/workflows/runs/{id}:
+    get:
+      summary: Get guarded Nivora Workflow run metadata
+      description: Requires `workflow.run`. Returns a WorkflowRun metadata record by id.
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Workflow run record
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowRunRecord"
+        "404":
+          description: Workflow run was not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/v1/workflows/run:
     post:
       summary: Request a guarded Workflow run
-      description: Requires `workflow.run`. This endpoint is intentionally a guarded placeholder in the current beta-candidate foundation and returns `not_implemented`; workflow execution must continue through explicitly modeled PipelineRun paths.
+      description: Requires `workflow.run`, `confirm=true`, and `allowPipelineRun=true`. Converts a stored or submitted Nivora Workflow plan into the existing PipelineRun runtime and creates a queued PipelineRun. It does not execute shell commands directly and does not expose MCP action semantics.
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
-              type: object
+              $ref: "#/components/schemas/WorkflowRunRequest"
       responses:
-        "501":
-          description: Workflow run is not implemented in this foundation phase
+        "202":
+          description: Workflow run queued through PipelineRun
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/WorkflowRunResult"
+        "400":
+          description: Workflow run request is invalid or missing required confirmation
           content:
             application/json:
               schema:
@@ -4990,6 +5060,84 @@ components:
         createdAt:
           type: string
           format: date-time
+    WorkflowRunRequest:
+      type: object
+      properties:
+        content:
+          type: string
+          description: Optional raw Nivora Workflow YAML content. Required when planId is omitted.
+        planId:
+          type: string
+          description: Optional stored WorkflowPlan id. When used, the stored redacted plan is converted without reading raw YAML.
+        repositoryId:
+          type: string
+        path:
+          type: string
+        ref:
+          type: string
+        projectId:
+          type: string
+        environmentId:
+          type: string
+        correlationId:
+          type: string
+        confirm:
+          type: boolean
+          description: Must be true to create the queued PipelineRun.
+        allowPipelineRun:
+          type: boolean
+          description: Must be true to explicitly allow Workflow-to-PipelineRun queuing.
+    WorkflowRunRecord:
+      type: object
+      properties:
+        id:
+          type: string
+        workflowId:
+          type: string
+        workflowPlanId:
+          type: string
+        repositoryId:
+          type: string
+        pipelineRunId:
+          type: string
+        pipelineId:
+          type: string
+        projectId:
+          type: string
+        environmentId:
+          type: string
+        ref:
+          type: string
+        status:
+          type: string
+          enum: [Queued, Failed, Canceled]
+        warnings:
+          type: array
+          items:
+            type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    WorkflowRunResult:
+      type: object
+      properties:
+        workflowRun:
+          $ref: "#/components/schemas/WorkflowRunRecord"
+        pipelineRun:
+          type: object
+          additionalProperties: true
+        conversion:
+          type: object
+          additionalProperties: true
+        plan:
+          $ref: "#/components/schemas/WorkflowPlan"
+        warnings:
+          type: array
+          items:
+            type: string
     CatalogUpdateRequest:
       type: object
       properties:

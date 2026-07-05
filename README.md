@@ -23,7 +23,7 @@ Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/sta
 | Release and ReleaseExecution | Partial; sequential orchestration and PostgreSQL persistence foundations exist |
 | Release target catalog | Foundation; `/api/v1/release-targets` and `nivora target` manage target metadata with PostgreSQL persistence in configured server mode and unsafe operations disabled by default |
 | Repository catalog / intelligence | Foundation; repository metadata catalog, local/generic read-only snapshotting, static language/build/test/package detection, PostgreSQL-backed snapshot/intelligence storage in configured server/MCP mode, `nivora repository inspect`, and repository MCP read/plan tools exist; external SCM writes remain future work |
-| Nivora Workflow | Foundation; `.nivora/workflows/*.yaml` parser, validator, DAG/matrix planner, Pipeline definition conversion, stored plan records, `nivora workflow validate/plan`, and plan-only API/MCP surfaces exist; durable Workflow runs are not implemented |
+| Nivora Workflow | Foundation; `.nivora/workflows/*.yaml` parser, validator, DAG/matrix planner, Pipeline definition conversion, stored plan records, guarded WorkflowRun metadata, `nivora workflow validate/plan`, and plan-only API/MCP surfaces exist; WorkflowRun can queue PipelineRun but is not a full workflow engine |
 | Runner protocol | Partial; tokens, heartbeat, claim, logs, status, and isolation profiles exist; OS-level sandboxing is still operator work |
 | Kubernetes YAML | Experimental guarded apply/rollback foundation; no default destructive behavior |
 | GitOps / Argo CD | Experimental planning/status/guarded sync foundation; no production Argo automation |

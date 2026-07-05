@@ -14,19 +14,19 @@ Current maturity remains **hardened beta-candidate foundation, not production-re
 | Repository API | foundation | `/api/v1/repositories/{id}/snapshot`, `/snapshots`, `/intelligence`, `/analyze` | Backed by read-only local/generic inspection. Catalog metadata remains separate from snapshot storage, but both can use PostgreSQL when `database.runtime_store: postgres` is configured. |
 | Repository CLI | foundation | `nivora repository inspect --path` | Local static inspection prints snapshot and intelligence metadata. |
 | Nivora Workflow parser/planner | foundation | `internal/usecase/workflow` | Parser, validator, DAG planning, matrix expansion, unsupported `uses` warnings, Pipeline definition conversion, and stored plan-record metadata exist. |
-| Workflow API | foundation | `/api/v1/workflows/validate`, `/api/v1/workflows/plan`, `/api/v1/workflows/plans`, `/api/v1/workflows/plans/{id}`, `/api/v1/workflows/run` | Validate is parser-only. Plan stores redacted plan records. Run returns structured `not_implemented`. |
+| Workflow API | foundation | `/api/v1/workflows/validate`, `/api/v1/workflows/plan`, `/api/v1/workflows/plans`, `/api/v1/workflows/plans/{id}`, `/api/v1/workflows/runs`, `/api/v1/workflows/runs/{id}`, `/api/v1/workflows/run` | Validate is parser-only. Plan stores redacted plan records. Run requires explicit confirmation and creates a WorkflowRun record plus queued PipelineRun. |
 | Workflow CLI | foundation | `nivora workflow validate`, `nivora workflow plan` | Local authoring flow exists; it does not execute workflow steps. |
 | MCP repository/workflow tools | foundation | `nivora_repository_inspect`, `nivora_workflow_validate`, `nivora_workflow_plan` | Plan-only tools return `mutated=false`; destructive MCP actions remain blocked. |
 | Contract coverage | partial | OpenAPI paths, MCP permission matrix, targeted API/MCP/CLI tests | Route/path contract and MCP catalog coverage pass for the new surface. |
 | Repository snapshot persistence | foundation | `000017_repository_workflow_persistence`, `internal/adapters/repository/postgres/repository_store.go`, runtime/server/MCP `NewRepositoryServiceWithConfig` wiring | RepositorySnapshot and RepositoryIntelligence survive service restart in optional PostgreSQL integration tests. |
-| Workflow plan persistence | foundation | `000018_workflow_plan_persistence`, `internal/adapters/repository/postgres/workflow_store.go`, runtime/server/MCP `NewWorkflowServiceWithConfig` wiring | WorkflowPlan records survive service restart in optional PostgreSQL integration tests. Raw workflow YAML is not stored by the plan-record store. |
+| Workflow plan/run persistence | foundation | `000018_workflow_plan_persistence`, `000019_workflow_run_persistence`, `internal/adapters/repository/postgres/workflow_store.go`, runtime/server/MCP `NewWorkflowServiceWithConfig` wiring | WorkflowPlan and WorkflowRun records survive service restart in optional PostgreSQL integration tests. Raw workflow YAML is not stored by the plan/run store. |
 
 ## Still Open
 
 | Area | Gap | Recommended Next Step |
 |---|---|---|
 | Workflow definition catalog | WorkflowDefinition source documents are not stored as raw YAML in the workflow plan store. | Add a source-definition catalog only after redaction, tenant scope, and PipelineRun conversion semantics are finalized. |
-| Workflow run lifecycle | Workflow execution is not modeled as a durable WorkflowRun; execution still belongs to PipelineRun. | Add WorkflowRun metadata only if it strengthens PipelineRun traceability without creating a second runtime. |
+| Workflow run lifecycle | WorkflowRun metadata exists and queues PipelineRun records, but full WorkflowRun recovery/reconciliation still follows PipelineRun runtime state. | Add richer WorkflowRun status synchronization from PipelineRun terminal states before calling it beta-grade. |
 | External SCM providers | GitHub/GitLab/Gitea are not real integrations. | Keep them adapter skeletons until CredentialRef resolution, tenant policy, rate limits, and provider tests are designed. |
 | MCP remote exposure | Repository/workflow MCP tools are safe locally but not proven for broad remote use. | Add tenant-scope tests and response caps for repository snapshots before remote exposure. |
 | Web console | No repository/workflow pages are added in this track. | Add only after backend contracts settle. |
@@ -37,7 +37,7 @@ The current track adds focused tests for:
 
 - generic SCM secret-like file handling
 - repository snapshot/intelligence API behavior
-- workflow validate/plan/run placeholder behavior
+- workflow validate/plan/guarded-run behavior
 - MCP repository/workflow tools
 - CLI repository/workflow local commands
 

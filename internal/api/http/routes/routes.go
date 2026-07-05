@@ -224,9 +224,11 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Post("/repositories/{id}/analyze", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.AnalyzeRepository(repositoryService)))
 		api.Get("/workflows/plans", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.ListWorkflowPlans(workflowService)))
 		api.Get("/workflows/plans/{id}", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.GetWorkflowPlan(workflowService)))
+		api.Get("/workflows/runs", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.ListWorkflowRuns(workflowService)))
+		api.Get("/workflows/runs/{id}", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.GetWorkflowRun(workflowService)))
 		api.Post("/workflows/validate", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.ValidateWorkflowDefinition()))
 		api.Post("/workflows/plan", apimiddleware.RequirePermission(authService, "workflow.plan", handlers.RespondError, handlers.PlanWorkflowDefinition(workflowService)))
-		api.Post("/workflows/run", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.WorkflowRunGuardedPlaceholder()))
+		api.Post("/workflows/run", apimiddleware.RequirePermission(authService, "workflow.run", handlers.RespondError, handlers.RunWorkflowDefinition(workflowService, pipelineService)))
 		api.Get("/release-targets", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.ListReleaseTargets(catalogService)))
 		api.Post("/release-targets", apimiddleware.RequirePermission(authService, "environment.write", handlers.RespondError, handlers.CreateReleaseTarget(catalogService)))
 		api.Get("/release-targets/{id}", apimiddleware.RequirePermission(authService, "environment.read", handlers.RespondError, handlers.GetReleaseTarget(catalogService)))
@@ -431,7 +433,5 @@ func placeholderGroups() []routeGroup {
 }
 
 func placeholderOperations() map[string]bool {
-	return map[string]bool{
-		"post /api/v1/workflows/run": true,
-	}
+	return map[string]bool{}
 }

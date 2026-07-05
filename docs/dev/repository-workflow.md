@@ -25,9 +25,11 @@ When the server or MCP process is configured with `database.runtime_store: postg
 ```bash
 nivora workflow validate --file examples/workflows/go-ci.yaml
 nivora workflow plan --file examples/workflows/go-ci.yaml
+nivora workflow run --file examples/workflows/go-ci.yaml --confirm --allow-pipeline-run --server http://localhost:8080
 ```
 
 The planner builds a DAG and checks dependency cycles, missing `needs` targets, matrix size limits, unsupported `uses`, and secret-like environment values.
+The run command is server-backed and queue-only. It creates WorkflowRun metadata plus a queued PipelineRun when the server authorizes the request; it does not execute workflow steps inside the CLI process.
 
 ## API Surface
 
@@ -47,10 +49,12 @@ POST /api/v1/workflows/validate
 POST /api/v1/workflows/plan
 GET  /api/v1/workflows/plans
 GET  /api/v1/workflows/plans/{id}
+GET  /api/v1/workflows/runs
+GET  /api/v1/workflows/runs/{id}
 POST /api/v1/workflows/run
 ```
 
-`/api/v1/workflows/run` is a guarded placeholder and returns `not_implemented`.
+`/api/v1/workflows/run` requires `confirm=true` and `allowPipelineRun=true`. It creates a WorkflowRun metadata record and queues a PipelineRun through the existing runtime; it does not execute shell steps in the HTTP handler.
 
 ## MCP Surface
 
@@ -69,6 +73,6 @@ Each tool is read-only or plan-only and returns `mutated=false`. MCP does not ex
 - RepositorySnapshot and RepositoryIntelligence are durable only in configured PostgreSQL server/MCP mode; local commands and default development mode still use in-memory state or direct local output.
 - GitHub/GitLab/Gitea real network integrations are not implemented.
 - WorkflowPlan record persistence exists in configured PostgreSQL server/MCP mode, but raw WorkflowDefinition YAML is not stored by that plan-record store.
-- WorkflowRun persistence is not implemented.
-- Workflow execution must continue through explicit PipelineRun work; direct workflow run remains future work.
+- WorkflowRun metadata persistence exists in configured PostgreSQL server mode and points to the queued PipelineRun.
+- Workflow execution still belongs to PipelineRun, Runner, and Worker paths; MCP does not expose workflow action execution.
 - Shell execution is not a sandbox.

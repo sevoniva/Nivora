@@ -9,9 +9,15 @@ import (
 	"fmt"
 	"strings"
 	"time"
+
+	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 )
 
 var ErrNotFound = errors.New("workflow record not found")
+
+type PipelineRunCreator interface {
+	CreateQueued(ctx context.Context, input pipelineusecase.CreateRunInput) (pipelineusecase.CreateRunResult, error)
+}
 
 type Service struct {
 	store Store
@@ -78,6 +84,83 @@ func (s *Service) ListPlans(ctx context.Context, filter PlanListFilter) ([]PlanR
 	filter.RepositoryID = strings.TrimSpace(filter.RepositoryID)
 	filter.WorkflowID = strings.TrimSpace(filter.WorkflowID)
 	return s.store.ListPlans(ctx, filter)
+}
+
+func (s *Service) Run(ctx context.Context, input RunInput, pipelines PipelineRunCreator) (RunResult, error) {
+	if pipelines == nil {
+		return RunResult{}, fmt.Errorf("%w: pipeline runtime is required", ErrInvalid)
+	}
+	if !input.Confirm || !input.AllowPipelineRun {
+		return RunResult{}, fmt.Errorf("%w: workflow run requires confirm=true and allowPipelineRun=true", ErrInvalid)
+	}
+	planRecord, err := s.planRecordForRun(ctx, input)
+	if err != nil {
+		return RunResult{}, err
+	}
+	conversion, err := ToPipelineDefinitionFromPlan(planRecord.Plan)
+	if err != nil {
+		return RunResult{}, err
+	}
+	pipelineResult, err := pipelines.CreateQueued(ctx, pipelineusecase.CreateRunInput{
+		Definition:    conversion.Definition,
+		ProjectID:     strings.TrimSpace(input.ProjectID),
+		EnvironmentID: strings.TrimSpace(input.EnvironmentID),
+		ActorID:       strings.TrimSpace(input.ActorID),
+		CorrelationID: strings.TrimSpace(input.CorrelationID),
+	})
+	if err != nil {
+		return RunResult{}, err
+	}
+	now := s.now().UTC()
+	record := RunRecord{
+		ID:             defaultID("wrun"),
+		WorkflowID:     planRecord.WorkflowID,
+		WorkflowPlanID: planRecord.ID,
+		RepositoryID:   firstNonEmpty(strings.TrimSpace(input.RepositoryID), planRecord.RepositoryID),
+		PipelineRunID:  pipelineResult.Record.Run.ID,
+		PipelineID:     pipelineResult.Record.Pipeline.ID,
+		ProjectID:      strings.TrimSpace(input.ProjectID),
+		EnvironmentID:  strings.TrimSpace(input.EnvironmentID),
+		Ref:            firstNonEmpty(strings.TrimSpace(input.Ref), planRecord.Ref),
+		Status:         RunQueued,
+		Warnings:       append([]string(nil), conversion.Warnings...),
+		CreatedAt:      now,
+		UpdatedAt:      now,
+	}
+	if err := s.store.SaveRun(ctx, record); err != nil {
+		return RunResult{}, err
+	}
+	return RunResult{
+		WorkflowRun: record,
+		PipelineRun: pipelineResult.Record,
+		Conversion:  conversion,
+		Plan:        planRecord.Plan,
+		Warnings:    append([]string(nil), record.Warnings...),
+	}, nil
+}
+
+func (s *Service) GetRun(ctx context.Context, id string) (RunRecord, error) {
+	return s.store.GetRun(ctx, strings.TrimSpace(id))
+}
+
+func (s *Service) ListRuns(ctx context.Context, filter RunListFilter) ([]RunRecord, error) {
+	filter.RepositoryID = strings.TrimSpace(filter.RepositoryID)
+	filter.WorkflowID = strings.TrimSpace(filter.WorkflowID)
+	filter.ProjectID = strings.TrimSpace(filter.ProjectID)
+	return s.store.ListRuns(ctx, filter)
+}
+
+func (s *Service) planRecordForRun(ctx context.Context, input RunInput) (PlanRecord, error) {
+	if planID := strings.TrimSpace(input.PlanID); planID != "" {
+		return s.GetPlan(ctx, planID)
+	}
+	return s.Plan(ctx, PlanInput{
+		Content:      input.Content,
+		RepositoryID: input.RepositoryID,
+		Path:         input.Path,
+		Ref:          input.Ref,
+		Options:      input.Options,
+	})
 }
 
 func contentHash(content string) string {

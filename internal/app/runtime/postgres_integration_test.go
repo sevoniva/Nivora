@@ -257,12 +257,45 @@ jobs:
 		t.Fatalf("restart workflow service with postgres config: %v", err)
 	}
 	reloadedWorkflowPlan, err := workflowService.GetPlan(ctx, workflowPlan.ID)
-	closeWorkflow()
 	if err != nil {
+		closeWorkflow()
 		t.Fatalf("reload workflow plan from restarted postgres runtime: %v", err)
 	}
 	if reloadedWorkflowPlan.ID != workflowPlan.ID || reloadedWorkflowPlan.Plan.PlanID != workflowPlan.ID || reloadedWorkflowPlan.RepositoryID != repository.ID {
 		t.Fatalf("runtime bootstrap did not persist workflow plan: %#v", reloadedWorkflowPlan)
+	}
+	workflowRun, err := workflowService.Run(ctx, workflowusecase.RunInput{
+		PlanID:           workflowPlan.ID,
+		RepositoryID:     repository.ID,
+		ProjectID:        project.ID,
+		EnvironmentID:    "env-dev",
+		Ref:              "main",
+		Confirm:          true,
+		AllowPipelineRun: true,
+	}, service)
+	closeWorkflow()
+	if err != nil {
+		t.Fatalf("create workflow run in postgres runtime: %v", err)
+	}
+
+	workflowService, closeWorkflow, err = NewWorkflowServiceWithConfig(ctx, cfg)
+	if err != nil {
+		t.Fatalf("restart workflow service for workflow run with postgres config: %v", err)
+	}
+	reloadedWorkflowRun, err := workflowService.GetRun(ctx, workflowRun.WorkflowRun.ID)
+	closeWorkflow()
+	if err != nil {
+		t.Fatalf("reload workflow run from restarted postgres runtime: %v", err)
+	}
+	if reloadedWorkflowRun.PipelineRunID != workflowRun.PipelineRun.Run.ID || reloadedWorkflowRun.Status != workflowusecase.RunQueued {
+		t.Fatalf("runtime bootstrap did not persist workflow run: %#v", reloadedWorkflowRun)
+	}
+	workflowPipelineRun, err := service.Get(ctx, workflowRun.PipelineRun.Run.ID)
+	if err != nil {
+		t.Fatalf("reload workflow-created PipelineRun from postgres runtime: %v", err)
+	}
+	if workflowPipelineRun.Run.Status != workflowRun.PipelineRun.Run.Status || workflowPipelineRun.Pipeline.ProjectID != project.ID {
+		t.Fatalf("workflow-created PipelineRun was not persisted with scope: %#v", workflowPipelineRun.Run)
 	}
 
 	prod := config.Default()

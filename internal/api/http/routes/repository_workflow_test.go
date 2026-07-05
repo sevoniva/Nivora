@@ -152,11 +152,42 @@ jobs:
 		t.Fatalf("invalid secret workflow status = %d body = %s", rec.Code, rec.Body.String())
 	}
 
-	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{}`))
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{"content":`+quoteJSON(workflow)+`}`))
 	rec = httptest.NewRecorder()
 	router.ServeHTTP(rec, req)
-	if rec.Code != http.StatusNotImplemented || !strings.Contains(rec.Body.String(), "not_implemented") {
+	if rec.Code != http.StatusBadRequest || !strings.Contains(rec.Body.String(), "allowPipelineRun") {
+		t.Fatalf("workflow run without confirmation status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodPost, "/api/v1/workflows/run", strings.NewReader(`{"content":`+quoteJSON(workflow)+`,"repositoryId":"repo-api","projectId":"project-api","environmentId":"env-dev","confirm":true,"allowPipelineRun":true}`))
+	req.Header.Set("Content-Type", "application/json")
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusAccepted || !strings.Contains(rec.Body.String(), `"workflowRun"`) || !strings.Contains(rec.Body.String(), `"pipelineRun"`) || !strings.Contains(rec.Body.String(), `"status":"Queued"`) {
 		t.Fatalf("workflow run status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	var runResult map[string]any
+	if err := json.Unmarshal(rec.Body.Bytes(), &runResult); err != nil {
+		t.Fatalf("decode workflow run: %v", err)
+	}
+	workflowRun, ok := runResult["workflowRun"].(map[string]any)
+	if !ok {
+		t.Fatalf("workflowRun missing: %#v", runResult)
+	}
+	runID := stringField(t, workflowRun, "id")
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/runs/"+runID, nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), `"pipelineRunId"`) {
+		t.Fatalf("get workflow run status = %d body = %s", rec.Code, rec.Body.String())
+	}
+
+	req = httptest.NewRequest(http.MethodGet, "/api/v1/workflows/runs?repositoryId=repo-api&status=Queued", nil)
+	rec = httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK || !strings.Contains(rec.Body.String(), runID) {
+		t.Fatalf("list workflow runs status = %d body = %s", rec.Code, rec.Body.String())
 	}
 }
 

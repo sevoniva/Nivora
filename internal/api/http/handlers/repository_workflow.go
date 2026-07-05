@@ -12,6 +12,7 @@ import (
 	"github.com/sevoniva/nivora/internal/api/http/dto"
 	domainapp "github.com/sevoniva/nivora/internal/domain/application"
 	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
+	pipelineusecase "github.com/sevoniva/nivora/internal/usecase/pipeline"
 	repositoryusecase "github.com/sevoniva/nivora/internal/usecase/repository"
 	workflowusecase "github.com/sevoniva/nivora/internal/usecase/workflow"
 )
@@ -34,6 +35,19 @@ type workflowDefinitionPayload struct {
 	RepositoryID string
 	Path         string
 	Ref          string
+}
+
+type workflowRunRequest struct {
+	Content          string `json:"content,omitempty"`
+	PlanID           string `json:"planId,omitempty"`
+	RepositoryID     string `json:"repositoryId,omitempty"`
+	Path             string `json:"path,omitempty"`
+	Ref              string `json:"ref,omitempty"`
+	ProjectID        string `json:"projectId,omitempty"`
+	EnvironmentID    string `json:"environmentId,omitempty"`
+	CorrelationID    string `json:"correlationId,omitempty"`
+	Confirm          bool   `json:"confirm"`
+	AllowPipelineRun bool   `json:"allowPipelineRun"`
 }
 
 func CreateRepositorySnapshot(catalog *catalogusecase.Service, repositories *repositoryusecase.Service) http.HandlerFunc {
@@ -167,14 +181,70 @@ func GetWorkflowPlan(service *workflowusecase.Service) http.HandlerFunc {
 	}
 }
 
-func WorkflowRunGuardedPlaceholder() http.HandlerFunc {
+func ListWorkflowRuns(service *workflowusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
-		RespondError(w, r, http.StatusNotImplemented, dto.ErrorResponse{
-			Code:    "not_implemented",
-			Message: "workflow run is a guarded future capability; use /api/v1/workflows/validate or /api/v1/workflows/plan in this phase",
-			Path:    r.URL.Path,
+		limit, _ := strconv.Atoi(r.URL.Query().Get("limit"))
+		offset, _ := strconv.Atoi(r.URL.Query().Get("offset"))
+		runs, err := service.ListRuns(r.Context(), workflowusecase.RunListFilter{
+			RepositoryID: r.URL.Query().Get("repositoryId"),
+			WorkflowID:   r.URL.Query().Get("workflowId"),
+			ProjectID:    r.URL.Query().Get("projectId"),
+			Status:       workflowusecase.RunStatus(r.URL.Query().Get("status")),
+			Limit:        limit,
+			Offset:       offset,
 		})
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, map[string]any{"workflowRuns": runs})
 	}
+}
+
+func GetWorkflowRun(service *workflowusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, err := service.GetRun(r.Context(), chi.URLParam(r, "id"))
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusOK, record)
+	}
+}
+
+func RunWorkflowDefinition(service *workflowusecase.Service, pipelines *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		var input workflowRunRequest
+		if err := json.NewDecoder(r.Body).Decode(&input); err != nil && !errors.Is(err, io.EOF) {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{Code: "invalid_workflow_run_request", Message: err.Error(), Path: r.URL.Path})
+			return
+		}
+		result, err := service.Run(r.Context(), workflowusecase.RunInput{
+			Content:          input.Content,
+			PlanID:           input.PlanID,
+			RepositoryID:     input.RepositoryID,
+			Path:             input.Path,
+			Ref:              input.Ref,
+			ProjectID:        input.ProjectID,
+			EnvironmentID:    input.EnvironmentID,
+			ActorID:          actorIDFromRequest(r),
+			CorrelationID:    input.CorrelationID,
+			Confirm:          input.Confirm,
+			AllowPipelineRun: input.AllowPipelineRun,
+		}, pipelines)
+		if err != nil {
+			respondWorkflowError(w, r, err)
+			return
+		}
+		RespondJSON(w, http.StatusAccepted, result)
+	}
+}
+
+func actorIDFromRequest(r *http.Request) string {
+	if value := strings.TrimSpace(r.Header.Get("X-Nivora-Actor")); value != "" {
+		return value
+	}
+	return "api"
 }
 
 func workflowDefinitionFromRequest(r *http.Request) (workflowDefinitionPayload, error) {

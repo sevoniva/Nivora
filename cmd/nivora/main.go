@@ -1819,6 +1819,7 @@ func newWorkflowCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "workflow", Short: "Nivora Workflow authoring utilities"}
 	cmd.AddCommand(newWorkflowValidateCommand())
 	cmd.AddCommand(newWorkflowPlanCommand())
+	cmd.AddCommand(newWorkflowRunCommand())
 	return cmd
 }
 
@@ -2288,6 +2289,69 @@ func newWorkflowPlanCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&file, "file", "", "workflow file path")
+	return cmd
+}
+
+func newWorkflowRunCommand() *cobra.Command {
+	var file string
+	var planID string
+	var serverURL string
+	var tokenEnv string
+	var repositoryID string
+	var projectID string
+	var environmentID string
+	var ref string
+	var correlationID string
+	var confirm bool
+	var allowPipelineRun bool
+	cmd := &cobra.Command{
+		Use:   "run",
+		Short: "Queue a guarded Nivora Workflow as a PipelineRun through the server",
+		RunE: func(cmd *cobra.Command, args []string) error {
+			if file == "" && planID == "" {
+				return fmt.Errorf("--file or --plan-id is required")
+			}
+			payload := map[string]any{
+				"planId":           planID,
+				"repositoryId":     repositoryID,
+				"projectId":        projectID,
+				"environmentId":    environmentID,
+				"ref":              ref,
+				"correlationId":    correlationID,
+				"confirm":          confirm,
+				"allowPipelineRun": allowPipelineRun,
+			}
+			if file != "" {
+				body, err := os.ReadFile(file)
+				if err != nil {
+					return err
+				}
+				payload["content"] = string(body)
+				payload["path"] = file
+			}
+			body, err := json.Marshal(payload)
+			if err != nil {
+				return err
+			}
+			result, err := doJSONWithToken(cmd.Context(), http.MethodPost, serverURL, "/api/v1/workflows/run", body, os.Getenv(tokenEnv))
+			if err != nil {
+				return err
+			}
+			printJSON(cmd.OutOrStdout(), result)
+			return nil
+		},
+	}
+	cmd.Flags().StringVar(&file, "file", "", "workflow file path")
+	cmd.Flags().StringVar(&planID, "plan-id", "", "stored WorkflowPlan id")
+	cmd.Flags().StringVar(&serverURL, "server", "http://localhost:8080", "Nivora server URL")
+	cmd.Flags().StringVar(&tokenEnv, "token-env", "NIVORA_AUTH_TOKEN", "environment variable containing the bearer token")
+	cmd.Flags().StringVar(&repositoryID, "repository-id", "", "repository id for traceability")
+	cmd.Flags().StringVar(&projectID, "project-id", "", "project id for PipelineRun ownership")
+	cmd.Flags().StringVar(&environmentID, "environment-id", "", "environment id for PipelineRun ownership")
+	cmd.Flags().StringVar(&ref, "ref", "", "repository ref label")
+	cmd.Flags().StringVar(&correlationID, "correlation-id", "", "correlation id for runtime tracing")
+	cmd.Flags().BoolVar(&confirm, "confirm", false, "confirm guarded WorkflowRun creation")
+	cmd.Flags().BoolVar(&allowPipelineRun, "allow-pipeline-run", false, "explicitly allow queuing a PipelineRun")
 	return cmd
 }
 

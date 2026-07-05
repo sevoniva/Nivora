@@ -102,6 +102,11 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 		{"kubernetes apply", func(c *Config) { c.Runtime.AllowKubernetesApply = true }},
 		{"argo sync", func(c *Config) { c.Runtime.AllowArgoSync = true }},
 		{"insecure registry", func(c *Config) { c.Runtime.AllowInsecureRegistry = true }},
+		{"docker socket mount", func(c *Config) { c.Runtime.AllowDockerSocketMount = true }},
+		{"host path mount", func(c *Config) { c.Runtime.AllowHostPathMount = true }},
+		{"local dev runner isolation profile", func(c *Config) { c.Runtime.RunnerIsolationProfile = RunnerProfileLocalDev }},
+		{"shell hardened runner isolation profile", func(c *Config) { c.Runtime.RunnerIsolationProfile = RunnerProfileShellHardened }},
+		{"unknown runner isolation profile", func(c *Config) { c.Runtime.RunnerIsolationProfile = "unknown-profile" }},
 		{"mcp action tools", func(c *Config) {
 			c.MCP.Enabled = true
 			c.MCP.AllowActionTools = true
@@ -142,6 +147,11 @@ func TestProductionRejectsUnsafeSecurityDefaults(t *testing.T) {
 	}
 	if err := base.Validate(); err != nil {
 		t.Fatalf("safe production config rejected: %v", err)
+	}
+	externalRequired := base
+	externalRequired.Runtime.RunnerIsolationProfile = RunnerProfileExternalRequired
+	if err := externalRequired.Validate(); err != nil {
+		t.Fatalf("external-required production profile rejected: %v", err)
 	}
 	httpMCP := base
 	httpMCP.MCP.Enabled = true

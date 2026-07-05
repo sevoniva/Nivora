@@ -58,6 +58,8 @@ func TestHelmProductionValuesAvoidUnsafeDefaults(t *testing.T) {
 		"allowKubernetesApply",
 		"allowArgoSync",
 		"allowInsecureRegistry",
+		"allowDockerSocketMount",
+		"allowHostPathMount",
 	} {
 		if boolValue(runtimeValues, key) {
 			t.Fatalf("%s must be false in production values", key)

@@ -98,11 +98,12 @@ type RunnerConfig struct {
 // RunnerIsolationProfile defines the execution isolation level for runners.
 // Shell executor is not an OS-level sandbox regardless of profile.
 const (
-	RunnerProfileLocalDev      = "local-dev"
-	RunnerProfileShellHardened = "shell-hardened"
-	RunnerProfileContainer     = "container-isolated"
-	RunnerProfileKubernetesJob = "kubernetes-job"
-	RunnerProfileExternal      = "external-runner"
+	RunnerProfileLocalDev         = "local-dev"
+	RunnerProfileShellHardened    = "shell-hardened"
+	RunnerProfileContainer        = "container-isolated"
+	RunnerProfileKubernetesJob    = "kubernetes-job"
+	RunnerProfileExternal         = "external-runner"
+	RunnerProfileExternalRequired = "external-required"
 )
 
 type RuntimeConfig struct {
@@ -233,6 +234,15 @@ func (c Config) Validate() error {
 	if (c.Env == "production" || c.Env == "prod") && c.Database.RuntimeStore == "memory" {
 		return errors.New("config database.runtime_store=memory is dev-only; use postgres for production")
 	}
+	profile := c.Runtime.RunnerIsolationProfile
+	if profile == "" {
+		profile = RunnerProfileLocalDev
+	}
+	switch profile {
+	case RunnerProfileLocalDev, RunnerProfileShellHardened, RunnerProfileContainer, RunnerProfileKubernetesJob, RunnerProfileExternal, RunnerProfileExternalRequired:
+	default:
+		return errors.New("config runtime.runner_isolation_profile must be one of: local-dev, shell-hardened, container-isolated, kubernetes-job, external-runner, external-required")
+	}
 	if c.Env == "production" || c.Env == "prod" {
 		if !c.Auth.Enabled {
 			return errors.New("config auth.enabled=false is not allowed in production")
@@ -287,20 +297,10 @@ func (c Config) Validate() error {
 		if c.Runtime.AllowInsecureRegistry {
 			return errors.New("config runtime.allow_insecure_registry=true is not allowed in production")
 		}
-		profile := c.Runtime.RunnerIsolationProfile
-		if profile == "" {
-			profile = RunnerProfileLocalDev
-		}
 		switch profile {
-		case RunnerProfileLocalDev:
-			return errors.New("config runtime.runner_isolation_profile=local-dev is not allowed in production; use container-isolated, kubernetes-job, or external-runner")
-		case RunnerProfileShellHardened:
-			if !c.Runtime.AllowLocalShellExecutor {
-				return errors.New("config runtime.runner_isolation_profile=shell-hardened requires runtime.allow_local_shell_executor=true (must be explicitly enabled)")
-			}
-		case RunnerProfileContainer, RunnerProfileKubernetesJob, RunnerProfileExternal:
-		default:
-			return errors.New("config runtime.runner_isolation_profile must be one of: shell-hardened, container-isolated, kubernetes-job, external-runner")
+		case RunnerProfileLocalDev, RunnerProfileShellHardened:
+			return errors.New("config runtime.runner_isolation_profile must not be local-dev or shell-hardened in production; use container-isolated, kubernetes-job, external-runner, or external-required")
+		case RunnerProfileContainer, RunnerProfileKubernetesJob, RunnerProfileExternal, RunnerProfileExternalRequired:
 		}
 		if c.Runtime.AllowDockerSocketMount {
 			return errors.New("config runtime.allow_docker_socket_mount=true is not allowed in production")

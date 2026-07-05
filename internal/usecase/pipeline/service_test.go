@@ -476,6 +476,44 @@ func TestRunnerGroupConstrainsRegistrationAndClaim(t *testing.T) {
 	}
 }
 
+func TestRunnerRegistrationNormalizesExecutorCapabilities(t *testing.T) {
+	service := newTestService()
+	group, err := service.CreateRunnerGroup(context.Background(), domainrunner.RunnerGroup{
+		ID:        "rgrp-normalized",
+		Name:      "normalized",
+		Executors: []string{" shell ", "shell", ""},
+	})
+	if err != nil {
+		t.Fatalf("create runner group: %v", err)
+	}
+	if len(group.Executors) != 1 || group.Executors[0] != "shell" {
+		t.Fatalf("group executors not normalized: %#v", group.Executors)
+	}
+	result, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:           "runner-normalized",
+		GroupID:      group.ID,
+		Executors:    []string{" shell ", "", "shell"},
+		Capabilities: []string{" shell ", "shell", ""},
+	})
+	if err != nil {
+		t.Fatalf("register normalized runner: %v", err)
+	}
+	if len(result.Runner.Executors) != 1 || result.Runner.Executors[0] != "shell" {
+		t.Fatalf("runner executors not normalized: %#v", result.Runner.Executors)
+	}
+	if len(result.Runner.Capabilities) != 1 || result.Runner.Capabilities[0] != "shell" {
+		t.Fatalf("runner capabilities not normalized: %#v", result.Runner.Capabilities)
+	}
+	if _, err := service.RegisterRunnerWithToken(context.Background(), domainrunner.Runner{
+		ID:           "runner-bad-capability",
+		GroupID:      group.ID,
+		Executors:    []string{" shell "},
+		Capabilities: []string{" container "},
+	}); !errors.Is(err, ErrRunnerGroupScopeDenied) {
+		t.Fatalf("expected bad capability to be denied, got %v", err)
+	}
+}
+
 func TestRunnerGroupConcurrencyLimit(t *testing.T) {
 	service := newTestService()
 	group, err := service.CreateRunnerGroup(context.Background(), domainrunner.RunnerGroup{

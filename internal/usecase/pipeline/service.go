@@ -420,6 +420,8 @@ func (s *Service) RegisterRunnerWithToken(ctx context.Context, runner domainrunn
 	if runner.Status == "" {
 		runner.Status = "online"
 	}
+	runner.Executors = compactStrings(runner.Executors)
+	runner.Capabilities = compactStrings(runner.Capabilities)
 	group := domainrunner.RunnerGroup{}
 	if runner.GroupID != "" {
 		var err error

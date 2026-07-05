@@ -7,10 +7,11 @@ Nivora provides config-level runner isolation profiles. The shell executor is NO
 | Profile | Config Value | Production | Description |
 |---|---|---|---|
 | Local Dev | `local-dev` | ❌ Rejected | Shell executor, inherits host environment. Dev only. |
-| Shell Hardened | `shell-hardened` | With flag | Software isolation: workspace, env blocklist, process group. |
+| Shell Hardened | `shell-hardened` | ❌ Rejected | Software isolation for controlled non-production use: workspace, env blocklist, process group. |
 | Container Isolated | `container-isolated` | ✅ Preferred | Runner in container. Operator must configure security. |
 | Kubernetes Job | `kubernetes-job` | ✅ | Runner as K8s Job. Operator must configure PodSecurity. |
-| External | `external-runner` | ✅ | Runner on dedicated host. Operator manages isolation. |
+| External Required | `external-required` | ✅ | Preferred wording for a runner on a dedicated isolated host or fleet. Operator manages isolation. |
+| External Runner | `external-runner` | ✅ | Backward-compatible alias for `external-required`. |
 
 ## Container Isolated Profile
 

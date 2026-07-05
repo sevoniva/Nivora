@@ -52,13 +52,15 @@ Nivora provides config-level runner isolation profiles (`runtime.runner_isolatio
 | Profile | Allowed in Production | Description |
 |---|---|---|
 | `local-dev` | No | Local development only. Shell executor, inherits environment. |
-| `shell-hardened` | With explicit flag | Software-level isolation: workspace, env blocklist, process group cleanup. NOT an OS sandbox. |
+| `shell-hardened` | No | Software-level isolation for controlled non-production use: workspace, env blocklist, process group cleanup. NOT an OS sandbox. |
 | `container-isolated` | Yes | Runner runs inside a container. Operators must configure Docker/podman isolation. |
 | `kubernetes-job` | Yes | Runner runs as a Kubernetes Job. Operators must configure pod security. |
-| `external-runner` | Yes | Runner runs on an external isolated host. Operators manage isolation. |
+| `external-required` | Yes | Preferred external-isolation wording. Runner runs on a dedicated isolated host or fleet managed by operators. |
+| `external-runner` | Yes | Backward-compatible alias for `external-required`. |
 
 Production validation rejects:
 - `local-dev` profile
+- `shell-hardened` profile
 - `allow_docker_socket_mount: true`
 - `allow_host_path_mount: true`
 - `allow_privileged_executor: true`

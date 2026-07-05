@@ -112,6 +112,8 @@ case "$version_json" in
 esac
 
 assert_proxy_json_contains "/api/v1/artifacts" "artifacts"
+assert_proxy_json_contains "/api/v1/repositories" "repositories"
+assert_proxy_json_contains "/api/v1/workflows" "workflows"
 assert_proxy_json_contains "/api/v1/policies/results" "results"
 assert_proxy_json_contains "/api/v1/evidence/bundles" "bundles"
 assert_proxy_json_contains "/api/v1/integrations" "integrations"

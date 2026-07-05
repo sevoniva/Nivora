@@ -43,6 +43,10 @@ Avoid setting `VITE_NIVORA_API_BASE_URL` to a different origin unless the backen
 - Releases
 - Release execution detail
 - Artifacts
+- Repositories
+- Repository detail, snapshots, intelligence, DevOps plan, and readiness review
+- Workflows
+- Workflow validate and plan
 - Policy results
 - Evidence bundles
 - Runners
@@ -57,11 +61,14 @@ The console calls existing APIs only:
 
 - Runtime APIs such as `/api/v1/pipeline-runs`, `/api/v1/deployments`, `/api/v1/releases`, and `/api/v1/runners`.
 - Read-only catalog and governance APIs such as `/api/v1/artifacts`, `/api/v1/policies/results`, `/api/v1/evidence/bundles`, `/api/v1/integrations`, `/api/v1/plugins`, and `/api/v1/system/runtime`.
+- Repository and workflow planning APIs such as `/api/v1/repositories`, `/api/v1/repositories/{id}/snapshots`, `/api/v1/repositories/{id}/intelligence`, `/api/v1/devops/plan`, `/api/v1/devops/readiness-review`, `/api/v1/workflows`, `/api/v1/workflows/validate`, and `/api/v1/workflows/plan`.
 - Visualization APIs under `/api/v1/visualization/*` for DAGs, timelines, resources, health, audit, security, runner summaries, and environment topology.
 
 Empty states and request errors are shown directly so contributors can see whether a backend capability is missing, unimplemented, unauthorized, or simply has no data yet. Network-level failures are handled by the global connection diagnostics view.
 
 The MCP safety view is read-only. It shows runtime status plus integration and plugin capability metadata that the backend already exposes. It does not call MCP action tools, does not approve/apply/sync/rollback anything, and does not read secret values.
+
+The repository and workflow views are also guarded by design. Repository DevOps plans and readiness reviews are explicit button actions, and workflow validate/plan calls are parser/planner paths only. They do not run repository code, start PipelineRuns, deploy, sync Argo CD, apply Kubernetes manifests, or approve governance gates.
 
 ## Checks
 
@@ -76,11 +83,11 @@ This runs:
 - `npm run build`
 - `scripts/smoke-web-console.sh`
 
-The smoke script starts a local backend and Vite dev server when they are not already running, then verifies that the console root is reachable, `/api/v1/version` works through the Vite proxy, and the read-only APIs behind the artifact, policy, evidence, integration, plugin, and runtime status pages return JSON. This catches the common local failure mode where Vite is started from the wrong directory or the backend is not reachable, which otherwise appears in the browser as repeated request failures.
+The smoke script starts a local backend and Vite dev server when they are not already running, then verifies that the console root is reachable, `/api/v1/version` works through the Vite proxy, and the APIs behind the artifact, repository, workflow, policy, evidence, integration, plugin, and runtime status pages return JSON. This catches the common local failure mode where Vite is started from the wrong directory or the backend is not reachable, which otherwise appears in the browser as repeated request failures.
 
 ## Limitations
 
 - This is a web console foundation, not a complete product UI.
 - Detail pages still require known IDs from existing backend records.
-- Authentication UI, write workflows, charts, and advanced filtering remain future work.
+- Authentication UI, workflow execution UX, charts, and advanced filtering remain future work.
 - The project remains a hardened beta-candidate foundation and is not production-ready.

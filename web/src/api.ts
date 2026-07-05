@@ -14,13 +14,23 @@ import type {
   ReleaseExecutionRecord,
   ReleaseRecord,
   ReleaseOverview,
+  DevOpsPlanResponse,
+  DevOpsReadinessReviewResponse,
+  RepositoryIntelligence,
+  RepositoryListResponse,
+  RepositoryRecord,
+  RepositorySnapshotListResponse,
   ResourceNode,
   RunnerRecord,
   RunnerSummary,
   SecuritySummary,
   SystemRuntimeStatus,
   TargetExecution,
-  TimelineItem
+  TimelineItem,
+  WorkflowListResponse,
+  WorkflowPlan,
+  WorkflowPlanRecord,
+  WorkflowValidationResponse
 } from "./types";
 
 export const API_BASE = import.meta.env.VITE_NIVORA_API_BASE_URL ?? "/api/v1";
@@ -31,11 +41,16 @@ export interface VersionInfo {
   builtAt?: string;
 }
 
-async function request<T>(path: string): Promise<T> {
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
   let response: Response;
   try {
     response = await fetch(`${API_BASE}${path}`, {
-      headers: { Accept: "application/json" }
+      ...init,
+      headers: {
+        Accept: "application/json",
+        ...(init?.body ? { "Content-Type": "application/json" } : {}),
+        ...init?.headers
+      }
     });
   } catch (error) {
     const detail = error instanceof Error && error.message ? error.message : "network request failed";
@@ -74,6 +89,29 @@ export const api = {
   integrations: () => request<IntegrationListResponse>("/integrations"),
   plugins: () => request<PluginManifest[]>("/plugins"),
   systemRuntime: () => request<SystemRuntimeStatus>("/system/runtime"),
+  repositories: (projectId?: string) => request<RepositoryListResponse>(projectId ? `/repositories?projectId=${encodeURIComponent(projectId)}` : "/repositories"),
+  repository: (id: string) => request<RepositoryRecord>(`/repositories/${encodeURIComponent(id)}`),
+  repositorySnapshots: (id: string) => request<RepositorySnapshotListResponse>(`/repositories/${encodeURIComponent(id)}/snapshots`),
+  repositoryIntelligence: (id: string) => request<RepositoryIntelligence>(`/repositories/${encodeURIComponent(id)}/intelligence`),
+  repositoryDevOpsPlan: (id: string) => request<DevOpsPlanResponse>("/devops/plan", {
+    method: "POST",
+    body: JSON.stringify({ repositoryId: id })
+  }),
+  repositoryReadinessReview: (id: string) => request<DevOpsReadinessReviewResponse>("/devops/readiness-review", {
+    method: "POST",
+    body: JSON.stringify({ repositoryId: id })
+  }),
+  workflows: (repositoryId?: string) => request<WorkflowListResponse>(repositoryId ? `/workflows?repositoryId=${encodeURIComponent(repositoryId)}` : "/workflows"),
+  workflowPlans: (repositoryId?: string) => request<{ plans?: WorkflowPlanRecord[] }>(repositoryId ? `/workflows/plans?repositoryId=${encodeURIComponent(repositoryId)}` : "/workflows/plans"),
+  workflowLatestPlan: (workflowId: string) => request<WorkflowPlan>(`/workflows/${encodeURIComponent(workflowId)}/plan`),
+  workflowValidate: (content: string, repositoryId?: string) => request<WorkflowValidationResponse>("/workflows/validate", {
+    method: "POST",
+    body: JSON.stringify({ content, repositoryId })
+  }),
+  workflowPlan: (content: string, repositoryId?: string) => request<WorkflowPlan>("/workflows/plan", {
+    method: "POST",
+    body: JSON.stringify({ content, repositoryId })
+  }),
   runners: () => request<RunnerRecord[]>("/runners"),
   runnerSummary: () => request<RunnerSummary>("/visualization/runners/summary"),
   securitySummary: () => request<SecuritySummary>("/visualization/security/summary"),

@@ -30,7 +30,7 @@ Current maturity remains **hardened beta-candidate foundation, not production-re
 | Workflow run lifecycle | WorkflowRun metadata exists, queues PipelineRun records, carries workflow/repository source IDs into linked PipelineRun, JobRun, and StepRun records, read APIs synchronize WorkflowRun status from linked PipelineRun state, cancel requests cancel linked PipelineRun records, guarded retry queues a replacement PipelineRun for Failed/Canceled/Timeout runs, manual reconcile repairs non-terminal WorkflowRun status drift, and lifecycle actions record metadata-only event/audit evidence. | Add background/event-driven reconciliation, retry policy controls, and aggregate timeline rollups before calling it beta-grade. |
 | External SCM providers | GitHub/GitLab/Gitea are not real integrations. | Keep them adapter skeletons until CredentialRef resolution, tenant policy, rate limits, and provider tests are designed. |
 | MCP remote exposure | Repository/workflow MCP tools now have cross-project tenant-scope tests for catalog reads, latest snapshots, repository intelligence, DevOps plans, stored WorkflowPlans, workflow summaries, and repository-backed planning tools. Broad remote exposure is still not production-ready. | Add distributed rate limits, operator deployment guidance, and a repeatable tenant-scope checklist for every future MCP resource/tool before broader remote exposure. |
-| Web console | No repository/workflow pages are added in this track. | Add only after backend contracts settle. |
+| Web console | Repository and workflow pages now exist for catalog reads, repository snapshots/intelligence, explicit repository DevOps plan/readiness review calls, and workflow validate/plan calls. They do not execute workflows or deploy. | Add workflow run/reconcile UX only after execution safeguards, auth UX, and operator expectations are settled. |
 
 ## Verification Notes
 
@@ -41,5 +41,6 @@ The current track adds focused tests for:
 - workflow validate/plan/guarded-run/cancel/retry/reconcile behavior
 - MCP repository/workflow tools, cross-project repository/workflow tenant-scope denials, domain-specific MCP audit actions, guarded WorkflowRun metadata resources, PipelineRun DAG metadata, and DeploymentPlan/ReleasePlan resources
 - CLI repository/workflow local commands
+- web console repository/workflow read and plan surfaces through typecheck, build, browser smoke, and Vite proxy smoke checks
 
 Full production readiness still requires broader persistence, recovery, runner sandboxing, live restore drills, and external adapter hardening.

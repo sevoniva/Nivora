@@ -31,12 +31,22 @@ import type {
   ReleaseExecutionRecord,
   ReleaseRecord,
   ReleaseOverview,
+  DevOpsPlan,
+  DevOpsReadinessReview,
+  RepositoryIntelligence,
+  RepositoryListResponse,
+  RepositoryRecord,
+  RepositorySnapshotListResponse,
   ResourceNode,
   RunnerSummary,
   SecuritySummary,
   SystemRuntimeStatus,
   TargetExecution,
-  TimelineItem
+  TimelineItem,
+  WorkflowListResponse,
+  WorkflowPlan,
+  WorkflowPlanRecord,
+  WorkflowValidationResponse
 } from "./types";
 
 type Page =
@@ -47,6 +57,8 @@ type Page =
   | "deployment"
   | "releases"
   | "release-execution"
+  | "repositories"
+  | "workflows"
   | "artifacts"
   | "policy"
   | "evidence"
@@ -61,6 +73,8 @@ const nav: Array<{ page: Page; label: string }> = [
   { page: "pipelines", label: "PipelineRuns" },
   { page: "deployments", label: "Deployments" },
   { page: "releases", label: "Releases" },
+  { page: "repositories", label: "Repositories" },
+  { page: "workflows", label: "Workflows" },
   { page: "artifacts", label: "Artifacts" },
   { page: "policy", label: "Policy Results" },
   { page: "evidence", label: "Evidence" },
@@ -70,6 +84,19 @@ const nav: Array<{ page: Page; label: string }> = [
   { page: "environment", label: "Environment" },
   { page: "mcp", label: "MCP Safety" }
 ];
+
+const defaultWorkflowContent = `apiVersion: nivora.io/v1alpha1
+kind: Workflow
+metadata:
+  name: web-console-plan
+on: [manual]
+jobs:
+  build:
+    runsOn: [linux]
+    steps:
+      - name: test
+        run: go test ./...
+`;
 
 function useHashPage(): [Page, (page: Page) => void] {
   const readPage = () => {
@@ -126,6 +153,8 @@ export function App() {
             {page === "deployment" ? <DeploymentPage /> : null}
             {page === "releases" ? <ReleasesPage /> : null}
             {page === "release-execution" ? <ReleaseExecutionPage /> : null}
+            {page === "repositories" ? <RepositoriesPage /> : null}
+            {page === "workflows" ? <WorkflowsPage /> : null}
             {page === "artifacts" ? <ArtifactsPage /> : null}
             {page === "policy" ? <PolicyResultsPage /> : null}
             {page === "evidence" ? <EvidencePage /> : null}
@@ -324,6 +353,162 @@ function ReleaseExecutionPage() {
   );
 }
 
+function RepositoriesPage() {
+  const [projectId, setProjectId] = useState("");
+  const [repositoryId, setRepositoryId] = useState("");
+  const projectKey = projectId.trim();
+  const repositoryKey = repositoryId.trim();
+  const repositories = useFetch(() => api.repositories(projectKey || undefined), [projectKey]);
+  const detail = useFetch(() => repositoryKey ? api.repository(repositoryKey) : Promise.resolve(undefined), [repositoryKey]);
+  const snapshots = useFetch(() => repositoryKey ? api.repositorySnapshots(repositoryKey) : Promise.resolve(undefined), [repositoryKey]);
+  const intelligence = useFetch(() => repositoryKey ? api.repositoryIntelligence(repositoryKey) : Promise.resolve(undefined), [repositoryKey]);
+  const [planState, setPlanState] = useState<AsyncActionState<DevOpsPlan>>();
+  const [reviewState, setReviewState] = useState<AsyncActionState<DevOpsReadinessReview>>();
+
+  async function loadPlan() {
+    if (!repositoryKey) return;
+    setPlanState({ loading: true });
+    try {
+      const result = await api.repositoryDevOpsPlan(repositoryKey);
+      setPlanState({ data: result.plan });
+    } catch (error) {
+      setPlanState({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  }
+
+  async function loadReview() {
+    if (!repositoryKey) return;
+    setReviewState({ loading: true });
+    try {
+      const result = await api.repositoryReadinessReview(repositoryKey);
+      setReviewState({ data: result.review });
+    } catch (error) {
+      setReviewState({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  }
+
+  return (
+    <PageFrame title="Repositories" eyebrow="Repository intelligence" description="Read-only repository catalog, static snapshots, intelligence, and plan-only DevOps review output.">
+      <div className="lookup-grid">
+        <LookupBar label="Project filter" value={projectId} onChange={setProjectId} placeholder="project-id (optional)" />
+        <LookupBar label="Selected repository ID" value={repositoryId} onChange={setRepositoryId} placeholder="repo-..." />
+      </div>
+      <AsyncBlock state={repositories} render={(payload) => (
+        <section className="panel">
+          <h2>Repository catalog</h2>
+          <RepositoryTable payload={payload} onSelect={(id) => {
+            setRepositoryId(id);
+            setPlanState(undefined);
+            setReviewState(undefined);
+          }} />
+        </section>
+      )} />
+      {!repositoryKey ? <EmptyState title="Select a repository" detail="Choose a repository row or paste a Repository ID to inspect snapshots and intelligence." /> : null}
+      {repositoryKey ? (
+        <>
+          <AsyncBlock state={detail} render={(repository) => <RepositoryDetailCard repository={repository} />} />
+          <section className="panel">
+            <h2>Snapshots</h2>
+            <AsyncBlock state={snapshots} render={(payload) => <RepositorySnapshotTable payload={payload} />} />
+          </section>
+          <section className="panel">
+            <h2>Intelligence</h2>
+            <AsyncBlock state={intelligence} render={(data) => <RepositoryIntelligencePanel intelligence={data} />} />
+          </section>
+          <section className="panel">
+            <div className="panel-heading">
+              <h2>Plan-only DevOps review</h2>
+              <div className="action-row">
+                <button className="inline-action" type="button" onClick={loadPlan}>Load plan</button>
+                <button className="inline-action" type="button" onClick={loadReview}>Load readiness</button>
+              </div>
+            </div>
+            <div className="split-grid">
+              <AsyncActionBlock state={planState} emptyTitle="No DevOps plan loaded" emptyDetail="Click Load plan to request metadata-only build/test/package/security recommendations." render={(plan) => <DevOpsPlanPanel plan={plan} />} />
+              <AsyncActionBlock state={reviewState} emptyTitle="No readiness review loaded" emptyDetail="Click Load readiness to request a plan-only release readiness review." render={(review) => <ReadinessReviewPanel review={review} />} />
+            </div>
+          </section>
+        </>
+      ) : null}
+    </PageFrame>
+  );
+}
+
+function WorkflowsPage() {
+  const [repositoryId, setRepositoryId] = useState("");
+  const [workflowId, setWorkflowId] = useState("");
+  const [content, setContent] = useState(defaultWorkflowContent);
+  const [validation, setValidation] = useState<AsyncActionState<WorkflowValidationResponse>>();
+  const [planned, setPlanned] = useState<AsyncActionState<WorkflowPlan>>();
+  const repositoryKey = repositoryId.trim();
+  const workflowKey = workflowId.trim();
+  const workflows = useFetch(() => api.workflows(repositoryKey || undefined), [repositoryKey]);
+  const plans = useFetch(() => api.workflowPlans(repositoryKey || undefined), [repositoryKey]);
+  const latestPlan = useFetch(() => workflowKey ? api.workflowLatestPlan(workflowKey) : Promise.resolve(undefined), [workflowKey]);
+
+  async function validateWorkflow() {
+    setValidation({ loading: true });
+    try {
+      const result = await api.workflowValidate(content, repositoryKey || undefined);
+      setValidation({ data: result });
+    } catch (error) {
+      setValidation({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  }
+
+  async function planWorkflow() {
+    setPlanned({ loading: true });
+    try {
+      const result = await api.workflowPlan(content, repositoryKey || undefined);
+      setPlanned({ data: result });
+    } catch (error) {
+      setPlanned({ error: error instanceof Error ? error.message : "Unknown error" });
+    }
+  }
+
+  return (
+    <PageFrame title="Workflows" eyebrow="Plan-only authoring" description="Inspect stored Nivora Workflow plans and validate or plan workflow YAML without executing jobs.">
+      <div className="lookup-grid">
+        <LookupBar label="Repository filter" value={repositoryId} onChange={setRepositoryId} placeholder="repo-id (optional)" />
+        <LookupBar label="Workflow ID for latest plan" value={workflowId} onChange={setWorkflowId} placeholder="workflow-id" />
+      </div>
+      <section className="summary-grid">
+        <AsyncBlock state={workflows} render={(payload) => <WorkflowSummaryCard payload={payload} />} />
+        <AsyncBlock state={plans} render={(payload) => <WorkflowPlanCountCard payload={payload} />} />
+        <section className="panel compact">
+          <h2>Execution boundary</h2>
+          <StatusBadge status="plan-only" />
+          <p className="muted">This page calls validate and plan endpoints only. It does not run workflows, claim jobs, deploy, sync, or approve anything.</p>
+        </section>
+      </section>
+      <section className="panel">
+        <h2>Workflow catalog</h2>
+        <AsyncBlock state={workflows} render={(payload) => <WorkflowTable payload={payload} onSelect={setWorkflowId} />} />
+      </section>
+      {workflowKey ? (
+        <section className="panel">
+          <h2>Latest plan</h2>
+          <AsyncBlock state={latestPlan} render={(plan) => <WorkflowPlanPanel plan={plan} />} />
+        </section>
+      ) : null}
+      <section className="panel">
+        <div className="panel-heading">
+          <h2>Validate or plan YAML</h2>
+          <div className="action-row">
+            <button className="inline-action" type="button" onClick={validateWorkflow}>Validate</button>
+            <button className="inline-action" type="button" onClick={planWorkflow}>Plan</button>
+          </div>
+        </div>
+        <textarea value={content} onChange={(event) => setContent(event.target.value)} spellCheck={false} />
+        <div className="split-grid">
+          <AsyncActionBlock state={validation} emptyTitle="No validation result" emptyDetail="Click Validate to parse the workflow without storing a plan record." render={(result) => <WorkflowValidationPanel result={result} />} />
+          <AsyncActionBlock state={planned} emptyTitle="No planned workflow" emptyDetail="Click Plan to store and render a plan-only WorkflowPlan record." render={(plan) => <WorkflowPlanPanel plan={plan} />} />
+        </div>
+      </section>
+    </PageFrame>
+  );
+}
+
 function RunnersPage() {
   const state = useFetch(api.runnerSummary);
   const records = useFetch(api.runners);
@@ -442,6 +627,296 @@ function EnvironmentPage() {
         </>
       )} />
     </PageFrame>
+  );
+}
+
+function RepositoryTable({ payload, onSelect }: { payload?: RepositoryListResponse; onSelect: (id: string) => void }) {
+  const repositories = payload?.repositories ?? [];
+  if (!repositories.length) return <EmptyState title="No repositories" detail="No repository catalog records were returned by the backend." />;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Repository</th><th>Provider</th><th>Project</th><th>Status</th><th>Default ref</th><th>Inspect</th></tr>
+        </thead>
+        <tbody>
+          {repositories.map((repository) => {
+            const id = repository.id || "";
+            return (
+              <tr key={id || repository.name}>
+                <td>
+                  <strong>{repository.name || id || "-"}</strong>
+                  <small>{repository.url || repository.webUrl || "-"}</small>
+                </td>
+                <td>{repository.provider || "-"}</td>
+                <td>{repository.projectId || "-"}</td>
+                <td><StatusBadge status={repository.status} /></td>
+                <td>{repository.defaultBranch || "-"}</td>
+                <td><button className="table-action" type="button" disabled={!id} onClick={() => onSelect(id)}>Load</button></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RepositoryDetailCard({ repository }: { repository?: RepositoryRecord }) {
+  if (!repository?.id) return <EmptyState title="Repository not found" detail="The backend did not return repository metadata for this ID." />;
+  return (
+    <section className="summary-grid">
+      <SummaryStrip summary={{
+        title: repository.name || repository.id,
+        status: { value: repository.status || "unknown" },
+        counts: {
+          labels: Object.keys(repository.labels ?? {}).length,
+          metadata: Object.keys(repository.metadata ?? {}).length
+        },
+        metadata: {
+          provider: repository.provider || "-",
+          project: repository.projectId || "-"
+        }
+      }} />
+      <section className="panel compact">
+        <h2>Repository identity</h2>
+        <p><code>{repository.id}</code></p>
+        <p>{repository.url || repository.webUrl || "-"}</p>
+        <p className="muted">CredentialRef metadata: {repository.credentialRef || "not set"}. Secret values are not returned by this API.</p>
+      </section>
+      <section className="panel compact">
+        <h2>Freshness</h2>
+        <p>Created: {formatDate(repository.createdAt)}</p>
+        <p>Updated: {formatDate(repository.updatedAt)}</p>
+        <p className="muted">Default branch/ref: {repository.defaultBranch || "-"}</p>
+      </section>
+    </section>
+  );
+}
+
+function RepositorySnapshotTable({ payload }: { payload?: RepositorySnapshotListResponse }) {
+  const snapshots = payload?.snapshots ?? [];
+  if (!snapshots.length) return <EmptyState title="No snapshots" detail="Create a metadata-only repository snapshot before inspecting intelligence." />;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Snapshot</th><th>Ref</th><th>Signals</th><th>Files</th><th>Created</th></tr>
+        </thead>
+        <tbody>
+          {snapshots.map((snapshot) => (
+            <tr key={snapshot.id}>
+              <td>
+                <code>{snapshot.id || "-"}</code>
+                <small>{snapshot.treeHash ? shortDigest(snapshot.treeHash) : "-"}</small>
+              </td>
+              <td>{snapshot.ref || snapshot.branch || snapshot.tag || "-"}</td>
+              <td>
+                <TagList values={[...(snapshot.detectedLanguages ?? []), ...(snapshot.detectedFrameworks ?? []), ...(snapshot.detectedBuildTools ?? [])]} />
+              </td>
+              <td>{snapshot.files?.length ?? 0}</td>
+              <td>{formatDate(snapshot.createdAt)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function RepositoryIntelligencePanel({ intelligence }: { intelligence?: RepositoryIntelligence }) {
+  if (!intelligence?.repositoryId) return <EmptyState title="No intelligence" detail="Analyze the latest snapshot before reading repository intelligence." />;
+  return (
+    <div className="split-grid">
+      <section>
+        <h3>Detected stack</h3>
+        <TagList values={[...(intelligence.languageSummary ?? []), ...(intelligence.frameworkSummary ?? [])]} />
+        <h3>Build</h3>
+        <CommandList commands={intelligence.buildCommandCandidates} />
+        <h3>Test</h3>
+        <CommandList commands={intelligence.testCommandCandidates} />
+        <h3>Package</h3>
+        <CommandList commands={intelligence.packageCommandCandidates} />
+      </section>
+      <section>
+        <h3>Delivery hints</h3>
+        <TagList values={intelligence.deploymentTargetCandidates} />
+        <h3>Security hints</h3>
+        <TagList values={intelligence.securityScanCandidates} />
+        <h3>Warnings</h3>
+        <WarningList values={intelligence.warnings} />
+      </section>
+      <section className="wide">
+        <h3>Recommended Nivora workflow draft</h3>
+        <pre>{intelligence.recommendedNivoraWorkflowDraft || "No draft returned."}</pre>
+      </section>
+    </div>
+  );
+}
+
+function DevOpsPlanPanel({ plan }: { plan?: DevOpsPlan }) {
+  if (!plan?.repositoryId) return <EmptyState title="No plan" detail="The backend did not return a DevOps plan." />;
+  return (
+    <section>
+      <StatusBadge status={plan.releaseReady ? "release-ready" : "plan-only"} />
+      <h3>Build</h3>
+      <CommandList commands={plan.build?.commands} />
+      <h3>Test</h3>
+      <CommandList commands={plan.test?.commands} />
+      <h3>Package</h3>
+      <CommandList commands={plan.package?.commands} />
+      <h3>Deployment targets</h3>
+      <TagList values={plan.deploymentTargets} />
+      <WarningList values={[...(plan.warnings ?? []), ...(plan.releaseCandidate?.warnings ?? [])]} />
+    </section>
+  );
+}
+
+function ReadinessReviewPanel({ review }: { review?: DevOpsReadinessReview }) {
+  if (!review?.repositoryId) return <EmptyState title="No readiness review" detail="The backend did not return a readiness review." />;
+  return (
+    <section>
+      <StatusBadge status={review.status || "unknown"} />
+      <div className="mini-metrics">
+        <span>build: <strong>{review.buildPlanAvailable ? "yes" : "no"}</strong></span>
+        <span>test: <strong>{review.testPlanAvailable ? "yes" : "no"}</strong></span>
+        <span>package: <strong>{review.packagePlanAvailable ? "yes" : "no"}</strong></span>
+        <span>security: <strong>{review.securityPlanAvailable ? "yes" : "no"}</strong></span>
+      </div>
+      <h3>Next actions</h3>
+      <TagList values={review.recommendedNextActions} />
+      <h3>Warnings and blockers</h3>
+      <WarningList values={[...(review.blockers ?? []), ...(review.warnings ?? [])]} />
+    </section>
+  );
+}
+
+function WorkflowSummaryCard({ payload }: { payload?: WorkflowListResponse }) {
+  const workflows = payload?.workflows ?? [];
+  return <SummaryStrip summary={{ title: "Workflow catalog", status: { value: workflows.length ? "available" : "empty" }, counts: { workflows: workflows.length } }} />;
+}
+
+function WorkflowPlanCountCard({ payload }: { payload?: { plans?: WorkflowPlanRecord[] } }) {
+  const plans = payload?.plans ?? [];
+  return <SummaryStrip summary={{ title: "Stored plans", status: { value: plans.length ? "available" : "empty" }, counts: { plans: plans.length } }} />;
+}
+
+function WorkflowTable({ payload, onSelect }: { payload?: WorkflowListResponse; onSelect: (id: string) => void }) {
+  const workflows = payload?.workflows ?? [];
+  if (!workflows.length) return <EmptyState title="No workflows" detail="No stored WorkflowPlan summaries were returned by the backend." />;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Workflow</th><th>Repository</th><th>Plans</th><th>Latest plan</th><th>Updated</th><th>Inspect</th></tr>
+        </thead>
+        <tbody>
+          {workflows.map((workflow) => {
+            const id = workflow.workflowId || "";
+            return (
+              <tr key={id || workflow.latestPlanId}>
+                <td>
+                  <strong>{workflow.name || id || "-"}</strong>
+                  <small>{workflow.contentHash ? shortDigest(workflow.contentHash) : "-"}</small>
+                </td>
+                <td>{workflow.repositoryId || "-"}</td>
+                <td>{workflow.planCount ?? 0}</td>
+                <td><code>{workflow.latestPlanId || "-"}</code></td>
+                <td>{formatDate(workflow.updatedAt)}</td>
+                <td><button className="table-action" type="button" disabled={!id} onClick={() => onSelect(id)}>Load</button></td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function WorkflowPlanPanel({ plan }: { plan?: WorkflowPlan }) {
+  if (!plan?.workflowId) return <EmptyState title="No workflow plan" detail="No plan data is available for this workflow." />;
+  return (
+    <div className="split-grid">
+      <section>
+        <StatusBadge status={plan.conversionReady ? "conversion-ready" : "plan-only"} />
+        <h3>{plan.name || plan.workflowId}</h3>
+        <p className="muted">Mode: {plan.estimatedExecutionMode || "-"} · triggers: {plan.triggers?.join(", ") || "-"}</p>
+        <div className="mini-metrics">
+          <span>jobs: <strong>{plan.jobs?.length ?? 0}</strong></span>
+          <span>steps: <strong>{plan.steps?.length ?? 0}</strong></span>
+          <span>edges: <strong>{plan.edges?.length ?? 0}</strong></span>
+          <span>matrix: <strong>{plan.matrixExpansions?.length ?? 0}</strong></span>
+        </div>
+      </section>
+      <section>
+        <h3>Runner requirements</h3>
+        <TagList values={plan.runnerRequirements?.flatMap((item) => item.runsOn ?? [])} />
+        <h3>Warnings</h3>
+        <WarningList values={[...(plan.warnings ?? []), ...(plan.securityWarnings ?? []), ...(plan.unsupportedFeatures ?? [])]} />
+      </section>
+      <section className="wide">
+        <h3>Jobs</h3>
+        <WorkflowJobTable plan={plan} />
+      </section>
+    </div>
+  );
+}
+
+function WorkflowValidationPanel({ result }: { result?: WorkflowValidationResponse }) {
+  if (!result) return <EmptyState title="No validation result" detail="No validation response is available." />;
+  if (!result.valid) return <ErrorState title="Workflow validation failed" message={result.error || "The workflow is invalid."} />;
+  return <WorkflowPlanPanel plan={result.plan} />;
+}
+
+function WorkflowJobTable({ plan }: { plan?: WorkflowPlan }) {
+  const jobs = plan?.jobs ?? [];
+  if (!jobs.length) return <EmptyState title="No jobs" detail="The workflow plan did not include planned jobs." />;
+  return (
+    <div className="table-wrap">
+      <table>
+        <thead>
+          <tr><th>Job</th><th>Needs</th><th>Runs on</th><th>Steps</th><th>Matrix</th></tr>
+        </thead>
+        <tbody>
+          {jobs.map((job) => (
+            <tr key={job.id}>
+              <td>{job.name || job.id || "-"}</td>
+              <td>{job.needs?.join(", ") || "-"}</td>
+              <td>{job.runsOn?.join(", ") || "-"}</td>
+              <td>{job.stepCount ?? 0}</td>
+              <td>{job.matrix ? Object.entries(job.matrix).map(([key, value]) => `${key}=${value}`).join(", ") : "-"}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+function CommandList({ commands }: { commands?: Array<{ name?: string; command?: string; source?: string }> }) {
+  if (!commands?.length) return <p className="muted">No command candidates.</p>;
+  return (
+    <div className="command-list">
+      {commands.map((command, index) => (
+        <code key={`${command.name || "command"}-${index}`}>{command.command || command.name || "-"}{command.source ? ` · ${command.source}` : ""}</code>
+      ))}
+    </div>
+  );
+}
+
+function TagList({ values }: { values?: string[] }) {
+  const unique = Array.from(new Set((values ?? []).filter(Boolean)));
+  if (!unique.length) return <p className="muted">No values reported.</p>;
+  return <div className="tag-list">{unique.map((value) => <span key={value}>{value}</span>)}</div>;
+}
+
+function WarningList({ values }: { values?: string[] }) {
+  const unique = Array.from(new Set((values ?? []).filter(Boolean)));
+  if (!unique.length) return <p className="muted">No warnings reported.</p>;
+  return (
+    <ul className="warning-list">
+      {unique.map((value) => <li key={value}>{value}</li>)}
+    </ul>
   );
 }
 
@@ -837,6 +1312,19 @@ type AsyncState<T> = {
   loading: boolean;
   reload: () => void;
 };
+
+type AsyncActionState<T> = {
+  data?: T;
+  error?: string;
+  loading?: boolean;
+};
+
+function AsyncActionBlock<T>({ state, emptyTitle, emptyDetail, render }: { state?: AsyncActionState<T>; emptyTitle: string; emptyDetail: string; render: (data?: T) => React.ReactNode }) {
+  if (!state) return <EmptyState title={emptyTitle} detail={emptyDetail} />;
+  if (state.loading) return <LoadingState />;
+  if (state.error) return <ErrorState message={state.error} />;
+  return <>{render(state.data)}</>;
+}
 
 function AsyncBlock<T>({ state, render }: { state: AsyncState<T>; render: (data?: T) => React.ReactNode }) {
   if (state.loading) return <LoadingState />;

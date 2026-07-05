@@ -215,11 +215,16 @@ export function EmptyState({ title, detail }: { title: string; detail: string })
   );
 }
 
-export function ErrorState({ message }: { message: string }) {
+export function ErrorState({ title = "Request failed", message, actionLabel, onAction }: { title?: string; message: string; actionLabel?: string; onAction?: () => void }) {
   return (
     <div className="error">
-      <strong>Request failed</strong>
+      <strong>{title}</strong>
       <p>{message}</p>
+      {actionLabel && onAction ? (
+        <button className="inline-action" type="button" onClick={onAction}>
+          {actionLabel}
+        </button>
+      ) : null}
     </div>
   );
 }

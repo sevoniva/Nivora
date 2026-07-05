@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { DependencyList, ReactNode } from "react";
-import { api } from "./api";
+import { API_BASE, api } from "./api";
 import {
   DAGPlaceholder,
   EmptyState,
@@ -79,6 +79,7 @@ function useHashPage(): [Page, (page: Page) => void] {
 
 export function App() {
   const [page, setPage] = useHashPage();
+  const backend = useFetch(api.version);
 
   return (
     <div className="shell">
@@ -97,22 +98,56 @@ export function App() {
             </button>
           ))}
         </nav>
-        <p className="sidebar-note">Alpha console. Backend APIs remain the source of truth.</p>
+        <p className="sidebar-note">Experimental console. Backend APIs remain the source of truth.</p>
       </aside>
       <main>
-        {page === "dashboard" ? <DashboardPage /> : null}
-        {page === "pipelines" ? <PipelineRunsPage /> : null}
-        {page === "pipeline" ? <PipelinePage /> : null}
-        {page === "deployments" ? <DeploymentsPage /> : null}
-        {page === "deployment" ? <DeploymentPage /> : null}
-        {page === "releases" ? <ReleasesPage /> : null}
-        {page === "release-execution" ? <ReleaseExecutionPage /> : null}
-        {page === "runners" ? <RunnersPage /> : null}
-        {page === "security" ? <SecurityPage /> : null}
-        {page === "audit" ? <AuditPage /> : null}
-        {page === "environment" ? <EnvironmentPage /> : null}
+        {backend.loading ? <BackendLoadingPage /> : null}
+        {backend.error ? <BackendConnectionPage error={backend.error} onRetry={backend.reload} /> : null}
+        {!backend.loading && !backend.error ? (
+          <>
+            {page === "dashboard" ? <DashboardPage /> : null}
+            {page === "pipelines" ? <PipelineRunsPage /> : null}
+            {page === "pipeline" ? <PipelinePage /> : null}
+            {page === "deployments" ? <DeploymentsPage /> : null}
+            {page === "deployment" ? <DeploymentPage /> : null}
+            {page === "releases" ? <ReleasesPage /> : null}
+            {page === "release-execution" ? <ReleaseExecutionPage /> : null}
+            {page === "runners" ? <RunnersPage /> : null}
+            {page === "security" ? <SecurityPage /> : null}
+            {page === "audit" ? <AuditPage /> : null}
+            {page === "environment" ? <EnvironmentPage /> : null}
+          </>
+        ) : null}
       </main>
     </div>
+  );
+}
+
+function BackendLoadingPage() {
+  return (
+    <PageFrame title="Connecting" eyebrow="API status" description="Checking the configured Nivora backend before loading runtime views.">
+      <LoadingState />
+    </PageFrame>
+  );
+}
+
+function BackendConnectionPage({ error, onRetry }: { error: string; onRetry: () => void }) {
+  return (
+    <PageFrame title="Backend unavailable" eyebrow="API status" description="The web console could not read the configured Nivora API.">
+      <section className="panel connection-panel">
+        <div>
+          <p className="eyebrow">Configured API base</p>
+          <code>{API_BASE}</code>
+        </div>
+        <ErrorState title="Connection check failed" message={error} actionLabel="Retry connection" onAction={onRetry} />
+        <div className="command-list" aria-label="Local development commands">
+          <code>make run-server</code>
+          <code>make run-web</code>
+          <code>cd web && NIVORA_WEB_PROXY_TARGET=http://localhost:8080 npm run dev</code>
+        </div>
+        <p className="muted">If auth is enabled, use a backend configuration that allows this experimental console to read the existing APIs. No token or credential is stored by the web app.</p>
+      </section>
+    </PageFrame>
   );
 }
 
@@ -333,7 +368,7 @@ function EnvironmentPage() {
       <LookupBar label="Environment ID" value={environmentId} onChange={setEnvironmentId} placeholder="dev" />
       <AsyncBlock state={topology} render={(data) => (
         <>
-          <TopologySummary state={{ data, loading: false }} />
+          <TopologySummary state={{ data, loading: false, reload: () => undefined }} />
           <section className="summary-grid">
             <TopologyPanel title="Applications" resources={data?.applications} />
             <TopologyPanel title="Targets" resources={data?.targets} />
@@ -546,16 +581,18 @@ type AsyncState<T> = {
   data?: T;
   error?: string;
   loading: boolean;
+  reload: () => void;
 };
 
 function AsyncBlock<T>({ state, render }: { state: AsyncState<T>; render: (data?: T) => React.ReactNode }) {
   if (state.loading) return <LoadingState />;
-  if (state.error) return <ErrorState message={state.error} />;
+  if (state.error) return <ErrorState message={state.error} actionLabel="Retry" onAction={state.reload} />;
   return <>{render(state.data)}</>;
 }
 
 function useFetch<T>(loader: () => Promise<T>, deps: DependencyList = []): AsyncState<T> {
-  const [state, setState] = useState<AsyncState<T>>({ loading: true });
+  const [attempt, setAttempt] = useState(0);
+  const [state, setState] = useState<Omit<AsyncState<T>, "reload">>({ loading: true });
 
   useEffect(() => {
     let canceled = false;
@@ -570,7 +607,10 @@ function useFetch<T>(loader: () => Promise<T>, deps: DependencyList = []): Async
     return () => {
       canceled = true;
     };
-  }, deps);
+  }, [...deps, attempt]);
 
-  return state;
+  return {
+    ...state,
+    reload: () => setAttempt((value) => value + 1)
+  };
 }

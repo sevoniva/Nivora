@@ -396,6 +396,34 @@ code {
   color: var(--green);
 }
 
+.inline-action {
+  color: var(--text);
+  background: #111416;
+  border: 1px solid var(--line);
+  min-height: 36px;
+  padding: 7px 12px;
+}
+
+.inline-action:hover {
+  border-color: var(--green);
+  color: var(--green);
+}
+
+.connection-panel {
+  display: grid;
+  gap: 16px;
+}
+
+.command-list {
+  display: grid;
+  gap: 8px;
+}
+
+.command-list code {
+  display: block;
+  padding: 10px 12px;
+}
+
 table {
   width: 100%;
   border-collapse: collapse;

@@ -4,6 +4,8 @@ Phase 6.4 adds the first Nivora web console foundation under `web/`.
 
 The console is a React + TypeScript + Vite app that consumes existing backend runtime and visualization APIs. It does not introduce backend behavior, does not use mock production data, and does not claim to be a production UI.
 
+On load, the app checks `/api/v1/version` before rendering the runtime pages. If the backend is not reachable, the console shows a single connection diagnostics panel with the configured API base, retry button, and local startup commands instead of flooding the page with repeated fetch failures.
+
 ## Run Locally
 
 Start the backend:
@@ -19,6 +21,8 @@ make run-web
 ```
 
 The Vite development server listens on `http://localhost:5173` and proxies `/api` requests to `http://localhost:8080`.
+
+Run the web server from the repository target above or from the `web/` directory after installing dependencies. Starting Vite from another directory can make the React plugin resolve dependencies from the wrong `node_modules` tree.
 
 To point the proxy at another backend port, keep browser requests on `/api` and change the proxy target:
 
@@ -50,7 +54,7 @@ The console calls existing APIs only:
 - Runtime APIs such as `/api/v1/pipeline-runs`, `/api/v1/deployments`, `/api/v1/releases`, and `/api/v1/runners`.
 - Visualization APIs under `/api/v1/visualization/*` for DAGs, timelines, resources, health, audit, security, runner summaries, and environment topology.
 
-Empty states and request errors are shown directly so contributors can see whether a backend capability is missing, unimplemented, or simply has no data yet.
+Empty states and request errors are shown directly so contributors can see whether a backend capability is missing, unimplemented, unauthorized, or simply has no data yet. Network-level failures are handled by the global connection diagnostics view.
 
 ## Checks
 

@@ -17,12 +17,26 @@ import type {
   TimelineItem
 } from "./types";
 
-const API_BASE = import.meta.env.VITE_NIVORA_API_BASE_URL ?? "/api/v1";
+export const API_BASE = import.meta.env.VITE_NIVORA_API_BASE_URL ?? "/api/v1";
+
+export interface VersionInfo {
+  version?: string;
+  commit?: string;
+  builtAt?: string;
+}
 
 async function request<T>(path: string): Promise<T> {
-  const response = await fetch(`${API_BASE}${path}`, {
-    headers: { Accept: "application/json" }
-  });
+  let response: Response;
+  try {
+    response = await fetch(`${API_BASE}${path}`, {
+      headers: { Accept: "application/json" }
+    });
+  } catch (error) {
+    const detail = error instanceof Error && error.message ? error.message : "network request failed";
+    throw new Error(
+      `Cannot reach the Nivora API at ${API_BASE}. Start the backend with make run-server, or set NIVORA_WEB_PROXY_TARGET before npm run dev. Browser error: ${detail}`
+    );
+  }
   if (!response.ok) {
     let detail = response.statusText;
     try {
@@ -31,12 +45,19 @@ async function request<T>(path: string): Promise<T> {
     } catch {
       // Keep the HTTP status text when the body is not JSON.
     }
+    if (response.status >= 500) {
+      detail = `${detail}. If this comes from the Vite dev proxy, confirm the backend is running and NIVORA_WEB_PROXY_TARGET points at it.`;
+    }
+    if (response.status === 401 || response.status === 403) {
+      detail = `${detail}. The experimental web console has no login flow; use a local backend auth mode that permits read access or call protected APIs directly.`;
+    }
     throw new Error(`${response.status} ${detail}`);
   }
   return (await response.json()) as T;
 }
 
 export const api = {
+  version: () => request<VersionInfo>("/version"),
   pipelineRuns: () => request<PipelineRunRecord[]>("/pipeline-runs"),
   deploymentRuns: () => request<DeploymentRunRecord[]>("/deployments"),
   releases: () => request<ReleaseRecord[]>("/releases"),

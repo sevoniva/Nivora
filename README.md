@@ -783,6 +783,8 @@ make run-web
 
 The web console lives under `web/` and consumes existing runtime and `/api/v1/visualization/*` backend APIs. It is a minimal Phase 6.4 foundation, not a complete frontend product.
 
+If the backend is not reachable, the console now stops at a single connection diagnostics page instead of rendering every dashboard card as a fetch failure. Start it through `make run-web` or run Vite from `web/` so dependencies resolve from the checked-in web package.
+
 ### Health Check
 
 ```bash

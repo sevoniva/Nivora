@@ -50,6 +50,21 @@ wait_for_url() {
   return 1
 }
 
+assert_proxy_json_contains() {
+  local path="$1"
+  local marker="$2"
+  local body
+  body="$(curl -fsS "$WEB_URL$path")"
+  case "$body" in
+    *"$marker"*) ;;
+    *)
+      echo "[smoke-web-console] expected $path response to contain $marker"
+      echo "$body"
+      exit 1
+      ;;
+  esac
+}
+
 require_cmd curl
 require_cmd npm
 
@@ -95,6 +110,13 @@ case "$version_json" in
     exit 1
     ;;
 esac
+
+assert_proxy_json_contains "/api/v1/artifacts" "artifacts"
+assert_proxy_json_contains "/api/v1/policies/results" "results"
+assert_proxy_json_contains "/api/v1/evidence/bundles" "bundles"
+assert_proxy_json_contains "/api/v1/integrations" "integrations"
+assert_proxy_json_contains "/api/v1/plugins" "artifact-oci"
+assert_proxy_json_contains "/api/v1/system/runtime" "runtime_mode"
 
 if grep -qiE "Cannot find package 'react-refresh'|\\[plugin:vite:react-babel\\]" "$WEB_LOG" 2>/dev/null; then
   echo "[smoke-web-console] Vite log contains React plugin dependency error"

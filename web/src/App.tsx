@@ -16,19 +16,25 @@ import {
   Timeline
 } from "./components";
 import type {
+  ArtifactListResponse,
   DashboardSummary,
   DeploymentRunRecord,
   DiffView,
+  EvidenceBundleListResponse,
   EnvironmentTopology,
   GraphResponse,
   HealthView,
+  IntegrationListResponse,
   PipelineRunRecord,
+  PluginManifest,
+  PolicyResultsResponse,
   ReleaseExecutionRecord,
   ReleaseRecord,
   ReleaseOverview,
   ResourceNode,
   RunnerSummary,
   SecuritySummary,
+  SystemRuntimeStatus,
   TargetExecution,
   TimelineItem
 } from "./types";
@@ -41,20 +47,28 @@ type Page =
   | "deployment"
   | "releases"
   | "release-execution"
+  | "artifacts"
+  | "policy"
+  | "evidence"
   | "runners"
   | "security"
   | "audit"
-  | "environment";
+  | "environment"
+  | "mcp";
 
 const nav: Array<{ page: Page; label: string }> = [
   { page: "dashboard", label: "Dashboard" },
   { page: "pipelines", label: "PipelineRuns" },
   { page: "deployments", label: "Deployments" },
   { page: "releases", label: "Releases" },
+  { page: "artifacts", label: "Artifacts" },
+  { page: "policy", label: "Policy Results" },
+  { page: "evidence", label: "Evidence" },
   { page: "runners", label: "Runners" },
   { page: "security", label: "Security" },
   { page: "audit", label: "Audit" },
-  { page: "environment", label: "Environment" }
+  { page: "environment", label: "Environment" },
+  { page: "mcp", label: "MCP Safety" }
 ];
 
 function useHashPage(): [Page, (page: Page) => void] {
@@ -112,10 +126,14 @@ export function App() {
             {page === "deployment" ? <DeploymentPage /> : null}
             {page === "releases" ? <ReleasesPage /> : null}
             {page === "release-execution" ? <ReleaseExecutionPage /> : null}
+            {page === "artifacts" ? <ArtifactsPage /> : null}
+            {page === "policy" ? <PolicyResultsPage /> : null}
+            {page === "evidence" ? <EvidencePage /> : null}
             {page === "runners" ? <RunnersPage /> : null}
             {page === "security" ? <SecurityPage /> : null}
             {page === "audit" ? <AuditPage /> : null}
             {page === "environment" ? <EnvironmentPage /> : null}
+            {page === "mcp" ? <MCPSafetyPage /> : null}
           </>
         ) : null}
       </main>
@@ -325,6 +343,52 @@ function RunnersPage() {
   );
 }
 
+function ArtifactsPage() {
+  const state = useFetch(api.artifacts);
+  return (
+    <PageFrame title="Artifacts" eyebrow="Immutable identity" description="Tracked artifact records returned by the backend artifact catalog.">
+      <AsyncBlock state={state} render={(data) => <ArtifactTable payload={data} />} />
+    </PageFrame>
+  );
+}
+
+function PolicyResultsPage() {
+  const state = useFetch(api.policyResults);
+  return (
+    <PageFrame title="Policy results" eyebrow="Governance signal" description="Stored policy decisions across artifacts, manifests, deployment plans, and releases.">
+      <AsyncBlock state={state} render={(data) => <PolicyResultTable payload={data} />} />
+    </PageFrame>
+  );
+}
+
+function EvidencePage() {
+  const state = useFetch(api.evidenceBundles);
+  return (
+    <PageFrame title="Evidence bundles" eyebrow="Audit evidence" description="Persisted evidence bundle metadata. Secret values are not rendered by this console.">
+      <AsyncBlock state={state} render={(data) => <EvidenceBundleTable payload={data} />} />
+    </PageFrame>
+  );
+}
+
+function MCPSafetyPage() {
+  const state = useFetch(() => Promise.all([api.systemRuntime(), api.integrations(), api.plugins()]).then(([runtime, integrations, plugins]) => ({
+    runtime,
+    integrations,
+    plugins
+  })));
+  return (
+    <PageFrame title="MCP safety" eyebrow="Read-only control plane" description="Runtime, integration, and plugin metadata used to reason about the AI/MCP control-plane boundary.">
+      <AsyncBlock state={state} render={(data) => (
+        <>
+          <MCPRuntimeCard runtime={data?.runtime} />
+          <IntegrationTable payload={data?.integrations} />
+          <PluginTable plugins={data?.plugins} />
+        </>
+      )} />
+    </PageFrame>
+  );
+}
+
 function SecurityPage() {
   const state = useFetch(api.securitySummary);
   return (
@@ -378,6 +442,184 @@ function EnvironmentPage() {
         </>
       )} />
     </PageFrame>
+  );
+}
+
+function ArtifactTable({ payload }: { payload?: ArtifactListResponse }) {
+  const artifacts = payload?.artifacts ?? [];
+  if (!artifacts.length) return <EmptyState title="No artifacts" detail="No tracked artifact records were returned by the backend." />;
+  return (
+    <section className="panel">
+      <h2>Tracked artifacts</h2>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Type</th><th>Version</th><th>Registry</th><th>Digest</th><th>Created</th></tr>
+          </thead>
+          <tbody>
+            {artifacts.map((artifact) => (
+              <tr key={artifact.id || artifact.reference}>
+                <td>
+                  <strong>{artifact.name || "-"}</strong>
+                  <small>{artifact.reference || "-"}</small>
+                </td>
+                <td>{artifact.type || "-"}</td>
+                <td>{artifact.version || "-"}</td>
+                <td>{artifact.registry || artifact.repository || "-"}</td>
+                <td>{artifact.digest ? <code>{shortDigest(artifact.digest)}</code> : <span className="muted">not pinned</span>}</td>
+                <td>{formatDate(artifact.createdAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function PolicyResultTable({ payload }: { payload?: PolicyResultsResponse }) {
+  const results = payload?.results ?? [];
+  if (!results.length) return <EmptyState title="No policy results" detail="No stored policy decisions were returned by the backend." />;
+  return (
+    <section className="panel">
+      <h2>Decisions</h2>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Decision</th><th>Subject</th><th>Policy</th><th>Scope</th><th>Findings</th><th>Evaluated</th></tr>
+          </thead>
+          <tbody>
+            {results.map((result) => (
+              <tr key={result.id}>
+                <td><StatusBadge status={result.decision} /></td>
+                <td><code>{result.subjectType || "-"}/{result.subjectId || "-"}</code></td>
+                <td>{result.policyId || "-"}</td>
+                <td>{formatScope(result.projectId, result.environmentId)}</td>
+                <td>{result.findings?.length ?? 0}</td>
+                <td>{formatDate(result.evaluatedAt)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  );
+}
+
+function EvidenceBundleTable({ payload }: { payload?: EvidenceBundleListResponse }) {
+  const bundles = payload?.bundles ?? [];
+  if (!bundles.length) return <EmptyState title="No evidence bundles" detail="No persisted evidence bundle metadata was returned by the backend." />;
+  return (
+    <section className="panel">
+      <h2>Bundles</h2>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Bundle</th><th>Subject</th><th>Scope</th><th>Digest</th><th>Generated</th><th>Summary</th></tr>
+          </thead>
+          <tbody>
+            {bundles.map((bundle) => (
+              <tr key={bundle.id}>
+                <td><code>{bundle.id || "-"}</code></td>
+                <td>{bundle.subjectType || "-"}/{bundle.subjectId || "-"}</td>
+                <td>{bundle.scopeType && bundle.scopeId ? `${bundle.scopeType}:${bundle.scopeId}` : "-"}</td>
+                <td>{bundle.digest ? <code>{shortDigest(bundle.digest)}</code> : "-"}</td>
+                <td>{formatDate(bundle.generatedAt)}</td>
+                <td>{bundle.summary || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <p className="muted">{payload?.count ?? bundles.length} bundle(s) reported by the backend.</p>
+    </section>
+  );
+}
+
+function MCPRuntimeCard({ runtime }: { runtime?: SystemRuntimeStatus }) {
+  return (
+    <section className="summary-grid">
+      <SummaryStrip summary={{
+        title: runtime?.app || "Nivora runtime",
+        status: { value: runtime?.runtime_mode || "unknown" },
+        counts: {
+          telemetry: runtime?.telemetry?.enabled ? 1 : 0
+        },
+        metadata: {
+          environment: runtime?.environment || "-",
+          tracing: runtime?.telemetry?.tracing || "-"
+        }
+      }} />
+      <section className="panel compact">
+        <h2>MCP boundary</h2>
+        <StatusBadge status="read-only / guarded" />
+        <p className="muted">This console only reads runtime, plugin, and integration metadata. Action tools remain governed by backend MCP policy and are not exposed here.</p>
+      </section>
+      <section className="panel compact">
+        <h2>Telemetry</h2>
+        <p>{runtime?.telemetry?.metrics_endpoint || "/metrics"}</p>
+        <p className="muted">{runtime?.telemetry?.endpoint || "No external telemetry endpoint reported."}</p>
+      </section>
+    </section>
+  );
+}
+
+function IntegrationTable({ payload }: { payload?: IntegrationListResponse }) {
+  const integrations = payload?.integrations ?? [];
+  if (!integrations.length) return <EmptyState title="No integrations" detail="No integration capability metadata was returned by the backend." />;
+  return (
+    <section className="panel">
+      <h2>Integration boundaries</h2>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Type</th><th>Status</th><th>Maturity</th><th>Safe by default</th><th>Mutates</th><th>Capabilities</th></tr>
+          </thead>
+          <tbody>
+            {integrations.map((integration) => (
+              <tr key={integration.name}>
+                <td>{integration.name || "-"}</td>
+                <td>{integration.type || "-"}</td>
+                <td><StatusBadge status={integration.status} /></td>
+                <td>{integration.maturity || "-"}</td>
+                <td>{integration.safeByDefault ? "yes" : "no"}</td>
+                <td>{integration.mutatesExternalSystems ? "yes" : "no"}</td>
+                <td>{integration.capabilities?.map((capability) => capability.name).filter(Boolean).join(", ") || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      {payload?.warnings?.length ? <p className="muted">{payload.warnings.join(" ")}</p> : null}
+    </section>
+  );
+}
+
+function PluginTable({ plugins }: { plugins?: PluginManifest[] }) {
+  if (!plugins?.length) return <EmptyState title="No plugins" detail="No plugin manifests were returned by the backend." />;
+  return (
+    <section className="panel">
+      <h2>Plugin capability registry</h2>
+      <div className="table-wrap">
+        <table>
+          <thead>
+            <tr><th>Name</th><th>Type</th><th>Status</th><th>Protocol</th><th>Version</th><th>Capabilities</th></tr>
+          </thead>
+          <tbody>
+            {plugins.map((plugin) => (
+              <tr key={plugin.name}>
+                <td>{plugin.name || "-"}</td>
+                <td>{plugin.type || "-"}</td>
+                <td><StatusBadge status={plugin.status} /></td>
+                <td>{plugin.protocol || "-"}</td>
+                <td>{plugin.version || "-"}</td>
+                <td>{plugin.capabilities?.map((capability) => capability.name).filter(Boolean).join(", ") || "-"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
   );
 }
 
@@ -505,6 +747,18 @@ function formatDate(value?: string) {
   if (!value) return "-";
   const date = new Date(value);
   return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+function formatScope(projectId?: string, environmentId?: string) {
+  const parts = [];
+  if (projectId) parts.push(`project:${projectId}`);
+  if (environmentId) parts.push(`env:${environmentId}`);
+  return parts.length ? parts.join(" / ") : "-";
+}
+
+function shortDigest(value: string) {
+  if (value.length <= 28) return value;
+  return `${value.slice(0, 18)}...${value.slice(-8)}`;
 }
 
 function LookupBar({ label, value, onChange, placeholder }: { label: string; value: string; onChange: (value: string) => void; placeholder: string }) {

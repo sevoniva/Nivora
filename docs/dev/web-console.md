@@ -42,19 +42,26 @@ Avoid setting `VITE_NIVORA_API_BASE_URL` to a different origin unless the backen
 - Deployment detail
 - Releases
 - Release execution detail
+- Artifacts
+- Policy results
+- Evidence bundles
 - Runners
 - Security
 - Audit timeline
 - Environment topology
+- MCP safety
 
 ## API Usage
 
 The console calls existing APIs only:
 
 - Runtime APIs such as `/api/v1/pipeline-runs`, `/api/v1/deployments`, `/api/v1/releases`, and `/api/v1/runners`.
+- Read-only catalog and governance APIs such as `/api/v1/artifacts`, `/api/v1/policies/results`, `/api/v1/evidence/bundles`, `/api/v1/integrations`, `/api/v1/plugins`, and `/api/v1/system/runtime`.
 - Visualization APIs under `/api/v1/visualization/*` for DAGs, timelines, resources, health, audit, security, runner summaries, and environment topology.
 
 Empty states and request errors are shown directly so contributors can see whether a backend capability is missing, unimplemented, unauthorized, or simply has no data yet. Network-level failures are handled by the global connection diagnostics view.
+
+The MCP safety view is read-only. It shows runtime status plus integration and plugin capability metadata that the backend already exposes. It does not call MCP action tools, does not approve/apply/sync/rollback anything, and does not read secret values.
 
 ## Checks
 
@@ -69,7 +76,7 @@ This runs:
 - `npm run build`
 - `scripts/smoke-web-console.sh`
 
-The smoke script starts a local backend and Vite dev server when they are not already running, then verifies that the console root is reachable and that `/api/v1/version` works through the Vite proxy. This catches the common local failure mode where Vite is started from the wrong directory or the backend is not reachable, which otherwise appears in the browser as repeated request failures.
+The smoke script starts a local backend and Vite dev server when they are not already running, then verifies that the console root is reachable, `/api/v1/version` works through the Vite proxy, and the read-only APIs behind the artifact, policy, evidence, integration, plugin, and runtime status pages return JSON. This catches the common local failure mode where Vite is started from the wrong directory or the backend is not reachable, which otherwise appears in the browser as repeated request failures.
 
 ## Limitations
 

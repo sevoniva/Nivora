@@ -11,6 +11,9 @@ DATABASE_URL="postgres://nivora:nivora@localhost:5432/nivora?sslmode=disable" ma
 # Migration drill only
 DATABASE_URL="..." NIVORA_RUN_POSTGRES_INTEGRATION=true make drill-migrations
 
+# Release-to-release migration compatibility smoke
+DATABASE_URL="..." make smoke-upgrade-migration-compatibility
+
 # Skip
 SKIP_DRILL=1 make drill-backup-restore
 ```
@@ -36,6 +39,8 @@ The drill does NOT:
 - Verifies migration pairs are reversible (up/down count match)
 - Runs up/down/up cycle via integration tests
 - Validates schema integrity by checking all expected tables exist
+
+`make smoke-upgrade-migration-compatibility` is the narrower upgrade smoke used by the PostgreSQL CI profile. It verifies version/package alignment, migration reversibility, Postgres runtime bootstrap, and representative runtime/compliance recovery without running a full backup restore.
 
 ### Phase 2: Representative Record Insertion
 Creates records across all governance and runtime stores:

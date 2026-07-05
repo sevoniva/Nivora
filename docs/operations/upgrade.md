@@ -34,6 +34,14 @@ DATABASE_URL='postgres://...' make migrate-down
 DATABASE_URL='postgres://...' make migrate-up
 ```
 
+For the release-to-release compatibility smoke used by the CI PostgreSQL profile:
+
+```sh
+DATABASE_URL='postgres://...' make smoke-upgrade-migration-compatibility
+```
+
+This smoke check validates `VERSION` to Helm `appVersion` alignment, reversible migration file pairs, migration up/down execution, Postgres runtime bootstrap, and representative PipelineRun, DeploymentRun, ReleaseExecution, and evidence-bundle recovery paths. It skips with a clear reason when PostgreSQL client tools or a disposable database are not available locally.
+
 For non-disposable data:
 
 1. Take a backup.
@@ -83,3 +91,4 @@ Before declaring an upgrade path acceptable for RC:
 - Secrets remain externalized.
 - Guarded operations remain opt-in.
 - Existing examples still validate.
+- `make smoke-upgrade-migration-compatibility` has passed against a disposable PostgreSQL database or a skip reason is recorded for local-only review.

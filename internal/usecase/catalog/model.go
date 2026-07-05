@@ -5,7 +5,9 @@ import (
 	"errors"
 
 	domainapp "github.com/sevoniva/nivora/internal/domain/application"
+	"github.com/sevoniva/nivora/internal/domain/audit"
 	domainenv "github.com/sevoniva/nivora/internal/domain/environment"
+	"github.com/sevoniva/nivora/internal/domain/event"
 	domainorg "github.com/sevoniva/nivora/internal/domain/org"
 	domainproject "github.com/sevoniva/nivora/internal/domain/project"
 )
@@ -46,6 +48,11 @@ type Store interface {
 	GetReleaseTarget(ctx context.Context, id string) (domainenv.ReleaseTarget, error)
 	ListReleaseTargets(ctx context.Context, projectID string, environmentID string) ([]domainenv.ReleaseTarget, error)
 	UpdateReleaseTarget(ctx context.Context, target domainenv.ReleaseTarget) (domainenv.ReleaseTarget, error)
+
+	AppendEvent(ctx context.Context, subject string, evt event.Event) error
+	EventsBySubject(ctx context.Context, subject string) ([]event.Event, error)
+	AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error
+	AuditsBySubject(ctx context.Context, subject string) ([]audit.AuditLog, error)
 }
 
 type CreateOrgInput struct {

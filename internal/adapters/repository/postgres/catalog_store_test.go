@@ -94,6 +94,13 @@ func TestPostgresIntegrationCatalogAndPipelineDefinitionRecovery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create repository: %v", err)
 	}
+	validation, err := catalog.ValidateRepository(ctx, repository.ID)
+	if err != nil {
+		t.Fatalf("validate repository: %v", err)
+	}
+	if !validation.Valid {
+		t.Fatalf("repository should validate: %#v", validation)
+	}
 	target, err := catalog.CreateReleaseTarget(ctx, catalogusecase.CreateReleaseTargetInput{EnvironmentID: environment.ID, Name: "prod-noop", TargetType: "noop", CredentialRef: "target-cred-ref"})
 	if err != nil {
 		t.Fatalf("create release target: %v", err)
@@ -125,6 +132,20 @@ func TestPostgresIntegrationCatalogAndPipelineDefinitionRecovery(t *testing.T) {
 	}
 	if repos, err := catalog.ListRepositories(ctx, project.ID); err != nil || len(repos) != 1 || repos[0].ID != repository.ID || repos[0].CredentialRef != "cred-ref" {
 		t.Fatalf("reload repositories = %#v err=%v", repos, err)
+	}
+	events, err := catalog.Events(ctx, repository.ID)
+	if err != nil {
+		t.Fatalf("reload repository validation events: %v", err)
+	}
+	if len(events) != 1 || events[0].Type != catalogusecase.EventRepositoryValidated {
+		t.Fatalf("repository validation events = %#v", events)
+	}
+	audits, err := catalog.Audits(ctx, repository.ID)
+	if err != nil {
+		t.Fatalf("reload repository validation audits: %v", err)
+	}
+	if len(audits) != 1 || audits[0].Action != "repository validated" || audits[0].RecordHash == "" {
+		t.Fatalf("repository validation audits = %#v", audits)
 	}
 	if targets, err := catalog.ListReleaseTargets(ctx, project.ID, environment.ID); err != nil || len(targets) != 1 || targets[0].ID != target.ID || targets[0].CredentialRef != "target-cred-ref" {
 		t.Fatalf("reload release targets = %#v err=%v", targets, err)

@@ -9,6 +9,11 @@ channels:
     messages:
       event:
         $ref: "#/components/messages/Event"
+  devops.repository.validated:
+    address: devops.repository.validated
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
   devops.repository.snapshot.created:
     address: devops.repository.snapshot.created
     messages:
@@ -61,6 +66,16 @@ channels:
         $ref: "#/components/messages/Event"
   devops.workflow.run.reconciled:
     address: devops.workflow.run.reconciled
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.mcp.repository.inspected:
+    address: devops.mcp.repository.inspected
+    messages:
+      event:
+        $ref: "#/components/messages/Event"
+  devops.mcp.workflow.planned:
+    address: devops.mcp.workflow.planned
     messages:
       event:
         $ref: "#/components/messages/Event"

@@ -7,7 +7,9 @@ import (
 	"sync"
 
 	domainapp "github.com/sevoniva/nivora/internal/domain/application"
+	"github.com/sevoniva/nivora/internal/domain/audit"
 	domainenv "github.com/sevoniva/nivora/internal/domain/environment"
+	"github.com/sevoniva/nivora/internal/domain/event"
 	domainorg "github.com/sevoniva/nivora/internal/domain/org"
 	domainproject "github.com/sevoniva/nivora/internal/domain/project"
 )
@@ -20,6 +22,8 @@ type MemoryStore struct {
 	environments map[string]domainenv.Environment
 	repositories map[string]domainapp.Repository
 	targets      map[string]domainenv.ReleaseTarget
+	events       map[string][]event.Event
+	audits       map[string][]audit.AuditLog
 }
 
 func NewMemoryStore() *MemoryStore {
@@ -30,6 +34,8 @@ func NewMemoryStore() *MemoryStore {
 		environments: map[string]domainenv.Environment{},
 		repositories: map[string]domainapp.Repository{},
 		targets:      map[string]domainenv.ReleaseTarget{},
+		events:       map[string][]event.Event{},
+		audits:       map[string][]audit.AuditLog{},
 	}
 }
 
@@ -291,6 +297,58 @@ func (s *MemoryStore) UpdateReleaseTarget(ctx context.Context, target domainenv.
 	}
 	s.targets[target.ID] = copyReleaseTarget(target)
 	return copyReleaseTarget(target), nil
+}
+
+func (s *MemoryStore) AppendEvent(ctx context.Context, subject string, evt event.Event) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.events[subject] = append(s.events[subject], evt)
+	return nil
+}
+
+func (s *MemoryStore) EventsBySubject(ctx context.Context, subject string) ([]event.Event, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	events := append([]event.Event(nil), s.events[subject]...)
+	sort.Slice(events, func(i, j int) bool {
+		if events[i].Time.Equal(events[j].Time) {
+			return events[i].ID < events[j].ID
+		}
+		return events[i].Time.Before(events[j].Time)
+	})
+	return events, nil
+}
+
+func (s *MemoryStore) AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.audits[subject] = append(s.audits[subject], entry)
+	return nil
+}
+
+func (s *MemoryStore) AuditsBySubject(ctx context.Context, subject string) ([]audit.AuditLog, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	audits := append([]audit.AuditLog(nil), s.audits[subject]...)
+	sort.Slice(audits, func(i, j int) bool {
+		if audits[i].CreatedAt.Equal(audits[j].CreatedAt) {
+			return audits[i].ID < audits[j].ID
+		}
+		return audits[i].CreatedAt.Before(audits[j].CreatedAt)
+	})
+	return audits, nil
 }
 
 func copyOrg(org domainorg.Org) domainorg.Org {

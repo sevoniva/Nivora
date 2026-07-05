@@ -386,6 +386,7 @@ func (s *Server) CallTool(ctx context.Context, name string, arguments map[string
 		return errorToolResult(err), nil
 	}
 	s.record(ctx, EventToolCalled, name, "system", "allowed", "tool called")
+	s.recordDomainToolEvent(ctx, name, arguments)
 	return textToolResult(s.capResponseText(mustJSON(payload))), nil
 }
 
@@ -2822,6 +2823,34 @@ func (s *Server) record(ctx context.Context, event string, subject string, scope
 		}
 	}
 	s.logger.Info("mcp operation", "event", event, "subject", subject, "decision", decision, "reason", reason)
+}
+
+func (s *Server) recordDomainToolEvent(ctx context.Context, name string, arguments map[string]any) {
+	switch name {
+	case "nivora_repository_inspect",
+		"nivora_repository_snapshot_create",
+		"nivora_repository_intelligence_analyze",
+		"nivora_repository_devops_plan",
+		"nivora_devops_readiness_review":
+		s.record(ctx, EventDevOpsMCPRepositoryInspected, repositoryMCPAuditSubject(name, arguments), "repository", "allowed", "MCP repository inspection completed")
+	case "nivora_workflow_draft_generate",
+		"nivora_workflow_plan":
+		s.record(ctx, EventDevOpsMCPWorkflowPlanned, workflowMCPAuditSubject(name, arguments), "workflow", "allowed", "MCP workflow planning completed")
+	}
+}
+
+func repositoryMCPAuditSubject(name string, arguments map[string]any) string {
+	if repositoryID := stringArg(arguments, "repositoryId"); repositoryID != "" {
+		return "repository:" + repositoryID
+	}
+	return name
+}
+
+func workflowMCPAuditSubject(name string, arguments map[string]any) string {
+	if repositoryID := stringArg(arguments, "repositoryId"); repositoryID != "" {
+		return "repository:" + repositoryID
+	}
+	return name
 }
 
 func (s *Server) RecordDenied(ctx context.Context, subject domainauth.Subject, operation string, reason string) {

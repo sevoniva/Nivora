@@ -65,6 +65,8 @@ func TestCatalogCreatesHierarchyAndDisablesResources(t *testing.T) {
 	if !repositoryCheck.Valid {
 		t.Fatalf("repository should validate: %+v", repositoryCheck)
 	}
+	assertCatalogEvent(t, service, repository.ID, EventRepositoryValidated)
+	assertCatalogAudit(t, service, repository.ID, "repository validated")
 	disabledRepo, err := service.DisableRepository(ctx, repository.ID)
 	if err != nil {
 		t.Fatalf("disable repository: %v", err)
@@ -225,6 +227,34 @@ func TestReleaseTargetCatalog(t *testing.T) {
 
 func stringPtr(value string) *string {
 	return &value
+}
+
+func assertCatalogEvent(t *testing.T, service *Service, subject string, eventType string) {
+	t.Helper()
+	events, err := service.Events(context.Background(), subject)
+	if err != nil {
+		t.Fatalf("Events(%s): %v", subject, err)
+	}
+	for _, evt := range events {
+		if evt.Type == eventType {
+			return
+		}
+	}
+	t.Fatalf("missing event %s in %#v", eventType, events)
+}
+
+func assertCatalogAudit(t *testing.T, service *Service, subject string, action string) {
+	t.Helper()
+	audits, err := service.Audits(context.Background(), subject)
+	if err != nil {
+		t.Fatalf("Audits(%s): %v", subject, err)
+	}
+	for _, entry := range audits {
+		if entry.Action == action {
+			return
+		}
+	}
+	t.Fatalf("missing audit %s in %#v", action, audits)
 }
 
 func TestReleaseTargetCatalogRejectsInvalidInputs(t *testing.T) {

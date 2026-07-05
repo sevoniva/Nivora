@@ -10,10 +10,14 @@ import (
 	"time"
 
 	domainapp "github.com/sevoniva/nivora/internal/domain/application"
+	"github.com/sevoniva/nivora/internal/domain/audit"
 	domainenv "github.com/sevoniva/nivora/internal/domain/environment"
+	"github.com/sevoniva/nivora/internal/domain/event"
 	domainorg "github.com/sevoniva/nivora/internal/domain/org"
 	domainproject "github.com/sevoniva/nivora/internal/domain/project"
 )
+
+const EventRepositoryValidated = "devops.repository.validated"
 
 type Service struct {
 	store Store
@@ -445,7 +449,19 @@ func (s *Service) ValidateRepository(ctx context.Context, id string) (Repository
 	if err != nil {
 		return RepositoryValidationResult{}, err
 	}
-	return validateRepository(repository), nil
+	result := validateRepository(repository)
+	if err := s.recordRepositoryValidation(ctx, repository, result); err != nil {
+		return RepositoryValidationResult{}, err
+	}
+	return result, nil
+}
+
+func (s *Service) Events(ctx context.Context, subject string) ([]event.Event, error) {
+	return s.store.EventsBySubject(ctx, strings.TrimSpace(subject))
+}
+
+func (s *Service) Audits(ctx context.Context, subject string) ([]audit.AuditLog, error) {
+	return s.store.AuditsBySubject(ctx, strings.TrimSpace(subject))
 }
 
 func (s *Service) CreateReleaseTarget(ctx context.Context, input CreateReleaseTargetInput) (domainenv.ReleaseTarget, error) {
@@ -670,6 +686,56 @@ func validateRepository(repository domainapp.Repository) RepositoryValidationRes
 		result.Valid = false
 	}
 	return result
+}
+
+func (s *Service) recordRepositoryValidation(ctx context.Context, repository domainapp.Repository, result RepositoryValidationResult) error {
+	subject := strings.TrimSpace(repository.ID)
+	if subject == "" {
+		return nil
+	}
+	now := s.now().UTC()
+	data := map[string]any{
+		"repositoryId":     repository.ID,
+		"projectId":        repository.ProjectID,
+		"provider":         repository.Provider,
+		"valid":            result.Valid,
+		"warningCount":     len(result.Warnings),
+		"errorCount":       len(result.Errors),
+		"hasCredentialRef": strings.TrimSpace(repository.CredentialRef) != "",
+		"message":          "repository validated",
+	}
+	evt := event.Event{
+		SpecVersion:     "1.0",
+		ID:              defaultID("", "evt"),
+		Type:            EventRepositoryValidated,
+		Source:          "nivora/catalog",
+		Subject:         subject,
+		Time:            now,
+		DataContentType: "application/json",
+		Data:            data,
+	}
+	if err := s.store.AppendEvent(ctx, subject, evt); err != nil {
+		return err
+	}
+	return s.store.AppendAudit(ctx, subject, audit.AuditLog{
+		ID:          defaultID("", "audit"),
+		Action:      "repository validated",
+		Subject:     subject,
+		SubjectType: "repository",
+		SubjectID:   subject,
+		ScopeType:   "project",
+		ScopeID:     strings.TrimSpace(repository.ProjectID),
+		Metadata: map[string]string{
+			"repositoryId":     repository.ID,
+			"projectId":        repository.ProjectID,
+			"provider":         repository.Provider,
+			"valid":            fmt.Sprintf("%t", result.Valid),
+			"warningCount":     fmt.Sprintf("%d", len(result.Warnings)),
+			"errorCount":       fmt.Sprintf("%d", len(result.Errors)),
+			"hasCredentialRef": fmt.Sprintf("%t", strings.TrimSpace(repository.CredentialRef) != ""),
+		},
+		CreatedAt: now,
+	})
 }
 
 func validateRepositoryShape(repository domainapp.Repository) RepositoryValidationResult {

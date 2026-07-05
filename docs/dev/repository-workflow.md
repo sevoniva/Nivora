@@ -76,9 +76,11 @@ Workflow source metadata is also preserved for traceability. When a guarded Work
 
 ## Events And Audit
 
-Repository create, snapshot, intelligence refresh, DevOps plan, and readiness-review paths record metadata-only events and audit entries through the configured store. In PostgreSQL mode, audit entries are written through the shared hash-chained audit writer used by the rest of the control plane.
+Repository create, catalog validation, snapshot, intelligence refresh, DevOps plan, and readiness-review paths record metadata-only events and audit entries through the configured store. In PostgreSQL mode, audit entries are written through the shared hash-chained audit writer used by the rest of the control plane.
 
 Workflow validate, plan, run, cancel, retry, and reconcile paths also record metadata-only events and audit entries. Validation does not persist a WorkflowPlan record or raw workflow YAML; it records that a definition was validated and returns the planned view. Workflow plan/run lifecycle events are keyed by the workflow plan ID, workflow run ID, or workflow ID so timeline and audit views can connect repository intelligence, workflow planning, and PipelineRun metadata without storing secret values.
+
+MCP repository inspection/planning and workflow planning calls record separate MCP audit actions (`devops.mcp.repository.inspected`, `devops.mcp.workflow.planned`) in addition to the generic MCP tool audit. These audit entries identify the safe operation that was performed but do not store raw workflow content, local file contents, CredentialRef values, or secret values.
 
 Workflow-level `artifacts` and `cache` entries are recorded as PipelineRun metadata when a guarded WorkflowRun queues a PipelineRun. The control plane records names, paths, cache keys, restore keys, retention hints, and metadata. It does not read artifact files, upload cache blobs, or store large content in the database.
 

@@ -30,6 +30,9 @@ const (
 	EventToolCalled     = "mcp.tool.called"
 	EventToolDenied     = "mcp.tool.denied"
 	EventPromptRendered = "mcp.prompt.rendered"
+
+	EventDevOpsMCPRepositoryInspected = "devops.mcp.repository.inspected"
+	EventDevOpsMCPWorkflowPlanned     = "devops.mcp.workflow.planned"
 )
 
 type Services struct {

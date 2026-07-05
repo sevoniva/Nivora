@@ -24,7 +24,13 @@ func TestMCPRepositoryInspectToolIsPlanOnlyAndRedacted(t *testing.T) {
 		t.Fatalf("write .env: %v", err)
 	}
 
-	server := newTestMCPServer(t, domainauth.RoleViewer, "mcp-local")
+	recorder := &MemoryAuditRecorder{}
+	server := newTestMCPServerWithRecorder(t, domainauth.Subject{
+		ID:       "repository-viewer",
+		Username: "repository-viewer",
+		Roles:    []string{domainauth.RoleViewer},
+		AuthMode: "mcp-local",
+	}, recorder)
 	result, err := server.CallTool(context.Background(), "nivora_repository_inspect", map[string]any{
 		"path": root,
 		"name": "mcp-local-repo",
@@ -44,6 +50,8 @@ func TestMCPRepositoryInspectToolIsPlanOnlyAndRedacted(t *testing.T) {
 	if strings.Contains(body, "should-not-leak") {
 		t.Fatalf("repository inspect leaked .env content: %s", body)
 	}
+	assertMCPAuditAction(t, recorder, EventDevOpsMCPRepositoryInspected)
+	assertMCPAuditDoesNotContain(t, recorder, root, "should-not-leak")
 }
 
 func TestMCPRepositoryDevOpsPlanResourceAndToolArePlanOnly(t *testing.T) {
@@ -189,7 +197,13 @@ jobs:
       - name: test
         run: go test ./...
 `
-	server := newTestMCPServer(t, domainauth.RoleDeveloper, "mcp-local")
+	recorder := &MemoryAuditRecorder{}
+	server := newTestMCPServerWithRecorder(t, domainauth.Subject{
+		ID:       "workflow-developer",
+		Username: "workflow-developer",
+		Roles:    []string{domainauth.RoleDeveloper},
+		AuthMode: "mcp-local",
+	}, recorder)
 	validate, err := server.CallTool(context.Background(), "nivora_workflow_validate", map[string]any{"content": workflow})
 	if err != nil {
 		t.Fatalf("workflow validate transport error: %v", err)
@@ -204,6 +218,28 @@ jobs:
 	}
 	if plan.IsError || !strings.Contains(plan.Content[0].Text, `"workflowId"`) || !strings.Contains(plan.Content[0].Text, `"mutated": false`) {
 		t.Fatalf("workflow plan result = %#v", plan)
+	}
+	assertMCPAuditAction(t, recorder, EventDevOpsMCPWorkflowPlanned)
+	assertMCPAuditDoesNotContain(t, recorder, "go test ./...")
+}
+
+func assertMCPAuditAction(t *testing.T, recorder *MemoryAuditRecorder, action string) {
+	t.Helper()
+	for _, entry := range recorder.Entries() {
+		if entry.Action == action {
+			return
+		}
+	}
+	t.Fatalf("missing MCP audit action %s in %#v", action, recorder.Entries())
+}
+
+func assertMCPAuditDoesNotContain(t *testing.T, recorder *MemoryAuditRecorder, values ...string) {
+	t.Helper()
+	body := mustMarshal(t, recorder.Entries())
+	for _, value := range values {
+		if value != "" && strings.Contains(body, value) {
+			t.Fatalf("MCP audit leaked %q: %s", value, body)
+		}
 	}
 }
 

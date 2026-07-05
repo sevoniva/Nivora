@@ -5,12 +5,15 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgconn"
 	"github.com/jackc/pgx/v5/pgxpool"
 	domainapp "github.com/sevoniva/nivora/internal/domain/application"
+	"github.com/sevoniva/nivora/internal/domain/audit"
 	domainenv "github.com/sevoniva/nivora/internal/domain/environment"
+	"github.com/sevoniva/nivora/internal/domain/event"
 	domainorg "github.com/sevoniva/nivora/internal/domain/org"
 	domainproject "github.com/sevoniva/nivora/internal/domain/project"
 	catalogusecase "github.com/sevoniva/nivora/internal/usecase/catalog"
@@ -321,6 +324,73 @@ func (s *CatalogStore) UpdateReleaseTarget(ctx context.Context, target domainenv
 		return domainenv.ReleaseTarget{}, fmt.Errorf("%w: release target %q", catalogusecase.ErrNotFound, target.ID)
 	}
 	return target, nil
+}
+
+func (s *CatalogStore) AppendEvent(ctx context.Context, subject string, evt event.Event) error {
+	if evt.Time.IsZero() {
+		evt.Time = time.Now().UTC()
+	}
+	if evt.Subject == "" {
+		evt.Subject = subject
+	}
+	payload, err := json.Marshal(evt)
+	if err != nil {
+		return err
+	}
+	_, err = s.pool.Exec(ctx, `INSERT INTO governance_event_logs (id, source, event_type, subject, payload, created_at)
+		VALUES ($1,$2,$3,$4,$5,$6)
+		ON CONFLICT (id) DO NOTHING`,
+		evt.ID, "catalog", evt.Type, subject, payload, evt.Time)
+	return err
+}
+
+func (s *CatalogStore) EventsBySubject(ctx context.Context, subject string) ([]event.Event, error) {
+	rows, err := s.pool.Query(ctx, `SELECT payload FROM governance_event_logs WHERE source='catalog' AND subject=$1 ORDER BY created_at, id`, subject)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []event.Event
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			return nil, err
+		}
+		var evt event.Event
+		if err := json.Unmarshal(payload, &evt); err != nil {
+			return nil, err
+		}
+		out = append(out, evt)
+	}
+	return nonNil(out), rows.Err()
+}
+
+func (s *CatalogStore) AppendAudit(ctx context.Context, subject string, entry audit.AuditLog) error {
+	if entry.Subject == "" {
+		entry.Subject = subject
+	}
+	return AppendHashChainedAudit(ctx, s.pool, "catalog", entry)
+}
+
+func (s *CatalogStore) AuditsBySubject(ctx context.Context, subject string) ([]audit.AuditLog, error) {
+	rows, err := s.pool.Query(ctx, `SELECT payload FROM governance_audit_logs WHERE source='catalog' AND subject=$1 ORDER BY created_at, id`, subject)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []audit.AuditLog
+	for rows.Next() {
+		var payload []byte
+		if err := rows.Scan(&payload); err != nil {
+			return nil, err
+		}
+		var entry audit.AuditLog
+		if err := json.Unmarshal(payload, &entry); err != nil {
+			return nil, err
+		}
+		out = append(out, entry)
+	}
+	return nonNil(out), rows.Err()
 }
 
 type scanner interface {

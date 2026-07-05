@@ -3,6 +3,7 @@ package catalog
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 )
 
@@ -108,12 +109,18 @@ func TestCatalogRejectsMissingParentsAndDuplicates(t *testing.T) {
 	if _, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Repo", URL: "example.com/no-scheme"}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("invalid repository url error = %v", err)
 	}
+	if _, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Inline Repo", URL: "https://user:pass@example.com/team/service.git"}); !errors.Is(err, ErrInvalid) || strings.Contains(err.Error(), "user") || strings.Contains(err.Error(), "pass") {
+		t.Fatalf("inline repository credential error should reject without leaking values, got %v", err)
+	}
 	if _, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Repo", URL: "https://example.com/team/service.git", Provider: "unknown"}); !errors.Is(err, ErrInvalid) {
 		t.Fatalf("invalid repository provider error = %v", err)
 	}
 	repository, err := service.CreateRepository(ctx, CreateRepositoryInput{ProjectID: project.ID, Name: "Repo", URL: "https://example.com/team/service.git", Provider: "github", CredentialRef: "cred-ref"})
 	if err != nil {
 		t.Fatalf("create repository with credential ref: %v", err)
+	}
+	if _, err := service.UpdateRepository(ctx, repository.ID, UpdateRepositoryInput{URL: stringPtr("https://user:pass@example.com/team/other.git")}); !errors.Is(err, ErrInvalid) || strings.Contains(err.Error(), "user") || strings.Contains(err.Error(), "pass") {
+		t.Fatalf("inline repository credential update should reject without leaking values, got %v", err)
 	}
 	result, err := service.ValidateRepository(ctx, repository.ID)
 	if err != nil {
@@ -190,6 +197,10 @@ func TestReleaseTargetCatalog(t *testing.T) {
 	if result.Valid {
 		t.Fatalf("disabled target should not validate: %+v", result)
 	}
+}
+
+func stringPtr(value string) *string {
+	return &value
 }
 
 func TestReleaseTargetCatalogRejectsInvalidInputs(t *testing.T) {

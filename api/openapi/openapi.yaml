@@ -1115,6 +1115,7 @@ paths:
                       $ref: "#/components/schemas/SCMRepository"
     post:
       summary: Create SCM repository
+      description: Requires `project.write`. Stores SCM repository metadata only. Repository URLs must not contain inline username/password userinfo; use CredentialRef metadata instead.
       requestBody:
         required: true
         content:
@@ -1142,6 +1143,7 @@ paths:
                 $ref: "#/components/schemas/SCMRepository"
     patch:
       summary: Update SCM repository
+      description: Requires `project.write`. Updates SCM repository metadata only. Repository URLs must not contain inline username/password userinfo; use CredentialRef metadata instead.
       parameters:
         - $ref: "#/components/parameters/ID"
       requestBody:
@@ -1172,7 +1174,7 @@ paths:
   /api/v1/repositories/{id}/validate:
     post:
       summary: Validate SCM repository metadata
-      description: Requires `project.read`. Validates the repository catalog record shape only; it does not call external SCM providers, resolve CredentialRef values, or return secret values.
+      description: Requires `project.read`. Validates the repository catalog record shape only; it does not call external SCM providers, resolve CredentialRef values, or return secret values. URLs with inline username/password userinfo are rejected.
       parameters:
         - $ref: "#/components/parameters/ID"
       responses:
@@ -4329,6 +4331,7 @@ components:
           type: string
         url:
           type: string
+          description: SCM repository URL. Inline username/password userinfo is rejected; use CredentialRef instead.
         provider:
           type: string
           enum: [generic, github, gitlab, gitea]
@@ -4476,6 +4479,7 @@ components:
           type: string
         url:
           type: string
+          description: SCM repository URL. Inline username/password userinfo is rejected; use CredentialRef instead.
         provider:
           type: string
         defaultBranch:

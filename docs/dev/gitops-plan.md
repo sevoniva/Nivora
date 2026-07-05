@@ -11,6 +11,7 @@ The command builds a GitOpsChangePlan from the deployment spec. Planning does no
 GitOps plans can either include `target.repoURL` directly or reference an existing repository catalog record with `target.repositoryId`.
 When `repositoryId` is used, Nivora resolves the repository URL and default branch from catalog metadata only.
 It does not contact the SCM provider, does not clone the repository, and does not resolve or return CredentialRef secret values during planning.
+Repository catalog URLs must not embed inline credentials such as `https://user:password@example.com/org/repo.git`; catalog validation rejects that shape and requires `CredentialRef` metadata instead.
 
 The catalog-backed form requires the server API because local mode does not have the repository catalog.
 Create a repository record first, then plan with `--local=false` and a project scope:

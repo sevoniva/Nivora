@@ -2099,7 +2099,7 @@ func newRepositoryCreateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&repoURL, "url", "", "repository URL")
 	cmd.Flags().StringVar(&provider, "provider", "generic", "SCM provider name")
 	cmd.Flags().StringVar(&defaultBranch, "default-branch", "main", "default branch")
-	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id for future SCM access")
+	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id for future SCM access; no secret value is accepted")
 	return cmd
 }
 
@@ -2157,7 +2157,7 @@ func newRepositoryUpdateCommand() *cobra.Command {
 	cmd.Flags().StringVar(&repoURL, "url", "", "repository URL")
 	cmd.Flags().StringVar(&provider, "provider", "", "SCM provider name")
 	cmd.Flags().StringVar(&defaultBranch, "default-branch", "", "default branch")
-	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id for future SCM access")
+	cmd.Flags().StringVar(&credentialRef, "credential-ref", "", "CredentialRef id for future SCM access; no secret value is accepted")
 	cmd.Flags().BoolVar(&enabled, "enabled", true, "resource enabled state")
 	return cmd
 }

@@ -44,6 +44,7 @@ flowchart LR
 - Sync requires `gitops.allowSync=true`, explicit confirmation, and allow flags.
 - Push requires `gitops.push=true`, `gitops.allowPush=true`, and confirmation.
 - Rollback by revision requires `gitops.rollback=true`, a `rollbackRevision`, and confirmation.
+- Repository catalog URLs are metadata only and must not contain inline username/password userinfo. Credentials stay behind `CredentialRef`/`SecretRef` boundaries and are not resolved by planning.
 - `prune` defaults to `false`.
 - `force` is rejected in the current Argo CD sync foundation.
 - Credentials are referenced by name only and are not stored in specs.

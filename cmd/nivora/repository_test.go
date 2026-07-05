@@ -6,6 +6,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 )
 
 func TestRepositoryCommandHelpIncludesValidate(t *testing.T) {
@@ -19,6 +21,32 @@ func TestRepositoryCommandHelpIncludesValidate(t *testing.T) {
 	}
 	if !strings.Contains(out.String(), "validate") {
 		t.Fatalf("repository help missing validate command: %s", out.String())
+	}
+}
+
+func TestRepositoryCreateAndUpdateHelpDescribeCredentialRefBoundary(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		cmd  *cobra.Command
+	}{
+		{name: "create", cmd: newRepositoryCreateCommand()},
+		{name: "update", cmd: newRepositoryUpdateCommand()},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var out bytes.Buffer
+			tc.cmd.SetOut(&out)
+			tc.cmd.SetErr(&out)
+			tc.cmd.SetArgs([]string{"--help"})
+			if err := tc.cmd.Execute(); err != nil {
+				t.Fatalf("repository %s help failed: %v", tc.name, err)
+			}
+			help := out.String()
+			for _, want := range []string{"--credential-ref", "no secret value"} {
+				if !strings.Contains(help, want) {
+					t.Fatalf("repository %s help missing %q: %s", tc.name, want, help)
+				}
+			}
+		})
 	}
 }
 

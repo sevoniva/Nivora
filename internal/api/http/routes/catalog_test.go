@@ -153,6 +153,30 @@ func TestCatalogRoutesValidateParentsAndDuplicates(t *testing.T) {
 	postCatalogResource(t, router, "/api/v1/orgs", `{"name":"platform"}`, http.StatusConflict)
 }
 
+func TestRepositoryRoutesRejectInlineCredentials(t *testing.T) {
+	cfg, err := config.Load("")
+	if err != nil {
+		t.Fatalf("load default config: %v", err)
+	}
+	router := newTestRouter(cfg)
+
+	org := postCatalogResource(t, router, "/api/v1/orgs", `{"name":"Platform"}`, http.StatusCreated)
+	project := postCatalogResource(t, router, "/api/v1/projects", `{"orgId":"`+stringField(t, org, "id")+`","name":"Delivery"}`, http.StatusCreated)
+
+	req := httptest.NewRequest(http.MethodPost, "/api/v1/repositories", strings.NewReader(`{"projectId":"`+stringField(t, project, "id")+`","name":"Inline Repo","url":"https://user:pass@example.com/team/service.git"}`))
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("inline repository credential status = %d body = %s", rec.Code, rec.Body.String())
+	}
+	if !strings.Contains(rec.Body.String(), "CredentialRef") {
+		t.Fatalf("inline repository credential rejection should point to CredentialRef: %s", rec.Body.String())
+	}
+	if strings.Contains(rec.Body.String(), "user") || strings.Contains(rec.Body.String(), "pass") {
+		t.Fatalf("inline repository credential response leaked credential material: %s", rec.Body.String())
+	}
+}
+
 func TestCatalogRoutesArePermissionProtected(t *testing.T) {
 	cfg, err := config.Load("")
 	if err != nil {

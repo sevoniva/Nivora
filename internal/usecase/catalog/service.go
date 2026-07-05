@@ -634,6 +634,9 @@ func validateRepositoryURL(raw string) error {
 	if err != nil || parsed.Scheme == "" {
 		return fmt.Errorf("%w: repository url must include a scheme", ErrInvalid)
 	}
+	if parsed.User != nil && parsed.User.String() != "" {
+		return fmt.Errorf("%w: repository url must not contain inline credentials; use CredentialRef instead", ErrInvalid)
+	}
 	switch parsed.Scheme {
 	case "https", "http", "ssh", "git":
 		return nil

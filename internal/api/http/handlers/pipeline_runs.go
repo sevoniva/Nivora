@@ -162,6 +162,33 @@ func GetPipelineRunArtifacts(service *pipelineusecase.Service) http.HandlerFunc 
 	}
 }
 
+// RecordPipelineRunArtifact records artifact metadata (name, type, size, content
+// hash, storage ref) against a PipelineRun. It is intended for workflow steps
+// that produce artifacts (e.g. docker build + push) to report the produced
+// reference back to Nivora so the run's artifact inventory is queryable and
+// auditable. It does not store artifact content; large content must live in an
+// external registry/object store referenced by storageRef.
+func RecordPipelineRunArtifact(service *pipelineusecase.Service) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		record, ok := getAuthorizedPipelineRecord(w, r, service)
+		if !ok {
+			return
+		}
+		var artifact pipelineusecase.PipelineArtifact
+		if err := json.NewDecoder(r.Body).Decode(&artifact); err != nil {
+			RespondError(w, r, http.StatusBadRequest, dto.ErrorResponse{
+				Code:    "invalid_request",
+				Message: "request body must be a pipeline artifact",
+				Path:    r.URL.Path,
+			})
+			return
+		}
+		artifact.PipelineRunID = record.Run.ID
+		saved, err := service.RecordArtifact(r.Context(), artifact)
+		respondPipelineResult(w, r, saved, err)
+	}
+}
+
 func GetPipelineRunCaches(service *pipelineusecase.Service) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if _, ok := getAuthorizedPipelineRecord(w, r, service); !ok {

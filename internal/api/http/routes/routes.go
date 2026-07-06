@@ -262,6 +262,7 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 		api.Get("/pipeline-runs/{id}/steps", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPipelineRunSteps(pipelineService)))
 		api.Get("/pipeline-runs/{id}/logs", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPipelineRunLogs(pipelineService)))
 		api.Get("/pipeline-runs/{id}/artifacts", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPipelineRunArtifacts(pipelineService)))
+		api.Post("/pipeline-runs/{id}/artifacts", apimiddleware.RequirePermission(authService, "release.create", handlers.RespondError, handlers.RecordPipelineRunArtifact(pipelineService)))
 		api.Get("/pipeline-runs/{id}/caches", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPipelineRunCaches(pipelineService)))
 		api.Get("/pipeline-runs/{id}/annotations", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPipelineRunAnnotations(pipelineService)))
 		api.Get("/pipeline-runs/{id}/summary", apimiddleware.RequirePermission(authService, "project.read", handlers.RespondError, handlers.GetPipelineRunSummary(pipelineService)))

@@ -2782,6 +2782,28 @@ paths:
                   $ref: "#/components/schemas/PipelineArtifact"
         "404":
           description: PipelineRun not found
+    post:
+      summary: Record PipelineRun artifact metadata
+      description: Records artifact metadata (name, type, size, content hash, storage ref) against a PipelineRun. Intended for workflow steps that produce artifacts to report the produced reference back to Nivora. Does not store artifact content; large content must live in an external registry referenced by storageRef.
+      parameters:
+        - $ref: "#/components/parameters/ID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PipelineArtifact"
+      responses:
+        "201":
+          description: PipelineRun artifact recorded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineArtifact"
+        "400":
+          description: Invalid request body
+        "404":
+          description: PipelineRun not found
   /api/v1/pipeline-runs/{id}/caches:
     get:
       summary: Get PipelineRun cache metadata

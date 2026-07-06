@@ -8,6 +8,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -1207,7 +1208,7 @@ func (s *Service) runJobAttempt(ctx context.Context, record *RunRecord, stageInd
 			stepRun.FailureReason = ""
 		}
 		_ = transitionStepRun(stepRun, domainpipeline.JobRunRunning, s.now(), "")
-		result, err := s.runner.RunShellStep(ctx, jobRun.ID, step.Run, timeoutFor(job, step))
+		result, err := s.runner.RunShellStep(ctx, jobRun.ID, step.Run, s.stepEnv(record, jobRun, stepRun), timeoutFor(job, step))
 		for _, log := range s.logChunks(record.Run.ID, record.Stages[stageIndex].Stage.ID, jobRun.ID, stepRun.ID, result, int64(len(record.Logs)+1)) {
 			record.Logs = append(record.Logs, log)
 		}
@@ -1407,6 +1408,32 @@ func (s *Service) timeoutRun(ctx context.Context, record RunRecord, reason strin
 		return err
 	}
 	return s.recordEventAndAudit(ctx, record.Run.ID, EventPipelineRunTimedOut, "PipelineRun timeout reconciled", "worker", string(record.Run.Status), reason)
+}
+
+// stepEnv builds the environment variables injected into every workflow step
+// shell command. Steps use NIVORA_PIPELINE_RUN_ID to call back into the API
+// (e.g. recording artifacts), and NIVORA_SERVER_URL to know where to call.
+// ponytail: minimal, well-known env contract; do not leak secrets here.
+func (s *Service) stepEnv(record *RunRecord, jobRun *domainpipeline.JobRun, stepRun *domainpipeline.StepRun) map[string]string {
+	env := map[string]string{
+		"NIVORA_PIPELINE_RUN_ID": record.Run.ID,
+		"NIVORA_JOB_RUN_ID":      jobRun.ID,
+		"NIVORA_STEP_RUN_ID":     stepRun.ID,
+		"NIVORA_RUNNER_ID":       s.runner.ID(),
+	}
+	if record.Run.WorkflowRunID != "" {
+		env["NIVORA_WORKFLOW_RUN_ID"] = record.Run.WorkflowRunID
+	}
+	if record.Run.RepositoryID != "" {
+		env["NIVORA_REPOSITORY_ID"] = record.Run.RepositoryID
+	}
+	if serverURL := os.Getenv("NIVORA_SERVER_URL"); serverURL != "" {
+		env["NIVORA_SERVER_URL"] = serverURL
+	}
+	if authHeader := os.Getenv("NIVORA_STEP_AUTH_HEADER"); authHeader != "" {
+		env["NIVORA_STEP_AUTH_HEADER"] = authHeader
+	}
+	return env
 }
 
 func defaultRecoveryOptions(options RuntimeRecoveryOptions) RuntimeRecoveryOptions {

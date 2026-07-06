@@ -3,6 +3,7 @@ package routes
 import (
 	"log/slog"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
@@ -143,6 +144,13 @@ func New(cfg config.Config, info version.Info, logger *slog.Logger, pipelineServ
 	r.Get("/healthz", handlers.Health)
 	r.Get("/readyz", handlers.ReadyWithConfig(cfg))
 	r.Get("/metrics", handlers.Metrics())
+
+	// GitLab webhook receiver sits outside the authenticated /api/v1 route
+	// group; it authenticates via the X-Gitlab-Token header instead. The
+	// workflow content and secret are loaded from disk/env by the bootstrap.
+	if webhookCfg := buildGitLabWebhookConfig(cfg); webhookCfg.WorkflowContent != "" {
+		r.Post("/api/v1/webhooks/gitlab", handlers.GitLabWebhook(catalogService, workflowService, pipelineService, webhookCfg))
+	}
 
 	r.Route("/api/v1", func(api chi.Router) {
 		api.Use(apimiddleware.Authenticate(cfg.Auth, authService, handlers.RespondError))
@@ -453,4 +461,23 @@ func placeholderGroups() []routeGroup {
 
 func placeholderOperations() map[string]bool {
 	return map[string]bool{}
+}
+
+// buildGitLabWebhookConfig loads the GitLab webhook receiver configuration
+// from environment variables. NIVORA_GITLAB_WEBHOOK_SECRET sets the expected
+// X-Gitlab-Token header value; NIVORA_GITLAB_WEBHOOK_WORKFLOW_FILE points to
+// a Nivora Workflow YAML file to run on each push event. The webhook route is
+// only registered when the workflow file is configured.
+// ponytail: env-var config is enough for the foundation; promote to a config
+// struct when multiple webhook providers or per-repository workflows are needed.
+func buildGitLabWebhookConfig(_ config.Config) handlers.GitLabWebhookConfig {
+	cfg := handlers.GitLabWebhookConfig{
+		Secret: os.Getenv("NIVORA_GITLAB_WEBHOOK_SECRET"),
+	}
+	if path := os.Getenv("NIVORA_GITLAB_WEBHOOK_WORKFLOW_FILE"); path != "" {
+		if content, err := os.ReadFile(path); err == nil {
+			cfg.WorkflowContent = string(content)
+		}
+	}
+	return cfg
 }

@@ -19,7 +19,7 @@ import (
 
 // Provider is a routing SCMProvider.
 type Provider struct {
-	providers      map[string]scm.SCMProvider
+	providers       map[string]scm.SCMProvider
 	defaultProvider string
 }
 

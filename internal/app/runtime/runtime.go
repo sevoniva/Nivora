@@ -324,6 +324,18 @@ func NewReleaseOrchestrationServiceWith(artifactService *artifactusecase.Service
 	return NewReleaseOrchestrationServiceWithStore(releaseorchestration.NewMemoryStore(), artifactService, deploymentService)
 }
 
+// NewReleaseOrchestrationServiceWithKubectl wires the release orchestration
+// runtime with a kubectl-backed manifest client so that ReleaseExecution
+// targets actually apply to a Kubernetes cluster instead of no-op simulating.
+// ponytail: local CLI path; server bootstrap uses WithConfig variants.
+func NewReleaseOrchestrationServiceWithKubectl() *releaseorchestration.Service {
+	return NewReleaseOrchestrationServiceWithStore(
+		releaseorchestration.NewMemoryStore(),
+		NewArtifactService(),
+		NewDeploymentServiceWithKubectl(),
+	)
+}
+
 func NewReleaseOrchestrationServiceWithConfig(ctx context.Context, cfg config.Config, artifactService *artifactusecase.Service, deploymentService *deploymentusecase.Service) (*releaseorchestration.Service, func(), error) {
 	securityService, closeSecurity, err := NewSecurityServiceWithConfig(ctx, cfg)
 	if err != nil {

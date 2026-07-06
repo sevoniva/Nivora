@@ -193,6 +193,12 @@ func NewReleaseOrchestrationServiceWith(artifactService *artifactusecase.Service
 	return appruntime.NewReleaseOrchestrationServiceWith(artifactService, deploymentService)
 }
 
+// NewReleaseOrchestrationServiceWithKubectl wires a kubectl-backed deployment
+// client for local CLI release deployments.
+func NewReleaseOrchestrationServiceWithKubectl() *releaseorchestration.Service {
+	return appruntime.NewReleaseOrchestrationServiceWithKubectl()
+}
+
 func NewSecurityService() *securityusecase.Service {
 	return appruntime.NewSecurityService()
 }

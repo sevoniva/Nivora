@@ -889,7 +889,7 @@ func (r postgresTestRunner) ID() string {
 	return r.id
 }
 
-func (r postgresTestRunner) RunShellStep(ctx context.Context, jobRunID string, command string, timeout time.Duration) (executor.Result, error) {
+func (r postgresTestRunner) RunShellStep(ctx context.Context, jobRunID string, command string, env map[string]string, timeout time.Duration) (executor.Result, error) {
 	return executor.Result{ExitCode: 0}, nil
 }
 

@@ -367,7 +367,7 @@ type fakeRunner struct{}
 
 func (fakeRunner) ID() string { return "test-runner" }
 
-func (fakeRunner) RunShellStep(ctx context.Context, jobRunID string, command string, timeout time.Duration) (portexecutor.Result, error) {
+func (fakeRunner) RunShellStep(ctx context.Context, jobRunID string, command string, env map[string]string, timeout time.Duration) (portexecutor.Result, error) {
 	if err := ctx.Err(); err != nil {
 		return portexecutor.Result{}, err
 	}

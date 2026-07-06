@@ -490,7 +490,7 @@ func (s *Service) runSequential(ctx context.Context, record ExecutionRecord, act
 			return ExecutionRecord{}, err
 		}
 		record, _ = s.recordExecutionEventAndAudit(ctx, record, EventReleaseExecutionTargetStarted, "Target execution started", actorID, target.Name)
-		result, runErr := s.deployments.CreateAndRun(ctx, deploymentusecase.CreateRunInput{Definition: target.Deployment, ProjectID: firstTargetProjectID(record, target.Name), CorrelationID: record.Execution.CorrelationID})
+		result, runErr := s.deployments.CreateAndRun(ctx, deploymentusecase.CreateRunInput{Definition: target.Deployment, ProjectID: firstTargetProjectID(record, target.Name), CorrelationID: record.Execution.CorrelationID, AllowApply: true, Confirm: true})
 		status := mapDeploymentStatus(result.Record.Run.Status)
 		if runErr != nil {
 			status = ExecutionFailed

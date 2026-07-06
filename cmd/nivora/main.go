@@ -4655,7 +4655,7 @@ func newReleaseDeployCommand() *cobra.Command {
 				return nil
 			}
 			started := time.Now()
-			record, err := server.NewReleaseOrchestrationService().Deploy(cmd.Context(), releaseorchestration.DeployInput{Definition: def})
+			record, err := server.NewReleaseOrchestrationServiceWithKubectl().Deploy(cmd.Context(), releaseorchestration.DeployInput{Definition: def})
 			if err != nil {
 				return err
 			}

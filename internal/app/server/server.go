@@ -177,6 +177,10 @@ func NewDeploymentService() *deploymentusecase.Service {
 	return appruntime.NewDeploymentService()
 }
 
+func NewDeploymentServiceWithKubectl() *deploymentusecase.Service {
+	return appruntime.NewDeploymentServiceWithKubectl()
+}
+
 func NewArtifactService() *artifactusecase.Service {
 	return appruntime.NewArtifactService()
 }

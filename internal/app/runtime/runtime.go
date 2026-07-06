@@ -208,6 +208,23 @@ func NewDeploymentServiceWithStore(store deploymentusecase.Store) *deploymentuse
 	return NewDeploymentServiceWithStoreAndGovernance(store, nil, nil)
 }
 
+// NewDeploymentServiceWithKubectl returns a DeploymentService wired with a real
+// kubectl manifest client (instead of the noop client) so local CLI apply and
+// server-side dry-run reach a real Kubernetes cluster via the kubeconfig in the
+// process environment. The kubectl binary is resolved from PATH.
+func NewDeploymentServiceWithKubectl() *deploymentusecase.Service {
+	bus := memory.New()
+	securityService := NewSecurityService()
+	approvalService := NewApprovalService()
+	return deploymentusecase.NewService(
+		deploymentusecase.NewMemoryStore(),
+		deploymentusecase.NewStaticManifestRenderer(),
+		yamlapply.NewKubectlManifestClient("", yamlapply.ExecCommandRunner{}),
+		allowAllPolicyEngine{},
+		bus,
+	).WithHostExecutor(hostexecutor.NewNoop()).WithGitOps(localgitops.New(), argocdadapter.NoopProvider{AllowSync: true}).WithSecurity(securityService).WithGovernance(approvalService)
+}
+
 func NewDeploymentServiceWithStoreAndGovernance(store deploymentusecase.Store, securityService *securityusecase.Service, approvalService *approvalusecase.Service) *deploymentusecase.Service {
 	bus := memory.New()
 	if securityService == nil {

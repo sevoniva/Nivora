@@ -5809,7 +5809,7 @@ func newDeploymentApplyCommand() *cobra.Command {
 				return nil
 			}
 			started := time.Now()
-			result, err := server.NewDeploymentService().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, AllowApply: true, Confirm: true})
+			result, err := server.NewDeploymentServiceWithKubectl().CreateAndRun(cmd.Context(), deploymentusecase.CreateRunInput{Definition: def, AllowApply: true, Confirm: true})
 			if err != nil {
 				return err
 			}

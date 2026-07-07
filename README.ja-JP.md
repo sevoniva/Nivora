@@ -1,5 +1,14 @@
 # Nivora
 
+<p align="center">
+  <strong>🌐 Languages</strong>:
+  <a href="README.md">English</a> |
+  <a href="README.zh-CN.md">中文</a> |
+  <a href="README.ja-JP.md">日本語</a> |
+  <a href="README.ko-KR.md">한국어</a> |
+  <a href="README.es-ES.md">Español</a>
+</p>
+
 > パイプライン、リリース、デプロイメント、ランナー、ポリシーゲート、承認、監査記録のためのバックエンドファーストなデリバリー制御プレーン。
 
 **Nivora** は `sevoniva` 組織下で開発されているオープンソースの DevOps デリバリー制御プレーンです。

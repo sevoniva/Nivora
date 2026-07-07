@@ -1,5 +1,14 @@
 # Nivora
 
+<p align="center">
+  <strong>🌐 Languages</strong>:
+  <a href="README.md">English</a> |
+  <a href="README.zh-CN.md">中文</a> |
+  <a href="README.ja-JP.md">日本語</a> |
+  <a href="README.ko-KR.md">한국어</a> |
+  <a href="README.es-ES.md">Español</a>
+</p>
+
 > 面向流水线、发布、部署、运行器、策略门禁、审批和审计记录的后台优先交付控制平面。
 
 **Nivora** 是 `sevoniva` 组织下的一个开源 DevOps 交付控制平面。

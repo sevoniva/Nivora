@@ -1,5 +1,14 @@
 # Nivora
 
+<p align="center">
+  <strong>🌐 Languages</strong>:
+  <a href="README.md">English</a> |
+  <a href="README.zh-CN.md">中文</a> |
+  <a href="README.ja-JP.md">日本語</a> |
+  <a href="README.ko-KR.md">한국어</a> |
+  <a href="README.es-ES.md">Español</a>
+</p>
+
 > Plano de control de entrega backend-first para pipelines, lanzamientos, despliegues, runners, puertas de política, aprobaciones y registros de auditoría.
 
 **Nivora** es un plano de control de entrega DevOps de código abierto bajo la organización `sevoniva`.

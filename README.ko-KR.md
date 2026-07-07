@@ -1,5 +1,14 @@
 # Nivora
 
+<p align="center">
+  <strong>🌐 Languages</strong>:
+  <a href="README.md">English</a> |
+  <a href="README.zh-CN.md">中文</a> |
+  <a href="README.ja-JP.md">日本語</a> |
+  <a href="README.ko-KR.md">한국어</a> |
+  <a href="README.es-ES.md">Español</a>
+</p>
+
 > 파이프라인, 릴리스, 배포, 러너, 정책 게이트, 승인, 감사 기록을 위한 백엔드 우선 전달 제어 평면.
 
 **Nivora**는 `sevoniva` 조직 하의 오픈 소스 DevOps 전달 제어 평면입니다.

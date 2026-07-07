@@ -1,5 +1,14 @@
 # Nivora
 
+<p align="center">
+  <strong>🌐 Languages</strong>:
+  <a href="README.md">English</a> |
+  <a href="README.zh-CN.md">中文</a> |
+  <a href="README.ja-JP.md">日本語</a> |
+  <a href="README.ko-KR.md">한국어</a> |
+  <a href="README.es-ES.md">Español</a>
+</p>
+
 > Backend-first delivery control plane for pipelines, releases, deployments, runners, policy gates, approvals, and audit records.
 
 **Nivora** is an open-source DevOps delivery control plane under the `sevoniva` organization.

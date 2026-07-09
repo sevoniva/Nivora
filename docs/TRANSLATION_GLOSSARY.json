@@ -1,4 +1,18 @@
 {
+  "domains": {
+    "architecture": "架构概念 — control plane, ports, adapters, modular monolith",
+    "pipeline": "CI/CD 流水线 — stage, job, step, workflow engine",
+    "deployment": "部署相关 — rollback, host deployment, cloud target",
+    "execution": "运行组件 — runner, executor, heartbeat, sandboxing",
+    "artifact": "制品管理 — artifact registry, immutable artifact",
+    "policy": "策略与审批 — policy gate, approval flow, change window",
+    "observability": "可观测性 — metric, trace, log, dashboard, runbook",
+    "security": "安全 — token, credential, secret, compliance",
+    "integration": "外部集成 — webhook, source control, plugin",
+    "core": "通用概念 — delivery, application, environment",
+    "testing": "测试 — smoke test",
+    "operations": "运维工具 — production diagnostics, health check"
+  },
   "terms": [
     {
       "en": "control plane",

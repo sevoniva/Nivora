@@ -233,4 +233,5 @@ Use RFCs for large proposals before implementation. Use ADRs to record accepted 
 - [Release Scope](engineering/release-scope.md)
 - [Documentation Style Guide](STYLE_GUIDE.md)
 - [Documentation Inventory](DOCS_INVENTORY.md)
+- [Translation Glossary](TRANSLATION_GLOSSARY.json) — 80-term multilingual translation reference
 - [Optional Local Development Environment](dev/local-dev-environment.md)

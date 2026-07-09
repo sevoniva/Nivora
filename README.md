@@ -47,7 +47,7 @@ Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/sta
 | MCP control plane | Foundation; local stdio read-only and plan-only AI access plus experimental opt-in remote read-only JSON-RPC, repository/workflow plan tools, aggregate event/log reads, denied action tools, runner-token rejection, compliance-backed audit, and 31 validated operator scenarios with golden answers; remote MCP is not broadly exposed or production-ready |
 | Integration capability index | Foundation; read-only `/api/v1/integrations` labels built-in, skeleton, noop, foundation, and experimental adapter capabilities |
 | Packaging | Partial; Docker Compose, Helm, production-like values, and smoke checks exist |
-| Observability / audit | Partial; diagnostics, metrics, runtime recovery center, production doctor, read-only visualization API index, runbooks, and audit/evidence export foundations; production retention/export still needs hardening |
+| Observability / audit | Partial; metrics, runtime recovery center, production diagnostics, read-only visualization API index, runbooks, and audit/evidence export foundations; production retention/export still needs hardening |
 
 Current focus:
 
@@ -92,7 +92,7 @@ Status references:
 - [Tutorials](docs/tutorials/README.md)
 - [Release Playbook](docs/releases/release-playbook.md)
 - [Production-Direction Install](docs/operations/production-install.md)
-- [Production Doctor](docs/operations/production-doctor.md)
+- [Production Diagnostics](docs/operations/production-doctor.md)
 - [Upgrade Guide](docs/operations/upgrade.md)
 - [Release Automation](docs/operations/release-automation.md)
 - [Changelog](CHANGELOG.md)

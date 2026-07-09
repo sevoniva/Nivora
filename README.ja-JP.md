@@ -47,7 +47,7 @@ Nivora は **Jenkins でも Argo CD でも Kubernetes でも Harbor でもクラ
 | MCP control plane | 基盤。ローカル stdio 読み取り専用と計画のみ AI アクセス、実験的なオプトインリモート読み取り専用 JSON-RPC、リポジトリ/ワークフロー計画ツール、集約イベント/ログ読み取り、拒否アクションツール、ランナートークン拒否、コンプライアンス backed 監査、31 の検証済みオペレーターシナリオとゴールデンアンサー。リモート MCP は広く公開されておらず本番環境ではまだ使用できない |
 | Integration capability index | 基盤。読み取り専用 `/api/v1/integrations` が組み込み、スケルトン、noop、基盤、実験的アダプター機能をラベル付け |
 | Packaging | 部分的。Docker Compose、Helm、本番ライクな値、スモークチェックが存在する |
-| Observability / audit | 部分的。診断、メトリクス、ランタイムリカバリーセンター、本番ドクター、読み取り専用可視化 API インデックス、ランブック、監査/証拠エクスポート基盤。本番保持/エクスポートはまだ強化が必要 |
+| Observability / audit | 部分的。メトリクス、ランタイムリカバリーセンター、本番診断、読み取り専用可視化 API インデックス、ランブック、監査/証拠エクスポート基盤。本番保持/エクスポートはまだ強化が必要 |
 
 現在の焦点:
 
@@ -92,7 +92,7 @@ turn operator-facing checks into repeatable product workflows
 - [Tutorials](docs/tutorials/README.md)
 - [Release Playbook](docs/releases/release-playbook.md)
 - [Production-Direction Install](docs/operations/production-install.md)
-- [Production Doctor](docs/operations/production-doctor.md)
+- [本番診断](docs/operations/production-doctor.md)
 - [Upgrade Guide](docs/operations/upgrade.md)
 - [Release Automation](docs/operations/release-automation.md)
 - [Changelog](CHANGELOG.md)

@@ -15,48 +15,48 @@
 
 El proyecto registra la intención y el estado de entrega a través de pipelines, lanzamientos, artefactos, despliegues, runners, decisiones de política, aprobaciones, registros, eventos y registros de auditoría. Está diseñado para rodear las herramientas existentes, no para reemplazarlas.
 
-Nivora **no es** Jenkins, Argo CD, Kubernetes, Harbor, un plano de control en la nube ni un escáner. Esos sistemas permanecen separados; Nivora modela y audita cómo el trabajo de entrega se mueve a través de ellos.
+Nivora **no** es Jenkins, Argo CD, Kubernetes, Harbor, un plano de control en la nube ni un escáner. Esos sistemas permanecen separados; Nivora modela y audita cómo el trabajo de entrega se mueve a través de ellos.
 
-Madurez actual: **fundación candidata a beta endurecida**. Nivora **no está listo para producción**. El repositorio tiene fundaciones backend funcionales, almacenes respaldados por PostgreSQL para áreas centrales de tiempo de ejecución y metadatos del catálogo del plano de control, operaciones de despliegue protegidas, pruebas RBAC, activos de empaquetado y scripts de verificación. El uso en producción aún necesita más validación alrededor del aislamiento de runners, simulacros de instalación/restauración en vivo, integraciones externas y operaciones a escala de producción.
+Madurez actual: **fundación beta-candidata endurecida**. Nivora **no está listo para producción**. El repositorio tiene fundamentos de backend funcionales, almacenes respaldados por PostgreSQL para áreas de ejecución principales y metadatos del catálogo del plano de control, operaciones de despliegue protegidas, pruebas RBAC, activos de empaquetado y scripts de verificación. El uso en producción aún necesita más validación en torno al aislamiento de runners, pruebas de instalación/restauración en vivo, integraciones externas y operaciones a escala de producción.
 
-Los documentos futuros de `v1.0.0` son listas de verificación de planificación, no prueba de que se haya alcanzado la GA. La fuente de verdad actual es [Capability Status](docs/status/CAPABILITY_STATUS.md), con contexto de auditoría histórica en [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md).
+Los documentos futuros `v1.0.0` son listas de verificación de planificación, no prueba de que se ha alcanzado GA. La fuente actual de verdad es [Capability Status](docs/status/CAPABILITY_STATUS.md), con contexto histórico de auditoría en [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md).
 
-El seguimiento de preparación empresarial vive en [Enterprise Production Baseline](docs/status/ENTERPRISE_PRODUCTION_BASELINE.md), [Enterprise Readiness Matrix](docs/status/ENTERPRISE_READINESS_MATRIX.md), [Enterprise Production Readiness Review](docs/status/ENTERPRISE_PRODUCTION_READINESS_REVIEW.md) y [Enterprise Risk Register](docs/status/ENTERPRISE_RISK_REGISTER.md). Estos documentos son evidencia de endurecimiento de lanzamiento, no aprobación de producción.
+El seguimiento de preparación empresarial se encuentra en [Enterprise Production Baseline](docs/status/ENTERPRISE_PRODUCTION_BASELINE.md), [Enterprise Readiness Matrix](docs/status/ENTERPRISE_READINESS_MATRIX.md), [Enterprise Production Readiness Review](docs/status/ENTERPRISE_PRODUCTION_READINESS_REVIEW.md) y [Enterprise Risk Register](docs/status/ENTERPRISE_RISK_REGISTER.md). Estos documentos son evidencia de endurecimiento de lanzamiento, no aprobación de producción.
 
-## Estado Actual
+## Current Status
 
 | Área | Estado |
 |---|---|
-| PipelineRun runtime | Implementado para ejecución local de shell con registros/eventos/auditoría más lecturas de metadatos de artefacto/caché/anotación/resumen; no es un motor de flujo de trabajo completo |
-| DeploymentRun runtime | Parcial; existen fundaciones de ejecución en seco YAML, aplicación protegida, inventario, salud, diff, auditoría y persistencia PostgreSQL |
-| Release y ReleaseExecution | Parcial; existen fundaciones de orquestación secuencial y persistencia PostgreSQL |
-| Catálogo de objetivos de lanzamiento | Fundación; `/api/v1/release-targets` y `nivora target` gestionan metadatos de objetivo con persistencia PostgreSQL en modo servidor configurado y operaciones inseguras deshabilitadas por defecto |
-| Catálogo / inteligencia de repositorio | Fundación; existen catálogo de metadatos de repositorio, `nivora repository create --file` basado en archivo, instantáneas de solo lectura local/genéricas, detección estática de lenguaje/construcción/prueba/paquete, resúmenes DevOps solo de planificación, almacenamiento de instantáneas/inteligencia respaldado por PostgreSQL en modo servidor/MCP configurado, `nivora repository inspect/snapshot/analyze/devops-plan` y herramientas de lectura/planificación MCP de repositorio; las escrituras SCM externas permanecen como trabajo futuro |
-| Nivora Workflow | Fundación; existen analizador, validador, planificador DAG/matriz, pistas de artefacto/caché, intención de seguridad/lanzamiento/despliegue solo de planificación, conversión de definición de Pipeline, registros de plan almacenados, metadatos de WorkflowRun protegidos, `nivora workflow validate/plan/run/cancel/reconcile/retry` y superficies API/MCP solo de planificación; WorkflowRun puede encolar/cancelar/reintentar registros de PipelineRun vinculados, reconciliar estado desde el estado de PipelineRun vinculado y registrar metadatos de artefacto/caché, pero no es un motor de flujo de trabajo completo |
-| Protocolo de runner | Parcial; existen tokens, latido, reclamación, registros, estado y perfiles de aislamiento; el aislamiento a nivel de SO sigue siendo trabajo del operador |
-| YAML de Kubernetes | Fundación experimental de aplicación/reversión protegida; sin comportamiento destructivo por defecto |
-| GitOps / Argo CD | Fundación experimental de planificación/estado/sincronización protegida; sin automatización Argo de producción |
-| Artefacto / OCI | Parcial; análisis OCI, fundación de digest y catálogo de registro respaldado por PostgreSQL; sin integración completa de producto de registro |
-| DevSecOps / política | Fundación; rutas de escáner noop/fake, reglas integradas y catálogo de política respaldado por PostgreSQL; sin integración de producción Trivy/Cosign/SBOM |
-| Secretos / credenciales | Parcial; metadatos, redacción, esqueletos de proveedor; el ciclo de vida del proveedor de producción permanece como trabajo futuro |
-| Auth / RBAC | Parcial; fundación local/token/OIDC y pruebas de ruta; el SSO empresarial completo permanece como trabajo futuro |
+| PipelineRun runtime | Implementado para ejecución local en shell con registros/eventos/auditoría más lecturas de metadatos de artefacto/caché/anotación/resumen; no es un motor de flujo de trabajo completo |
+| DeploymentRun runtime | Parcial; existen fundamentos de ejecución en seco YAML, apply protegido, inventario, salud, diff, auditoría y persistencia en PostgreSQL |
+| Release y ReleaseExecution | Parcial; existen fundamentos de orquestación secuencial y persistencia en PostgreSQL |
+| Catálogo de release targets | Fundación; `/api/v1/release-targets` y `nivora target` gestionan metadatos de objetivos con persistencia en PostgreSQL en modo servidor configurado y operaciones inseguras deshabilitadas por defecto |
+| Catálogo de repositorios / inteligencia | Fundación; catálogo de metadatos de repositorios, `nivora repository create --file` basado en archivos, snapshotting local/genérico de solo lectura, detección estática de lenguaje/build/test/package, resúmenes DevOps de solo planificación, almacenamiento de snapshot/inteligencia respaldado por PostgreSQL en modo servidor/MCP configurado, `nivora repository inspect/snapshot/analyze/devops-plan`, y herramientas MCP de lectura/planificación de repositorios existen; las escrituras externas SCM siguen siendo trabajo futuro |
+| Nivora Workflow | Fundación; parser de `.nivora/workflows/*.yaml`, validador, planificador DAG/matriz, sugerencias de artefacto/caché, intención de seguridad/lanzamiento/despliegue de solo planificación, conversión de definición de Pipeline, registros de planes almacenados, metadatos protegidos de WorkflowRun, `nivora workflow validate/plan/run/cancel/reconcile/retry`, y superficies API/MCP de solo planificación existen; WorkflowRun puede encolar/cancelar/reintentar registros PipelineRun vinculados, reconciliar estado desde el estado PipelineRun vinculado y registrar metadatos de artefacto/caché, pero no es un motor de flujo de trabajo completo |
+| Protocolo runner | Parcial; existen tokens, latidos, claim, registros, estado y perfiles de aislamiento; el aislamiento a nivel de SO sigue siendo trabajo del operador |
+| Kubernetes YAML | Fundación experimental de apply/reversión protegida; sin comportamiento destructivo por defecto |
+| GitOps / Argo CD | Fundación experimental de planificación/estado/sync protegido; sin automatización Argo de producción |
+| Artefacto / OCI | Parcial; parsing OCI, fundación de digest y catálogo de registro respaldado por PostgreSQL; sin integración completa de producto de registro |
+| DevSecOps / política | Fundación; rutas de escáner noop/falso, reglas integradas y catálogo de política respaldado por PostgreSQL; sin integración de producción Trivy/Cosign/SBOM |
+| Secretos / credenciales | Parcial; metadatos, redacción, esqueletos de proveedor; el ciclo de vida del proveedor en producción sigue siendo trabajo futuro |
+| Auth / RBAC | Parcial; fundación local/token/OIDC y pruebas de rutas; SSO empresarial completo sigue siendo trabajo futuro |
 | Aprobaciones / ventanas de cambio / notificaciones | Fundación; solo backend, sin flujo de trabajo ITSM |
-| Multi-cloud | Solo inventario marcador/fundación; sin despliegue en la nube |
-| Despliegue en host | Plan/ejecución en seco/noop experimental y superficie SSH protegida |
-| Consola web | Interfaz mínima experimental que consume APIs backend |
-| Plano de control MCP | Fundación; acceso de IA de solo lectura stdio local y solo de planificación más JSON-RPC remoto de solo lectura experimental opt-in, herramientas de planificación de repositorio/flujo de trabajo, lecturas agregadas de eventos/registros, herramientas de acción denegada, rechazo de token de runner, auditoría respaldada por cumplimiento y 31 escenarios de operador validados con respuestas doradas; MCP remoto no está ampliamente expuesto ni listo para producción |
-| Índice de capacidad de integración | Fundación; `/api/v1/integrations` de solo lectura etiqueta capacidades integradas, esqueleto, noop, fundación y adaptadores experimentales |
-| Empaquetado | Parcial; existen Docker Compose, Helm, valores tipo producción y comprobaciones de humo |
-| Observabilidad / auditoría | Parcial; existen fundaciones de diagnóstico, métricas, centro de recuperación de tiempo de ejecución, doctor de producción, índice de API de visualización de solo lectura, libros de jugadas y exportación de auditoría/evidencia; la retención/exportación de producción aún necesita endurecimiento |
+| Multi-cloud | Solo inventario placeholder/fundación; sin despliegue en la nube |
+| Despliegue en host | Superficie experimental de plan/ejecución en seco/noop y SSH protegido |
+| Consola web | UI mínima experimental que consume APIs de backend |
+| Plano de control MCP | Fundación; acceso AI de solo lectura y solo planificación por stdio local más JSON-RPC remoto experimental opt-in de solo lectura, herramientas de plan de repositorio/flujo de trabajo, lecturas agregadas de eventos/registros, herramientas de acción denegada, rechazo de tokens de runner, auditoría respaldada por cumplimiento y 31 escenarios de operador validados con respuestas doradas; MCP remoto no está ampliamente expuesto ni listo para producción |
+| Índice de capacidad de integración | Fundación; `/api/v1/integrations` de solo lectura etiqueta capacidades de adaptador integradas, esqueleto, noop, fundación y experimentales |
+| Empaquetado | Parcial; Docker Compose, Helm, valores similares a producción y pruebas de humo existen |
+| Observabilidad / auditoría | Parcial; existen fundamentos de métricas, centro de recuperación de ejecución, diagnóstico de producción, índice de API de visualización de solo lectura, libros de jugadas y exportación de auditoría/evidencia; la retención/exportación en producción aún necesita endurecimiento |
 
 Enfoque actual:
 
 ```text
-keep public status accurate
-keep examples and docs aligned with implemented behavior
-stabilize CI, packaging, and local demo paths
-continue runtime, install, restore, runner, and audit hardening
-turn operator-facing checks into repeatable product workflows
+mantener el estado público preciso
+mantener ejemplos y documentación alineados con el comportamiento implementado
+estabilizar CI, empaquetado y rutas de demo local
+continuar el endurecimiento de ejecución, instalación, restauración, runner y auditoría
+convertir verificaciones orientadas al operador en flujos de trabajo de producto repetibles
 ```
 
 Referencias de estado:
@@ -92,14 +92,14 @@ Referencias de estado:
 - [Tutorials](docs/tutorials/README.md)
 - [Release Playbook](docs/releases/release-playbook.md)
 - [Production-Direction Install](docs/operations/production-install.md)
-- [Production Doctor](docs/operations/production-doctor.md)
+- [Production Diagnostics](docs/operations/production-doctor.md)
 - [Upgrade Guide](docs/operations/upgrade.md)
 - [Release Automation](docs/operations/release-automation.md)
 - [Changelog](CHANGELOG.md)
 
 ## Por qué existe Nivora
 
-El estado de entrega a menudo se divide entre varios sistemas.
+El estado de entrega suele estar dividido entre varios sistemas.
 
 | Área | Herramientas comunes |
 |---|---|
@@ -114,7 +114,7 @@ El estado de entrega a menudo se divide entre varios sistemas.
 | Observabilidad | OpenTelemetry, Prometheus, registros |
 | Proceso humano | aprobaciones, ventanas de cambio, auditoría de lanzamiento |
 
-El problema no son las herramientas individuales. El problema es que la intención de entrega, el estado de ejecución, la auditoría, la política, la trazabilidad de artefactos y el contexto de reversión a menudo se almacenan por separado.
+El problema no son las herramientas individuales. El problema es que la intención de entrega, el estado de ejecución, la auditoría, la política, la trazabilidad de artefactos y el contexto de reversión suelen almacenarse por separado.
 
 Nivora proporciona un modelo de plano de control backend para ese estado.
 
@@ -125,22 +125,22 @@ Nivora es un **plano de control de entrega**. No es solo una herramienta CI, y n
 Coordina:
 
 ```text
-source code
--> pipeline execution
--> artifact selection
--> policy evaluation
--> approval
--> deployment
--> verification
--> rollback
--> audit
--> timeline
+código fuente
+-> ejecución de pipeline
+-> selección de artefacto
+-> evaluación de política
+-> aprobación
+-> despliegue
+-> verificación
+-> reversión
+-> auditoría
+-> línea temporal
 ```
 
 Nivora busca responder preguntas operativas como:
 
 - ¿Qué commit produjo este lanzamiento?
-- ¿Qué artefacto se desplegó?
+- ¿Qué artefacto fue desplegado?
 - ¿Quién aprobó el despliegue en producción?
 - ¿Qué runner ejecutó el trabajo?
 - ¿Qué puertas de política pasaron o fallaron?
@@ -208,13 +208,13 @@ Nivora es un plano de control de entrega. Coordina:
 - Ejecución de pipeline
 - Planificación de lanzamiento
 - Ejecución de despliegue
-- Asignación de runner
-- Selección de executor
+- Asignación de runners
+- Selección de executors
 - Trazabilidad de artefactos
 - Evaluación de política
 - Flujo de aprobación
 - Registros de auditoría
-- Eventos de tiempo de ejecución
+- Eventos de ejecución
 - Línea temporal de entrega
 - Modelos de lectura de API de visualización
 
@@ -227,7 +227,7 @@ nivora-runner
 nivora CLI
 ```
 
-Esto mantiene el proyecto comprensible mientras preserva un camino hacia la extracción futura de servicios.
+Esto mantiene el proyecto comprensible mientras preserva un camino hacia la futura extracción de servicios.
 
 ## Qué no es Nivora
 
@@ -235,19 +235,19 @@ Nivora no es:
 
 - un clon de Jenkins
 - un reemplazo de Argo CD
-- una plataforma solo Kubernetes
-- un sistema específico de proveedor en la nube
+- una plataforma exclusiva de Kubernetes
+- un sistema específico para un proveedor de nube
 - un proyecto frontend-first
 - una herramienta de automatización de caja negra
-- una declaración de que cada integración modelada ha completado la validación de producción
+- una declaración de que cada integración modelada ha completado la validación en producción
 
-Nivora debe integrarse con sistemas existentes a través de puertos y adaptadores explícitos.
+Nivora debe integrarse con los sistemas existentes a través de puertos y adaptadores explícitos.
 
 ## Arquitectura objetivo
 
-La arquitectura objetivo separa el **Plano de Control** del **Plano de Ejecución**.
+La arquitectura objetivo separa el **plano de control** del **plano de ejecución**.
 
-El plano de control posee el estado, la orquestación, las políticas, la auditoría, las APIs y la configuración de integración. El plano de ejecución posee la ejecución de trabajos, registros, latidos y resultados de tiempo de ejecución.
+El plano de control posee el estado, la orquestación, las políticas, la auditoría, las APIs y la configuración de integración. El plano de ejecución posee la ejecución de trabajos, registros, latidos y resultados de ejecución.
 
 ```mermaid
 flowchart TB
@@ -341,17 +341,17 @@ flowchart TB
 
 ## Principios de arquitectura
 
-### El plano de control y el plano de ejecución son separados
+### El plano de control y el plano de ejecución están separados
 
-El plano de control posee la API, el estado, la orquestación, la política, la auditoría, la configuración de integración y la línea temporal de eventos. El plano de ejecución posee la ejecución de trabajos, registros, latido e informe de resultados de tiempo de ejecución.
+El plano de control posee la API, el estado, la orquestación, la política, la auditoría, la configuración de integración y la línea temporal de eventos. El plano de ejecución posee la ejecución de trabajos, registros, latidos y reporte de resultados de ejecución.
 
-El servidor API no debería ejecutar trabajos de despliegue directamente.
+El servidor API no debe ejecutar directamente trabajos de despliegue.
 
 ### Runner y Executor son diferentes
 
 ```text
-Runner = who executes
-Executor = how execution happens
+Runner = quién ejecuta
+Executor = cómo ocurre la ejecución
 ```
 
 | Runner | Executor |
@@ -362,13 +362,13 @@ Executor = how execution happens
 | GitOps Runner | Argo CD Executor |
 | Cloud Runner | Webhook / Cloud Adapter |
 
-Esta separación permite a Nivora soportar muchos entornos de ejecución sin reescribir la lógica central de orquestación.
+Esta separación permite que Nivora soporte muchos entornos de ejecución sin reescribir la lógica central de orquestación.
 
 ### GitOps es un modo de despliegue
 
 Nivora soporta GitOps, pero GitOps no es todo el producto.
 
-Los modos de despliegue futuros incluyen despliegue en host, YAML Kubernetes crudo, Helm, Kustomize, GitOps Argo CD, entrega basada en webhook y entrega específica de proveedor en la nube.
+Los futuros modos de despliegue incluyen despliegue en host, YAML de Kubernetes puro, Helm, Kustomize, GitOps con Argo CD, entrega basada en webhook y entrega específica para proveedores de nube.
 
 ### Puertos y adaptadores primero
 
@@ -387,25 +387,25 @@ EventBus
 ObjectStore
 ```
 
-Los casos de uso centrales deben depender de capacidades, no de proveedores concretos.
+Los casos de uso principales deben depender de capacidades, no de proveedores concretos.
 
 ### Los artefactos deben ser inmutables
 
-Un lanzamiento debe apuntar a artefactos inmutables siempre que sea posible: digest de imagen, versión inmutable, artefacto firmado y referencia SBOM. Evita etiquetas `latest`, reconstrucciones implícitas durante el despliegue y mutación de artefactos no rastreada.
+Un lanzamiento debe apuntar a artefactos inmutables siempre que sea posible: digest de imagen, versión inmutable, artefacto firmado y referencia SBOM. Evitar etiquetas `latest`, reconstrucciones implícitas durante el despliegue y mutación de artefactos sin seguimiento.
 
 ### La auditoría no es opcional
 
-Las acciones importantes de entrega deben ser auditables: pipeline iniciado, trabajo asignado, artefacto seleccionado, aprobación concedida o rechazada, despliegue iniciado, reversión ejecutada, violación de política detectada, runner registrado y credencial usada.
+Las acciones importantes de entrega deben ser auditables: pipeline iniciado, trabajo asignado, artefacto seleccionado, aprobación concedida o rechazada, despliegue iniciado, reversión ejecutada, violación de política detectada, runner registrado y credencial utilizada.
 
 Los registros de auditoría no deben contener valores secretos.
 
-### Sin preparación de producción falsa
+### Sin falsa preparación para producción
 
-Nivora debe ser explícito sobre lo que existe hoy y lo que es arquitectura objetivo. Las fases tempranas no deben afirmar preparación de producción, integraciones completas, programación duradera o garantías de seguridad que no hayan sido implementadas y verificadas.
+Nivora debe ser explícito sobre lo que existe hoy y lo que es arquitectura objetivo. Las fases tempranas no deben afirmar preparación para producción, integraciones completas, planificación duradera ni garantías de seguridad que no hayan sido implementadas y verificadas.
 
 ## Flujo de entrega de extremo a extremo
 
-Este es el flujo a largo plazo alrededor del cual Nivora está diseñado. Las fases tempranas implementan solo el subconjunto de PipelineRun basado en shell: análisis de definición, creación de ejecución en cola, ejecución de runner local, registros, eventos, registros de auditoría, reintento, tiempo de espera, cancelación y consultas de línea temporal.
+Este es el flujo a largo plazo para el que Nivora está diseñado. Las fases tempranas implementan solo el subconjunto PipelineRun basado en shell: parsing de definiciones, creación de ejecuciones encoladas, ejecución local de runner, registros, eventos, registros de auditoría, reintento, timeout, cancelación y consultas de línea temporal.
 
 ```mermaid
 flowchart TB
@@ -445,9 +445,9 @@ flowchart TB
     ROLLBACK -->|No| TIMELINE
 ```
 
-## Modelo de tiempo de ejecución de PipelineRun
+## Modelo de ejecución de PipelineRun
 
-Esta es la primera fundación de ejecución que Nivora está construyendo. La implementación actual está limitada a ejecución mínima de PipelineRun basada en shell.
+Esta es la primera fundación de ejecución que Nivora está construyendo. La implementación actual está limitada a la ejecución mínima de PipelineRun basada en shell.
 
 ```mermaid
 sequenceDiagram
@@ -485,7 +485,7 @@ sequenceDiagram
     API-->>User: Timeline
 ```
 
-## Modelo de estado de PipelineRun
+## Modelo de estados de PipelineRun
 
 ```mermaid
 stateDiagram-v2
@@ -509,7 +509,7 @@ stateDiagram-v2
     Canceled --> [*]
 ```
 
-## Modelo de runner y executor
+## Modelo de Runner y Executor
 
 ```mermaid
 flowchart TB
@@ -538,7 +538,7 @@ flowchart TB
 
 ## Modelo de despliegue
 
-La ejecución de despliegue es arquitectura objetivo. No está implementada como un motor de despliegue de producción completo en la fase actual.
+La ejecución de despliegue es arquitectura objetivo. No está implementada como un motor de despliegue completo de producción en la fase actual.
 
 ```mermaid
 flowchart TB
@@ -580,9 +580,9 @@ flowchart TB
 
 ## Modelo de integración
 
-Todos los sistemas externos deben conectarse a través de puertos y adaptadores. Los nombres de adaptador a continuación son direcciones de integración objetivo a menos que se documenten explícitamente como implementados.
+Todos los sistemas externos deben conectarse a través de puertos y adaptadores. Los nombres de adaptadores a continuación son direcciones de integración objetivo a menos que estén explícitamente documentados como implementados.
 
-El endpoint de solo lectura `/api/v1/integrations` expone el índice actual de capacidades de adaptador/plugin. Es solo metadatos: no configura proveedores, llama a servicios externos ni devuelve credenciales. Los adaptadores esqueleto, noop, solo fundación y experimentales están etiquetados como tales.
+El endpoint de solo lectura `/api/v1/integrations` expone el índice actual de capacidad de adaptadores/plugins. Es solo metadatos: no configura proveedores, llama a servicios externos ni devuelve credenciales. Los adaptadores esqueleto, noop, solo fundación y experimentales están etiquetados como tales.
 
 ```bash
 go run ./cmd/nivora integrations list --local
@@ -655,27 +655,27 @@ flowchart TB
     DASH --> API
 ```
 
-## Conceptos centrales
+## Conceptos principales
 
 | Concepto | Significado |
 |---|---|
-| Application | Un producto o servicio gestionado por Nivora |
-| Environment | Un contexto de entrega como dev, staging, prod o un grupo de objetivo personalizado |
-| ReleaseTarget | Un objetivo de despliegue concreto como grupo de host, clúster Kubernetes, aplicación Argo CD, objetivo en la nube o objetivo webhook |
+| Aplicación | Un producto o servicio gestionado por Nivora |
+| Entorno | Un contexto de entrega como dev, staging, prod o un grupo objetivo personalizado |
+| ReleaseTarget | Un objetivo de despliegue concreto como grupo de hosts, clúster Kubernetes, aplicación Argo CD, objetivo en la nube o webhook |
 | Pipeline | Una definición reutilizable de etapas, trabajos y pasos |
 | PipelineRun | Una ejecución de un Pipeline |
-| StageRun | Registro de ejecución para una etapa |
-| JobRun | Registro de ejecución para un trabajo |
-| StepRun | Registro de ejecución para un paso |
-| Release | Una intención de entrega versionada, usualmente vinculada a artefactos inmutables |
+| StageRun | Registro de ejecución de una etapa |
+| JobRun | Registro de ejecución de un trabajo |
+| StepRun | Registro de ejecución de un paso |
+| Release | Una intención de entrega versionada, generalmente vinculada a artefactos inmutables |
 | DeploymentRun | Una ejecución de un lanzamiento o plan de despliegue contra un objetivo |
 | Runner | Un componente que recibe y ejecuta trabajos |
 | Executor | Un mecanismo usado por un Runner para ejecutar trabajo |
-| Artifact | Una salida de construcción como imagen, jar, binario, chart o paquete |
-| Artifact Registry | Un sistema que almacena artefactos |
-| Policy | Una puerta que puede permitir, denegar o requerir aprobación |
+| Artefacto | Una salida de build como imagen, jar, binario, chart o paquete |
+| Registro de artefactos | Un sistema que almacena artefactos |
+| Política | Una puerta que puede permitir, denegar o requerir aprobación |
 | AuditLog | Registro duradero de acciones importantes |
-| Event | Señal de tiempo de ejecución emitida durante el ciclo de vida de entrega |
+| Evento | Señal de ejecución emitida durante el ciclo de vida de entrega |
 | LogChunk | Segmento ordenado de stdout, stderr o registro del sistema |
 
 ## Estructura del repositorio
@@ -719,44 +719,44 @@ nivora/
 | Directorio | Propósito |
 |---|---|
 | `cmd/` | Solo puntos de entrada de binarios |
-| `internal/domain/` | Conceptos y estados de dominio puro |
+| `internal/domain/` | Conceptos de dominio puro y estados |
 | `internal/usecase/` | Orquestación de negocio |
 | `internal/ports/` | Interfaces de capacidad externa |
 | `internal/adapters/` | Implementaciones de puertos |
 | `internal/infra/` | Infraestructura técnica |
 | `internal/api/` | Transporte HTTP / gRPC |
 | `api/` | Definiciones OpenAPI, AsyncAPI, proto |
-| `docs/` | Arquitectura, hoja de ruta, conceptos, documentación comunitaria |
-| `examples/` | Pipelines y especificaciones de despliegue de ejemplo |
+| `docs/` | Arquitectura, roadmap, conceptos, docs de comunidad |
+| `examples/` | Pipelines de ejemplo y especificaciones de despliegue |
 
 ## Inicio rápido
 
-### Prerrequisitos
+### Requisitos previos
 
 - Go
 - Make
 - Docker, opcional para compose local
-- PostgreSQL, opcional dependiendo del modo de tiempo de ejecución
+- PostgreSQL, opcional según el modo de ejecución
 
-### Construir
+### Build
 
 ```bash
 make build
 ```
 
-### Probar
+### Test
 
 ```bash
 make test
 ```
 
-### Verificar
+### Verify
 
 ```bash
 make verify
 ```
 
-### Empaquetar
+### Package
 
 ```bash
 make docker-build
@@ -786,15 +786,15 @@ make smoke-api
 make run-server
 ```
 
-### Ejecutar interfaz web
+### Ejecutar Web UI
 
 ```bash
 make run-web
 ```
 
-La consola web vive bajo `web/` y consume APIs existentes de metadatos de tiempo de ejecución, visualización, artefacto, política, evidencia, plugin y integración. Es una fundación mínima de Phase 6.4, no un producto frontend completo.
+La consola web reside en `web/` y consume las APIs existentes de ejecución, visualización, artefacto, política, evidencia, plugin y metadatos de integración. Es una fundación mínima de Phase 6.4, no un producto frontend completo.
 
-Si el backend no es accesible, la consola ahora se detiene en una sola página de diagnóstico de conexión en lugar de renderizar cada tarjeta del panel como un fallo de obtención. Iníciela a través de `make run-web` o ejecute Vite desde `web/` para que las dependencias se resuelvan desde el paquete web registrado.
+Si el backend no es accesible, la consola ahora se detiene en una única página de diagnóstico de conexión en lugar de mostrar cada tarjeta del panel como un fallo de fetch. Iníciela con `make run-web` o ejecute Vite desde `web/` para que las dependencias se resuelvan desde el paquete web incluido.
 
 ### Comprobación de salud
 
@@ -807,15 +807,15 @@ curl http://localhost:8080/api/v1/system/diagnostics
 curl http://localhost:8080/metrics
 ```
 
-`/readyz` y `/api/v1/system/diagnostics` incluyen comprobaciones ligeras de dependencias para base de datos, almacén de objetos, bus de eventos, recuperación de outbox y postura de reconexión de runner.
+`/readyz` y `/api/v1/system/diagnostics` incluyen verificaciones ligeras de dependencias para la base de datos, almacén de objetos, bus de eventos, recuperación de outbox y postura de reconexión de runners.
 
-### Ejecutar worker
+### Ejecutar Worker
 
 ```bash
 make run-worker
 ```
 
-### Ejecutar runner
+### Ejecutar Runner
 
 ```bash
 make run-runner
@@ -846,13 +846,13 @@ go run ./cmd/nivora plugins validate --local --file examples/plugins/templates/s
 
 Nivora soporta desarrollo local a través del Makefile, docker-compose, un almacén de objetos local, un bus de eventos en memoria, el executor de shell y pipelines de ejemplo.
 
-Este repositorio usa un proxy Go neutro por defecto en las herramientas locales:
+Este repositorio usa un proxy Go neutral por defecto en las herramientas locales:
 
 ```bash
 GOPROXY=https://proxy.golang.org,direct
 ```
 
-Los desarrolladores en China pueden anularlo sin cambiar los valores predeterminados del proyecto:
+Los desarrolladores en China pueden sobrescribirlo sin cambiar los valores por defecto del proyecto:
 
 ```bash
 GOPROXY=https://goproxy.cn,direct make verify
@@ -883,7 +883,7 @@ spec:
               run: echo "hello from nivora"
 ```
 
-Ejecútalo localmente:
+Ejecútelo localmente:
 
 ```bash
 go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
@@ -891,7 +891,7 @@ go run ./cmd/nivora pipeline run --local examples/pipelines/simple-shell.yaml
 
 ## Ejemplo de ejecución en seco de despliegue YAML
 
-La fundación actual de Phase 2 soporta planificación de despliegue YAML no destructiva y validación de ejecución en seco, más aplicación local noop explícita para pruebas de tiempo de ejecución. Renderiza manifiestos estáticos, valida su forma básica, crea un DeploymentPlan, registra inventario de recursos, verifica imágenes de manifiesto contra artefactos vinculados, registra datos de registros/eventos/auditoría/línea temporal y no aplica recursos a un clúster por defecto.
+La fundación actual de Phase 2 soporta planificación de despliegue YAML no destructiva y validación de ejecución en seco, más apply local noop explícito para pruebas de ejecución. Renderiza manifiestos estáticos, valida su forma básica, crea un DeploymentPlan, registra el inventario de recursos, verifica las imágenes del manifiesto contra los artefactos vinculados, registra datos de registros/eventos/auditoría/línea temporal y no aplica recursos a un clúster por defecto.
 
 ```yaml
 apiVersion: nivora.io/v1alpha1
@@ -914,46 +914,46 @@ spec:
     apply: false
 ```
 
-Ejecútalo localmente:
+Ejecútelo localmente:
 
 ```bash
 go run ./cmd/nivora deployment plan --local examples/deployments/yaml-dry-run.yaml
 go run ./cmd/nivora deployment dry-run --local examples/deployments/yaml-dry-run.yaml
 ```
 
-La aplicación local explícita requiere un comando separado y confirmación:
+El apply local explícito requiere un comando separado y confirmación:
 
 ```bash
 go run ./cmd/nivora deployment apply --local examples/deployments/yaml-apply-local.yaml --confirm
 ```
 
-La ruta de aplicación local por defecto usa el cliente de manifiesto noop seguro. La semántica de aplicación Kubernetes de producción, Helm, Kustomize, Argo CD, proveedores en la nube, despliegue remoto en host y integraciones de registro permanecen como trabajo futuro.
+La ruta de apply local por defecto usa el cliente de manifiesto noop seguro. La semántica de apply de Kubernetes en producción, Helm, Kustomize, Argo CD, proveedores de nube, despliegue remoto en host e integraciones de registro siguen siendo trabajo futuro.
 
 ## Ejemplo de ejecución en seco de despliegue en host
 
-Phase 8.1 endurece la fundación segura de despliegue en host. Puede construir un plan para desplegar un paquete binario en directorios de lanzamiento versionados, cambiar enlaces simbólicos, verificar salud HTTP/TCP/comando, ejecutar lotes y preparar reversión de enlace simbólico protegida. El tiempo de ejecución por defecto usa un executor de host noop y no ejecuta SSH remoto.
+Phase 8.1 endurece la fundación segura de despliegue en host. Puede construir un plan para desplegar un paquete binario en directorios de lanzamiento versionados, cambiar enlaces simbólicos, comprobar salud HTTP/TCP/comando, ejecutar lotes y preparar reversión protegida de enlaces simbólicos. La ejecución por defecto usa un executor de host noop y no ejecuta SSH remoto.
 
 ```bash
 go run ./cmd/nivora deployment host plan --file examples/deployments/host-dry-run.yaml --local
 go run ./cmd/nivora deployment host run --file examples/deployments/host-dry-run.yaml --local
 ```
 
-El despliegue remoto en host permanece deshabilitado a menos que un transporte de adaptador se configure explícitamente con referencias de credenciales, confirmación y banderas de permiso.
+El despliegue remoto en host permanece deshabilitado a menos que se configure explícitamente un transporte adaptador con referencias de credenciales, confirmación y flags de permiso.
 
 ## Ejemplo de lanzamiento multi-objetivo
 
-Phase 2.7 añade una fundación local de ReleasePlan / ReleaseExecution. Puede planificar un lanzamiento a través de múltiples objetivos y ejecutar objetivos seguros secuencialmente a través de DeploymentRuns a nivel de objetivo o objetivos marcador.
+Phase 2.7 añade una fundación local de ReleasePlan / ReleaseExecution. Puede planificar un Release a través de múltiples objetivos y ejecutar objetivos seguros secuencialmente a través de DeploymentRuns a nivel de objetivo u objetivos placeholder.
 
 ```bash
 go run ./cmd/nivora release plan --file examples/releases/multi-target-release.yaml --local
 go run ./cmd/nivora release deploy --file examples/releases/sequential-release.yaml --local
 ```
 
-Los comandos de lanzamiento y despliegue respaldados por servidor están protegidos por RBAC. Usa `--token-env NIVORA_AUTH_TOKEN` para llamadas al servidor en lugar de pasar valores de token directamente.
+Los comandos de lanzamiento y despliegue respaldados por servidor están protegidos por RBAC. Use `--token-env NIVORA_AUTH_TOKEN` para llamadas al servidor en lugar de pasar valores de token directamente.
 
-Esto no es un motor de flujo de trabajo de producción. La ejecución paralela, aprobaciones duraderas, objetivos host/nube y automatización GitOps de producción permanecen como trabajo futuro.
+Esto no es un motor de flujo de trabajo de producción. La ejecución paralela, las aprobaciones duraderas, los objetivos en host/nube y la automatización GitOps de producción siguen siendo trabajo futuro.
 
-Ejecuta un PipelineRun mínimo de shell a través de la API:
+Ejecute un PipelineRun mínimo en shell a través de la API:
 
 ```bash
 curl -X POST http://localhost:8080/api/v1/pipeline-runs \
@@ -975,7 +975,7 @@ curl -X POST http://localhost:8080/api/v1/pipeline-runs \
   }'
 ```
 
-Los grupos API no implementados devuelven respuestas estructuradas, no datos falsos:
+Los grupos de API no implementados devuelven respuestas estructuradas, no datos falsos:
 
 ```json
 {
@@ -1005,9 +1005,9 @@ Nivora usa envolturas de eventos estilo CloudEvents.
 }
 ```
 
-Las definiciones OpenAPI viven bajo `api/openapi/openapi.yaml`. Las definiciones AsyncAPI viven bajo `api/asyncapi/asyncapi.yaml`.
+Las definiciones OpenAPI residen en `api/openapi/openapi.yaml`. Las definiciones AsyncAPI residen en `api/asyncapi/asyncapi.yaml`.
 
-Los grupos API centrales incluyen:
+Los grupos de API principales incluyen:
 
 ```text
 /api/v1/orgs
@@ -1033,7 +1033,7 @@ Los grupos API centrales incluyen:
 /api/v1/visualization
 ```
 
-La inspección agregada de tiempo de ejecución también tiene puntos de entrada CLI:
+La inspección agregada de ejecución también tiene puntos de entrada CLI:
 
 ```bash
 nivora events search --pipeline-run-id <pipeline-run-id> --limit 50
@@ -1042,7 +1042,7 @@ nivora timeline search --pipeline-run-id <pipeline-run-id> --limit 50
 nivora audit search --subject-id <subject-id> --scope-type project --scope-id <project-id>
 ```
 
-## Hoja de ruta
+## Roadmap
 
 ```mermaid
 flowchart LR
@@ -1075,7 +1075,7 @@ flowchart LR
     P0 --> P05 --> P06 --> P1 --> P15 --> P16 --> P2 --> P21 --> P22 --> P23 --> P24 --> P25 --> P26 --> P27 --> P30 --> P31 --> P32 --> P33 --> P34 --> P35 --> P36 --> P3 --> P40 --> P41 --> P4
 ```
 
-Consulta [ROADMAP.md](ROADMAP.md) y [docs/roadmap/overview.md](docs/roadmap/overview.md) para detalles.
+Consulte [ROADMAP.md](ROADMAP.md) y [docs/roadmap/overview.md](docs/roadmap/overview.md) para más detalles.
 
 ## Mapa de contribución
 
@@ -1114,7 +1114,7 @@ flowchart TB
     G4 --> R8["Public API breaking changes"]
 ```
 
-Antes de contribuir, lee:
+Antes de contribuir, lea:
 
 - [AGENTS.md](AGENTS.md)
 - [CONTRIBUTING.md](CONTRIBUTING.md)
@@ -1128,24 +1128,24 @@ Antes de contribuir, lee:
 
 Expectativas básicas:
 
-- mantener cambios pequeños
-- preservar límites de arquitectura
-- no añadir abstracciones especulativas
-- no registrar secretos
-- no afirmar preparación de producción
-- actualizar documentación cuando la arquitectura cambie
-- actualizar OpenAPI / AsyncAPI cuando el comportamiento público cambie
-- añadir pruebas para cambios de comportamiento
+- mantenga los cambios pequeños
+- preserve los límites de arquitectura
+- no añada abstracciones especulativas
+- no incluya secretos en commits
+- no afirme preparación para producción
+- actualice la documentación cuando la arquitectura cambie
+- actualice OpenAPI / AsyncAPI cuando el comportamiento público cambie
+- añada pruebas para cambios de comportamiento
 
-## Automatización de contribuidores
+## Automatización para contribuyentes
 
-Las herramientas de codificación automatizadas y los contribuidores humanos usan las mismas reglas del repositorio. El archivo de instrucciones canónico es [AGENTS.md](AGENTS.md).
+Las herramientas de codificación automatizadas y los contribuyentes humanos usan las mismas reglas del repositorio. El archivo de instrucciones canónico es [AGENTS.md](AGENTS.md).
 
-Los archivos de instrucciones específicos de herramienta deben apuntar a `AGENTS.md` en lugar de definir comportamiento conflictivo. Todos los cambios deben preservar límites de arquitectura, límites de fase, política de dependencias, política de pruebas, línea base de seguridad y consistencia de documentación.
+Los archivos de instrucciones específicos de herramientas deben apuntar a `AGENTS.md` en lugar de definir comportamientos contradictorios. Todos los cambios deben preservar los límites de arquitectura, los límites de fase, la política de dependencias, la política de pruebas, la línea base de seguridad y la consistencia de la documentación.
 
 ## Verificación
 
-Ejecuta el conjunto completo de verificación:
+Ejecute la suite completa de verificación:
 
 ```bash
 make verify
@@ -1168,13 +1168,13 @@ secret scanning
 
 ## Seguridad
 
-Nivora no debe registrar ni exponer secretos.
+Nivora no debe incluir ni exponer secretos en commits.
 
-No registres tokens, contraseñas, claves privadas, kubeconfigs, credenciales en la nube, credenciales de registro ni credenciales falsas que parezcan reales. Los valores secretos no deben registrarse, devolverse por APIs normales, almacenarse en registros de auditoría, incrustarse en ejemplos ni incrustarse en pruebas.
+No incluya en commits tokens, contraseñas, claves privadas, kubeconfigs, credenciales de nube, credenciales de registro ni credenciales falsas de aspecto realista. Los valores secretos no deben registrarse, ser devueltos por APIs normales, almacenarse en registros de auditoría, incrustarse en ejemplos o incrustarse en pruebas.
 
-Consulta [SECURITY.md](SECURITY.md) y [docs/engineering/security-baseline.md](docs/engineering/security-baseline.md).
+Consulte [SECURITY.md](SECURITY.md) y [docs/engineering/security-baseline.md](docs/engineering/security-baseline.md).
 
-Phase 3.0 añade fundaciones DevSecOps locales:
+Phase 3.0 añade fundamentos locales de DevSecOps:
 
 ```bash
 go run ./cmd/nivora security scan artifact registry.example.com/demo/app:latest --local
@@ -1182,9 +1182,9 @@ go run ./cmd/nivora security scan manifest examples/security/manifest-privileged
 go run ./cmd/nivora policy evaluate --subject registry.example.com/demo/app:latest
 ```
 
-Estos comandos usan fundaciones de escáner noop/fake-friendly y puertas de política integradas. Trivy, Cosign, generación SBOM, OPA, Kyverno, Gatekeeper y automatización de seguridad de producción permanecen como trabajo futuro.
+Estos comandos usan fundamentos de escáner noop/amigable y puertas de política integradas. Trivy, Cosign, generación SBOM, OPA, Kyverno, Gatekeeper y la automatización de seguridad en producción siguen siendo trabajo futuro.
 
-Phase 3.1 añade metadatos SecretRef y Credential:
+Phase 3.1 añade metadatos de SecretRef y Credential:
 
 ```bash
 go run ./cmd/nivora secret put --name local-registry-token --value-env NIVORA_TOKEN --token-env NIVORA_AUTH_TOKEN
@@ -1192,9 +1192,9 @@ go run ./cmd/nivora secret provider validate --token-env NIVORA_AUTH_TOKEN
 go run ./cmd/nivora credential create --file examples/credentials/registry-credential.yaml --token-env NIVORA_AUTH_TOKEN
 ```
 
-Los valores secretos se aceptan solo en los límites de creación y rotación y no se devuelven por APIs normales. Los comandos respaldados por servidor deben usar `--token-env` para que los tokens API se mantengan fuera del historial de shell; las rutas de desarrollo en proceso pueden usar `--local` donde el comando lo soporte. El proveedor integrado es solo para desarrollo. Phase 7.1 añade fundaciones de adaptador Vault y Kubernetes Secret más marcadores KMS en la nube; el almacenamiento externo de secretos de producción permanece como trabajo futuro.
+Los valores secretos se aceptan solo en los límites de creación y rotación y no son devueltos por APIs normales. Los comandos respaldados por servidor deben usar `--token-env` para que los tokens API no queden en el historial del shell; las rutas de desarrollo en proceso pueden usar `--local` donde el comando lo soporte. El proveedor integrado es solo para desarrollo. Phase 7.1 añade fundamentos de adaptador Vault y Kubernetes Secret más placeholders de KMS en la nube; el almacenamiento externo de secretos en producción sigue siendo trabajo futuro.
 
-Phase 7.0 endurece las fundaciones locales de autenticación y RBAC:
+Phase 7.0 endurece los fundamentos locales de auth y RBAC:
 
 ```bash
 go run ./cmd/nivora auth whoami
@@ -1206,25 +1206,25 @@ go run ./cmd/nivora auth service-account create --name ci --role developer
 go run ./cmd/nivora auth token create --subject-id <service-account-id>
 ```
 
-La autenticación de desarrollo no es autenticación de producción. El modo de token estático lee valores de token de variables de entorno. OIDC es trabajo de fundación backend configurado por proveedor; el SSO completo del navegador y las operaciones de ciclo de vida del proveedor permanecen como trabajo futuro.
+La autenticación de desarrollo no es autenticación de producción. El modo de token estático lee valores de token desde variables de entorno. OIDC es trabajo de fundación backend configurado por proveedor; el SSO completo de navegador y las operaciones del ciclo de vida del proveedor siguen siendo trabajo futuro.
 
-El diagnóstico del sistema puede leerse a través de CLI o HTTP:
+Los diagnósticos del sistema se pueden leer a través de CLI o HTTP:
 
 ```bash
 go run ./cmd/nivora system runtime
 go run ./cmd/nivora system diagnostics
 ```
 
-Phase 7.2 añade fundaciones de multi-tenencia y cuota:
+Phase 7.2 añade fundamentos de multi-tenencia y cuotas:
 
 ```bash
 go run ./cmd/nivora quota view --scope-type project --scope-id demo --token-env NIVORA_AUTH_TOKEN
 go run ./cmd/nivora usage summary --scope-type project --scope-id demo --token-env NIVORA_AUTH_TOKEN
 ```
 
-Los tokens API con ámbito pueden restringirse a límites estilo org/proyecto/entorno, y los modelos de lectura de cuota exponen fundaciones de concurrencia, runner, artefacto, almacenamiento de registros y límite de tasa. La aplicación persistente distribuida de cuota permanece como trabajo futuro.
+Los tokens API con alcance pueden restringirse a límites de tipo org/proyecto/entorno, y los modelos de lectura de cuotas exponen fundamentos de concurrencia, runner, artefacto, almacenamiento de registros y rate-limit. La aplicación distribuida persistente de cuotas sigue siendo trabajo futuro.
 
-Phase 7.3 añade fundaciones de auditoría de cumplimiento y evidencia:
+Phase 7.3 añade fundamentos de auditoría de cumplimiento y evidencia:
 
 ```bash
 go run ./cmd/nivora audit search --subject <subject-id>
@@ -1232,17 +1232,17 @@ go run ./cmd/nivora evidence list --subject-type pipelineRun --subject-id <pipel
 go run ./cmd/nivora evidence export pipelineRun <pipeline-run-id> --format markdown --token-env NIVORA_AUTH_TOKEN
 ```
 
-Los paquetes de evidencia recogen contexto seguro de lanzamiento, artefacto, aprobación, política, seguridad, despliegue, referencia de registro, evento y auditoría. Los valores tipo secreto se redactan antes de la exportación; el almacenamiento externo de auditoría inmutable y los trabajos de aplicación de retención permanecen como trabajo futuro.
+Los paquetes de evidencia recopilan contexto seguro de lanzamiento, artefacto, aprobación, política, seguridad, despliegue, referencia de registro, evento y auditoría. Los valores similares a secretos se redactan antes de la exportación; el almacenamiento externo inmutable de auditoría y los trabajos de aplicación de retención siguen siendo trabajo futuro.
 
 ## Documentación
 
 | Documento | Propósito |
 |---|---|
 | [PROJECT_CHARTER.md](PROJECT_CHARTER.md) | Propósito y principios del proyecto |
-| [ROADMAP.md](ROADMAP.md) | Hoja de ruta de alto nivel |
+| [ROADMAP.md](ROADMAP.md) | Roadmap de alto nivel |
 | [docs/README.md](docs/README.md) | Índice de documentación |
 | [docs/architecture/](docs/architecture/overview.md) | Modelo de arquitectura |
-| [docs/concepts/](docs/concepts/overview.md) | Conceptos centrales |
+| [docs/concepts/](docs/concepts/overview.md) | Conceptos principales |
 | [docs/product/](docs/product/vision.md) | Planificación de producto |
 | [docs/community/](docs/community/governance.md) | Contribución y gobernanza |
 | [docs/rfcs/](docs/rfcs/README.md) | Proceso RFC |
@@ -1251,23 +1251,23 @@ Los paquetes de evidencia recogen contexto seguro de lanzamiento, artefacto, apr
 
 ## Estrella polar de diseño
 
-Nivora se está construyendo para hacer los sistemas de entrega más coherentes. No asume una herramienta, una nube, un tiempo de ejecución o un modelo de despliegue.
+Nivora se está construyendo para hacer que los sistemas de entrega sean más coherentes. No asume una herramienta, una nube, una ejecución o un modelo de despliegue.
 
 El objetivo a largo plazo es proporcionar un plano de control de entrega donde:
 
 ```text
-pipelines are repeatable
-releases are artifact-based
-deployments are auditable
-policies are explicit
-runners are isolated
-integrations are replaceable
-events are observable
-rollback is traceable
+los pipelines son repetibles
+los lanzamientos se basan en artefactos
+los despliegues son auditables
+las políticas son explícitas
+los runners están aislados
+las integraciones son reemplazables
+los eventos son observables
+la reversión es trazable
 ```
 
-Nivora comienza pequeño. El primer hito no es soportar cada herramienta. El primer hito es construir la fundación correcta.
+Nivora comienza pequeño. El primer hito no es soportar todas las herramientas. El primer hito es construir la fundación correcta.
 
 ## Licencia
 
-Nivora está licenciado bajo la Apache License 2.0. Consulta [LICENSE](LICENSE).
+Nivora está licenciado bajo la Apache License 2.0. Consulte [LICENSE](LICENSE).

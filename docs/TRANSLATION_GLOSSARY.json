@@ -1,0 +1,719 @@
+{
+  "terms": [
+    {
+      "en": "control plane",
+      "domain": "architecture",
+      "zh": "控制平面",
+      "ja": "制御プレーン",
+      "ko": "제어 평면",
+      "es": "plano de control"
+    },
+    {
+      "en": "execution plane",
+      "domain": "architecture",
+      "zh": "执行平面",
+      "ja": "実行プレーン",
+      "ko": "실행 평면",
+      "es": "plano de ejecución"
+    },
+    {
+      "en": "delivery",
+      "domain": "core",
+      "zh": "交付",
+      "ja": "デリバリー",
+      "ko": "전달",
+      "es": "entrega"
+    },
+    {
+      "en": "delivery control plane",
+      "domain": "architecture",
+      "zh": "交付控制平面",
+      "ja": "デリバリー制御プレーン",
+      "ko": "전달 제어 평면",
+      "es": "plano de control de entrega"
+    },
+    {
+      "en": "pipeline",
+      "domain": "pipeline",
+      "zh": "流水线",
+      "ja": "パイプライン",
+      "ko": "파이프라인",
+      "es": "pipeline"
+    },
+    {
+      "en": "pipeline execution",
+      "domain": "pipeline",
+      "zh": "流水线执行",
+      "ja": "パイプライン実行",
+      "ko": "파이프라인 실행",
+      "es": "ejecución de pipeline"
+    },
+    {
+      "en": "stage",
+      "domain": "pipeline",
+      "zh": "阶段",
+      "ja": "ステージ",
+      "ko": "스테이지",
+      "es": "etapa"
+    },
+    {
+      "en": "job",
+      "domain": "pipeline",
+      "zh": "任务",
+      "ja": "ジョブ",
+      "ko": "작업",
+      "es": "trabajo"
+    },
+    {
+      "en": "step",
+      "domain": "pipeline",
+      "zh": "步骤",
+      "ja": "ステップ",
+      "ko": "단계",
+      "es": "paso"
+    },
+    {
+      "en": "workflow",
+      "domain": "pipeline",
+      "zh": "工作流",
+      "ja": "ワークフロー",
+      "ko": "워크플로우",
+      "es": "flujo de trabajo"
+    },
+    {
+      "en": "workflow engine",
+      "domain": "pipeline",
+      "zh": "工作流引擎",
+      "ja": "ワークフローエンジン",
+      "ko": "워크플로우 엔진",
+      "es": "motor de flujo de trabajo"
+    },
+    {
+      "en": "release",
+      "domain": "release",
+      "zh": "发布",
+      "ja": "リリース",
+      "ko": "릴리스",
+      "es": "lanzamiento"
+    },
+    {
+      "en": "release planning",
+      "domain": "release",
+      "zh": "发布规划",
+      "ja": "リリース計画",
+      "ko": "릴리스 계획",
+      "es": "planificación de lanzamiento"
+    },
+    {
+      "en": "deployment",
+      "domain": "deployment",
+      "zh": "部署",
+      "ja": "デプロイメント",
+      "ko": "배포",
+      "es": "despliegue"
+    },
+    {
+      "en": "deployment mode",
+      "domain": "deployment",
+      "zh": "部署模式",
+      "ja": "デプロイメントモード",
+      "ko": "배포 모드",
+      "es": "modo de despliegue"
+    },
+    {
+      "en": "rollback",
+      "domain": "deployment",
+      "zh": "回滚",
+      "ja": "ロールバック",
+      "ko": "롤백",
+      "es": "reversión"
+    },
+    {
+      "en": "runner",
+      "domain": "execution",
+      "zh": "运行器",
+      "ja": "ランナー",
+      "ko": "러너",
+      "es": "runner"
+    },
+    {
+      "en": "executor",
+      "domain": "execution",
+      "zh": "执行器",
+      "ja": "エグゼキューター",
+      "ko": "실행기",
+      "es": "executor"
+    },
+    {
+      "en": "runner manager",
+      "domain": "execution",
+      "zh": "运行器管理器",
+      "ja": "ランナーマネージャー",
+      "ko": "러너 매니저",
+      "es": "gestor de runners"
+    },
+    {
+      "en": "heartbeat",
+      "domain": "execution",
+      "zh": "心跳",
+      "ja": "ハートビート",
+      "ko": "하트비트",
+      "es": "latido"
+    },
+    {
+      "en": "artifact",
+      "domain": "artifact",
+      "zh": "制品",
+      "ja": "アーティファクト",
+      "ko": "아티팩트",
+      "es": "artefacto"
+    },
+    {
+      "en": "artifact registry",
+      "domain": "artifact",
+      "zh": "制品注册表",
+      "ja": "アーティファクトレジストリ",
+      "ko": "아티팩트 레지스트리",
+      "es": "registro de artefactos"
+    },
+    {
+      "en": "artifact traceability",
+      "domain": "artifact",
+      "zh": "制品可追溯性",
+      "ja": "アーティファクトの追跡可能性",
+      "ko": "아티팩트 추적성",
+      "es": "trazabilidad de artefactos"
+    },
+    {
+      "en": "immutable artifact",
+      "domain": "artifact",
+      "zh": "不可变制品",
+      "ja": "不変のアーティファクト",
+      "ko": "불변 아티팩트",
+      "es": "artefacto inmutable"
+    },
+    {
+      "en": "policy",
+      "domain": "policy",
+      "zh": "策略",
+      "ja": "ポリシー",
+      "ko": "정책",
+      "es": "política"
+    },
+    {
+      "en": "policy gate",
+      "domain": "policy",
+      "zh": "策略门禁",
+      "ja": "ポリシーゲート",
+      "ko": "정책 게이트",
+      "es": "puerta de política"
+    },
+    {
+      "en": "policy engine",
+      "domain": "policy",
+      "zh": "策略引擎",
+      "ja": "ポリシーエンジン",
+      "ko": "정책 엔진",
+      "es": "motor de política"
+    },
+    {
+      "en": "policy evaluation",
+      "domain": "policy",
+      "zh": "策略评估",
+      "ja": "ポリシー評価",
+      "ko": "정책 평가",
+      "es": "evaluación de política"
+    },
+    {
+      "en": "approval",
+      "domain": "policy",
+      "zh": "审批",
+      "ja": "承認",
+      "ko": "승인",
+      "es": "aprobación"
+    },
+    {
+      "en": "approval flow",
+      "domain": "policy",
+      "zh": "审批流程",
+      "ja": "承認フロー",
+      "ko": "승인 흐름",
+      "es": "flujo de aprobación"
+    },
+    {
+      "en": "audit",
+      "domain": "observability",
+      "zh": "审计",
+      "ja": "監査",
+      "ko": "감사",
+      "es": "auditoría"
+    },
+    {
+      "en": "audit record",
+      "domain": "observability",
+      "zh": "审计记录",
+      "ja": "監査記録",
+      "ko": "감사 기록",
+      "es": "registro de auditoría"
+    },
+    {
+      "en": "health check",
+      "domain": "observability",
+      "zh": "健康检查",
+      "ja": "ヘルスチェック",
+      "ko": "헬스 체크",
+      "es": "comprobación de salud"
+    },
+    {
+      "en": "dry-run",
+      "domain": "deployment",
+      "zh": "预演",
+      "ja": "dry-run",
+      "ko": "dry-run",
+      "es": "ejecución en seco"
+    },
+    {
+      "en": "observability",
+      "domain": "observability",
+      "zh": "可观测性",
+      "ja": "可観測性",
+      "ko": "관찰 가능성",
+      "es": "observabilidad"
+    },
+    {
+      "en": "diagnostic",
+      "domain": "observability",
+      "zh": "诊断",
+      "ja": "診断",
+      "ko": "진단",
+      "es": "diagnóstico"
+    },
+    {
+      "en": "metric",
+      "domain": "observability",
+      "zh": "指标",
+      "ja": "メトリクス",
+      "ko": "메트릭",
+      "es": "métrica"
+    },
+    {
+      "en": "trace",
+      "domain": "observability",
+      "zh": "追踪",
+      "ja": "トレース",
+      "ko": "트레이스",
+      "es": "traza"
+    },
+    {
+      "en": "log",
+      "domain": "observability",
+      "zh": "日志",
+      "ja": "ログ",
+      "ko": "로그",
+      "es": "registro"
+    },
+    {
+      "en": "event",
+      "domain": "observability",
+      "zh": "事件",
+      "ja": "イベント",
+      "ko": "이벤트",
+      "es": "evento"
+    },
+    {
+      "en": "timeline",
+      "domain": "observability",
+      "zh": "时间线",
+      "ja": "タイムライン",
+      "ko": "타임라인",
+      "es": "línea temporal"
+    },
+    {
+      "en": "runbook",
+      "domain": "observability",
+      "zh": "运维手册",
+      "ja": "ランブック",
+      "ko": "런북",
+      "es": "libro de jugadas"
+    },
+    {
+      "en": "dashboard",
+      "domain": "observability",
+      "zh": "仪表盘",
+      "ja": "ダッシュボード",
+      "ko": "대시보드",
+      "es": "panel"
+    },
+    {
+      "en": "orchestration",
+      "domain": "architecture",
+      "zh": "编排",
+      "ja": "オーケストレーション",
+      "ko": "오케스트레이션",
+      "es": "orquestación"
+    },
+    {
+      "en": "modular monolith",
+      "domain": "architecture",
+      "zh": "模块化单体",
+      "ja": "モジュラーモノリシック",
+      "ko": "모듈러 모노리스",
+      "es": "monolito modular"
+    },
+    {
+      "en": "port",
+      "domain": "architecture",
+      "zh": "端口",
+      "ja": "ポート",
+      "ko": "포트",
+      "es": "puerto"
+    },
+    {
+      "en": "adapter",
+      "domain": "architecture",
+      "zh": "适配器",
+      "ja": "アダプター",
+      "ko": "어댑터",
+      "es": "adaptador"
+    },
+    {
+      "en": "webhook",
+      "domain": "integration",
+      "zh": "webhook",
+      "ja": "ウェブフック",
+      "ko": "웹훅",
+      "es": "webhook"
+    },
+    {
+      "en": "source control",
+      "domain": "integration",
+      "zh": "源代码管理",
+      "ja": "ソース管理",
+      "ko": "소스 컨트롤",
+      "es": "control de fuentes"
+    },
+    {
+      "en": "CI execution",
+      "domain": "integration",
+      "zh": "CI 执行",
+      "ja": "CI 実行",
+      "ko": "CI 실행",
+      "es": "ejecución CI"
+    },
+    {
+      "en": "artifact storage",
+      "domain": "artifact",
+      "zh": "制品存储",
+      "ja": "アーティファクトストレージ",
+      "ko": "아티팩트 저장",
+      "es": "almacenamiento de artefactos"
+    },
+    {
+      "en": "host deployment",
+      "domain": "deployment",
+      "zh": "主机部署",
+      "ja": "ホストデプロイメント",
+      "ko": "호스트 배포",
+      "es": "despliegue en host"
+    },
+    {
+      "en": "cloud target",
+      "domain": "deployment",
+      "zh": "云目标",
+      "ja": "クラウドターゲット",
+      "ko": "클라우드 타겟",
+      "es": "objetivo en la nube"
+    },
+    {
+      "en": "change window",
+      "domain": "policy",
+      "zh": "变更窗口",
+      "ja": "変更ウィンドウ",
+      "ko": "변경 창",
+      "es": "ventana de cambio"
+    },
+    {
+      "en": "notification",
+      "domain": "observability",
+      "zh": "通知",
+      "ja": "通知",
+      "ko": "알림",
+      "es": "notificación"
+    },
+    {
+      "en": "token",
+      "domain": "security",
+      "zh": "令牌",
+      "ja": "トークン",
+      "ko": "토큰",
+      "es": "token"
+    },
+    {
+      "en": "credential",
+      "domain": "security",
+      "zh": "凭证",
+      "ja": "資格情報",
+      "ko": "자격 증명",
+      "es": "credencial"
+    },
+    {
+      "en": "secret",
+      "domain": "security",
+      "zh": "密钥",
+      "ja": "シークレット",
+      "ko": "비밀",
+      "es": "secreto"
+    },
+    {
+      "en": "redaction",
+      "domain": "security",
+      "zh": "脱敏",
+      "ja": "レダクション",
+      "ko": "적출",
+      "es": "redacción"
+    },
+    {
+      "en": "sandboxing",
+      "domain": "execution",
+      "zh": "沙箱",
+      "ja": "サンドボックス",
+      "ko": "샌드박싱",
+      "es": "aislamiento"
+    },
+    {
+      "en": "smoke test",
+      "domain": "testing",
+      "zh": "冒烟测试",
+      "ja": "スモークテスト",
+      "ko": "스모크 테스트",
+      "es": "prueba de humo"
+    },
+    {
+      "en": "multi-tenancy",
+      "domain": "architecture",
+      "zh": "多租户",
+      "ja": "マルチテナンシー",
+      "ko": "다중 테넌시",
+      "es": "multi-tenencia"
+    },
+    {
+      "en": "quota",
+      "domain": "architecture",
+      "zh": "配额",
+      "ja": "クォータ",
+      "ko": "할당량",
+      "es": "cuota"
+    },
+    {
+      "en": "compliance",
+      "domain": "security",
+      "zh": "合规",
+      "ja": "コンプライアンス",
+      "ko": "준수",
+      "es": "cumplimiento"
+    },
+    {
+      "en": "evidence",
+      "domain": "security",
+      "zh": "证据",
+      "ja": "証拠",
+      "ko": "증거",
+      "es": "evidencia"
+    },
+    {
+      "en": "evidence bundle",
+      "domain": "security",
+      "zh": "证据包",
+      "ja": "証拠バンドル",
+      "ko": "증거 번들",
+      "es": "paquete de evidencia"
+    },
+    {
+      "en": "visualization",
+      "domain": "core",
+      "zh": "可视化",
+      "ja": "可視化",
+      "ko": "시각화",
+      "es": "visualización"
+    },
+    {
+      "en": "plugin",
+      "domain": "integration",
+      "zh": "插件",
+      "ja": "プラグイン",
+      "ko": "플러그인",
+      "es": "plugin"
+    },
+    {
+      "en": "matrix",
+      "domain": "pipeline",
+      "zh": "矩阵",
+      "ja": "マトリックス",
+      "ko": "매트릭스",
+      "es": "matriz"
+    },
+    {
+      "en": "skeleton",
+      "domain": "core",
+      "zh": "骨架",
+      "ja": "スケルトン",
+      "ko": "스켈레톤",
+      "es": "esqueleto"
+    },
+    {
+      "en": "guardrail",
+      "domain": "architecture",
+      "zh": "护栏",
+      "ja": "ガードレール",
+      "ko": "가드레일",
+      "es": "barrera de protección"
+    },
+    {
+      "en": "verification",
+      "domain": "deployment",
+      "zh": "验证",
+      "ja": "検証",
+      "ko": "검증",
+      "es": "verificación"
+    },
+    {
+      "en": "event bus",
+      "domain": "architecture",
+      "zh": "事件总线",
+      "ja": "イベントバス",
+      "ko": "이벤트 버스",
+      "es": "bus de eventos"
+    },
+    {
+      "en": "object store",
+      "domain": "architecture",
+      "zh": "对象存储",
+      "ja": "オブジェクトストア",
+      "ko": "객체 저장소",
+      "es": "almacén de objetos"
+    },
+    {
+      "en": "integration",
+      "domain": "architecture",
+      "zh": "集成",
+      "ja": "統合",
+      "ko": "통합",
+      "es": "integración"
+    },
+    {
+      "en": "application",
+      "domain": "core",
+      "zh": "应用",
+      "ja": "アプリケーション",
+      "ko": "애플리케이션",
+      "es": "aplicación"
+    },
+    {
+      "en": "environment",
+      "domain": "core",
+      "zh": "环境",
+      "ja": "環境",
+      "ko": "환경",
+      "es": "entorno"
+    },
+    {
+      "en": "web console",
+      "domain": "core",
+      "zh": "Web 控制台",
+      "ja": "ウェブコンソール",
+      "ko": "웹 콘솔",
+      "es": "consola web"
+    },
+    {
+      "en": "pipeline run",
+      "domain": "pipeline",
+      "zh": "流水线运行",
+      "ja": "パイプライン実行",
+      "ko": "파이프라인 실행",
+      "es": "ejecución de pipeline"
+    },
+    {
+      "en": "production diagnostics",
+      "domain": "operations",
+      "zh": "生产诊断",
+      "ja": "本番診断",
+      "ko": "프로덕션 진단",
+      "es": "diagnóstico de producción"
+    }
+  ],
+  "notranslate": [
+    "Nivora",
+    "sevoniva",
+    "NIVORA_AUTH_TOKEN",
+    "NIVORA_TOKEN",
+    "RBAC",
+    "OIDC",
+    "CLI",
+    "API",
+    "MCP",
+    "OpenAPI",
+    "AsyncAPI",
+    "OCI",
+    "SBOM",
+    "SCM",
+    "SSO",
+    "ITSM",
+    "KMS",
+    "OPA",
+    "PostgreSQL",
+    "YAML",
+    "Helm",
+    "Kustomize",
+    "Docker",
+    "Kubernetes",
+    "SSH",
+    "HTTP",
+    "gRPC",
+    "REST",
+    "JSON-RPC",
+    "CloudEvents",
+    "NATS",
+    "Redis",
+    "MinIO",
+    "S3",
+    "Trivy",
+    "Cosign",
+    "Kyverno",
+    "Gatekeeper",
+    "GOPROXY",
+    "Vault",
+    "Jenkins",
+    "Argo CD",
+    "Harbor",
+    "Nexus",
+    "JFrog",
+    "Tekton",
+    "Prometheus",
+    "OpenTelemetry",
+    "GitHub Actions",
+    "GitLab CI",
+    "Makefile",
+    "Vite",
+    "PipelineRun",
+    "StageRun",
+    "JobRun",
+    "StepRun",
+    "DeploymentRun",
+    "AuditLog",
+    "LogChunk",
+    "ReleaseTarget",
+    "ReleasePlan",
+    "ReleaseExecution",
+    "WorkflowRun",
+    "DeploymentPlan",
+    "HostTarget",
+    "KubernetesTarget",
+    "HelmTarget",
+    "KustomizeTarget",
+    "ArgoCDTarget",
+    "CloudTarget",
+    "WebhookTarget",
+    "SecretRef",
+    "Credential"
+  ]
+}

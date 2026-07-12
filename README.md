@@ -19,6 +19,15 @@ Nivora is **not** Jenkins, Argo CD, Kubernetes, Harbor, a cloud control plane, o
 
 Current maturity: **hardened beta-candidate foundation**. Nivora is **not production-ready**. The repository has working backend foundations, PostgreSQL-backed stores for core runtime areas and control-plane catalog metadata, guarded deployment operations, RBAC tests, packaging assets, and verification scripts. Production use still needs more validation around runner isolation, live install/restore drills, external integrations, and production-scale operations.
 
+## Project Snapshot
+
+| Item | Details |
+| --- | --- |
+| Category | DevOps, CI/CD, GitOps, deployment, release audit |
+| Runtime | Go, PostgreSQL, Docker, Kubernetes-oriented tooling |
+| Status | Public beta-candidate foundation; not production-ready |
+| License | Apache-2.0; see [LICENSE](./LICENSE) |
+
 Future `v1.0.0` documents are planning checklists, not proof that GA has been reached. The current source of truth is [Capability Status](docs/status/CAPABILITY_STATUS.md), with historical audit context in [Implementation Audit](docs/status/IMPLEMENTATION_AUDIT.md).
 
 Enterprise-readiness tracking lives in [Enterprise Production Baseline](docs/status/ENTERPRISE_PRODUCTION_BASELINE.md), [Enterprise Readiness Matrix](docs/status/ENTERPRISE_READINESS_MATRIX.md), [Enterprise Production Readiness Review](docs/status/ENTERPRISE_PRODUCTION_READINESS_REVIEW.md), and [Enterprise Risk Register](docs/status/ENTERPRISE_RISK_REGISTER.md). These documents are release hardening evidence, not production approval.
